@@ -1,0 +1,396 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Dataform SQLX Config Block",
+  "description": "Configuration schema for the config block in Dataform .sqlx files",
+  "type": "object",
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": [
+        "table",
+        "view",
+        "incremental",
+        "assertion",
+        "operations",
+        "declaration"
+      ],
+      "description": "The type of action to create"
+    },
+    "bigquery": {
+      "description": "Options spécifiques BigQuery",
+      "type": "object",
+      "properties": {
+        "partitionBy": {
+          "description": "Clé ou configuration de partitionnement",
+          "oneOf": [
+            {
+              "type": "string",
+              "description": "Expression simple comme 'DATE(timestamp_col)'"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "description": "Nom de la colonne de partitionnement",
+                  "type": "string"
+                },
+                "dataType": {
+                  "description": "Type de données de la colonne",
+                  "type": "string",
+                  "enum": [
+                    "timestamp",
+                    "date",
+                    "datetime",
+                    "int64"
+                  ]
+                },
+                "granularity": {
+                  "description": "Granularité du partitionnement temporel",
+                  "type": "string",
+                  "enum": [
+                    "hour",
+                    "day",
+                    "month",
+                    "year"
+                  ]
+                }
+              },
+              "required": [
+                "field",
+                "dataType"
+              ]
+            }
+          ]
+        },
+        "clusterBy": {
+          "description": "Colonnes de clustering (max 4)",
+          "type": "array"
+        },
+        "requirePartitionFilter": {
+          "description": "Force un filtre WHERE sur la partition",
+          "type": "boolean"
+        },
+        "partitionExpirationDays": {
+          "description": "Jours avant expiration de la partition",
+          "type": "number"
+        },
+        "updatePartitionFilter": {
+          "description": "Filtre SQL pour les mises à jour incrementales",
+          "type": "string"
+        },
+        "labels": {
+          "description": "Labels BigQuery (key-value pairs)",
+          "type": "object"
+        },
+        "additionalOptions": {
+          "description": "Options BigQuery supplémentaires (ex: expiration_timestamp)",
+          "type": "object"
+        },
+        "iceberg": {
+          "description": "Options Apache Iceberg pour BigLake tables",
+          "type": "object",
+          "properties": {
+            "connection": {
+              "description": "Resource name de la connexion Cloud Storage",
+              "type": "string"
+            },
+            "file_format": {
+              "description": "Format de fichier (PARQUET uniquement)",
+              "type": "string",
+              "enum": [
+                "PARQUET"
+              ]
+            },
+            "bucket_name": {
+              "description": "Nom du bucket Cloud Storage",
+              "type": "string"
+            },
+            "table_folder_root": {
+              "description": "Dossier racine dans le bucket",
+              "type": "string"
+            },
+            "table_folder_subpath": {
+              "description": "Sous-dossier pour cette table",
+              "type": "string"
+            }
+          },
+          "required": [
+            "bucket_name"
+          ]
+        }
+      }
+    },
+    "name": {
+      "type": "string",
+      "description": "The name of the action"
+    },
+    "dataset": {
+      "type": "string",
+      "description": "The dataset (schema) of the action"
+    },
+    "schema": {
+      "type": "string",
+      "description": "Alias for dataset"
+    },
+    "project": {
+      "type": "string",
+      "description": "The Google Cloud project (database) of the action"
+    },
+    "database": {
+      "type": "string",
+      "description": "Alias for project"
+    },
+    "dependencies": {
+      "type": "array",
+      "description": "Actions that this action is dependent on",
+      "items": {
+        "type": [
+          "string",
+          "object"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "dataset": {
+            "type": "string"
+          },
+          "project": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "tags": {
+      "type": "array",
+      "description": "A list of user-defined tags with which the action should be labeled",
+      "items": {
+        "type": "string"
+      }
+    },
+    "disabled": {
+      "type": "boolean",
+      "description": "If set to true, this action will not be executed"
+    },
+    "description": {
+      "type": "string",
+      "description": "Description of the action"
+    },
+    "columns": {
+      "type": "object",
+      "description": "Descriptions of columns within the action",
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "description": {
+                "type": "string",
+                "description": "A text description of the column"
+              },
+              "tags": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Tags for this column"
+              },
+              "bigqueryPolicyTags": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "BigQuery policy tags to apply to the column"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "assertions": {
+      "type": "object",
+      "description": "Assertions to be run on the dataset",
+      "properties": {
+        "uniqueKey": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Column(s) which constitute the dataset's unique key index"
+        },
+        "uniqueKeys": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "description": "Multiple combinations of column(s), each of which should constitute a unique key"
+        },
+        "nonNull": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Column(s) which may never be NULL"
+        },
+        "rowConditions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "General condition(s) which should hold true for all rows"
+        }
+      }
+    },
+    "hermetic": {
+      "type": "boolean",
+      "description": "If true, indicates that the action only depends on data from explicitly-declared dependencies"
+    },
+    "dependOnDependencyAssertions": {
+      "type": "boolean",
+      "description": "When set to true, assertions dependent upon any dependency will be added as dependency to this action"
+    },
+    "partitionBy": {
+      "type": "string",
+      "description": "The key by which to partition the table (name of a timestamp or date column)"
+    },
+    "partitionExpirationDays": {
+      "type": "integer",
+      "description": "The number of days for which BigQuery stores data in each partition"
+    },
+    "requirePartitionFilter": {
+      "type": "boolean",
+      "description": "Declares whether the partitioned table requires a WHERE clause predicate filter"
+    },
+    "clusterBy": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "The keys by which to cluster partitions"
+    },
+    "labels": {
+      "type": "object",
+      "description": "Key-value pairs for BigQuery labels",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "additionalOptions": {
+      "type": "object",
+      "description": "Key-value pairs of additional options to pass to the BigQuery API",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "preOperations": {
+      "oneOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "description": "Queries to run before the main query"
+    },
+    "postOperations": {
+      "oneOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "description": "Queries to run after the main query"
+    },
+    "materialized": {
+      "type": "boolean",
+      "description": "Applies the materialized view optimization (views only)"
+    },
+    "protected": {
+      "type": "boolean",
+      "description": "If true, prevents the dataset from being rebuilt from scratch (incremental only)"
+    },
+    "uniqueKey": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Column names that will act as the unique key for merging (incremental only)"
+    },
+    "updatePartitionFilter": {
+      "type": "string",
+      "description": "SQL-based filter for when incremental updates are applied (incremental only)"
+    },
+    "onSchemaChange": {
+      "type": "string",
+      "enum": [
+        "ignore",
+        "fail",
+        "extend",
+        "synchronize"
+      ],
+      "description": "Defines the action behavior if the selected columns don't match columns in the target table (incremental only)"
+    },
+    "hasOutput": {
+      "type": "boolean",
+      "description": "Declares that this action creates a dataset which should be referenceable as a dependency (operations only)"
+    },
+    "iceberg": {
+      "type": "object",
+      "description": "Configuration options for an Iceberg table",
+      "properties": {
+        "fileFormat": {
+          "type": "string",
+          "enum": [
+            "PARQUET"
+          ],
+          "description": "The file format for the BigQuery table"
+        },
+        "connection": {
+          "type": "string",
+          "description": "The connection specifying the credentials to be used to read and write to external storage"
+        },
+        "bucketName": {
+          "type": "string",
+          "description": "The name of the Cloud Storage bucket where table data is stored"
+        },
+        "tableFolderRoot": {
+          "type": "string",
+          "description": "The name of the first-level folder inside the Cloud Storage bucket"
+        },
+        "tableFolderSubpath": {
+          "type": "string",
+          "description": "The path under the first-level folder of the Cloud Storage bucket"
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Metadata for this action",
+      "properties": {
+        "overview": {
+          "type": "string",
+          "description": "A detailed description of the data object"
+        },
+        "extraProperties": {
+          "type": "object",
+          "description": "Extra properties of the data object"
+        }
+      }
+    }
+  }
+}

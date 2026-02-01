@@ -1,0 +1,97 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Dataform Workflow Settings",
+  "description": "Configuration schema for workflow_settings.yaml file in Dataform projects",
+  "type": "object",
+  "properties": {
+    "dataformCoreVersion": {
+      "type": "string",
+      "description": "The desired dataform core version to compile against"
+    },
+    "defaultProject": {
+      "type": "string",
+      "description": "Required. The default Google Cloud project (database)"
+    },
+    "defaultDataset": {
+      "type": "string",
+      "description": "Required. The default dataset (schema)"
+    },
+    "defaultLocation": {
+      "type": "string",
+      "description": "Required. The default BigQuery location to use"
+    },
+    "defaultAssertionDataset": {
+      "type": "string",
+      "description": "Required. The default dataset (schema) for assertions"
+    },
+    "vars": {
+      "type": "object",
+      "description": "Optional. User-defined variables that are made available to project code during compilation",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "projectSuffix": {
+      "type": "string",
+      "description": "Optional. The suffix to append to all Google Cloud project references"
+    },
+    "datasetSuffix": {
+      "type": "string",
+      "description": "Optional. The suffix to append to all dataset references"
+    },
+    "namePrefix": {
+      "type": "string",
+      "description": "Optional. The prefix to append to all action names"
+    },
+    "defaultNotebookRuntimeOptions": {
+      "type": "object",
+      "description": "Optional. Default runtime options for Notebook actions",
+      "properties": {
+        "outputBucket": {
+          "type": "string",
+          "description": "Storage bucket to output notebooks to after their execution"
+        },
+        "runtimeTemplateName": {
+          "type": "string",
+          "description": "Colab runtime template from which a runtime is created for notebook executions"
+        }
+      }
+    },
+    "builtinAssertionNamePrefix": {
+      "type": "string",
+      "description": "Optional. The prefix to append to built-in assertion names"
+    },
+    "defaultIcebergConfig": {
+      "type": "object",
+      "description": "Optional. Default config options for Iceberg tables",
+      "properties": {
+        "bucketName": {
+          "type": "string",
+          "description": "Bucket name used to construct a storage URI when creating an Iceberg table"
+        },
+        "tableFolderRoot": {
+          "type": "string",
+          "description": "Table folder root used to construct a storage URI when creating an Iceberg table"
+        },
+        "tableFolderSubpath": {
+          "type": "string",
+          "description": "Table folder subpath used to construct a storage URI when creating an Iceberg table"
+        },
+        "connection": {
+          "type": "string",
+          "description": "The connection specifying the credentials to be used to read and write to external storage"
+        }
+      }
+    },
+    "disableAssertions": {
+      "type": "boolean",
+      "description": "Optional. Disables all assertions including built-in assertions (uniqueKey, nonNull, rowConditions) and manual assertions (type: assertion)"
+    }
+  },
+  "required": [
+    "defaultProject",
+    "defaultDataset",
+    "defaultLocation",
+    "defaultAssertionDataset"
+  ]
+}

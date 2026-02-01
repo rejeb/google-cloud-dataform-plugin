@@ -1,0 +1,123 @@
+<!--
+        * Licensed to the Apache Software Foundation (ASF) under one or more
+        * contributor license agreements.  See the NOTICE file distributed with
+        * this work for additional information regarding copyright ownership.
+        * The ASF licenses this file to You under the Apache License, Version 2.0
+        * (the "License"); you may not use this file except in compliance with
+        * the License.  You may obtain a copy of the License at
+        *
+        *    http://www.apache.org/licenses/LICENSE-2.0
+        *
+        * Unless required by applicable law or agreed to in writing, software
+        * distributed under the License is distributed on an "AS IS" BASIS,
+        * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+        * See the License for the specific language governing permissions and
+        * limitations under the License.
+        */
+        -->
+<idea-plugin>
+    <id>io.github.rejeb.gcp-dataform-plugin</id>
+
+    <name>Google Cloud Dataform</name>
+
+    <vendor url="https://github.com/rejeb">rbenrejeb</vendor>
+
+    <description><![CDATA[
+        Plugin to develop using google cloud dataform.<br>
+        <em>Google Cloud, Dataform, BigQuery, SQLX, Javascript</em>
+    ]]></description>
+
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>JavaScript</depends>
+    <depends>com.intellij.java</depends>
+    <depends>com.intellij.database</depends>
+    <depends>com.intellij.modules.json</depends>
+    <depends>org.jetbrains.plugins.yaml</depends>
+
+    <extensions defaultExtensionNs="JavaScript.JsonSchema">
+        <ProviderFactory
+                implementation="io.github.rejeb.dataform.language.completion.DataformJsonSchemaProviderFactory"/>
+    </extensions>
+    <extensions defaultExtensionNs="com.intellij">
+        <compiler.task execute="BEFORE"
+                       implementation="io.github.rejeb.dataform.language.compilation.DataformCompileBeforeTask"/>
+        <moduleBuilder builderClass="io.github.rejeb.dataform.projectWizard.DataformModuleBuilder"/>
+        <postStartupActivity
+                order="first"
+                implementation="io.github.rejeb.dataform.setup.NodeJsInstaller" />
+        <postStartupActivity
+                order="last"
+                implementation="io.github.rejeb.dataform.setup.DataformInstaller"/>
+
+        <backgroundPostStartupActivity
+                implementation="io.github.rejeb.dataform.language.startup.DataformProjectStartup"/>
+
+        <fileType name="SQLX"
+                  implementationClass="io.github.rejeb.dataform.language.SqlxFileType"
+                  fieldName="INSTANCE"
+                  language="SQLX"
+                  extensions="sqlx"/>
+
+        <fileType.fileViewProviderFactory
+                filetype="SQLX"
+                implementationClass="io.github.rejeb.dataform.language.SqlxFileViewProviderFactory"/>
+
+        <lang.parserDefinition
+                language="SQLX"
+                implementationClass="io.github.rejeb.dataform.language.parser.SqlxParserDefinition"/>
+
+        <lang.parserDefinition
+                language="SQLX"
+                implementationClass="io.github.rejeb.dataform.language.parser.SqlxParserDefinition"/>
+
+        <multiHostInjector implementation="io.github.rejeb.dataform.language.injection.SqlxSqlInjector"/>
+
+        <multiHostInjector
+                implementation="io.github.rejeb.dataform.language.injection.SqlxConfigInjector"/>
+
+        <multiHostInjector
+                implementation="io.github.rejeb.dataform.language.injection.SqlxJsInjector"/>
+
+        <multiHostInjector
+                implementation="io.github.rejeb.dataform.language.injection.SqlxTemplateInjector"/>
+
+        <multiHostInjector
+                implementation="io.github.rejeb.dataform.language.injection.SqlxConfigReferenceTemplateInjector"/>
+
+        <psi.referenceContributor
+                language="JavaScript"
+                implementation="io.github.rejeb.dataform.language.reference.DataformBuiltinFunctionReferenceContributor"/>
+
+        <psi.referenceContributor
+                language="JavaScript"
+                implementation="io.github.rejeb.dataform.language.reference.DataformIncludeNameOnlyReferenceContributor"/>
+
+        <completion.contributor
+                language="JavaScript"
+                implementationClass="io.github.rejeb.dataform.language.completion.DataformJsSymbolCompletionContributor"/>
+
+        <completion.contributor
+                language="SQLX"
+                implementationClass="io.github.rejeb.dataform.language.completion.DataformWorkflowSettingsCompletionContributor"/>
+
+        <psi.referenceContributor
+                language="JavaScript"
+                implementation="io.github.rejeb.dataform.language.reference.DataformRefReferenceContributor"/>
+
+        <psi.referenceContributor
+                language="JavaScript"
+                implementation="io.github.rejeb.dataform.language.reference.DataformTemplateReferenceContributor"/>
+
+        <notificationGroup id="Dataform.Notifications"
+                           displayType="BALLOON"
+                           isLogByDefault="true"
+        />
+
+    </extensions>
+    <projectListeners>
+        <listener
+                class="io.github.rejeb.dataform.language.listener.SqlxFileTypeListener"
+                topic="com.intellij.openapi.fileEditor.FileEditorManagerListener"/>
+    </projectListeners>
+</idea-plugin>
