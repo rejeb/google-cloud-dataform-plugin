@@ -30,8 +30,7 @@ import com.intellij.openapi.startup.ProjectActivity;
 import kotlin.Unit;
 import kotlin.coroutines.Continuation;
 import org.jetbrains.annotations.NotNull;
-import org.jspecify.annotations.NonNull;
-import org.jspecify.annotations.Nullable;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -44,12 +43,12 @@ public class DataformInstaller implements ProjectActivity {
 
 
     @Override
-    public @Nullable Object execute(@NonNull Project project, @NonNull Continuation<? super Unit> continuation) {
+    public @Nullable Object execute(@NotNull Project project, @NotNull Continuation<? super Unit> continuation) {
         NodeInterpreterManager nodeInterpreterManager = NodeInterpreterManager.getInstance(project);
-        if (nodeInterpreterManager.getNodeInstallDir() != null) {
+        if (nodeInterpreterManager.nodeInstallDir() != null) {
             DataformInterpreterManager dataformInterpreterManager = DataformInterpreterManager.getInstance(project);
             if (dataformInterpreterManager.dataformCorePath().isEmpty()) {
-               return installDataformLibs(project, nodeInterpreterManager);
+                return installDataformLibs(project, nodeInterpreterManager);
             }
         }
         return false;
@@ -57,7 +56,7 @@ public class DataformInstaller implements ProjectActivity {
 
     private boolean installDataformLibs(Project project, NodeInterpreterManager nodeInterpreterManager) {
         LOG.debug("Installing Dataform CLI...");
-        if (nodeInterpreterManager.getNodeInstallDir() == null) {
+        if (nodeInterpreterManager.nodeInstallDir() == null) {
             showErrorNotification(project, "npm not found. Please install Node.js first.");
             return false;
         } else {
@@ -80,9 +79,9 @@ public class DataformInstaller implements ProjectActivity {
                         indicator.setText("Installing Dataform CLI and Core via npm...");
                         indicator.setIndeterminate(true);
 
-                        File npmFile = nodeInterpreterManager.getNpmExecutable().toFile();
-                        File nodeBinDir = nodeInterpreterManager.getNodeInstallDir().resolve("bin").toFile();
-                        File nodeModulesDir = nodeInterpreterManager.getNodeInstallDir().toFile();
+                        File npmFile = nodeInterpreterManager.npmExecutable().toFile();
+                        File nodeBinDir = nodeInterpreterManager.nodeBinDir().toFile();
+                        File nodeModulesDir = nodeInterpreterManager.nodeInstallDir().toFile();
 
                         ProcessBuilder pb = new ProcessBuilder(
                                 npmFile.getAbsolutePath(),

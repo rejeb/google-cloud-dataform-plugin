@@ -48,7 +48,7 @@ public class DataformInterpreterManager {
     }
 
     public synchronized static DataformInterpreterManager getInstance(@NotNull Project project) {
-        if (INSTANCE == null) {
+        if (INSTANCE == null || INSTANCE.dataformCorePath().isEmpty()) {
             INSTANCE = new DataformInterpreterManager(project);
         }
         return INSTANCE;
@@ -83,7 +83,7 @@ public class DataformInterpreterManager {
 
     private Optional<Path> findDataformLibRootDir() {
         NodeInterpreterManager nodeInterpreterManager = NodeInterpreterManager.getInstance(project);
-        Path nodeModulesDir = nodeInterpreterManager.getNodeModulesDir();
+        Path nodeModulesDir = nodeInterpreterManager.nodeModulesDir();
         if (nodeModulesDir == null) {
             return Optional.empty();
         }

@@ -34,8 +34,7 @@ import com.intellij.util.system.CpuArch;
 import kotlin.Unit;
 import kotlin.coroutines.Continuation;
 import org.jetbrains.annotations.NotNull;
-import org.jspecify.annotations.NonNull;
-import org.jspecify.annotations.Nullable;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.BufferedReader;
 import java.io.FileOutputStream;
@@ -62,9 +61,9 @@ public class NodeJsInstaller implements ProjectActivity {
 
 
     @Override
-    public @Nullable Object execute(@NonNull Project project, @NonNull Continuation<? super Unit> continuation) {
+    public @Nullable Object execute(@NotNull Project project, @NotNull Continuation<? super Unit> continuation) {
         NodeInterpreterManager nodeInterpreterManager = NodeInterpreterManager.getInstance(project);
-        if (nodeInterpreterManager.getNodeInstallDir() == null) {
+        if (nodeInterpreterManager.nodeInstallDir() == null) {
             return installAndConfigure(project);
         }
         return null;

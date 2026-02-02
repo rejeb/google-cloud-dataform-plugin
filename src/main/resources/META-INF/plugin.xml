@@ -43,6 +43,7 @@
         <compiler.task execute="BEFORE"
                        implementation="io.github.rejeb.dataform.language.compilation.DataformCompileBeforeTask"/>
         <moduleBuilder builderClass="io.github.rejeb.dataform.projectWizard.DataformModuleBuilder"/>
+
         <postStartupActivity
                 order="first"
                 implementation="io.github.rejeb.dataform.setup.NodeJsInstaller" />

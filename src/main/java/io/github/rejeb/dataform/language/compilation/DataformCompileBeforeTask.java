@@ -23,6 +23,7 @@ import com.intellij.openapi.compiler.CompileTask;
 import com.intellij.openapi.compiler.CompilerMessageCategory;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Key;
+import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.vfs.VirtualFile;
 import io.github.rejeb.dataform.setup.DataformInterpreterManager;
 import io.github.rejeb.dataform.setup.NodeInterpreterManager;
@@ -41,13 +42,12 @@ public final class DataformCompileBeforeTask implements CompileTask {
         if (context.isAutomake() || dataformCliDir.isEmpty()) {
             return true;
         }
-
+        String dataformCliCmd = SystemInfo.isWindows ? "dataform.cmd": "dataform" ;
         Project project = context.getProject();
         Path nodeBinDir = NodeInterpreterManager
                 .getInstance(context.getProject())
-                .getNodeInstallDir()
-                .resolve("bin");
-        String dataformExecutable = nodeBinDir.resolve("dataform").toAbsolutePath().toString();
+                .nodeBinDir();
+        String dataformExecutable = nodeBinDir.resolve(dataformCliCmd).toAbsolutePath().toString();
 
         GeneralCommandLine cmd = new GeneralCommandLine(dataformExecutable, "compile")
                 .withWorkDirectory(project.getBasePath());
