@@ -35,6 +35,7 @@ import io.github.rejeb.dataform.language.index.DataformJsFileIndex;
 import io.github.rejeb.dataform.language.psi.SqlxFile;
 import io.github.rejeb.dataform.language.service.DataformCoreIndexService;
 import io.github.rejeb.dataform.language.service.DataformFunctionCompletionObject;
+import io.github.rejeb.dataform.language.service.WorkflowSettingsService;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -45,9 +46,7 @@ import java.util.Map;
 public class DataformJsSymbolCompletionContributorProvider extends CompletionProvider<CompletionParameters> {
 
     @Override
-    protected void addCompletions(@NotNull CompletionParameters parameters,
-                                  @NotNull ProcessingContext context,
-                                  @NotNull CompletionResultSet result) {
+    protected void addCompletions(@NotNull CompletionParameters parameters, @NotNull ProcessingContext context, @NotNull CompletionResultSet result) {
 
         PsiElement position = parameters.getPosition();
         PsiFile originalFile = parameters.getOriginalFile();
@@ -56,11 +55,9 @@ public class DataformJsSymbolCompletionContributorProvider extends CompletionPro
             return;
         }
 
-        PsiFile topLevelFile = InjectedLanguageManager.getInstance(position.getProject())
-                .getTopLevelFile(position);
+        PsiFile topLevelFile = InjectedLanguageManager.getInstance(position.getProject()).getTopLevelFile(position);
 
-        if (!(topLevelFile instanceof SqlxFile) &&
-                !(topLevelFile instanceof JSFile)) {
+        if (!(topLevelFile instanceof SqlxFile) && !(topLevelFile instanceof JSFile)) {
             return;
         }
 
@@ -75,7 +72,7 @@ public class DataformJsSymbolCompletionContributorProvider extends CompletionPro
         Project project = position.getProject();
         result.addAllElements(handleFileNameCompletion(project));
         result.addAllElements(handleBuiltinFunctions(project));
-
+        result.addAllElements(handleDataformWorkflowSettings(project));
     }
 
     private boolean isAfterDot(PsiElement position) {
@@ -89,50 +86,66 @@ public class DataformJsSymbolCompletionContributorProvider extends CompletionPro
 
     private List<LookupElement> handleFileNameCompletion(Project project) {
 
-        Map<String, List<DataformJsFileIndex.IncludeExport>> exportsByFile =
-                DataformJsFileIndex.getAllExports(project);
+        Map<String, List<DataformJsFileIndex.IncludeExport>> exportsByFile = DataformJsFileIndex.getAllExports(project);
 
         List<LookupElement> resultElements = new ArrayList<>();
         for (String fileName : exportsByFile.keySet()) {
-            resultElements.add(
-                    LookupElementBuilder.create(fileName)
-                            .withTypeText("include")
-                            .withIcon(AllIcons.FileTypes.JavaScript)
-                            .withInsertHandler((ctx, item) -> {
+            resultElements.add(LookupElementBuilder
+                    .create(fileName)
+                    .withTypeText("include")
+                    .withIcon(AllIcons.FileTypes.JavaScript)
+                    .withInsertHandler((ctx, item) -> {
 
-                                Editor editor = ctx.getEditor();
-                                int offset = editor.getCaretModel().getOffset();
-                                editor.getDocument().insertString(offset, ".");
-                                editor.getCaretModel().moveToOffset(offset + 1);
+                Editor editor = ctx.getEditor();
+                int offset = editor.getCaretModel().getOffset();
+                editor.getDocument().insertString(offset, ".");
+                editor.getCaretModel().moveToOffset(offset + 1);
 
 
-                                AutoPopupController.getInstance(ctx.getProject())
-                                        .scheduleAutoPopup(editor);
-                            })
-            );
+                AutoPopupController.getInstance(ctx.getProject()).scheduleAutoPopup(editor);
+            }));
         }
         return resultElements;
     }
 
     private List<LookupElement> handleBuiltinFunctions(Project project) {
-        Collection<DataformFunctionCompletionObject> functions =
-                DataformCoreIndexService.getInstance(project).getCachedDataformFunctionsForCompletion();
+        Collection<DataformFunctionCompletionObject> functions = DataformCoreIndexService.getInstance(project).getCachedDataformFunctionsForCompletion();
         List<LookupElement> resultElements = new ArrayList<>();
         for (DataformFunctionCompletionObject function : functions) {
-            resultElements.add(LookupElementBuilder.create(function.name())
-                    .withTypeText("Dataform")
-                    .withIcon(AllIcons.Nodes.Function)
-                    .withInsertHandler((insertContext, item) -> {
-                        if (!function.signature().isEmpty()) {
-                            Editor editor = insertContext.getEditor();
-                            int offset = editor.getCaretModel().getOffset();
-                            editor.getDocument().insertString(offset, "()");
-                            editor.getCaretModel().moveToOffset(offset + 1);
-                        }
-                    })
-                    .withTailText(function.signature(), true)
-                    .withBoldness(true));
+            resultElements.add(LookupElementBuilder.create(function.name()).withTypeText("Dataform").withIcon(AllIcons.Nodes.Function).withInsertHandler((insertContext, item) -> {
+                if (!function.signature().isEmpty()) {
+                    Editor editor = insertContext.getEditor();
+                    int offset = editor.getCaretModel().getOffset();
+                    editor.getDocument().insertString(offset, "()");
+                    editor.getCaretModel().moveToOffset(offset + 1);
+                }
+            }).withTailText(function.signature(), true).withBoldness(true));
 
+        }
+        return resultElements;
+    }
+
+    private List<LookupElement> handleDataformWorkflowSettings(Project project) {
+        List<LookupElement> resultElements = new ArrayList<>();
+        WorkflowSettingsService service = WorkflowSettingsService.getInstance(project);
+        Collection<String> properties = service.getPropertiesForPrefix(null);
+
+        for (String property : properties) {
+            LookupElementBuilder element = LookupElementBuilder.create(property).withTypeText("workflow_settings.yaml").withIcon(com.intellij.icons.AllIcons.Nodes.Variable);
+            WorkflowSettingsService.WorkflowSettingsProperty prop = service.getWorkflowProperties().get(property);
+
+            if (prop != null && prop.hasChildren()) {
+                element = element.withInsertHandler((ctx, item) -> {
+                    Editor editor = ctx.getEditor();
+                    int offset = editor.getCaretModel().getOffset();
+                    editor.getDocument().insertString(offset, ".");
+                    editor.getCaretModel().moveToOffset(offset + 1);
+                    AutoPopupController.getInstance(ctx.getProject()).scheduleAutoPopup(editor);
+                });
+            }
+
+
+            resultElements.add(element);
         }
         return resultElements;
     }

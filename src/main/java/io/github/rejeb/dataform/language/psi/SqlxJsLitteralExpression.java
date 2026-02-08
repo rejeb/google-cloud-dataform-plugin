@@ -45,14 +45,11 @@ public class SqlxJsLitteralExpression extends ASTWrapperPsiElement implements Ps
         return new LiteralTextEscaper<>(this) {
 
             @Override
-            public boolean decode(@NotNull TextRange rangeInsideHost,
-                                  @NotNull StringBuilder outChars) {
+            public boolean decode(@NotNull TextRange rangeInsideHost, @NotNull StringBuilder outChars) {
                 String text = myHost.getText();
 
-                if (rangeInsideHost.getStartOffset() < 0 ||
-                        rangeInsideHost.getEndOffset() > text.length()) {
-                    System.err.println("Invalid range for decode: " + rangeInsideHost +
-                            " for text length: " + text.length());
+                if (rangeInsideHost.getStartOffset() < 0 || rangeInsideHost.getEndOffset() > text.length()) {
+                    System.err.println("Invalid range for decode: " + rangeInsideHost + " for text length: " + text.length());
                     return false;
                 }
 
@@ -63,13 +60,11 @@ public class SqlxJsLitteralExpression extends ASTWrapperPsiElement implements Ps
             }
 
             @Override
-            public int getOffsetInHost(int offsetInDecoded,
-                                       @NotNull TextRange rangeInsideHost) {
+            public int getOffsetInHost(int offsetInDecoded, @NotNull TextRange rangeInsideHost) {
                 int result = offsetInDecoded + rangeInsideHost.getStartOffset();
 
                 if (result < 0 || result > myHost.getTextLength()) {
-                    System.err.println("Invalid offset calculation: " + result +
-                            " for text length: " + myHost.getTextLength());
+                    System.err.println("Invalid offset calculation: " + result + " for text length: " + myHost.getTextLength());
                     return rangeInsideHost.getStartOffset();
                 }
 
@@ -80,10 +75,6 @@ public class SqlxJsLitteralExpression extends ASTWrapperPsiElement implements Ps
             @Override
             public TextRange getRelevantTextRange() {
                 String text = myHost.getText();
-
-                if (text.startsWith("${") && text.endsWith("}") && text.length() > 3) {
-                    return new TextRange(2, text.length() - 1);
-                }
 
                 return new TextRange(0, text.length());
             }

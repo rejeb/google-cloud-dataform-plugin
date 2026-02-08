@@ -16,9 +16,11 @@
  */
 package io.github.rejeb.dataform.language.startup;
 
+import com.intellij.codeInspection.ex.InspectionProfileImpl;
 import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.startup.ProjectActivity;
+import com.intellij.profile.codeInspection.InspectionProfileManager;
 import kotlin.Unit;
 import kotlin.coroutines.Continuation;
 import org.jetbrains.annotations.NotNull;
@@ -29,8 +31,21 @@ public class DataformProjectStartup implements ProjectActivity {
     @Nullable
     @Override
     public Object execute(@NotNull Project project, @NotNull Continuation<? super Unit> continuation) {
+//        disableSqlResolveInspection(project);
         DumbService.getInstance(project).runWhenSmart(() -> {
         });
         return null;
     }
+
+//    private static void disableSqlResolveInspection(Project project) {
+//        InspectionProfileManager profileManager = InspectionProfileManager.getInstance(project);
+//        InspectionProfileImpl profile = profileManager.getCurrentProfile();
+//
+//        // Désactive l'inspection SqlResolve
+//        profile.setToolEnabled("SqlResolve", false);
+//        profile.setToolEnabled("SqlUnresolvedReference", false);
+//
+//        // Si vous voulez désactiver toutes les inspections SQL
+//        profile.setToolEnabled("SqlNoDataSourceInspection", false);
+//    }
 }

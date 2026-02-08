@@ -1,12 +1,12 @@
 /*
  * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
+ * contributor license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
  * The ASF licenses this file to You under the Apache License, Version 2.0
  * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
+ * the License. You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,10 +25,15 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public class SqlxConfigLexer extends LexerBase {
+
+    // États du lexer
     private static final int STATE_INITIAL = 0;
     private static final int STATE_IN_VALUE = 1;
-    private static final int STATE_IN_DOUBLE_STRING = 2;
-    private static final int STATE_IN_SINGLE_STRING = 3;
+
+    // Caractères spéciaux
+    public static final char DOUBLE_QUOTE = '"';
+    public static final char SINGLE_QUOTE = '\'';
+    public static final char BACKTICK = '`';
 
     private CharSequence buffer;
     private int endOffset;
@@ -93,14 +98,6 @@ public class SqlxConfigLexer extends LexerBase {
     }
 
     private void locateToken() {
-        if (state == STATE_IN_DOUBLE_STRING) {
-            continueStringContent('"');
-            return;
-        }
-        if (state == STATE_IN_SINGLE_STRING) {
-            continueStringContent('\'');
-            return;
-        }
 
         skipWhitespace();
 
@@ -143,22 +140,26 @@ public class SqlxConfigLexer extends LexerBase {
                 currentTokenEnd = ++currentPosition;
                 state = STATE_IN_VALUE;
                 break;
-            case '"':
-                lexDoubleQuotedString();
-                state = (state == STATE_IN_DOUBLE_STRING) ? state : STATE_INITIAL;
+
+            case DOUBLE_QUOTE:
+                lexString(DOUBLE_QUOTE, JsonElementTypes.DOUBLE_QUOTED_STRING);
                 break;
-            case '\'':
-                lexSingleQuotedString();
-                state = (state == STATE_IN_SINGLE_STRING) ? state : STATE_INITIAL;
+            case SINGLE_QUOTE:
+                lexString(SINGLE_QUOTE, JsonElementTypes.SINGLE_QUOTED_STRING);
                 break;
+            case BACKTICK:
+                lexString(BACKTICK, SharedTokenTypes.JS_LITTERAL);
+                break;
+
             case '$':
-                if (state == STATE_IN_VALUE) {
-                    lexJsReference(null);
+                if (state == STATE_IN_VALUE || canStartJsExpression()) {
+                    lexJsReference(null, -1);
                 } else {
                     lexIdentifier();
                 }
                 state = STATE_INITIAL;
                 break;
+
             default:
                 if (state == STATE_IN_VALUE) {
                     lexValue();
@@ -193,7 +194,6 @@ public class SqlxConfigLexer extends LexerBase {
         }
 
         String tokenText = buffer.subSequence(start, currentPosition).toString();
-
         if ("true".equals(tokenText) || "false".equals(tokenText)) {
             currentTokenType = JsonElementTypes.BOOLEAN_LITERAL;
         } else if ("null".equals(tokenText)) {
@@ -203,161 +203,15 @@ public class SqlxConfigLexer extends LexerBase {
         } else {
             currentTokenType = SharedTokenTypes.JS_LITTERAL;
         }
-
         currentTokenEnd = currentPosition;
     }
 
-    private void lexDoubleQuotedString() {
-        currentPosition++;
-
-        while (currentPosition < endOffset) {
-            char c = buffer.charAt(currentPosition);
-
-            if (c == '"') {
-
-                currentPosition++;
-                currentTokenType = JsonElementTypes.DOUBLE_QUOTED_STRING;
-                currentTokenEnd = currentPosition;
-                return;
-            }
-
-            if (c == '\\' && currentPosition + 1 < endOffset) {
-
-                currentPosition += 2;
-                continue;
-            }
-
-            if (c == '$' && currentPosition + 1 < endOffset) {
-                char next = buffer.charAt(currentPosition + 1);
-
-                if (next == '{' || Character.isLetterOrDigit(next)) {
-
-
-                    currentTokenType = JsonElementTypes.DOUBLE_QUOTED_STRING;
-                    currentTokenEnd = currentPosition;
-                    state = STATE_IN_DOUBLE_STRING;
-                    return;
-                }
-            }
-
-            currentPosition++;
-        }
-
-
-        currentTokenType = JsonElementTypes.DOUBLE_QUOTED_STRING;
-        currentTokenEnd = currentPosition;
-    }
-
-    private void lexSingleQuotedString() {
-        currentPosition++;
-
-        while (currentPosition < endOffset) {
-            char c = buffer.charAt(currentPosition);
-
-            if (c == '\'') {
-                currentPosition++;
-                currentTokenType = JsonElementTypes.SINGLE_QUOTED_STRING;
-                currentTokenEnd = currentPosition;
-                return;
-            }
-
-            if (c == '\\' && currentPosition + 1 < endOffset) {
-                currentPosition += 2;
-                continue;
-            }
-
-            if (c == '$' && currentPosition + 1 < endOffset) {
-                char next = buffer.charAt(currentPosition + 1);
-
-                if (next == '{' || Character.isLetterOrDigit(next)) {
-                    currentTokenType = JsonElementTypes.SINGLE_QUOTED_STRING;
-                    currentTokenEnd = currentPosition;
-                    state = STATE_IN_SINGLE_STRING;
-                    return;
-                }
-            }
-
-            currentPosition++;
-        }
-
-        currentTokenType = JsonElementTypes.SINGLE_QUOTED_STRING;
-        currentTokenEnd = currentPosition;
-    }
-
-    private void continueStringContent(char quoteChar) {
-        if (currentPosition >= endOffset) {
-            currentTokenType = null;
-            currentTokenEnd = endOffset;
-            state = STATE_INITIAL;
-            return;
-        }
-
-        if (buffer.charAt(currentPosition) == '$' && currentPosition + 1 < endOffset) {
-            char next = buffer.charAt(currentPosition + 1);
-            if (next == '{' || Character.isLetterOrDigit(next)) {
-                lexJsReference(quoteChar);
-                return;
-            }
-        }
-
-        int fragmentStart = currentPosition;
-
-        while (currentPosition < endOffset) {
-            char c = buffer.charAt(currentPosition);
-
-            if (c == quoteChar) {
-                // Fin de la string - inclure le guillemet fermant
-                currentPosition++;
-                currentTokenType = (quoteChar == '"')
-                        ? JsonElementTypes.DOUBLE_QUOTED_STRING
-                        : JsonElementTypes.SINGLE_QUOTED_STRING;
-                currentTokenEnd = currentPosition;
-                state = STATE_INITIAL;
-                return;
-            }
-
-            if (c == '\\' && currentPosition + 1 < endOffset) {
-                currentPosition += 2;
-                continue;
-            }
-
-            if (c == '$' && currentPosition + 1 < endOffset) {
-                char next = buffer.charAt(currentPosition + 1);
-
-                if (next == '{' || Character.isLetterOrDigit(next)) {
-                    // Émettre le fragment de texte accumulé
-                    if (currentPosition > fragmentStart) {
-                        currentTokenType = (quoteChar == '"')
-                                ? JsonElementTypes.DOUBLE_QUOTED_STRING
-                                : JsonElementTypes.SINGLE_QUOTED_STRING;
-                        currentTokenEnd = currentPosition;
-                        return;
-                    }
-                    lexJsReference(quoteChar);
-                    return;
-                }
-            }
-
-            currentPosition++;
-        }
-
-        if (currentPosition > fragmentStart) {
-            currentTokenType = (quoteChar == '"')
-                    ? JsonElementTypes.DOUBLE_QUOTED_STRING
-                    : JsonElementTypes.SINGLE_QUOTED_STRING;
-        } else {
-            currentTokenType = null;
-        }
-        currentTokenEnd = currentPosition;
-        state = STATE_INITIAL;
-    }
-
-    private void lexJsReference(Character quoteChar) {
+    private void lexJsReference(Character quoteChar, int returnState) {
         currentPosition++;
 
         if (currentPosition >= endOffset) {
             currentTokenType = TokenType.BAD_CHARACTER;
-            currentTokenEnd = currentPosition;
+            currentTokenEnd = ++currentPosition;
             return;
         }
 
@@ -366,6 +220,7 @@ public class SqlxConfigLexer extends LexerBase {
         if (c == '{') {
             int bracketCount = 1;
             currentPosition++;
+
             while (currentPosition < endOffset && bracketCount > 0) {
                 char ch = buffer.charAt(currentPosition);
                 if (ch == '{') {
@@ -376,57 +231,65 @@ public class SqlxConfigLexer extends LexerBase {
                 currentPosition++;
             }
             currentTokenType = SharedTokenTypes.TEMPLATE_EXPRESSION;
-            currentTokenEnd = currentPosition;
-        } else if (Character.isLetterOrDigit(c)) {
-            while (currentPosition < endOffset &&
-                    notReferenceExpressionEnd(quoteChar, buffer.charAt(currentPosition))) {
-                currentPosition++;
-            }
-            currentTokenType = SharedTokenTypes.REFERENCE_EXPRESSION;
-            currentTokenEnd = currentPosition;
-        } else {
+        }else {
             currentTokenType = TokenType.BAD_CHARACTER;
-            currentTokenEnd = currentPosition;
+            currentPosition++;
         }
+
+        currentTokenEnd = currentPosition;
+
         if (quoteChar != null) {
-            state = (quoteChar == '"') ? STATE_IN_DOUBLE_STRING : STATE_IN_SINGLE_STRING;
+            state = returnState;
+        } else {
+            state = STATE_INITIAL;
         }
     }
 
-    private boolean notReferenceExpressionEnd(Character quoteChar, char currentChar) {
-        if (quoteChar != null) {
-            return currentChar != quoteChar;
-        } else {
-            return currentChar != ',';
+    private void lexString(char coteChar, IElementType contentType) {
+        currentPosition++;
+
+        while (currentPosition < endOffset) {
+            char c = buffer.charAt(currentPosition);
+
+            if (c == coteChar) {
+                currentPosition++;
+                currentTokenType = contentType;
+                currentTokenEnd = currentPosition;
+                return;
+            }
+
+            if (c == '\\' && currentPosition + 1 < endOffset) {
+                currentPosition += 2;
+                continue;
+            }
+
+            currentPosition++;
         }
+
+        currentTokenType = contentType;
+        currentTokenEnd = currentPosition;
     }
 
     private boolean isNumeric(String str) {
         if (str == null || str.isEmpty()) {
             return false;
         }
-
         int i = 0;
         if (str.charAt(0) == '-' || str.charAt(0) == '+') {
-            if (str.length() == 1) {
-                return false;
-            }
+            if (str.length() == 1) return false;
             i = 1;
         }
-
         boolean hasDecimal = false;
         boolean hasExponent = false;
 
         for (; i < str.length(); i++) {
             char c = str.charAt(i);
-
             if (Character.isDigit(c)) {
                 continue;
             } else if (c == '.' && !hasDecimal && !hasExponent) {
                 hasDecimal = true;
             } else if ((c == 'e' || c == 'E') && !hasExponent) {
                 hasExponent = true;
-                // Après 'e', on peut avoir un signe
                 if (i + 1 < str.length() && (str.charAt(i + 1) == '+' || str.charAt(i + 1) == '-')) {
                     i++;
                 }
@@ -434,7 +297,6 @@ public class SqlxConfigLexer extends LexerBase {
                 return false;
             }
         }
-
         return true;
     }
 
@@ -446,4 +308,9 @@ public class SqlxConfigLexer extends LexerBase {
         currentTokenStart = currentPosition;
     }
 
+    private boolean canStartJsExpression() {
+        if (currentPosition + 1 >= endOffset) return false;
+        char next = buffer.charAt(currentPosition + 1);
+        return next == '{';
+    }
 }

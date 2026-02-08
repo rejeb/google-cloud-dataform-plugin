@@ -53,7 +53,7 @@ public final class WorkflowSettingsService {
 
     @NotNull
     public Map<String, WorkflowSettingsProperty> getWorkflowProperties() {
-        YAMLFile yamlFile = findWorkflowSettingsFile();
+        WorkflowSettingsYamlFileWrapper yamlFile = findWorkflowSettingsFile();
         if (yamlFile == null) {
             return Collections.emptyMap();
         }
@@ -75,17 +75,22 @@ public final class WorkflowSettingsService {
         if (prefix == null || prefix.isEmpty()) {
             return properties.keySet();
         }
+        String[] parentPath = prefix.split("\\.");
+        Map<String, WorkflowSettingsProperty> current = properties;
 
-        WorkflowSettingsProperty prop = properties.get(prefix);
-        if (prop != null && prop.children() != null) {
-            return prop.children().keySet();
+        for (String part : parentPath) {
+            WorkflowSettingsService.WorkflowSettingsProperty prop = current.get(part);
+            if (prop == null || !prop.hasChildren()) {
+                return Collections.emptySet();
+            }
+            current = prop.children();
         }
 
-        return Collections.emptyList();
+        return current.keySet();
     }
 
     @Nullable
-    public YAMLFile findWorkflowSettingsFile() {
+    public WorkflowSettingsYamlFileWrapper findWorkflowSettingsFile() {
         if (DumbService.isDumb(project)) {
             return null;
         }
@@ -103,12 +108,12 @@ public final class WorkflowSettingsService {
             VirtualFile file = files.iterator().next();
             PsiFile psiFile = PsiManager.getInstance(project).findFile(file);
 
-            return psiFile instanceof YAMLFile ? (YAMLFile) psiFile : null;
+            return psiFile instanceof YAMLFile ? WorkflowSettingsYamlFileWrapper.create((YAMLFile) psiFile, project) : null;
         }).executeSynchronously();
     }
 
     @NotNull
-    private Map<String, WorkflowSettingsProperty> parseWorkflowSettings(@NotNull YAMLFile yamlFile) {
+    private Map<String, WorkflowSettingsProperty> parseWorkflowSettings(@NotNull WorkflowSettingsYamlFileWrapper yamlFile) {
         Map<String, WorkflowSettingsProperty> result = new HashMap<>();
 
         YAMLDocument document = yamlFile.getDocuments().isEmpty() ? null : yamlFile.getDocuments().get(0);
@@ -119,7 +124,7 @@ public final class WorkflowSettingsService {
         if (document.getTopLevelValue() instanceof YAMLMapping mapping) {
             for (YAMLKeyValue keyValue : mapping.getKeyValues()) {
                 String key = keyValue.getKeyText();
-                WorkflowSettingsProperty property = parseProperty(keyValue);
+                WorkflowSettingsProperty property = parseProperty(keyValue, yamlFile);
                 result.put(key, property);
             }
         }
@@ -128,23 +133,28 @@ public final class WorkflowSettingsService {
     }
 
     @NotNull
-    private WorkflowSettingsProperty parseProperty(@NotNull YAMLKeyValue keyValue) {
+    private WorkflowSettingsProperty parseProperty(@NotNull YAMLKeyValue keyValue, @NotNull WorkflowSettingsYamlFileWrapper yamlFile) {
         String key = keyValue.getKeyText();
         String value = keyValue.getValueText();
 
         if (keyValue.getValue() instanceof YAMLMapping mapping) {
             Map<String, WorkflowSettingsProperty> children = new HashMap<>();
             for (YAMLKeyValue child : mapping.getKeyValues()) {
-                children.put(child.getKeyText(), parseProperty(child));
+                children.put(child.getKeyText(), parseProperty(child, yamlFile));
             }
-            return new WorkflowSettingsProperty(key, null, children);
+            YAMLKeyValue wrappedKeyValue = yamlFile.getWrappedKeyValue(keyValue);
+            return new WorkflowSettingsProperty(key, null, wrappedKeyValue, children);
         }
-        return new WorkflowSettingsProperty(key, value, null);
+        YAMLKeyValue wrappedKeyValue = yamlFile.getWrappedKeyValue(keyValue);
+        return new WorkflowSettingsProperty(key, value, wrappedKeyValue, null);
     }
+
+
 
     public record WorkflowSettingsProperty(
             String name,
             @Nullable String value,
+            @Nullable YAMLKeyValue yamlRef,
             @Nullable Map<String, WorkflowSettingsProperty> children) {
         public boolean hasChildren() {
             return children != null && !children.isEmpty();

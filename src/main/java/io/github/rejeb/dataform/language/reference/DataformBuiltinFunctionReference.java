@@ -29,13 +29,13 @@ import org.jetbrains.annotations.Nullable;
 import org.jspecify.annotations.NonNull;
 
 import java.util.Collection;
+import java.util.Objects;
 
 public class DataformBuiltinFunctionReference extends PsiReferenceBase<PsiElement> {
 
     private final String functionName;
 
-    public DataformBuiltinFunctionReference(@NotNull PsiElement element,
-                                            @NotNull String functionName) {
+    public DataformBuiltinFunctionReference(@NotNull PsiElement element, @NotNull String functionName) {
         super(element, new TextRange(0, element.getTextLength()));
         this.functionName = functionName;
     }
@@ -58,14 +58,6 @@ public class DataformBuiltinFunctionReference extends PsiReferenceBase<PsiElemen
             }
         }
 
-        Collection<JSVariable> variables = service.getCachedDataformVariablesRef();
-        for (JSVariable variable : variables) {
-            String name = variable.getName();
-            if (functionName.equals(name)) {
-                return variable;
-            }
-        }
-
         PsiFile psiFile = service.getPsiFile();
         String text = psiFile.getText();
         int functionIndex = text.indexOf(functionName);
@@ -79,8 +71,12 @@ public class DataformBuiltinFunctionReference extends PsiReferenceBase<PsiElemen
         return null;
     }
 
+
     @Override
     public Object @NonNull [] getVariants() {
+        if (Objects.equals(functionName, "projectConfig")) {
+            System.out.println("Not found in getVariants");
+        }
         return new Object[0];
     }
 }

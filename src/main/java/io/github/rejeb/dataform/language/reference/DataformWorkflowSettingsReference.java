@@ -16,96 +16,51 @@
  */
 package io.github.rejeb.dataform.language.reference;
 
-import com.intellij.codeInsight.lookup.LookupElement;
-import com.intellij.codeInsight.lookup.LookupElementBuilder;
-import com.intellij.openapi.project.DumbService;
-import com.intellij.openapi.project.Project;
-import com.intellij.openapi.util.TextRange;
-import com.intellij.openapi.vfs.VirtualFile;
-import com.intellij.psi.*;
-import com.intellij.psi.search.FilenameIndex;
-import com.intellij.psi.search.GlobalSearchScope;
-import com.intellij.util.SlowOperations;
+import com.intellij.psi.PsiElement;
+import com.intellij.psi.PsiReferenceBase;
 import io.github.rejeb.dataform.language.service.WorkflowSettingsService;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.jetbrains.yaml.psi.YAMLDocument;
-import org.jetbrains.yaml.psi.YAMLFile;
-import org.jetbrains.yaml.psi.YAMLKeyValue;
-import org.jetbrains.yaml.psi.YAMLMapping;
 import org.jspecify.annotations.NonNull;
-
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
 
 public class DataformWorkflowSettingsReference extends PsiReferenceBase<PsiElement> {
 
-    private final String propertyPath;
-
-    public DataformWorkflowSettingsReference(@NotNull PsiElement element,
-                                              @NotNull String propertyPath,
-                                              @NotNull TextRange rangeInElement) {
-        super(element, rangeInElement);
-        this.propertyPath = propertyPath;
+    public DataformWorkflowSettingsReference(@NotNull PsiElement element) {
+        super(element);
     }
 
     @Nullable
     @Override
     public PsiElement resolve() {
-        Project project = myElement.getProject();
-        WorkflowSettingsService service = WorkflowSettingsService.getInstance(project);
-        YAMLFile yamlFile = service.findWorkflowSettingsFile();
+        return findYamlProperty(WorkflowSettingsService.getInstance(myElement.getProject()), propertyPath());
+    }
 
-        if (yamlFile == null) {
-            return null;
-        }
-
-        String[] parts = propertyPath.split("\\.");
-
-        return findYamlProperty(yamlFile, parts);
+    private String[] propertyPath() {
+        return myElement.getText().split("\\.");
     }
 
     @Override
     public Object @NonNull [] getVariants() {
-        Project project = myElement.getProject();
-        WorkflowSettingsService service = WorkflowSettingsService.getInstance(project);
-        List<LookupElement> variants = new ArrayList<>();
-        String prefix = extractParentPrefix(propertyPath);
-        Collection<String> properties = service.getPropertiesForPrefix(prefix);
-
-        for (String property : properties) {
-            variants.add(
-                    LookupElementBuilder.create(property)
-                            .withTypeText("workflow_settings.yaml")
-                            .withIcon(com.intellij.icons.AllIcons.Nodes.Variable)
-            );
-        }
-
-        return variants.toArray();
+        return new Object[0];
     }
 
     @Nullable
-    private PsiElement findYamlProperty(YAMLFile yamlFile, String[] propertyPath) {
-        YAMLDocument document = yamlFile.getDocuments().isEmpty() ? null : yamlFile.getDocuments().get(0);
-        if (document == null || !(document.getTopLevelValue() instanceof YAMLMapping currentMapping)) {
-            return null;
-        }
+    private PsiElement findYamlProperty(WorkflowSettingsService service, String[] propertyPath) {
 
+        var current = service.getWorkflowProperties();
         for (int i = 0; i < propertyPath.length; i++) {
             String part = propertyPath[i];
-            YAMLKeyValue keyValue = currentMapping.getKeyValueByKey(part);
+            WorkflowSettingsService.WorkflowSettingsProperty prop = current.get(part);
 
-            if (keyValue == null) {
+            if (prop == null) {
                 return null;
             }
 
             if (i == propertyPath.length - 1) {
-                return keyValue;
+                return prop.yamlRef();
             }
-
-            if (keyValue.getValue() instanceof YAMLMapping) {
-                currentMapping = (YAMLMapping) keyValue.getValue();
+            if (prop.hasChildren()) {
+                current = prop.children();
             } else {
                 return null;
             }
@@ -114,12 +69,4 @@ public class DataformWorkflowSettingsReference extends PsiReferenceBase<PsiEleme
         return null;
     }
 
-    @Nullable
-    private String extractParentPrefix(String path) {
-        int lastDot = path.lastIndexOf('.');
-        if (lastDot > 0) {
-            return path.substring(0, lastDot);
-        }
-        return null;
-    }
 }

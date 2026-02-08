@@ -16,20 +16,17 @@
  */
 package io.github.rejeb.dataform.language.reference;
 
-import com.intellij.json.psi.JsonPsiUtil;
-import com.intellij.json.psi.JsonReferenceExpression;
-import com.intellij.lang.javascript.JavaScriptFileType;
 import com.intellij.lang.javascript.psi.JSReferenceExpression;
 import com.intellij.openapi.project.Project;
-import com.intellij.psi.*;
-import com.intellij.psi.util.PsiTreeUtil;
+import com.intellij.psi.PsiElement;
+import com.intellij.psi.PsiReference;
+import com.intellij.psi.PsiReferenceProvider;
 import com.intellij.util.ProcessingContext;
 import io.github.rejeb.dataform.language.service.DataformCoreIndexService;
 import org.jetbrains.annotations.NotNull;
 import org.jspecify.annotations.NonNull;
 
 import java.util.Optional;
-import java.util.UUID;
 
 public class DataformBuiltinFunctionPsiReferenceProvider extends PsiReferenceProvider {
 
@@ -50,8 +47,7 @@ public class DataformBuiltinFunctionPsiReferenceProvider extends PsiReferencePro
 
         DataformCoreIndexService service = DataformCoreIndexService.getInstance(project);
 
-        if (service.getCachedDataformFunctionsNames().contains(referencedName) ||
-                service.getCachedDataformVariablesNames().contains(referencedName)) {
+        if (service.getCachedDataformFunctionsNames().contains(referencedName)) {
             return new PsiReference[]{
                     new DataformBuiltinFunctionReference(element, referencedName)
             };
@@ -64,7 +60,6 @@ public class DataformBuiltinFunctionPsiReferenceProvider extends PsiReferencePro
     private Optional<String> getReferenceName(PsiElement element) {
         return switch (element) {
             case JSReferenceExpression refExpr -> getJsReferenceName(refExpr);
-            case JsonReferenceExpression jsonRef -> getJSONReferenceName(jsonRef);
             default -> Optional.empty();
         };
     }
@@ -75,23 +70,4 @@ public class DataformBuiltinFunctionPsiReferenceProvider extends PsiReferencePro
                 .map(PsiElement::getText);
     }
 
-    private Optional<String> getJSONReferenceName(JsonReferenceExpression refExpr) {
-        JsonPsiUtil.isPropertyValue(refExpr);
-
-        return Optional
-                .of(refExpr)
-                .filter(JsonPsiUtil::isPropertyValue)
-                .map(JsonPsiUtil::getElementTextWithoutHostEscaping)
-                .map(text -> createJSReferenceExpression(refExpr.getProject(), text))
-                .flatMap(this::getJsReferenceName);
-    }
-
-    public JSReferenceExpression createJSReferenceExpression(Project project, String text) {
-        String jsText = "const x = " + text + ";";
-        String fileName = "dummy" + UUID.randomUUID() + ".js";
-
-        PsiFile file = PsiFileFactory.getInstance(project)
-                .createFileFromText(fileName, JavaScriptFileType.INSTANCE, jsText);
-        return PsiTreeUtil.findChildOfType(file, JSReferenceExpression.class);
-    }
 }

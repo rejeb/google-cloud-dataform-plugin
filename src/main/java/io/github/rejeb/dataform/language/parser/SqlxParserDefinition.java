@@ -20,6 +20,9 @@ import com.intellij.json.JsonElementTypes;
 import com.intellij.lang.ASTNode;
 import com.intellij.lang.ParserDefinition;
 import com.intellij.lang.PsiParser;
+import com.intellij.lang.javascript.JSElementType;
+import com.intellij.lang.javascript.JSElementTypes;
+import com.intellij.lang.javascript.psi.ecma6.impl.JSStringTemplateExpressionImpl;
 import com.intellij.lexer.Lexer;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.FileViewProvider;
@@ -90,11 +93,11 @@ public class SqlxParserDefinition implements ParserDefinition {
             return new SqlxJsBlock(node);
         }
 
-        if (type == SqlxElementTypes.REFERENCE_EXPRESSION_ELEMENT) {
-            return new SqlxConfigRefExpression(node);
+        if (type == SqlxElementTypes.JS_LITTERAL_ELEMENT) {
+            return new SqlxJsLitteralExpression(node);
         }
 
-        if (type == SqlxElementTypes.TEMPLATE_EXPRESSION_ELEMENT || type == SqlxElementTypes.JS_LITTERAL_ELEMENT) {
+        if (type == SqlxElementTypes.TEMPLATE_EXPRESSION_ELEMENT) {
             return new SqlxJsLitteralExpression(node);
         }
         return new SqlxPsiElement(node);

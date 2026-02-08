@@ -28,8 +28,6 @@ record ServiceState(String lastVersion,
                     long lastUpdate,
                     @NotNull Optional<PsiFile> dataformCoreJsFile,
                     Collection<JSFunction> cachedDataformFunctionsRef,
-                    Collection<JSVariable> cachedDataformVariablesRef,
                     Collection<String> cachedDataformFunctionsNames,
-                    Collection<String> cachedDataformVariablesNames,
                     Collection<DataformFunctionCompletionObject> cachedDataformFunctionsForCompletion) {
 }

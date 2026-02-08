@@ -21,14 +21,9 @@ import com.intellij.lang.injection.MultiHostInjector;
 import com.intellij.lang.injection.MultiHostRegistrar;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiElement;
-import com.intellij.psi.tree.IElementType;
-import com.intellij.psi.util.PsiTreeUtil;
 import io.github.rejeb.dataform.language.psi.SqlxConfigBlock;
-import io.github.rejeb.dataform.language.psi.SqlxConfigRefExpression;
-import io.github.rejeb.dataform.language.psi.SqlxElementTypes;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -37,7 +32,6 @@ import static io.github.rejeb.dataform.language.injection.InjectionHelper.collec
 import static io.github.rejeb.dataform.language.injection.InjectionHelper.hasOverlappingRanges;
 
 public class SqlxConfigInjector implements MultiHostInjector {
-
 
 
     @Override

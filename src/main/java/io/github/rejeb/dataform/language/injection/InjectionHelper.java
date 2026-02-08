@@ -20,7 +20,6 @@ import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.tree.IElementType;
 import com.intellij.psi.util.PsiTreeUtil;
-import io.github.rejeb.dataform.language.psi.SqlxConfigRefExpression;
 import io.github.rejeb.dataform.language.psi.SqlxElementTypes;
 
 import java.util.ArrayList;
@@ -39,16 +38,6 @@ public class InjectionHelper {
         int blockStartOffset = sqlBlock.getTextRange().getStartOffset();
 
         PsiTreeUtil.processElements(sqlBlock, element -> {
-
-            if (element instanceof SqlxConfigRefExpression) {
-                TextRange absoluteRange = element.getTextRange();
-                TextRange relativeRange = new TextRange(
-                        absoluteRange.getStartOffset() - blockStartOffset,
-                        absoluteRange.getEndOffset() - blockStartOffset
-                );
-                ranges.add(relativeRange);
-                return true;
-            }
 
             IElementType elementType = element.getNode().getElementType();
             if (JS_ELEMENT_TYPES.contains(elementType)) {

@@ -21,6 +21,7 @@ import com.intellij.lang.ASTNode;
 import com.intellij.lang.PsiBuilder;
 import com.intellij.lang.PsiParser;
 import com.intellij.psi.tree.IElementType;
+import com.intellij.sql.dialects.mongo.js.JSElementTypes;
 import io.github.rejeb.dataform.language.psi.SharedTokenTypes;
 import io.github.rejeb.dataform.language.psi.SqlxElementTypes;
 import org.jetbrains.annotations.NotNull;
@@ -36,6 +37,7 @@ public class SqlxParser implements PsiParser {
             IElementType tokenType = builder.getTokenType();
 
             if (tokenType == SharedTokenTypes.CONFIG_KEYWORD) {
+                markElement(builder, SharedTokenTypes.CONFIG_KEYWORD);
                 parseConfigBlock(builder);
             } else if (tokenType == SharedTokenTypes.JS_KEYWORD) {
                 parseJsBlock(builder);
@@ -49,9 +51,6 @@ public class SqlxParser implements PsiParser {
     }
 
     private void parseConfigBlock(PsiBuilder builder) {
-        PsiBuilder.Marker configMarker = builder.mark();
-        builder.advanceLexer();
-        configMarker.done(SharedTokenTypes.CONFIG_KEYWORD);
         PsiBuilder.Marker marker = builder.mark();
 
         if (builder.getTokenType() == JsonElementTypes.L_CURLY) {
@@ -114,30 +113,45 @@ public class SqlxParser implements PsiParser {
 
 
     private void parseConfigValue(PsiBuilder builder) {
-        IElementType tokenType = builder.getTokenType();
 
-        if (tokenType == JsonElementTypes.L_CURLY) {
+        if (builder.getTokenType() == JsonElementTypes.L_CURLY) {
             parseConfigObject(builder);
-        } else if (tokenType == JsonElementTypes.L_BRACKET) {
+        } else if (builder.getTokenType() == JsonElementTypes.L_BRACKET) {
             parseConfigArray(builder);
-        } else if (tokenType == JsonElementTypes.DOUBLE_QUOTED_STRING ||
-                tokenType == JsonElementTypes.SINGLE_QUOTED_STRING) {
+        } else if (builder.getTokenType() == JsonElementTypes.DOUBLE_QUOTED_STRING ||
+                builder.getTokenType() == JsonElementTypes.SINGLE_QUOTED_STRING) {
             parseStringValue(builder);
-        } else if (tokenType == JsonElementTypes.NUMBER_LITERAL) {
+        } else if (builder.getTokenType() == JSElementTypes.STRING_TEMPLATE_EXPRESSION) {
+            parseBacktickContent(builder);
+        } else if (builder.getTokenType() == JsonElementTypes.NUMBER_LITERAL) {
             markElement(builder, SqlxElementTypes.CONFIG_NUMBER_VALUE);
-        } else if (tokenType == JsonElementTypes.BOOLEAN_LITERAL) {
+        } else if (builder.getTokenType() == JsonElementTypes.BOOLEAN_LITERAL) {
             markElement(builder, SqlxElementTypes.CONFIG_BOOLEAN_VALUE);
-        } else if (tokenType == JsonElementTypes.NULL) {
+        } else if (builder.getTokenType() == JsonElementTypes.NULL) {
             markElement(builder, SqlxElementTypes.CONFIG_NULL_VALUE);
-        } else if (tokenType == SharedTokenTypes.TEMPLATE_EXPRESSION) {
+        } else if (builder.getTokenType() == SharedTokenTypes.TEMPLATE_EXPRESSION) {
             markElement(builder, SqlxElementTypes.TEMPLATE_EXPRESSION_ELEMENT);
-        } else if (tokenType == SharedTokenTypes.JS_LITTERAL) {
+        } else if (builder.getTokenType() == SharedTokenTypes.JS_LITTERAL) {
             markElement(builder, SqlxElementTypes.JS_LITTERAL_ELEMENT);
-        } else if (tokenType == SharedTokenTypes.REFERENCE_EXPRESSION) {
+        } else if (builder.getTokenType() == SharedTokenTypes.REFERENCE_EXPRESSION) {
             markElement(builder, SqlxElementTypes.REFERENCE_EXPRESSION_ELEMENT);
         } else {
             if (!builder.eof()) {
                 builder.advanceLexer();
+            }
+        }
+
+    }
+
+
+    private void parseBacktickContent(PsiBuilder builder) {
+        while (!builder.eof()) {
+            IElementType tokenType = builder.getTokenType();
+
+            if (tokenType == JSElementTypes.STRING_TEMPLATE_EXPRESSION) {
+                builder.advanceLexer();
+            } else {
+                break;
             }
         }
     }
@@ -151,10 +165,6 @@ public class SqlxParser implements PsiParser {
             if (tokenType == JsonElementTypes.DOUBLE_QUOTED_STRING ||
                     tokenType == JsonElementTypes.SINGLE_QUOTED_STRING) {
                 builder.advanceLexer();
-            } else if (tokenType == SharedTokenTypes.TEMPLATE_EXPRESSION) {
-                markElement(builder, SqlxElementTypes.TEMPLATE_EXPRESSION_ELEMENT);
-            } else if (tokenType == SharedTokenTypes.REFERENCE_EXPRESSION) {
-                markElement(builder, SqlxElementTypes.REFERENCE_EXPRESSION_ELEMENT);
             } else {
                 break;
             }
@@ -174,11 +184,9 @@ public class SqlxParser implements PsiParser {
                 builder.advanceLexer();
             }
         }
-
         if (builder.getTokenType() == JsonElementTypes.R_BRACKET) {
             builder.advanceLexer();
         }
-
         arrayMarker.done(SqlxElementTypes.CONFIG_ARRAY);
     }
 

@@ -17,7 +17,7 @@
 package io.github.rejeb.dataform.language.service;
 
 import com.intellij.lang.javascript.psi.JSFunction;
-import com.intellij.lang.javascript.psi.JSVariable;
+import com.intellij.lang.javascript.psi.ecma6.TypeScriptModule;
 import com.intellij.notification.NotificationGroupManager;
 import com.intellij.notification.NotificationType;
 import com.intellij.openapi.components.PersistentStateComponent;
@@ -52,8 +52,6 @@ public final class DataformCoreIndexService implements PersistentStateComponent<
                 Optional.empty(),
                 Collections.emptyList(),
                 Collections.emptyList(),
-                Collections.emptyList(),
-                Collections.emptyList(),
                 Collections.emptyList()
         );
     }
@@ -70,8 +68,7 @@ public final class DataformCoreIndexService implements PersistentStateComponent<
         String currentVersion = dataformInterpreterManager.currentDataformCoreVersion();
 
         var dataformCoreJsFile = findDataformCoreJsFile(corePackage);
-        var cachedDataformFunctionsRef = this.findElements(dataformCoreJsFile, JSFunction.class);
-        var cachedDataformVariablesRef = this.findElements(dataformCoreJsFile, JSVariable.class);
+        var cachedDataformFunctionsRef = this.findNonModuleElements(dataformCoreJsFile, JSFunction.class);
         var cachedDataformFunctionsForCompletion = cachedDataformFunctionsRef.stream()
                 .map(DataformFunctionCompletionObject::fromJSFunction)
                 .flatMap(Optional::stream)
@@ -82,9 +79,7 @@ public final class DataformCoreIndexService implements PersistentStateComponent<
                 System.currentTimeMillis(),
                 dataformCoreJsFile,
                 cachedDataformFunctionsRef,
-                cachedDataformVariablesRef,
                 cachedDataformFunctionsRef.stream().map(JSFunction::getName).toList(),
-                cachedDataformVariablesRef.stream().map(JSVariable::getName).toList(),
                 cachedDataformFunctionsForCompletion
         );
     }
@@ -123,32 +118,12 @@ public final class DataformCoreIndexService implements PersistentStateComponent<
     }
 
     @NotNull
-    public Collection<String> getCachedDataformVariablesNames() {
-        if (getState().dataformCoreJsFile().isEmpty()) {
-            notifyUserDataformNotInstalled(project);
-            return Collections.emptyList();
-        } else {
-            return this.state.cachedDataformVariablesNames();
-        }
-    }
-
-    @NotNull
     public Collection<JSFunction> getCachedDataformFunctionsRef() {
         if (getState().dataformCoreJsFile().isEmpty()) {
             notifyUserDataformNotInstalled(project);
             return Collections.emptyList();
         } else {
             return this.state.cachedDataformFunctionsRef();
-        }
-    }
-
-    @NotNull
-    public Collection<JSVariable> getCachedDataformVariablesRef() {
-        if (getState().dataformCoreJsFile().isEmpty()) {
-            notifyUserDataformNotInstalled(project);
-            return Collections.emptyList();
-        } else {
-            return this.state.cachedDataformVariablesRef();
         }
     }
 
@@ -170,14 +145,16 @@ public final class DataformCoreIndexService implements PersistentStateComponent<
                 );
     }
 
-    private <T extends PsiElement> Collection<T> findElements(
+    private <T extends PsiElement> Collection<T> findNonModuleElements(
             Optional<PsiFile> dataformCoreJsFile,
             @NotNull Class<T> aClass) {
         return dataformCoreJsFile
-                .map(tsFile -> PsiTreeUtil.findChildrenOfType(tsFile, aClass))
+                .map(tsFile -> PsiTreeUtil.findChildrenOfType(tsFile, aClass)
+                        .stream()
+                        .filter(elm -> PsiTreeUtil.getParentOfType(elm, TypeScriptModule.class) == null)
+                        .toList())
                 .orElse(Collections.emptyList());
     }
-
 
     private void notifyUserDataformNotInstalled(Project project) {
         if (this.notifyUser) {
