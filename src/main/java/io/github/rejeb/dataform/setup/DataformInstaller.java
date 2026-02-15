@@ -45,7 +45,7 @@ public class DataformInstaller implements ProjectActivity {
                 nodeInterpreterManager = NodeInterpreterManager.getInstance(project);
             }
 
-            DataformInterpreterManager dataformInterpreterManager = DataformInterpreterManager.getInstance(project);
+            DataformInterpreterManager dataformInterpreterManager = project.getService(DataformInterpreterManager.class);
             if (dataformInterpreterManager.dataformCorePath().isEmpty() && notifyUserDataformCore) {
                 notifyUserDataformCore = false;
                 installDataformCore(project, nodeInterpreterManager);
@@ -55,9 +55,9 @@ public class DataformInstaller implements ProjectActivity {
                 notifyUserDataformCli = false;
                 installDataformCli(project, nodeInterpreterManager);
             }
-            DataformInterpreterManager.getInstance(project);
+
         });
-        return DataformInterpreterManager.getInstance(project).dataformCorePath().isPresent();
+        return project.getService(DataformInterpreterManager.class).dataformCorePath().isPresent();
     }
 
     private void installDataformCli(Project project, NodeInterpreterManager nodeInterpreterManager) {
@@ -69,7 +69,10 @@ public class DataformInstaller implements ProjectActivity {
                 "Cancel",
                 Messages.getWarningIcon());
 
-        if (result == Messages.OK) {
+        if (result == Messages.OK &&
+                nodeInterpreterManager.npmExecutable() != null &&
+                nodeInterpreterManager.nodeBinDir() != null &&
+                nodeInterpreterManager.nodeInstallDir() != null) {
             NodeJsNpmUtils.installNodeJsLib("@dataform/cli",
                     project,
                     nodeInterpreterManager.npmExecutable().toFile(),
@@ -88,7 +91,10 @@ public class DataformInstaller implements ProjectActivity {
                 "Cancel",
                 Messages.getWarningIcon());
 
-        if (result == Messages.OK) {
+        if (result == Messages.OK &&
+                nodeInterpreterManager.npmExecutable() != null &&
+                nodeInterpreterManager.nodeBinDir() != null &&
+                nodeInterpreterManager.nodeInstallDir() != null) {
             NodeJsNpmUtils.installNodeJsLib("@dataform/core",
                     project,
                     nodeInterpreterManager.npmExecutable().toFile(),

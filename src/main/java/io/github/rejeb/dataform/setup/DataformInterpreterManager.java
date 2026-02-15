@@ -18,25 +18,32 @@ package io.github.rejeb.dataform.setup;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.intellij.execution.configurations.GeneralCommandLine;
+import com.intellij.openapi.components.Service;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import org.jetbrains.annotations.NotNull;
 
+import java.io.File;
 import java.nio.file.Path;
 import java.util.Optional;
 
-
-public class DataformInterpreterManager {
-    private static DataformInterpreterManager INSTANCE = null;
+@Service(Service.Level.PROJECT)
+public final class DataformInterpreterManager {
     private final Project project;
-    private final Optional<VirtualFile> dataformCorePath;
-    private final Optional<VirtualFile> dataformCliDir;
-    private final String currentDataformCoreVersion;
+    private Optional<VirtualFile> dataformCorePath;
+    private Optional<VirtualFile> dataformCliDir;
+    private String currentDataformCoreVersion;
 
     private DataformInterpreterManager(@NotNull Project project) {
         this.project = project;
+        init();
+    }
+
+    private void init() {
         Optional<Path> dataformLibRootDir = findDataformLibRootDir();
         this.dataformCorePath = dataformLibRootDir
                 .map(dir -> dir.resolve("core"))
@@ -47,23 +54,42 @@ public class DataformInterpreterManager {
         this.currentDataformCoreVersion = getGlobalDataformVersion(this.dataformCorePath);
     }
 
-    public synchronized static DataformInterpreterManager getInstance(@NotNull Project project) {
-        if (INSTANCE == null || INSTANCE.dataformCorePath().isEmpty()) {
-            INSTANCE = new DataformInterpreterManager(project);
-        }
-        return INSTANCE;
-    }
-
     public Optional<VirtualFile> dataformCorePath() {
+        if (dataformCorePath.isEmpty()){
+            init();
+        }
         return dataformCorePath;
     }
 
     public Optional<VirtualFile> dataformCliDir() {
+        if (dataformCorePath.isEmpty()){
+            init();
+        }
         return dataformCliDir;
     }
 
     public String currentDataformCoreVersion() {
         return currentDataformCoreVersion;
+    }
+
+    public Optional<GeneralCommandLine> getInterpreterCommand(String... options) {
+        String dataformCliCmd = SystemInfo.isWindows ? "dataform.cmd" : "dataform";
+        Path nodeBinDir = NodeInterpreterManager
+                .getInstance(project)
+                .nodeBinDir();
+        String dataformExecutable = nodeBinDir.resolve(dataformCliCmd).toAbsolutePath().toString();
+        String[] args = new String[options.length + 1];
+        args[0] = dataformExecutable;
+        System.arraycopy(options, 0, args, 1, options.length);
+
+        GeneralCommandLine cmd = new GeneralCommandLine(args)
+                .withWorkDirectory(project.getBasePath());
+        String pathEnv = nodeBinDir.toFile().getAbsolutePath() + File.pathSeparator +
+                System.getenv("PATH");
+
+        cmd.getEnvironment().put("PATH", pathEnv);
+
+        return dataformCliDir.map(dir -> cmd);
     }
 
     private String getGlobalDataformVersion(Optional<VirtualFile> corePackage) {

@@ -17,51 +17,35 @@
 package io.github.rejeb.dataform.language.compilation;
 
 import com.intellij.execution.configurations.GeneralCommandLine;
-import com.intellij.execution.process.*;
+import com.intellij.execution.process.ColoredProcessHandler;
+import com.intellij.execution.process.ProcessEvent;
+import com.intellij.execution.process.ProcessListener;
+import com.intellij.execution.process.ProcessOutputTypes;
 import com.intellij.openapi.compiler.CompileContext;
 import com.intellij.openapi.compiler.CompileTask;
 import com.intellij.openapi.compiler.CompilerMessageCategory;
-import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Key;
-import com.intellij.openapi.util.SystemInfo;
-import com.intellij.openapi.vfs.VirtualFile;
 import io.github.rejeb.dataform.setup.DataformInterpreterManager;
-import io.github.rejeb.dataform.setup.NodeInterpreterManager;
 import org.jetbrains.annotations.NotNull;
 
-import java.io.File;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Optional;
 
 public final class DataformCompileBeforeTask implements CompileTask {
 
     @Override
     public boolean execute(@NotNull CompileContext context) {
-        // Évite de relancer dataform compile pendant l'auto-make (build automatique en background).
-        Optional<VirtualFile> dataformCliDir = DataformInterpreterManager.getInstance(context.getProject()).dataformCliDir();
-        if (context.isAutomake() || dataformCliDir.isEmpty()) {
+        Optional<GeneralCommandLine> cmd = context.getProject()
+                .getService(DataformInterpreterManager.class)
+                .getInterpreterCommand("compile");
+        if (context.isAutomake() || cmd.isEmpty()) {
             return true;
         }
-        String dataformCliCmd = SystemInfo.isWindows ? "dataform.cmd": "dataform" ;
-        Project project = context.getProject();
-        Path nodeBinDir = NodeInterpreterManager
-                .getInstance(context.getProject())
-                .nodeBinDir();
-        String dataformExecutable = nodeBinDir.resolve(dataformCliCmd).toAbsolutePath().toString();
 
-        GeneralCommandLine cmd = new GeneralCommandLine(dataformExecutable, "compile")
-                .withWorkDirectory(project.getBasePath());
-        String pathEnv = nodeBinDir.toFile().getAbsolutePath() + File.pathSeparator +
-                System.getenv("PATH");
-
-        cmd.getEnvironment().put("PATH", pathEnv);
-        context.addMessage(CompilerMessageCategory.INFORMATION, "Running: " + cmd.getCommandLineString(), null, -1, -1);
+        context.addMessage(CompilerMessageCategory.INFORMATION, "Running: " + cmd.get().getCommandLineString(), null, -1, -1);
 
         ColoredProcessHandler handler;
         try {
-            handler = new ColoredProcessHandler(cmd);
+            handler = new ColoredProcessHandler(cmd.get());
         } catch (Exception e) {
             context.addMessage(CompilerMessageCategory.ERROR, "Failed to start dataform: " + e.getMessage(), null, -1, -1);
             return false;

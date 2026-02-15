@@ -65,7 +65,7 @@ public final class DataformCoreIndexService implements PersistentStateComponent<
 
     @Override
     public void initializeComponent() {
-        DataformInterpreterManager dataformInterpreterManager = DataformInterpreterManager.getInstance(project);
+        DataformInterpreterManager dataformInterpreterManager = project.getService(DataformInterpreterManager.class);
         Optional<VirtualFile> corePackage = dataformInterpreterManager.dataformCorePath();
 
         String currentVersion = dataformInterpreterManager.currentDataformCoreVersion();
