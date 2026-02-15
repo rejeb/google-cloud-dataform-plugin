@@ -20,7 +20,6 @@ import com.intellij.json.JsonElementTypes;
 import com.intellij.lang.ASTNode;
 import com.intellij.lang.PsiBuilder;
 import com.intellij.lang.PsiParser;
-import com.intellij.lang.javascript.JSElementTypes;
 import com.intellij.lang.javascript.JSTokenTypes;
 import com.intellij.psi.tree.IElementType;
 import io.github.rejeb.dataform.language.psi.SharedTokenTypes;
@@ -123,8 +122,6 @@ public class SqlxParser implements PsiParser {
         } else if (builder.getTokenType() == JsonElementTypes.DOUBLE_QUOTED_STRING ||
                 builder.getTokenType() == JsonElementTypes.SINGLE_QUOTED_STRING) {
             parseStringValue(builder);
-        } else if (builder.getTokenType() == JSElementTypes.STRING_TEMPLATE_EXPRESSION) {
-            parseBacktickContent(builder);
         } else if (builder.getTokenType() == JsonElementTypes.NUMBER_LITERAL) {
             markElement(builder, SqlxElementTypes.CONFIG_NUMBER_VALUE);
         } else if (builder.getTokenType() == JsonElementTypes.BOOLEAN_LITERAL) {
@@ -143,18 +140,6 @@ public class SqlxParser implements PsiParser {
 
     }
 
-
-    private void parseBacktickContent(PsiBuilder builder) {
-        while (!builder.eof()) {
-            IElementType tokenType = builder.getTokenType();
-
-            if (tokenType == JSElementTypes.STRING_TEMPLATE_EXPRESSION) {
-                builder.advanceLexer();
-            } else {
-                break;
-            }
-        }
-    }
 
     private void parseStringValue(PsiBuilder builder) {
         PsiBuilder.Marker stringMarker = builder.mark();
