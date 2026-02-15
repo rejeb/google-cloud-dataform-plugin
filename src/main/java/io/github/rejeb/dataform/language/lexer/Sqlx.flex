@@ -87,8 +87,13 @@ RBRACE="}"
 
 <SQL_CONTENT> {
 
-    {JS_KEYWORD} {
-        yybegin(JS_BLOCK);
+    ^{WHITE_SPACE}*{CONFIG_KEYWORD}{WHITE_SPACE}* {
+        yybegin(YYINITIAL);
+        yypushback(yylength());
+    }
+
+    ^{WHITE_SPACE}*{JS_KEYWORD}{WHITE_SPACE}* {
+        yybegin(YYINITIAL);
         yypushback(yylength());
     }
 

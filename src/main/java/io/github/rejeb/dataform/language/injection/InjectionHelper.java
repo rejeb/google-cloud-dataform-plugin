@@ -28,7 +28,6 @@ import java.util.List;
 public class InjectionHelper {
     private static final List<IElementType> JS_ELEMENT_TYPES = List.of(
             SqlxElementTypes.TEMPLATE_EXPRESSION_ELEMENT,
-            SqlxElementTypes.REFERENCE_EXPRESSION_ELEMENT,
             SqlxElementTypes.JS_LITTERAL_ELEMENT
     );
 
@@ -36,6 +35,8 @@ public class InjectionHelper {
     public static List<TextRange> collectJsElementRanges(PsiElement sqlBlock) {
         List<TextRange> ranges = new ArrayList<>();
         int blockStartOffset = sqlBlock.getTextRange().getStartOffset();
+
+        System.out.println("  [InjectionHelper] Collecting JS elements from block starting at: " + blockStartOffset);
 
         PsiTreeUtil.processElements(sqlBlock, element -> {
 
@@ -47,22 +48,30 @@ public class InjectionHelper {
                         absoluteRange.getStartOffset() - blockStartOffset,
                         absoluteRange.getEndOffset() - blockStartOffset
                 );
+                System.out.println("  [InjectionHelper] Found JS element: " + elementType);
+                System.out.println("    Absolute range: " + absoluteRange + " (" + element.getText() + ")");
+                System.out.println("    Relative range: " + relativeRange);
                 ranges.add(relativeRange);
             }
             return true;
         });
 
+        System.out.println("  [InjectionHelper] Total JS elements found: " + ranges.size());
         return ranges;
     }
 
     public static boolean hasOverlappingRanges(List<TextRange> ranges) {
+        System.out.println("  [InjectionHelper] Checking for overlapping ranges (" + ranges.size() + " ranges)");
         for (int i = 0; i < ranges.size() - 1; i++) {
             TextRange current = ranges.get(i);
             TextRange next = ranges.get(i + 1);
+            System.out.println("    Comparing range " + i + ": " + current + " with range " + (i+1) + ": " + next);
             if (current.intersects(next)) {
+                System.out.println("    -> OVERLAP DETECTED!");
                 return true;
             }
         }
+        System.out.println("    -> No overlaps");
         return false;
     }
 }

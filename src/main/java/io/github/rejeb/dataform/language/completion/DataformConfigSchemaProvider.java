@@ -29,7 +29,7 @@ public class DataformConfigSchemaProvider implements JsonSchemaFileProvider {
 
     @Override
     public boolean isAvailable(@NotNull VirtualFile virtualFile) {
-        if (virtualFile.getName().endsWith(".sqlx")||virtualFile.getName().endsWith(".js")) {
+        if (virtualFile.getName().endsWith(".sqlx")) {
             return true;
         }
         return true;

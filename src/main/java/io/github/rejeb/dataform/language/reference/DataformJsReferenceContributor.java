@@ -28,13 +28,12 @@ import org.jspecify.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
 
-public class DataformTemplateReferenceContributor extends PsiReferenceContributor {
+public class DataformJsReferenceContributor extends PsiReferenceContributor {
 
     @Override
     public void registerReferenceProviders(@NotNull PsiReferenceRegistrar registrar) {
         registrar.registerReferenceProvider(
-                PlatformPatterns.psiElement(JSReferenceExpression.class)
-                        .inside(SqlxJsLitteralExpression.class),
+                PlatformPatterns.psiElement(JSReferenceExpression.class),
                 new PsiReferenceProvider() {
                     @Override
                     public PsiReference @NonNull [] getReferencesByElement(@NotNull PsiElement element,

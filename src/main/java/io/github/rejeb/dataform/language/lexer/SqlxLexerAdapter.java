@@ -16,6 +16,8 @@
  */
 package io.github.rejeb.dataform.language.lexer;
 
+import com.intellij.lang.javascript.DialectOptionHolder;
+import com.intellij.lang.javascript.JavaScriptHighlightingLexer;
 import com.intellij.lexer.FlexAdapter;
 import com.intellij.lexer.LayeredLexer;
 import com.intellij.sql.dialects.base.SqlLexer;
@@ -29,6 +31,11 @@ public class SqlxLexerAdapter extends LayeredLexer {
         registerLayer(
                 new SqlxConfigLexer(),
                 SharedTokenTypes.CONFIG_CONTENT
+        );
+
+        registerLayer(
+                new JavaScriptHighlightingLexer(DialectOptionHolder.JS_1_5),
+                SharedTokenTypes.JS_CONTENT
         );
     }
 }

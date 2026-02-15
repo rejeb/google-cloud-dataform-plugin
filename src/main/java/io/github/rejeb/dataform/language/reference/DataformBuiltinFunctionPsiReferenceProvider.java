@@ -47,7 +47,8 @@ public class DataformBuiltinFunctionPsiReferenceProvider extends PsiReferencePro
 
         DataformCoreIndexService service = DataformCoreIndexService.getInstance(project);
 
-        if (service.getCachedDataformFunctionsNames().contains(referencedName)) {
+        if (service.getCachedDataformFunctionsNames().contains(referencedName) ||
+                service.getCachedDataformVariablesNames().contains(referencedName)) {
             return new PsiReference[]{
                     new DataformBuiltinFunctionReference(element, referencedName)
             };

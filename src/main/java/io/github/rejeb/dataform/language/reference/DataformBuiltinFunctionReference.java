@@ -33,11 +33,11 @@ import java.util.Objects;
 
 public class DataformBuiltinFunctionReference extends PsiReferenceBase<PsiElement> {
 
-    private final String functionName;
+    private final String jsElementName;
 
-    public DataformBuiltinFunctionReference(@NotNull PsiElement element, @NotNull String functionName) {
+    public DataformBuiltinFunctionReference(@NotNull PsiElement element, @NotNull String jsElementName) {
         super(element, new TextRange(0, element.getTextLength()));
-        this.functionName = functionName;
+        this.jsElementName = jsElementName;
     }
 
     @Nullable
@@ -53,14 +53,21 @@ public class DataformBuiltinFunctionReference extends PsiReferenceBase<PsiElemen
         Collection<JSFunction> functions = service.getCachedDataformFunctionsRef();
         for (JSFunction function : functions) {
             String name = function.getName();
-            if (functionName.equals(name)) {
+            if (jsElementName.equals(name)) {
                 return function;
+            }
+        }
+        Collection<JSVariable> variables = service.getCachedDataformVariablesRef();
+        for (JSVariable variable : variables) {
+            String name = variable.getName();
+            if (jsElementName.equals(name)) {
+                return variable;
             }
         }
 
         PsiFile psiFile = service.getPsiFile();
         String text = psiFile.getText();
-        int functionIndex = text.indexOf(functionName);
+        int functionIndex = text.indexOf(jsElementName);
         if (functionIndex >= 0) {
             int exportIndex = text.lastIndexOf("export", functionIndex);
             if (exportIndex >= 0 && exportIndex < functionIndex) {
@@ -74,7 +81,7 @@ public class DataformBuiltinFunctionReference extends PsiReferenceBase<PsiElemen
 
     @Override
     public Object @NonNull [] getVariants() {
-        if (Objects.equals(functionName, "projectConfig")) {
+        if (Objects.equals(jsElementName, "projectConfig")) {
             System.out.println("Not found in getVariants");
         }
         return new Object[0];

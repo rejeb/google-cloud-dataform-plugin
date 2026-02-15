@@ -81,10 +81,15 @@ public class DataformIncludeNameOnlyReferenceContributor extends PsiReferenceCon
 
                             return PsiReference.EMPTY_ARRAY;
                         }
-
-                        return new PsiReference[]{
-                                new DataformIncludeFileReference(element, referencedName)
-                        };
+                        DataformIncludeFileReference ref= new DataformIncludeFileReference(element, referencedName);
+                        PsiElement resolved = ref.resolve();
+                        if(resolved != null){
+                            return new PsiReference[]{
+                                    ref
+                            };
+                        }else {
+                            return PsiReference.EMPTY_ARRAY;
+                        }
                     }
                 }
         );

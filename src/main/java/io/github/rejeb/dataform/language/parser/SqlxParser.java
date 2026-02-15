@@ -20,8 +20,9 @@ import com.intellij.json.JsonElementTypes;
 import com.intellij.lang.ASTNode;
 import com.intellij.lang.PsiBuilder;
 import com.intellij.lang.PsiParser;
+import com.intellij.lang.javascript.JSElementTypes;
+import com.intellij.lang.javascript.JSTokenTypes;
 import com.intellij.psi.tree.IElementType;
-import com.intellij.sql.dialects.mongo.js.JSElementTypes;
 import io.github.rejeb.dataform.language.psi.SharedTokenTypes;
 import io.github.rejeb.dataform.language.psi.SqlxElementTypes;
 import org.jetbrains.annotations.NotNull;
@@ -40,6 +41,7 @@ public class SqlxParser implements PsiParser {
                 markElement(builder, SharedTokenTypes.CONFIG_KEYWORD);
                 parseConfigBlock(builder);
             } else if (tokenType == SharedTokenTypes.JS_KEYWORD) {
+                markElement(builder, SharedTokenTypes.JS_KEYWORD);
                 parseJsBlock(builder);
             } else {
                 parseSqlBlock(builder);
@@ -133,8 +135,6 @@ public class SqlxParser implements PsiParser {
             markElement(builder, SqlxElementTypes.TEMPLATE_EXPRESSION_ELEMENT);
         } else if (builder.getTokenType() == SharedTokenTypes.JS_LITTERAL) {
             markElement(builder, SqlxElementTypes.JS_LITTERAL_ELEMENT);
-        } else if (builder.getTokenType() == SharedTokenTypes.REFERENCE_EXPRESSION) {
-            markElement(builder, SqlxElementTypes.REFERENCE_EXPRESSION_ELEMENT);
         } else {
             if (!builder.eof()) {
                 builder.advanceLexer();
@@ -192,12 +192,18 @@ public class SqlxParser implements PsiParser {
 
     private void parseJsBlock(PsiBuilder builder) {
         PsiBuilder.Marker marker = builder.mark();
+        int braceCount = 0;
         while (!builder.eof()) {
-            builder.advanceLexer();
             IElementType tokenType = builder.getTokenType();
+            if(tokenType == JSTokenTypes.LBRACE){
+                braceCount++;
+            }
 
-            if (tokenType != SharedTokenTypes.JS_CONTENT &&
-                    tokenType != SharedTokenTypes.JS_KEYWORD) {
+            if(tokenType == JSTokenTypes.RBRACE){
+                braceCount--;
+            }
+            builder.advanceLexer();
+            if (braceCount == 0) {
                 break;
             }
         }

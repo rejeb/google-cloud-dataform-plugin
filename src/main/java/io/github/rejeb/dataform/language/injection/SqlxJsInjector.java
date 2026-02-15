@@ -19,7 +19,9 @@ package io.github.rejeb.dataform.language.injection;
 import com.intellij.lang.injection.MultiHostInjector;
 import com.intellij.lang.injection.MultiHostRegistrar;
 import com.intellij.lang.javascript.JavascriptLanguage;
+import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiElement;
+import io.github.rejeb.dataform.language.psi.SqlxConfigBlock;
 import io.github.rejeb.dataform.language.psi.SqlxJsBlock;
 import org.jetbrains.annotations.NotNull;
 
@@ -31,27 +33,31 @@ public class SqlxJsInjector implements MultiHostInjector {
     public void getLanguagesToInject(@NotNull MultiHostRegistrar registrar,
                                      @NotNull PsiElement context) {
 
-        if (context instanceof SqlxJsBlock) {
-            SqlxJsBlock jsBlock = (SqlxJsBlock) context;
-            String text = jsBlock.getText();
-
-            int startBrace = text.indexOf('{');
-            int endBrace = text.lastIndexOf('}');
-
-            if (startBrace >= 0 && endBrace > startBrace) {
-                registrar.startInjecting(JavascriptLanguage.INSTANCE)
-                        .addPlace(
-                                null,
-                                null,
-                                jsBlock,
-                                com.intellij.openapi.util.TextRange.create(
-                                        startBrace + 1,
-                                        endBrace
-                                )
-                        )
-                        .doneInjecting();
-            }
+        if (!(context instanceof SqlxJsBlock jsBlock)) {
+            return;
         }
+
+        String text = jsBlock.getText();
+
+        if (text.isEmpty()) {
+            return;
+        }
+
+        int startIndex = text.indexOf("{");
+        int endIndex = text.lastIndexOf("}");
+
+        if (startIndex == -1 || endIndex == -1 || startIndex >= endIndex) {
+            return;
+        }
+        registrar.startInjecting(JavascriptLanguage.INSTANCE)
+                .addPlace(
+                        null,
+                        null,
+                        jsBlock,
+                        new TextRange(startIndex, endIndex)
+                )
+                .doneInjecting();
+
     }
 
     @NotNull

@@ -17,6 +17,7 @@
 package io.github.rejeb.dataform.language.service;
 
 import com.intellij.lang.javascript.psi.JSFunction;
+import com.intellij.lang.javascript.psi.JSVariable;
 import com.intellij.lang.javascript.psi.ecma6.TypeScriptModule;
 import com.intellij.notification.NotificationGroupManager;
 import com.intellij.notification.NotificationType;
@@ -52,6 +53,8 @@ public final class DataformCoreIndexService implements PersistentStateComponent<
                 Optional.empty(),
                 Collections.emptyList(),
                 Collections.emptyList(),
+                Collections.emptyList(),
+                Collections.emptyList(),
                 Collections.emptyList()
         );
     }
@@ -69,10 +72,12 @@ public final class DataformCoreIndexService implements PersistentStateComponent<
 
         var dataformCoreJsFile = findDataformCoreJsFile(corePackage);
         var cachedDataformFunctionsRef = this.findNonModuleElements(dataformCoreJsFile, JSFunction.class);
+        var cachedDataformVariablesRef = this.findNonModuleElements(dataformCoreJsFile, JSVariable.class);
         var cachedDataformFunctionsForCompletion = cachedDataformFunctionsRef.stream()
                 .map(DataformFunctionCompletionObject::fromJSFunction)
                 .flatMap(Optional::stream)
                 .toList();
+
 
         this.state = new ServiceState(
                 currentVersion,
@@ -80,6 +85,8 @@ public final class DataformCoreIndexService implements PersistentStateComponent<
                 dataformCoreJsFile,
                 cachedDataformFunctionsRef,
                 cachedDataformFunctionsRef.stream().map(JSFunction::getName).toList(),
+                cachedDataformVariablesRef,
+                cachedDataformVariablesRef.stream().map(JSVariable::getName).toList(),
                 cachedDataformFunctionsForCompletion
         );
     }
@@ -118,12 +125,32 @@ public final class DataformCoreIndexService implements PersistentStateComponent<
     }
 
     @NotNull
+    public Collection<String> getCachedDataformVariablesNames() {
+        if (getState().dataformCoreJsFile().isEmpty()) {
+            notifyUserDataformNotInstalled(project);
+            return Collections.emptyList();
+        } else {
+            return this.state.cachedDataformVariablesNames();
+        }
+    }
+
+    @NotNull
     public Collection<JSFunction> getCachedDataformFunctionsRef() {
         if (getState().dataformCoreJsFile().isEmpty()) {
             notifyUserDataformNotInstalled(project);
             return Collections.emptyList();
         } else {
             return this.state.cachedDataformFunctionsRef();
+        }
+    }
+
+    @NotNull
+    public Collection<JSVariable> getCachedDataformVariablesRef() {
+        if (getState().dataformCoreJsFile().isEmpty()) {
+            notifyUserDataformNotInstalled(project);
+            return Collections.emptyList();
+        } else {
+            return this.state.cachedDataformVariablesRef();
         }
     }
 

@@ -231,7 +231,7 @@ public class SqlxConfigLexer extends LexerBase {
                 currentPosition++;
             }
             currentTokenType = SharedTokenTypes.TEMPLATE_EXPRESSION;
-        }else {
+        } else {
             currentTokenType = TokenType.BAD_CHARACTER;
             currentPosition++;
         }

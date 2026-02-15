@@ -58,7 +58,7 @@ public class DataformRefReferenceContributor extends PsiReferenceContributor {
 
                         String functionName = ((JSReferenceExpression) methodExpr).getReferenceName();
 
-                        if (!"ref".equals(functionName) && !"source".equals(functionName)) {
+                        if (!"ref".equals(functionName) && !"resolve".equals(functionName) && !"source".equals(functionName)) {
                             return PsiReference.EMPTY_ARRAY;
                         }
 

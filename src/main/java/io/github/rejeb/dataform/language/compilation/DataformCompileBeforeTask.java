@@ -30,7 +30,9 @@ import io.github.rejeb.dataform.setup.NodeInterpreterManager;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Optional;
 
 public final class DataformCompileBeforeTask implements CompileTask {
@@ -49,7 +51,7 @@ public final class DataformCompileBeforeTask implements CompileTask {
                 .nodeBinDir();
         String dataformExecutable = nodeBinDir.resolve(dataformCliCmd).toAbsolutePath().toString();
 
-        GeneralCommandLine cmd = new GeneralCommandLine(dataformExecutable, "compile")
+        GeneralCommandLine cmd = new GeneralCommandLine(dataformExecutable, "compile --json > .build/compilation.json")
                 .withWorkDirectory(project.getBasePath());
         String pathEnv = nodeBinDir.toFile().getAbsolutePath() + File.pathSeparator +
                 System.getenv("PATH");

@@ -20,6 +20,7 @@ import com.intellij.codeInsight.AutoPopupController;
 import com.intellij.codeInsight.completion.*;
 import com.intellij.codeInsight.lookup.LookupElementBuilder;
 import com.intellij.lang.injection.InjectedLanguageManager;
+import com.intellij.lang.javascript.psi.JSFile;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.patterns.PlatformPatterns;
 import com.intellij.psi.PsiElement;
@@ -48,22 +49,10 @@ public class DataformWorkflowSettingsCompletionContributor extends CompletionCon
 
                         PsiElement position = parameters.getPosition();
 
-                        // Ne pas contribuer si on est dans un fragment injecté et que l'élément n'est pas valide
-                        if (!position.isValid() || !position.getContainingFile().isValid()) {
-                            return;
-                        }
-
                         PsiFile topLevelFile = InjectedLanguageManager.getInstance(position.getProject())
                                 .getTopLevelFile(position);
 
-                        if (!(topLevelFile instanceof SqlxFile)) {
-                            return;
-                        }
-
-                        // Vérifier que nous sommes dans un contexte SQLX, pas dans un fragment JSON injecté
-                        PsiFile originalFile = parameters.getOriginalFile();
-                        if (originalFile != topLevelFile) {
-                            // On est dans un fragment injecté, ne pas interférer
+                        if (!(topLevelFile instanceof SqlxFile) && !(topLevelFile instanceof JSFile)) {
                             return;
                         }
 

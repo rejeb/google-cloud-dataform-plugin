@@ -31,21 +31,9 @@ public class DataformProjectStartup implements ProjectActivity {
     @Nullable
     @Override
     public Object execute(@NotNull Project project, @NotNull Continuation<? super Unit> continuation) {
-//        disableSqlResolveInspection(project);
         DumbService.getInstance(project).runWhenSmart(() -> {
         });
         return null;
     }
 
-//    private static void disableSqlResolveInspection(Project project) {
-//        InspectionProfileManager profileManager = InspectionProfileManager.getInstance(project);
-//        InspectionProfileImpl profile = profileManager.getCurrentProfile();
-//
-//        // Désactive l'inspection SqlResolve
-//        profile.setToolEnabled("SqlResolve", false);
-//        profile.setToolEnabled("SqlUnresolvedReference", false);
-//
-//        // Si vous voulez désactiver toutes les inspections SQL
-//        profile.setToolEnabled("SqlNoDataSourceInspection", false);
-//    }
 }

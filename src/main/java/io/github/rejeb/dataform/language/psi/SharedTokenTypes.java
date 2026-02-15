@@ -24,7 +24,6 @@ public interface SharedTokenTypes {
     IElementType JS_CONTENT = new IElementType("JS_CONTENT", SqlxLanguage.INSTANCE);
     IElementType SQL_CONTENT = new IElementType("SQL_CONTENT", SqlxLanguage.INSTANCE);
     IElementType TEMPLATE_EXPRESSION = new IElementType("TEMPLATE_EXPRESSION", SqlxLanguage.INSTANCE);
-    IElementType REFERENCE_EXPRESSION = new IElementType("REFERENCE_EXPRESSION", SqlxLanguage.INSTANCE);
     IElementType JS_LITTERAL = new IElementType("JS_LITTERAL", SqlxLanguage.INSTANCE);
     IElementType CONFIG_KEYWORD = new IElementType("CONFIG_KEYWORD", SqlxLanguage.INSTANCE);
     IElementType JS_KEYWORD = new IElementType("JS_KEYWORD", SqlxLanguage.INSTANCE);

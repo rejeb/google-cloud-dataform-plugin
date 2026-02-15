@@ -99,10 +99,6 @@
                 language="JavaScript"
                 implementationClass="io.github.rejeb.dataform.language.completion.DataformWorkflowSettingsCompletionContributor"/>
 
-        <completion.contributor
-                language="any"
-                order="first"
-                implementationClass="io.github.rejeb.dataform.language.completion.SafeJsonSchemaCompletionContributor"/>
 
         <psi.referenceContributor
                 language="JavaScript"
@@ -112,8 +108,11 @@
                 implementation="io.github.rejeb.dataform.language.reference.DataformWorkflowSettingsReferenceContributor"/>
         <psi.referenceContributor
                 language="JavaScript"
-                implementation="io.github.rejeb.dataform.language.reference.DataformTemplateReferenceContributor"/>
+                implementation="io.github.rejeb.dataform.language.reference.DataformJsReferenceContributor"/>
 
+        <lang.elementManipulator
+                forClass="io.github.rejeb.dataform.language.psi.SqlxSqlBlock"
+                implementationClass="io.github.rejeb.dataform.language.psi.SqlxSqlBlockManipulator"/>
         <notificationGroup id="Dataform.Notifications"
                            displayType="BALLOON"
                            isLogByDefault="true"
