@@ -77,43 +77,7 @@ public class DataformJsReference extends PsiReferenceBase<PsiElement> {
 
     @Override
     public Object @NonNull [] getVariants() {
-
-        PsiElement parent = myElement.getParent();
-        if (parent instanceof JSReferenceExpression) {
-            JSReferenceExpression refExpr = (JSReferenceExpression) parent;
-            if (refExpr.getQualifier() != null) {
-                return new Object[0];
-            }
-        }
-
-        List<LookupElement> variants = new ArrayList<>();
-
-        PsiFile currentFile = myElement.getContainingFile();
-        if (currentFile != null) {
-            PsiFile contextFile = InjectedLanguageManager.getInstance(myElement.getProject())
-                    .getTopLevelFile(myElement);
-
-            if (contextFile instanceof SqlxFile) {
-                List<DataformJsSymbolExtractor.JsSymbol> localSymbols =
-                        DataformJsSymbolExtractor.extractSymbolsFromSqlxFile(contextFile);
-
-                for (DataformJsSymbolExtractor.JsSymbol symbol : localSymbols) {
-                    String displayName = symbol.name();
-                    if (symbol.type() == DataformJsSymbolExtractor.SymbolType.FUNCTION) {
-                        displayName += "()";
-                    }
-
-                    variants.add(
-                            LookupElementBuilder.create(symbol.element(), symbol.name())
-                                    .withPresentableText(displayName)
-                                    .withTypeText("local js{}")
-                                    .withIcon(symbol.element().getIcon(0))
-                    );
-                }
-            }
-        }
-
-        return variants.toArray();
+        return new Object[0];
     }
 
 }

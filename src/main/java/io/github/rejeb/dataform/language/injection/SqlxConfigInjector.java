@@ -42,75 +42,53 @@ public class SqlxConfigInjector implements MultiHostInjector {
 
         String text = configBlock.getText();
 
-        System.out.println("=== SqlxConfigInjector ===");
-        System.out.println("ConfigBlock text: " + text);
-        System.out.println("ConfigBlock range: " + configBlock.getTextRange());
-
         if (text.isEmpty()) {
-            System.out.println("Text is empty, returning");
             return;
         }
 
         List<TextRange> jsRanges = collectJsElementRanges(configBlock);
-        System.out.println("JS ranges collected: " + jsRanges.size());
-        for (int i = 0; i < jsRanges.size(); i++) {
-            System.out.println("  Range " + i + ": " + jsRanges.get(i));
-        }
-
         if (hasOverlappingRanges(jsRanges)) {
-            System.out.println("Overlapping ranges detected! Aborting injection.");
             return;
         }
 
         if (jsRanges.isEmpty()) {
-            System.out.println("No JS ranges, injecting full JSON5");
             registrar.startInjecting(Json5Language.INSTANCE);
             registrar.addPlace(null, null, configBlock, new TextRange(0, text.length()));
             registrar.doneInjecting();
             return;
         }
 
-        System.out.println("Sorting JS ranges");
         jsRanges.sort(Comparator.comparingInt(TextRange::getStartOffset));
 
-        System.out.println("Starting multi-host injection with JS replacement");
         registrar.startInjecting(Json5Language.INSTANCE);
 
         int currentPos = 0;
 
         for (int i = 0; i < jsRanges.size(); i++) {
             TextRange jsRange = jsRanges.get(i);
-            System.out.println("Processing JS range " + i + ": " + jsRange + ", currentPos: " + currentPos);
 
             // Inject the part before the JS element
             if (currentPos < jsRange.getStartOffset()) {
                 TextRange beforeRange = new TextRange(currentPos, jsRange.getStartOffset());
                 String beforeText = text.substring(beforeRange.getStartOffset(), beforeRange.getEndOffset());
-                System.out.println("  Injecting part before JS: " + beforeRange);
-                System.out.println("  Text: '" + beforeText + "'");
                 registrar.addPlace(null, null, configBlock, beforeRange);
             }
 
             // Replace the JS element with a string placeholder
             String jsText = text.substring(jsRange.getStartOffset(), jsRange.getEndOffset());
             String placeholder = "\"__js_placeholder_" + i + "__\"";
-            System.out.println("  Replacing JS element: '" + jsText + "' with: '" + placeholder + "'");
             registrar.addPlace(placeholder, null, configBlock, new TextRange(jsRange.getStartOffset(), jsRange.getStartOffset()));
 
             currentPos = jsRange.getEndOffset();
-            System.out.println("  New currentPos: " + currentPos);
         }
 
         // Inject the remaining part after the last JS element
         if (currentPos < text.length()) {
             TextRange remainingRange = new TextRange(currentPos, text.length());
             String remainingText = text.substring(remainingRange.getStartOffset(), remainingRange.getEndOffset());
-            System.out.println("Injecting final part: " + remainingRange);
-            System.out.println("  Text: '" + remainingText + "'");
             registrar.addPlace(null, null, configBlock, remainingRange);
         }
 
-        System.out.println("Done injecting");
         registrar.doneInjecting();
     }
 

@@ -81,9 +81,6 @@ public class DataformBuiltinFunctionReference extends PsiReferenceBase<PsiElemen
 
     @Override
     public Object @NonNull [] getVariants() {
-        if (Objects.equals(jsElementName, "projectConfig")) {
-            System.out.println("Not found in getVariants");
-        }
         return new Object[0];
     }
 }

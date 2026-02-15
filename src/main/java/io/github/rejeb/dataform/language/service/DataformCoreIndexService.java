@@ -78,10 +78,11 @@ public final class DataformCoreIndexService implements PersistentStateComponent<
                 .flatMap(Optional::stream)
                 .toList();
 
+        var lastUpdate = corePackage.isPresent() ? System.currentTimeMillis() : -1L;
 
         this.state = new ServiceState(
                 currentVersion,
-                System.currentTimeMillis(),
+                lastUpdate,
                 dataformCoreJsFile,
                 cachedDataformFunctionsRef,
                 cachedDataformFunctionsRef.stream().map(JSFunction::getName).toList(),

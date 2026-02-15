@@ -51,7 +51,7 @@ public final class DataformCompileBeforeTask implements CompileTask {
                 .nodeBinDir();
         String dataformExecutable = nodeBinDir.resolve(dataformCliCmd).toAbsolutePath().toString();
 
-        GeneralCommandLine cmd = new GeneralCommandLine(dataformExecutable, "compile --json > .build/compilation.json")
+        GeneralCommandLine cmd = new GeneralCommandLine(dataformExecutable, "compile")
                 .withWorkDirectory(project.getBasePath());
         String pathEnv = nodeBinDir.toFile().getAbsolutePath() + File.pathSeparator +
                 System.getenv("PATH");

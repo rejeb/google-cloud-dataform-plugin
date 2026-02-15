@@ -21,7 +21,6 @@ import com.intellij.openapi.util.TextRange;
 import com.intellij.patterns.PlatformPatterns;
 import com.intellij.psi.*;
 import com.intellij.util.ProcessingContext;
-import io.github.rejeb.dataform.language.psi.SqlxJsLitteralExpression;
 import org.jetbrains.annotations.NotNull;
 import org.jspecify.annotations.NonNull;
 
@@ -44,13 +43,18 @@ public class DataformJsReferenceContributor extends PsiReferenceContributor {
 
                         TextRange rangeInElement = element.getTextRange().shiftRight(-element.getTextOffset());
 
-                        references.add(new DataformJsReference(
+                        DataformJsReference ref = new DataformJsReference(
                                 element,
                                 identifier,
                                 rangeInElement
-                        ));
+                        );
+                        if (ref.resolve() != null) {
+                            references.add(ref);
+                            return references.toArray(new PsiReference[0]);
+                        } else {
+                            return PsiReference.EMPTY_ARRAY;
+                        }
 
-                        return references.toArray(new PsiReference[0]);
                     }
                 },
                 PsiReferenceRegistrar.LOWER_PRIORITY

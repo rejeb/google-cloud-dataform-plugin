@@ -16,16 +16,13 @@
  */
 package io.github.rejeb.dataform.setup;
 
-import com.intellij.javascript.nodejs.interpreter.NodeJsInterpreter;
-import com.intellij.javascript.nodejs.interpreter.NodeJsInterpreterManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.SystemInfo;
+import io.github.rejeb.dataform.language.util.NodeJsNpmUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.io.File;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.Optional;
 
 public class NodeInterpreterManager {
@@ -47,71 +44,46 @@ public class NodeInterpreterManager {
 
 
     public synchronized static NodeInterpreterManager getInstance(@NotNull Project project) {
-        if (INSTANCE == null|| INSTANCE.nodeInstallDir == null) {
+        if (INSTANCE == null || INSTANCE.nodeInstallDir == null) {
             INSTANCE = new NodeInterpreterManager(project);
         }
         return INSTANCE;
     }
 
+    @Nullable
     public Path nodeInstallDir() {
         return nodeInstallDir;
     }
 
+    @Nullable
     public Path npmExecutable() {
         return npmExecutable;
     }
 
+    @Nullable
     public Path nodeModulesDir() {
         return nodeModulesDir;
     }
 
+    @Nullable
     public Path nodeBinDir() {
         return nodeBinDir;
     }
 
     private NodeInstallInfo loadNodeInstallInfo() {
-        Optional<Path> nodeInstallDir = findNodeInstallDir();
-        Optional<Path> binDir = nodeInstallDir.map(nodeDir -> SystemInfo.isWindows ? nodeDir : nodeDir.resolve("bin"));
-        Optional<Path> npmExecutable = binDir
-                .flatMap(this::findNpmInNodeInstall);
-        String nodeModulesDir = SystemInfo.isWindows ? "node_modules" : "lib/node_modules";
+        Optional<Path> npmExecutable = NodeJsNpmUtils.findValidNpmPath(project);
+        Optional<Path> prefixDir = npmExecutable.flatMap(npmExec -> NodeJsNpmUtils.findNodeInstallDir(project, npmExec));
+        Optional<Path> binDir = prefixDir.map(nodeDir -> SystemInfo.isWindows ? nodeDir : nodeDir.resolve("bin"));
+        Optional<Path> nodeModulesDir = prefixDir.flatMap(NodeJsNpmUtils::getGlobalNodeModulesPath);
 
-        if (npmExecutable.isPresent()) {
-            return new NodeInstallInfo(
-                    nodeInstallDir.get(),
-                    npmExecutable.get(),
-                    nodeInstallDir.get().resolve(nodeModulesDir),
-                    binDir.get()
-            );
-        } else {
-            return new NodeInstallInfo();
-        }
+        return npmExecutable.map(path -> new NodeInstallInfo(
+                prefixDir.orElse(null),
+                path,
+                nodeModulesDir.orElse(null),
+                binDir.orElse(null)
+        )).orElseGet(NodeInstallInfo::new);
     }
 
-
-    private Optional<Path> findNodeInstallDir() {
-        Optional<File> nodeExecutableDir = Optional
-                .ofNullable(NodeJsInterpreterManager.getInstance(project).getInterpreter())
-                .map(NodeJsInterpreter::getReferenceName)
-                .map(File::new)
-                .map(File::getParentFile);
-        if (SystemInfo.isWindows) {
-            return nodeExecutableDir
-                    .map(File::toPath);
-        } else {
-            return nodeExecutableDir
-                    .map(File::getParentFile)
-                    .map(File::toPath);
-        }
-    }
-
-    private Optional<Path> findNpmInNodeInstall(Path binDir) {
-        String[] npmCmds = SystemInfo.isWindows ? new String[]{"npm.cmd", "npm.bat"} : new String[]{"npm"};
-        return Arrays.stream(npmCmds)
-                .map(binDir::resolve)
-                .filter(nodepath -> nodepath.toFile().exists())
-                .findFirst();
-    }
 
     record NodeInstallInfo(
             @Nullable Path nodeInstallDir,

@@ -16,121 +16,86 @@
  */
 package io.github.rejeb.dataform.setup;
 
-import com.intellij.notification.Notification;
-import com.intellij.notification.NotificationGroup;
-import com.intellij.notification.NotificationGroupManager;
-import com.intellij.notification.NotificationType;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
-import com.intellij.openapi.progress.ProgressIndicator;
-import com.intellij.openapi.progress.ProgressManager;
-import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.startup.ProjectActivity;
+import com.intellij.openapi.ui.Messages;
+import io.github.rejeb.dataform.language.util.NodeJsNpmUtils;
 import kotlin.Unit;
 import kotlin.coroutines.Continuation;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.InputStreamReader;
-
 
 public class DataformInstaller implements ProjectActivity {
     private static final Logger LOG = Logger.getInstance(DataformInstaller.class);
-    private static final String NOTIFICATION_GROUP_ID = "Dataform.Notifications";
-
+    private Boolean notifyUserNode = true;
+    private Boolean notifyUserDataformCore = true;
+    private Boolean notifyUserDataformCli = true;
 
     @Override
     public @Nullable Object execute(@NotNull Project project, @NotNull Continuation<? super Unit> continuation) {
-        NodeInterpreterManager nodeInterpreterManager = NodeInterpreterManager.getInstance(project);
-        if (nodeInterpreterManager.nodeInstallDir() != null) {
+        ApplicationManager.getApplication().invokeLaterOnWriteThread(() -> {
+            NodeInterpreterManager nodeInterpreterManager = NodeInterpreterManager.getInstance(project);
+
+            if (nodeInterpreterManager.npmExecutable() == null && notifyUserNode) {
+                notifyUserNode = false;
+                NodeJsNpmUtils.showNpmConfigurationDialog(project);
+                nodeInterpreterManager = NodeInterpreterManager.getInstance(project);
+            }
+
             DataformInterpreterManager dataformInterpreterManager = DataformInterpreterManager.getInstance(project);
-            if (dataformInterpreterManager.dataformCorePath().isEmpty()) {
-                return installDataformLibs(project, nodeInterpreterManager);
+            if (dataformInterpreterManager.dataformCorePath().isEmpty() && notifyUserDataformCore) {
+                notifyUserDataformCore = false;
+                installDataformCore(project, nodeInterpreterManager);
             }
-        }
-        return false;
-    }
 
-    private boolean installDataformLibs(Project project, NodeInterpreterManager nodeInterpreterManager) {
-        LOG.debug("Installing Dataform CLI...");
-        if (nodeInterpreterManager.nodeInstallDir() == null) {
-            showErrorNotification(project, "npm not found. Please install Node.js first.");
-            return false;
-        } else {
-            try {
-                return doInstall(project, nodeInterpreterManager);
-            } catch (Exception e) {
-                LOG.error("Installation failed", e);
-                showErrorNotification(project, "Error installing Dataform CLI: " + e.getMessage());
-                return false;
+            if (dataformInterpreterManager.dataformCliDir().isEmpty() && notifyUserDataformCli) {
+                notifyUserDataformCli = false;
+                installDataformCli(project, nodeInterpreterManager);
             }
-        }
-    }
-
-    private Boolean doInstall(Project project, NodeInterpreterManager nodeInterpreterManager) throws Exception {
-        return ProgressManager.getInstance()
-                .run(new Task.WithResult<Boolean, Exception>(project,
-                        "Installing Dataform CORE/CLI", false) {
-                    @Override
-                    protected Boolean compute(@NotNull ProgressIndicator indicator) throws Exception {
-                        indicator.setText("Installing Dataform CLI and Core via npm...");
-                        indicator.setIndeterminate(true);
-
-                        File npmFile = nodeInterpreterManager.npmExecutable().toFile();
-                        File nodeBinDir = nodeInterpreterManager.nodeBinDir().toFile();
-                        File nodeModulesDir = nodeInterpreterManager.nodeInstallDir().toFile();
-
-                        ProcessBuilder pb = new ProcessBuilder(
-                                npmFile.getAbsolutePath(),
-                                "install",
-                                "@dataform/cli",
-                                "@dataform/core",
-                                "typescript",
-                                "-g",
-                                "--prefix",
-                                nodeModulesDir.getAbsolutePath()
-                        );
-
-                        String pathEnv = nodeBinDir.getAbsolutePath() + File.pathSeparator +
-                                System.getenv("PATH");
-                        pb.environment().put("PATH", pathEnv);
-
-                        pb.redirectErrorStream(true);
-                        Process process = pb.start();
-
-
-                        BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-                        String line;
-                        while ((line = reader.readLine()) != null) {
-                            LOG.debug(line);
-                            indicator.setText2(line);
-                        }
-
-                        int exitCode = process.waitFor();
-
-                        if (exitCode != 0) {
-                            process.errorReader().lines().forEach(System.err::println);
-                            showErrorNotification(project, "Failed to install Dataform CLI and Core. Exit code: " + exitCode);
-                        }
-                        return true;
-
-                    }
-                });
-    }
-
-    private void showErrorNotification(Project project, String message) {
-        ApplicationManager.getApplication().invokeLater(() -> {
-            NotificationGroup group = NotificationGroupManager.getInstance().getNotificationGroup(NOTIFICATION_GROUP_ID);
-            Notification notification = group.createNotification(
-                    "Error",
-                    message,
-                    NotificationType.ERROR
-            );
-            notification.notify(project);
+            DataformInterpreterManager.getInstance(project);
         });
+        return DataformInterpreterManager.getInstance(project).dataformCorePath().isPresent();
     }
+
+    private void installDataformCli(Project project, NodeInterpreterManager nodeInterpreterManager) {
+        LOG.debug("Installing Dataform CLI...");
+        int result = Messages.showOkCancelDialog(project,
+                "Dataform Cli is not installed.\n\nWould you like to intall it ?",
+                "Dataform Cli Not Available",
+                "Install",
+                "Cancel",
+                Messages.getWarningIcon());
+
+        if (result == Messages.OK) {
+            NodeJsNpmUtils.installNodeJsLib("@dataform/cli",
+                    project,
+                    nodeInterpreterManager.npmExecutable().toFile(),
+                    nodeInterpreterManager.nodeBinDir().toFile(),
+                    nodeInterpreterManager.nodeInstallDir().toFile());
+        }
+    }
+
+    private void installDataformCore(Project project, NodeInterpreterManager nodeInterpreterManager) {
+        LOG.debug("Installing Dataform CORE...");
+
+        int result = Messages.showOkCancelDialog(project,
+                "Dataform Core is not installed.\n\nWould you like to intall it ?",
+                "Dataform Core Not Available",
+                "Install",
+                "Cancel",
+                Messages.getWarningIcon());
+
+        if (result == Messages.OK) {
+            NodeJsNpmUtils.installNodeJsLib("@dataform/core",
+                    project,
+                    nodeInterpreterManager.npmExecutable().toFile(),
+                    nodeInterpreterManager.nodeBinDir().toFile(),
+                    nodeInterpreterManager.nodeInstallDir().toFile());
+        }
+    }
+
 
 }

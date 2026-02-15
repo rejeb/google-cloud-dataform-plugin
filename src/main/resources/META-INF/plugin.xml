@@ -46,9 +46,6 @@
 
         <postStartupActivity
                 order="first"
-                implementation="io.github.rejeb.dataform.setup.NodeJsInstaller"/>
-        <postStartupActivity
-                order="last"
                 implementation="io.github.rejeb.dataform.setup.DataformInstaller"/>
 
         <backgroundPostStartupActivity
@@ -68,10 +65,6 @@
                 language="SQLX"
                 implementationClass="io.github.rejeb.dataform.language.parser.SqlxParserDefinition"/>
 
-        <lang.parserDefinition
-                language="SQLX"
-                implementationClass="io.github.rejeb.dataform.language.parser.SqlxParserDefinition"/>
-
         <multiHostInjector implementation="io.github.rejeb.dataform.language.injection.SqlxSqlInjector"/>
 
         <multiHostInjector
@@ -83,14 +76,6 @@
         <multiHostInjector
                 implementation="io.github.rejeb.dataform.language.injection.SqlxTemplateInjector"/>
 
-        <psi.referenceContributor
-                language="JavaScript"
-                implementation="io.github.rejeb.dataform.language.reference.DataformBuiltinFunctionReferenceContributor"/>
-
-        <psi.referenceContributor
-                language="JavaScript"
-                implementation="io.github.rejeb.dataform.language.reference.DataformIncludeNameOnlyReferenceContributor"/>
-
         <completion.contributor
                 language="JavaScript"
                 implementationClass="io.github.rejeb.dataform.language.completion.DataformJsSymbolCompletionContributor"/>
@@ -99,13 +84,22 @@
                 language="JavaScript"
                 implementationClass="io.github.rejeb.dataform.language.completion.DataformWorkflowSettingsCompletionContributor"/>
 
+        <psi.referenceContributor
+                language="JavaScript"
+                implementation="io.github.rejeb.dataform.language.reference.DataformBuiltinFunctionReferenceContributor"/>
+
+        <psi.referenceContributor
+                language="JavaScript"
+                implementation="io.github.rejeb.dataform.language.reference.DataformIncludeNameOnlyReferenceContributor"/>
 
         <psi.referenceContributor
                 language="JavaScript"
                 implementation="io.github.rejeb.dataform.language.reference.DataformRefReferenceContributor"/>
+
         <psi.referenceContributor
                 language="JavaScript"
                 implementation="io.github.rejeb.dataform.language.reference.DataformWorkflowSettingsReferenceContributor"/>
+
         <psi.referenceContributor
                 language="JavaScript"
                 implementation="io.github.rejeb.dataform.language.reference.DataformJsReferenceContributor"/>
@@ -113,6 +107,7 @@
         <lang.elementManipulator
                 forClass="io.github.rejeb.dataform.language.psi.SqlxSqlBlock"
                 implementationClass="io.github.rejeb.dataform.language.psi.SqlxSqlBlockManipulator"/>
+
         <notificationGroup id="Dataform.Notifications"
                            displayType="BALLOON"
                            isLogByDefault="true"

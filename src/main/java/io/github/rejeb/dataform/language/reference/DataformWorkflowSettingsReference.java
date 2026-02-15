@@ -16,8 +16,10 @@
  */
 package io.github.rejeb.dataform.language.reference;
 
+import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiReferenceBase;
+import com.intellij.util.IncorrectOperationException;
 import io.github.rejeb.dataform.language.service.WorkflowSettingsService;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -67,6 +69,16 @@ public class DataformWorkflowSettingsReference extends PsiReferenceBase<PsiEleme
         }
 
         return null;
+    }
+
+    @Override
+    public @NonNull TextRange getRangeInElement() {
+        return TextRange.from(0, myElement.getTextLength());
+    }
+
+    @Override
+    public PsiElement handleElementRename(@NotNull String newElementName) throws IncorrectOperationException {
+        return myElement;
     }
 
 }
