@@ -16,11 +16,15 @@
  */
 package io.github.rejeb.dataform.setup;
 
+import com.intellij.notification.Notification;
+import com.intellij.notification.NotificationAction;
+import com.intellij.notification.NotificationGroupManager;
+import com.intellij.notification.NotificationType;
+import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.startup.ProjectActivity;
-import com.intellij.openapi.ui.Messages;
 import io.github.rejeb.dataform.language.util.NodeJsNpmUtils;
 import kotlin.Unit;
 import kotlin.coroutines.Continuation;
@@ -48,59 +52,70 @@ public class DataformInstaller implements ProjectActivity {
             DataformInterpreterManager dataformInterpreterManager = project.getService(DataformInterpreterManager.class);
             if (dataformInterpreterManager.dataformCorePath().isEmpty() && notifyUserDataformCore) {
                 notifyUserDataformCore = false;
-                installDataformCore(project, nodeInterpreterManager);
+                installDataformCore(project);
             }
 
             if (dataformInterpreterManager.dataformCliDir().isEmpty() && notifyUserDataformCli) {
                 notifyUserDataformCli = false;
-                installDataformCli(project, nodeInterpreterManager);
+                installDataformCli(project);
             }
 
         });
         return project.getService(DataformInterpreterManager.class).dataformCorePath().isPresent();
     }
 
-    private void installDataformCli(Project project, NodeInterpreterManager nodeInterpreterManager) {
+    private void installDataformCli(Project project) {
         LOG.debug("Installing Dataform CLI...");
-        int result = Messages.showOkCancelDialog(project,
-                "Dataform Cli is not installed.\n\nWould you like to intall it ?",
-                "Dataform Cli Not Available",
-                "Install",
-                "Cancel",
-                Messages.getWarningIcon());
-
-        if (result == Messages.OK &&
-                nodeInterpreterManager.npmExecutable() != null &&
-                nodeInterpreterManager.nodeBinDir() != null &&
-                nodeInterpreterManager.nodeInstallDir() != null) {
-            NodeJsNpmUtils.installNodeJsLib("@dataform/cli",
-                    project,
-                    nodeInterpreterManager.npmExecutable().toFile(),
-                    nodeInterpreterManager.nodeBinDir().toFile(),
-                    nodeInterpreterManager.nodeInstallDir().toFile());
-        }
+        NotificationGroupManager.getInstance()
+                .getNotificationGroup("Dataform.Notifications")
+                .createNotification("Dataform CLI installation requested",
+                        "Dataform CLI is not installed. Would you like to install it?",
+                        NotificationType.INFORMATION)
+                .addAction(new NotificationAction("Install CLI") {
+                               @Override
+                               public void actionPerformed(@NotNull AnActionEvent e,
+                                                           @NotNull Notification notification) {
+                                   NodeInterpreterManager nodeInterpreterManager = NodeInterpreterManager.getInstance(project);
+                                   if (nodeInterpreterManager.npmExecutable() != null &&
+                                           nodeInterpreterManager.nodeBinDir() != null &&
+                                           nodeInterpreterManager.nodeInstallDir() != null) {
+                                       NodeJsNpmUtils.installNodeJsLib("@dataform/cli",
+                                               project,
+                                               nodeInterpreterManager.npmExecutable().toFile(),
+                                               nodeInterpreterManager.nodeBinDir().toFile(),
+                                               nodeInterpreterManager.nodeInstallDir().toFile());
+                                   }
+                               }
+                           }
+                ).notify(project);
     }
 
-    private void installDataformCore(Project project, NodeInterpreterManager nodeInterpreterManager) {
+    private void installDataformCore(Project project) {
         LOG.debug("Installing Dataform CORE...");
+        NotificationGroupManager.getInstance()
+                .getNotificationGroup("Dataform.Notifications")
+                .createNotification("Dataform Core installation requested",
+                        "Dataform Core is not installed. Would you like to install it?",
+                        NotificationType.INFORMATION)
+                .addAction(new NotificationAction("Install CORE") {
+                               @Override
+                               public void actionPerformed(@NotNull AnActionEvent e,
+                                                           @NotNull Notification notification) {
+                                   NodeInterpreterManager nodeInterpreterManager = NodeInterpreterManager.getInstance(project);
+                                   if (nodeInterpreterManager.npmExecutable() != null &&
+                                           nodeInterpreterManager.nodeBinDir() != null &&
+                                           nodeInterpreterManager.nodeInstallDir() != null) {
+                                       NodeJsNpmUtils.installNodeJsLib("@dataform/core",
+                                               project,
+                                               nodeInterpreterManager.npmExecutable().toFile(),
+                                               nodeInterpreterManager.nodeBinDir().toFile(),
+                                               nodeInterpreterManager.nodeInstallDir().toFile());
+                                   }
+                               }
+                           }
+                ).
 
-        int result = Messages.showOkCancelDialog(project,
-                "Dataform Core is not installed.\n\nWould you like to intall it ?",
-                "Dataform Core Not Available",
-                "Install",
-                "Cancel",
-                Messages.getWarningIcon());
-
-        if (result == Messages.OK &&
-                nodeInterpreterManager.npmExecutable() != null &&
-                nodeInterpreterManager.nodeBinDir() != null &&
-                nodeInterpreterManager.nodeInstallDir() != null) {
-            NodeJsNpmUtils.installNodeJsLib("@dataform/core",
-                    project,
-                    nodeInterpreterManager.npmExecutable().toFile(),
-                    nodeInterpreterManager.nodeBinDir().toFile(),
-                    nodeInterpreterManager.nodeInstallDir().toFile());
-        }
+                notify(project);
     }
 
 

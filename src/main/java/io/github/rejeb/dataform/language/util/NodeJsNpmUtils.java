@@ -22,17 +22,14 @@ import com.intellij.javascript.nodejs.interpreter.NodeJsInterpreter;
 import com.intellij.javascript.nodejs.interpreter.NodeJsInterpreterManager;
 import com.intellij.javascript.nodejs.npm.NpmManager;
 import com.intellij.javascript.nodejs.util.NodePackage;
-import com.intellij.notification.Notification;
-import com.intellij.notification.NotificationGroup;
-import com.intellij.notification.NotificationGroupManager;
-import com.intellij.notification.NotificationType;
+import com.intellij.notification.*;
+import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.options.ShowSettingsUtil;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.util.SystemInfo;
 import org.jetbrains.annotations.NotNull;
 
@@ -151,12 +148,21 @@ public class NodeJsNpmUtils {
     }
 
     private static void showConfigurationDialog(Project project, String message, String title) {
-        int result = Messages.showOkCancelDialog(project, message, title, "Configure", "Cancel", Messages.getWarningIcon());
-
-        if (result == Messages.OK) {
-            openNodeJsSettings(project);
-        }
+        NotificationGroupManager.getInstance()
+                .getNotificationGroup("Dataform.Notifications")
+                .createNotification(title,
+                        message,
+                        NotificationType.INFORMATION)
+                .addAction(new NotificationAction("Install CLI") {
+                    @Override
+                    public void actionPerformed(@NotNull AnActionEvent e,
+                                                @NotNull Notification notification) {
+                        openNodeJsSettings(project);
+                    }
+                })
+                .notify(project);
     }
+
 
     private static void openNodeJsSettings(Project project) {
         ShowSettingsUtil.getInstance().showSettingsDialog(project, "Settings.JavaScript.Node.js");

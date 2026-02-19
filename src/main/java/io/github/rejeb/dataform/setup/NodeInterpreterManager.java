@@ -57,16 +57,25 @@ public class NodeInterpreterManager {
 
     @Nullable
     public Path npmExecutable() {
+        if (npmExecutable == null) {
+            loadNodeInstallInfo();
+        }
         return npmExecutable;
     }
 
     @Nullable
     public Path nodeModulesDir() {
+        if (npmExecutable == null) {
+            loadNodeInstallInfo();
+        }
         return nodeModulesDir;
     }
 
     @Nullable
     public Path nodeBinDir() {
+        if (npmExecutable == null) {
+            loadNodeInstallInfo();
+        }
         return nodeBinDir;
     }
 

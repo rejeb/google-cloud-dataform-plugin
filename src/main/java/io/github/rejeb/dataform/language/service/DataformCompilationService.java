@@ -67,7 +67,7 @@ public final class DataformCompilationService implements Disposable {
                     Optional<GeneralCommandLine> cmd = project.getService(DataformInterpreterManager.class)
                             .getInterpreterCommand("compile", "--json");
                     if (cmd.isPresent()) {
-                        ProcessOutput output = ExecUtil.execAndGetOutput(cmd.get(), 60000);
+                        ProcessOutput output = ExecUtil.execAndGetOutput(cmd.get(), 300000);
                         parseAndCacheResults(output.getStdout());
                     }
                 } catch (ExecutionException e) {
