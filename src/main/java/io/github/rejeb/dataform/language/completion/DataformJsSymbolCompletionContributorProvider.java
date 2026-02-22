@@ -73,7 +73,7 @@ public class DataformJsSymbolCompletionContributorProvider extends CompletionPro
         }
 
         Project project = position.getProject();
-        result.addAllElements(handleJsBlockContent(topLevelFile,project));
+        result.addAllElements(handleJsBlockContent(topLevelFile));
         result.addAllElements(handleFileNameCompletion(project));
         result.addAllElements(handleBuiltinFunctions(project));
         result.addAllElements(handleBuiltinVariables(project));
@@ -89,8 +89,8 @@ public class DataformJsSymbolCompletionContributorProvider extends CompletionPro
         return prevLeaf != null && ".".equals(prevLeaf.getText());
     }
 
-    private List<LookupElement> handleJsBlockContent(PsiFile file, Project project) {
-        List<PsiFile> jsBlocks = findJsBlock(file, project);
+    private List<LookupElement> handleJsBlockContent(PsiFile file) {
+        List<PsiFile> jsBlocks = findJsBlock(file);
 
         Collection<LookupElement> variables = jsBlocks
                 .stream()
@@ -172,7 +172,7 @@ public class DataformJsSymbolCompletionContributorProvider extends CompletionPro
         return resultElements;
     }
 
-    private List<PsiFile> findJsBlock(PsiFile file, Project project) {
+    private List<PsiFile> findJsBlock(PsiFile file) {
         List<PsiFile> jsBlocks = new ArrayList<>();
         Collection<PsiLanguageInjectionHost> hosts = PsiTreeUtil.collectElementsOfType(file, PsiLanguageInjectionHost.class);
 

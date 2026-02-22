@@ -18,16 +18,12 @@ package io.github.rejeb.dataform.language.lexer;
 
 import com.intellij.lang.javascript.DialectOptionHolder;
 import com.intellij.lang.javascript.JavaScriptHighlightingLexer;
-import com.intellij.lexer.FlexAdapter;
 import com.intellij.lexer.LayeredLexer;
-import com.intellij.sql.dialects.base.SqlLexer;
-import com.intellij.sql.dialects.bigquery.BigQueryDialect;
-import com.intellij.sql.dialects.bigquery.BigQueryLexer;
 import io.github.rejeb.dataform.language.psi.SharedTokenTypes;
 
 public class SqlxLexerAdapter extends LayeredLexer {
     public SqlxLexerAdapter() {
-        super(new FlexAdapter(new SqlxLexer(null)));
+        super(new SqlxFileLexer());
         registerLayer(
                 new SqlxConfigLexer(),
                 SharedTokenTypes.CONFIG_CONTENT

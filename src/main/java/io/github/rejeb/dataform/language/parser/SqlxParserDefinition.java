@@ -83,6 +83,14 @@ public class SqlxParserDefinition implements ParserDefinition {
         if (type == SqlxElementTypes.SQL_BLOCK) {
             return new SqlxSqlBlock(node);
         }
+
+        if (type == SharedTokenTypes.PRE_OPERATIONS_CONTENT) {
+            return new SqlxPreOperationsBlock(node);
+        }
+        if (type == SharedTokenTypes.POST_OPERATIONS_CONTENT) {
+            return new SqlxPostOperationsBlock(node);
+        }
+
         if (type == SqlxElementTypes.CONFIG_BLOCK) {
             return new SqlxConfigBlock(node);
         }

@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "io.github.rejeb"
-version = "0.2.1"
+version = "0.2.2"
 
 repositories {
     mavenCentral()
@@ -23,7 +23,7 @@ dependencies {
 
     testImplementation("org.junit.vintage:junit-vintage-engine:5.10.0")
     intellijPlatform {
-        intellijIdea("2025.3.2")
+        intellijIdea("2025.3.3")
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
         bundledPlugin("com.intellij.java")
         bundledPlugin("JavaScript")

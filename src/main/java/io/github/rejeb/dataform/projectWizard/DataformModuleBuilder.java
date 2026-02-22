@@ -16,7 +16,6 @@
  */
 package io.github.rejeb.dataform.projectWizard;
 
-import com.intellij.icons.AllIcons;
 import com.intellij.ide.util.projectWizard.ModuleBuilder;
 import com.intellij.ide.util.projectWizard.ModuleWizardStep;
 import com.intellij.ide.util.projectWizard.WizardContext;
@@ -27,11 +26,9 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.roots.ModifiableRootModel;
 import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
-import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import javax.swing.*;
 import java.io.File;
 import java.io.IOException;
 
@@ -66,27 +63,7 @@ public class DataformModuleBuilder extends ModuleBuilder {
 
     @Override
     public ModuleType<?> getModuleType() {
-        return new ModuleType<DataformModuleBuilder>("Dataform") {
-            @Override
-            public @NotNull DataformModuleBuilder createModuleBuilder() {
-                return new DataformModuleBuilder();
-            }
-
-            @Override
-            public @NotNull @Nls(capitalization = Nls.Capitalization.Title) String getName() {
-                return "Dataform Project";
-            }
-
-            @Override
-            public @NotNull @Nls(capitalization = Nls.Capitalization.Sentence) String getDescription() {
-                return "Create dataform project";
-            }
-
-            @Override
-            public @NotNull Icon getNodeIcon(boolean isOpened) {
-                return AllIcons.Providers.BigQuery;
-            }
-        };
+        return new DataformModuleType();
     }
 
     @Nullable
@@ -100,8 +77,8 @@ public class DataformModuleBuilder extends ModuleBuilder {
     }
 
     private void createProjectStructure(@NotNull Project project,
-                                         @NotNull VirtualFile baseDir,
-                                         @NotNull DataformProjectSettings settings) throws IOException {
+                                        @NotNull VirtualFile baseDir,
+                                        @NotNull DataformProjectSettings settings) throws IOException {
 
         VirtualFile definitionsDir = baseDir.createChildDirectory(this, "definitions");
         baseDir.createChildDirectory(this, "includes");
@@ -110,8 +87,8 @@ public class DataformModuleBuilder extends ModuleBuilder {
         VirtualFile workflowSettings = baseDir.createChildData(this, "workflow_settings.yaml");
         String workflowSettingsContent = String.format(
                 "defaultProject: %s\n" +
-                "defaultLocation: %s\n" +
-                "defaultDataset: %s",
+                        "defaultLocation: %s\n" +
+                        "defaultDataset: %s",
                 settings.getGcpProjectId(),
                 settings.getDefaultLocation(),
                 settings.getDefaultSchema()
@@ -129,14 +106,14 @@ public class DataformModuleBuilder extends ModuleBuilder {
         VirtualFile exampleSqlx = definitionsDir.createChildData(this, "example_table.sqlx");
         String exampleSqlxContent = String.format(
                 "config {\n" +
-                "  type: \"table\",\n" +
-                "  schema: \"%s\",\n" +
-                "  description: \"Example table\"\n" +
-                "}\n" +
-                "\n" +
-                "SELECT\n" +
-                "  1 AS id,\n" +
-                "  'example' AS name",
+                        "  type: \"table\",\n" +
+                        "  schema: \"%s\",\n" +
+                        "  description: \"Example table\"\n" +
+                        "}\n" +
+                        "\n" +
+                        "SELECT\n" +
+                        "  1 AS id,\n" +
+                        "  'example' AS name",
                 settings.getDefaultSchema()
         );
         exampleSqlx.setBinaryContent(exampleSqlxContent.getBytes());
@@ -145,29 +122,29 @@ public class DataformModuleBuilder extends ModuleBuilder {
         VirtualFile readme = baseDir.createChildData(this, "README.md");
         String readmeContent = String.format(
                 "# %s\n" +
-                "\n" +
-                "Dataform project for BigQuery data transformation.\n" +
-                "\n" +
-                "## Setup\n" +
-                "\n" +
-                "1. Install dependencies:\n" +
-                "   ```bash\n" +
-                "   npm install\n" +
-                "   ```\n" +
-                "\n" +
-                "2. Configure your GCP credentials\n" +
-                "\n" +
-                "3. Run dataform:\n" +
-                "   ```bash\n" +
-                "   dataform compile\n" +
-                "   dataform run\n" +
-                "   ```\n" +
-                "\n" +
-                "## Project Structure\n" +
-                "\n" +
-                "- `definitions/` - SQL and SQLX files defining your data transformations\n" +
-                "- `includes/` - JavaScript functions and constants\n" +
-                "- `workflow_settings.yaml` - Workflow execution settings",
+                        "\n" +
+                        "Dataform project for BigQuery data transformation.\n" +
+                        "\n" +
+                        "## Setup\n" +
+                        "\n" +
+                        "1. Install dependencies:\n" +
+                        "   ```bash\n" +
+                        "   npm install\n" +
+                        "   ```\n" +
+                        "\n" +
+                        "2. Configure your GCP credentials\n" +
+                        "\n" +
+                        "3. Run dataform:\n" +
+                        "   ```bash\n" +
+                        "   dataform compile\n" +
+                        "   dataform run\n" +
+                        "   ```\n" +
+                        "\n" +
+                        "## Project Structure\n" +
+                        "\n" +
+                        "- `definitions/` - SQL and SQLX files defining your data transformations\n" +
+                        "- `includes/` - JavaScript functions and constants\n" +
+                        "- `workflow_settings.yaml` - Workflow execution settings",
                 project.getName()
         );
         readme.setBinaryContent(readmeContent.getBytes());

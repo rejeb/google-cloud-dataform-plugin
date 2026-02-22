@@ -28,7 +28,7 @@ public class CompiledGraph {
     private List<CompiledOperation> operations;
     private List<Declaration> declarations;
     private ProjectConfig projectConfig;
-    private Map<String, Object> graphErrors;
+    private GraphErrors graphErrors;
 
     public List<CompiledTable> getTables() {
         return tables != null ? tables : Collections.emptyList();
@@ -84,6 +84,10 @@ public class CompiledGraph {
                 .filter(t -> t.getTarget() != null && name.equals(t.getTarget().getName()))
                 .findFirst()
                 .orElse(null);
+    }
+
+    public GraphErrors getGraphErrors() {
+        return graphErrors;
     }
 }
 

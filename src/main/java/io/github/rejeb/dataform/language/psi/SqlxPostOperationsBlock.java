@@ -14,19 +14,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.rejeb.dataform.language;
+package io.github.rejeb.dataform.language.psi;
 
-import com.intellij.lang.Language;
-import com.intellij.lang.javascript.JavascriptLanguage;
-import com.intellij.openapi.fileTypes.PlainTextLanguage;
-import com.intellij.sql.dialects.bigquery.BigQueryDialect;
-import com.intellij.sql.psi.SqlLanguage;
+import com.intellij.lang.ASTNode;
+import org.jetbrains.annotations.NotNull;
 
-public class SqlxLanguage extends Language {
+public class SqlxPostOperationsBlock extends SqlxOperationsBlock {
 
-    public static final SqlxLanguage INSTANCE = new SqlxLanguage();
-
-    private SqlxLanguage() {
-        super(JavascriptLanguage.INSTANCE,"SQLX");
+    public SqlxPostOperationsBlock(@NotNull ASTNode node) {
+        super(node);
     }
 }

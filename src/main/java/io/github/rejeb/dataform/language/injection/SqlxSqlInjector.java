@@ -42,10 +42,6 @@ public class SqlxSqlInjector implements MultiHostInjector {
         String text = sqlBlock.getText();
         if (text == null || text.isEmpty()) return;
 
-        if (PsiTreeUtil.hasErrorElements(sqlBlock)) {
-            return;
-        }
-
         int textLength = text.length();
 
         List<TextRange> jsRanges = collectJsElementRanges(sqlBlock);

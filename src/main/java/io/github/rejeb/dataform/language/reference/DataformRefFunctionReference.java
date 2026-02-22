@@ -16,6 +16,7 @@
  */
 package io.github.rejeb.dataform.language.reference;
 
+import com.intellij.codeInsight.completion.PrioritizedLookupElement;
 import com.intellij.codeInsight.lookup.LookupElement;
 import com.intellij.codeInsight.lookup.LookupElementBuilder;
 import com.intellij.icons.AllIcons;
@@ -104,10 +105,11 @@ public class DataformRefFunctionReference extends PsiReferenceBase<PsiElement> {
                     String name = table.getTarget().getName();
                     String schema = table.getTarget().getSchema();
 
-                    return LookupElementBuilder.create(name)
+                    LookupElementBuilder element = LookupElementBuilder.create(name)
                             .withIcon(AllIcons.Nodes.DataTables)
                             .withTypeText(table.getType())
                             .withTailText(" (" + schema + ")", true);
+                    return PrioritizedLookupElement.withPriority(element, 200.0);
                 })
                 .forEach(variants::add);
 
@@ -117,10 +119,11 @@ public class DataformRefFunctionReference extends PsiReferenceBase<PsiElement> {
                     String name = declaration.getTarget().getName();
                     String schema = declaration.getTarget().getSchema();
 
-                    return LookupElementBuilder.create(name)
+                    LookupElementBuilder element = LookupElementBuilder.create(name)
                             .withIcon(AllIcons.Nodes.DataSchema)
                             .withTypeText("source")
                             .withTailText(" (" + schema + ")", true);
+                    return PrioritizedLookupElement.withPriority(element, 200.0);
                 })
                 .forEach(variants::add);
 

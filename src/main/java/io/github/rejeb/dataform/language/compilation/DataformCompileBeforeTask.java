@@ -16,69 +16,83 @@
  */
 package io.github.rejeb.dataform.language.compilation;
 
-import com.intellij.execution.configurations.GeneralCommandLine;
-import com.intellij.execution.process.ColoredProcessHandler;
-import com.intellij.execution.process.ProcessEvent;
-import com.intellij.execution.process.ProcessListener;
-import com.intellij.execution.process.ProcessOutputTypes;
 import com.intellij.openapi.compiler.CompileContext;
 import com.intellij.openapi.compiler.CompileTask;
 import com.intellij.openapi.compiler.CompilerMessageCategory;
-import com.intellij.openapi.util.Key;
-import io.github.rejeb.dataform.setup.DataformInterpreterManager;
+import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.project.Project;
+import com.intellij.openapi.project.ProjectUtil;
+import com.intellij.openapi.vfs.VirtualFile;
+import io.github.rejeb.dataform.language.compilation.model.CompilationError;
+import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
+import io.github.rejeb.dataform.language.service.DataformCompilationService;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Optional;
+import java.util.List;
 
 public final class DataformCompileBeforeTask implements CompileTask {
+    private static final Logger LOG = Logger.getInstance(DataformCompileBeforeTask.class);
 
     @Override
     public boolean execute(@NotNull CompileContext context) {
-        Optional<GeneralCommandLine> cmd = context.getProject()
-                .getService(DataformInterpreterManager.class)
-                .getInterpreterCommand("compile");
-        if (context.isAutomake() || cmd.isEmpty()) {
+        if (!isDataformProject(context.getProject())) {
+            return true;
+        }
+        DataformCompilationService compilationService = context.getProject().getService(DataformCompilationService.class);
+        if (context.isAutomake()) {
             return true;
         }
 
-        context.addMessage(CompilerMessageCategory.INFORMATION, "Running: " + cmd.get().getCommandLineString(), null, -1, -1);
-
-        ColoredProcessHandler handler;
+        boolean hasErrors = false;
         try {
-            handler = new ColoredProcessHandler(cmd.get());
+            context.addMessage(CompilerMessageCategory.INFORMATION, "Running dataform compile", null, -1, -1);
+
+            CompiledGraph compiledGraph = compilationService.compile();
+            hasErrors = compiledGraph == null ||
+                        compiledGraph.getGraphErrors() != null &&
+                        !compiledGraph.getGraphErrors().getCompilationErrors().isEmpty();
+
+            if (hasErrors) {
+                printErrors(context, compiledGraph.getGraphErrors().getCompilationErrors());
+            } else {
+                context.addMessage(CompilerMessageCategory.INFORMATION, "Dataform compile succeeded", null, -1, -1);
+            }
         } catch (Exception e) {
-            context.addMessage(CompilerMessageCategory.ERROR, "Failed to start dataform: " + e.getMessage(), null, -1, -1);
+            LOG.error("Error during compile", e);
+            context.addMessage(CompilerMessageCategory.ERROR,
+                    "Failed to run dataform compile: " + e.getMessage(), null, -1, -1);
+        }
+
+        return !hasErrors;
+    }
+
+    private boolean isDataformProject(@NotNull Project project) {
+        VirtualFile baseDir = ProjectUtil.guessProjectDir(project);
+        if (baseDir == null) {
             return false;
         }
 
-        handler.addProcessListener(new ProcessListener() {
-            @Override
-            public void onTextAvailable(@NotNull ProcessEvent event, @NotNull Key outputType) {
-                String text = event.getText();
-                if (text == null || text.isEmpty()) return;
+        return baseDir.findChild("dataform.json") != null
+                || baseDir.findChild("workflow_settings.yaml") != null;
 
-                // Optionnel: tu peux mapper STDERR en WARNING/ERROR selon ton besoin.
-                CompilerMessageCategory category =
-                        (outputType == ProcessOutputTypes.STDERR) ? CompilerMessageCategory.WARNING : CompilerMessageCategory.INFORMATION;
+    }
 
-                // addMessage() attend une "url" de fichier si tu veux du cliquable; ici on met null.
-                context.addMessage(category, text.trim(), null, -1, -1);
+    private void printErrors(@NotNull CompileContext context, List<CompilationError> compilationErrors) {
+        VirtualFile basePath = ProjectUtil.guessProjectDir(context.getProject());
+        for (CompilationError error : compilationErrors) {
+            VirtualFile vf = basePath.findFileByRelativePath(error.getFileName());
+            String url = vf != null ? vf.getUrl() : null;
+            String fullMessage = error.getMessage();
+            if (error.getStack() != null && !error.getStack().isBlank()) {
+                fullMessage += "\n" + error.getStack();
             }
-        });
-
-        handler.startNotify();
-        handler.waitFor();
-
-        Integer exitCode = handler.getExitCode();
-        if (exitCode == null) exitCode = -1;
-
-        if (exitCode != 0) {
-            context.addMessage(CompilerMessageCategory.ERROR, "Dataform compile failed (exit=" + exitCode + ")", null, -1, -1);
-            return false; // fait échouer "Build Project"
+            context.addMessage(
+                    CompilerMessageCategory.ERROR,
+                    fullMessage,
+                    url,
+                    -1, -1
+            );
         }
-
-        context.addMessage(CompilerMessageCategory.INFORMATION, "Dataform compile succeeded", null, -1, -1);
-        return true;
     }
 
 }
