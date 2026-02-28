@@ -55,14 +55,14 @@ public final class DataformInterpreterManager {
     }
 
     public Optional<VirtualFile> dataformCorePath() {
-        if (dataformCorePath.isEmpty()){
+        if (dataformCorePath.isEmpty()) {
             init();
         }
         return dataformCorePath;
     }
 
     public Optional<VirtualFile> dataformCliDir() {
-        if (dataformCorePath.isEmpty()){
+        if (dataformCorePath.isEmpty()) {
             init();
         }
         return dataformCliDir;
@@ -72,24 +72,20 @@ public final class DataformInterpreterManager {
         return currentDataformCoreVersion;
     }
 
-    public Optional<GeneralCommandLine> getInterpreterCommand(String... options) {
+    public Optional<GeneralCommandLine> buildDataformCompileCommand() {
         String dataformCliCmd = SystemInfo.isWindows ? "dataform.cmd" : "dataform";
         Path nodeBinDir = NodeInterpreterManager
                 .getInstance(project)
                 .nodeBinDir();
-        String dataformExecutable = nodeBinDir.resolve(dataformCliCmd).toAbsolutePath().toString();
-        String[] args = new String[options.length + 1];
-        args[0] = dataformExecutable;
-        System.arraycopy(options, 0, args, 1, options.length);
-
-        GeneralCommandLine cmd = new GeneralCommandLine(args)
-                .withWorkDirectory(project.getBasePath());
-        String pathEnv = nodeBinDir.toFile().getAbsolutePath() + File.pathSeparator +
-                System.getenv("PATH");
-
-        cmd.getEnvironment().put("PATH", pathEnv);
-
-        return dataformCliDir.map(dir -> cmd);
+        return Optional.ofNullable(nodeBinDir).map(binDir -> {
+            String dataformExecutable = binDir.resolve(dataformCliCmd).toAbsolutePath().toString();
+            GeneralCommandLine cmd = new GeneralCommandLine(dataformExecutable, "compile", "--json")
+                    .withWorkDirectory(project.getBasePath());
+            String pathEnv = nodeBinDir.toFile().getAbsolutePath() + File.pathSeparator +
+                    System.getenv("PATH");
+            cmd.getEnvironment().put("PATH", pathEnv);
+            return cmd;
+        });
     }
 
     private String getGlobalDataformVersion(Optional<VirtualFile> corePackage) {

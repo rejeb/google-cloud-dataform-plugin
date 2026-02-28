@@ -46,7 +46,6 @@ public class DataformInstaller implements ProjectActivity {
             if (nodeInterpreterManager.npmExecutable() == null && notifyUserNode) {
                 notifyUserNode = false;
                 NodeJsNpmUtils.showNpmConfigurationDialog(project);
-                nodeInterpreterManager = NodeInterpreterManager.getInstance(project);
             }
 
             DataformInterpreterManager dataformInterpreterManager = project.getService(DataformInterpreterManager.class);

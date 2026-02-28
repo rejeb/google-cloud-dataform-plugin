@@ -79,7 +79,7 @@ public class DataformRefFunctionReference extends PsiReferenceBase<PsiElement> {
             return null;
         }
 
-        VirtualFile file = projectRoot.findFileByRelativePath(fileName);
+        VirtualFile file = projectRoot.findFileByRelativePath(fileName.replace("\\", "/"));
         if (file != null) {
             return PsiManager.getInstance(myElement.getProject()).findFile(file);
         }

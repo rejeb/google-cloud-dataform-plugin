@@ -144,20 +144,17 @@ public class NodeJsNpmUtils {
     }
 
     public static void showNpmConfigurationDialog(Project project) {
-        showConfigurationDialog(project, "npm is not configured.\n\nWould you like to open the settings?", "npm Not Available");
-    }
-
-    private static void showConfigurationDialog(Project project, String message, String title) {
         NotificationGroupManager.getInstance()
                 .getNotificationGroup("Dataform.Notifications")
-                .createNotification(title,
-                        message,
+                .createNotification("Npm not available",
+                        "Npm is not configured.\n\nwould you like to open the settings?",
                         NotificationType.INFORMATION)
-                .addAction(new NotificationAction("Install CLI") {
+                .addAction(new NotificationAction("Configure nodeJs") {
                     @Override
                     public void actionPerformed(@NotNull AnActionEvent e,
                                                 @NotNull Notification notification) {
                         openNodeJsSettings(project);
+                        notification.expire();
                     }
                 })
                 .notify(project);

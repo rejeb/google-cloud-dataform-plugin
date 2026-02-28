@@ -67,7 +67,7 @@ public final class DataformCompilationService implements Disposable {
     public CompiledGraph compile() {
         try {
             Optional<GeneralCommandLine> cmd = project.getService(DataformInterpreterManager.class)
-                    .getInterpreterCommand("compile", "--json");
+                    .buildDataformCompileCommand();
             if (cmd.isPresent()) {
                 ProcessOutput output = ExecUtil.execAndGetOutput(cmd.get(), 300000);
                 Gson gson = new Gson();
