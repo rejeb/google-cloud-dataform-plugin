@@ -14,22 +14,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.rejeb.dataform.language.compilation.model;
+package io.github.rejeb.dataform.projectWizard;
 
-public class CompilationError {
-    private String fileName;
-    private String message;
-    private String stack;
+import com.intellij.facet.FacetConfiguration;
+import com.intellij.facet.ui.FacetEditorContext;
+import com.intellij.facet.ui.FacetEditorTab;
+import com.intellij.facet.ui.FacetValidatorsManager;
 
-    public String getFileName() {
-        return fileName;
-    }
+public class DataformFacetConfiguration implements FacetConfiguration {
 
-    public String getMessage() {
-        return message;
-    }
-
-    public String getStack() {
-        return stack;
+    @Override
+    public FacetEditorTab[] createEditorTabs(FacetEditorContext facetEditorContext,
+                                             FacetValidatorsManager facetValidatorsManager) {
+        return new FacetEditorTab[0];
     }
 }

@@ -14,22 +14,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.rejeb.dataform.language.compilation.model;
+package io.github.rejeb.dataform.projectWizard;
 
-public class CompilationError {
-    private String fileName;
-    private String message;
-    private String stack;
+import com.intellij.facet.Facet;
+import com.intellij.facet.FacetType;
+import com.intellij.openapi.module.Module;
+import com.intellij.openapi.util.NlsSafe;
+import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
 
-    public String getFileName() {
-        return fileName;
-    }
+public class DataformFacet extends Facet<DataformFacetConfiguration> {
 
-    public String getMessage() {
-        return message;
-    }
-
-    public String getStack() {
-        return stack;
+    public DataformFacet(@NotNull FacetType facetType,
+                         @NotNull Module module,
+                         @NotNull @NlsSafe String name,
+                         @NonNull DataformFacetConfiguration configuration) {
+        super(facetType, module, name, configuration, null);
     }
 }

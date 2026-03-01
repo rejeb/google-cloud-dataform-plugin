@@ -14,22 +14,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.rejeb.dataform.language.compilation.model;
+package io.github.rejeb.dataform.projectWizard;
 
-public class CompilationError {
-    private String fileName;
-    private String message;
-    private String stack;
+import com.intellij.ide.util.projectWizard.importSources.DetectedProjectRoot;
+import com.intellij.ide.util.projectWizard.importSources.JavaModuleSourceRoot;
+import org.jetbrains.annotations.NotNull;
 
-    public String getFileName() {
-        return fileName;
+import java.io.File;
+
+public class DataformProjectRoot extends DetectedProjectRoot {
+
+    public DataformProjectRoot(@NotNull File directory) {
+        super(directory);
     }
 
-    public String getMessage() {
-        return message;
+    @Override
+    public @NotNull String getRootTypeName() {
+        return "Dataform";
     }
 
-    public String getStack() {
-        return stack;
+    @Override
+    public boolean canContainRoot(@NotNull DetectedProjectRoot root) {
+        return root instanceof JavaModuleSourceRoot;
     }
 }

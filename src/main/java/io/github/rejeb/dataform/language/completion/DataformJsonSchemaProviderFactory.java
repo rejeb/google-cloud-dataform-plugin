@@ -19,6 +19,8 @@ package io.github.rejeb.dataform.language.completion;
 import com.intellij.openapi.project.Project;
 import com.jetbrains.jsonSchema.extension.JsonSchemaFileProvider;
 import com.jetbrains.jsonSchema.extension.JsonSchemaProviderFactory;
+import io.github.rejeb.dataform.language.schema.DataformJsonSchemaGenerator;
+import io.github.rejeb.dataform.setup.DataformInterpreterManager;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
@@ -26,6 +28,6 @@ import java.util.List;
 public class DataformJsonSchemaProviderFactory implements JsonSchemaProviderFactory {
     @Override
     public @NotNull List<JsonSchemaFileProvider> getProviders(@NotNull Project project) {
-        return List.of(new DataformConfigSchemaProvider(), new DataformWorkflowSettingsSchemaProvider());
+        return List.of(new DataformConfigSchemaProvider(project), new DataformWorkflowSettingsSchemaProvider(project));
     }
 }

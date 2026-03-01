@@ -16,16 +16,10 @@
  */
 package io.github.rejeb.dataform.language.reference;
 
-import com.intellij.lang.injection.InjectedLanguageManager;
-import com.intellij.lang.javascript.psi.JSFile;
-import com.intellij.lang.javascript.psi.JSReferenceExpression;
 import com.intellij.psi.PsiElement;
-import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiReference;
 import com.intellij.psi.PsiReferenceProvider;
 import com.intellij.util.ProcessingContext;
-import io.github.rejeb.dataform.language.psi.SqlxFile;
-import io.github.rejeb.dataform.language.service.WorkflowSettingsService;
 import org.jetbrains.annotations.NotNull;
 
 public class DataformWorkflowSettingsReferenceProvider extends PsiReferenceProvider {
@@ -35,9 +29,9 @@ public class DataformWorkflowSettingsReferenceProvider extends PsiReferenceProvi
 
         DataformWorkflowSettingsReference ref = new DataformWorkflowSettingsReference(psiElement);
         PsiElement resolved = ref.resolve();
-        if(resolved != null){
+        if (resolved != null) {
             return new PsiReference[]{ref};
-        }else{
+        } else {
             return PsiReference.EMPTY_ARRAY;
         }
     }

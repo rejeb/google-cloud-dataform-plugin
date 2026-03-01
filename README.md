@@ -4,7 +4,7 @@ A comprehensive IntelliJ IDEA plugin that provides advanced language support for
 
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-IntelliJ-lightgrey.svg)
-![version](https://img.shields.io/badge/version-0.2.2-green.svg)
+![version](https://img.shields.io/badge/version-0.2.4-green.svg)
 [![Java](https://img.shields.io/badge/Java-21-blue)](https://www.java.com/fr/)
 
 ## Features

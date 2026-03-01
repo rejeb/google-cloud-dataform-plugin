@@ -14,22 +14,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.rejeb.dataform.language.compilation.model;
+package io.github.rejeb.dataform.language;
 
-public class CompilationError {
-    private String fileName;
-    private String message;
-    private String stack;
+import com.intellij.openapi.util.IconLoader;
 
-    public String getFileName() {
-        return fileName;
-    }
+import javax.swing.*;
 
-    public String getMessage() {
-        return message;
-    }
-
-    public String getStack() {
-        return stack;
-    }
+public class DataformIcons {
+    public static final Icon FILE = IconLoader.getIcon(
+            "/icons/dataformFile.png",
+            DataformIcons.class
+    );
 }

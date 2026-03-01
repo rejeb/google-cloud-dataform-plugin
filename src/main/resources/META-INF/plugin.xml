@@ -40,8 +40,11 @@
                 implementation="io.github.rejeb.dataform.language.completion.DataformJsonSchemaProviderFactory"/>
     </extensions>
     <extensions defaultExtensionNs="com.intellij">
-        <moduleType id="DATAFORM_MODULE_TYPE"
-                    implementationClass="io.github.rejeb.dataform.projectWizard.DataformModuleType" />
+        <facetType implementation="io.github.rejeb.dataform.projectWizard.DataformFacetType"/>
+        <framework.detector implementation="io.github.rejeb.dataform.projectWizard.DataformFrameworkDetector"/>
+        <projectStructureDetector
+                implementation="io.github.rejeb.dataform.projectWizard.DataformProjectStructureDetector"/>
+
         <compiler.task execute="BEFORE"
                        implementation="io.github.rejeb.dataform.language.compilation.DataformCompileBeforeTask"/>
         <moduleBuilder builderClass="io.github.rejeb.dataform.projectWizard.DataformModuleBuilder"/>
@@ -49,7 +52,6 @@
         <postStartupActivity
                 order="first"
                 implementation="io.github.rejeb.dataform.setup.DataformInstaller"/>
-
         <backgroundPostStartupActivity
                 implementation="io.github.rejeb.dataform.language.startup.DataformProjectStartup"/>
 

@@ -16,16 +16,26 @@
  */
 package io.github.rejeb.dataform.language.completion;
 
+import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.jetbrains.jsonSchema.extension.JsonSchemaFileProvider;
 import com.jetbrains.jsonSchema.extension.JsonSchemaProviderFactory;
 import com.jetbrains.jsonSchema.extension.SchemaType;
+import io.github.rejeb.dataform.language.schema.DataformJsonSchemaGenerator;
 import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Optional;
+
 public class DataformConfigSchemaProvider implements JsonSchemaFileProvider {
     private static final String SCHEMA_FILE_NAME = "dataform-sqlx-config-schema.json";
+
+    private final Project project;
+
+    public DataformConfigSchemaProvider(Project project) {
+        this.project = project;
+    }
 
     @Override
     public boolean isAvailable(@NotNull VirtualFile virtualFile) {
@@ -42,7 +52,10 @@ public class DataformConfigSchemaProvider implements JsonSchemaFileProvider {
 
     @Override
     public @Nullable VirtualFile getSchemaFile() {
-        return JsonSchemaProviderFactory.getResourceFile(getClass(), "/dataform/" + SCHEMA_FILE_NAME);
+        DataformJsonSchemaGenerator generator = project.getService(DataformJsonSchemaGenerator.class);
+        Optional<VirtualFile> schema = generator.generateSqlxConfigSchema();
+        return schema
+                .orElse(JsonSchemaProviderFactory.getResourceFile(getClass(), "/dataform/" + SCHEMA_FILE_NAME));
     }
 
     @Override

@@ -54,6 +54,6 @@ public class SqlxFileType extends LanguageFileType {
     @Nullable
     @Override
     public Icon getIcon() {
-        return AllIcons.Providers.BigQuery;
+        return DataformIcons.FILE;
     }
 }

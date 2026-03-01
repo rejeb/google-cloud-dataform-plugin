@@ -70,22 +70,17 @@ public class SqlxConfigInjector implements MultiHostInjector {
             // Inject the part before the JS element
             if (currentPos < jsRange.getStartOffset()) {
                 TextRange beforeRange = new TextRange(currentPos, jsRange.getStartOffset());
-                String beforeText = text.substring(beforeRange.getStartOffset(), beforeRange.getEndOffset());
                 registrar.addPlace(null, null, configBlock, beforeRange);
             }
 
-            // Replace the JS element with a string placeholder
-            String jsText = text.substring(jsRange.getStartOffset(), jsRange.getEndOffset());
             String placeholder = "\"__js_placeholder_" + i + "__\"";
             registrar.addPlace(placeholder, null, configBlock, new TextRange(jsRange.getStartOffset(), jsRange.getStartOffset()));
 
             currentPos = jsRange.getEndOffset();
         }
 
-        // Inject the remaining part after the last JS element
         if (currentPos < text.length()) {
             TextRange remainingRange = new TextRange(currentPos, text.length());
-            String remainingText = text.substring(remainingRange.getStartOffset(), remainingRange.getEndOffset());
             registrar.addPlace(null, null, configBlock, remainingRange);
         }
 
