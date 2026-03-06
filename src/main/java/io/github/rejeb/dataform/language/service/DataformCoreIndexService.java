@@ -115,25 +115,6 @@ public final class DataformCoreIndexService implements PersistentStateComponent<
         return state.dataformCoreJsFile().orElse(null);
     }
 
-    @NotNull
-    public Collection<String> getCachedDataformFunctionsNames() {
-        if (getState().dataformCoreJsFile().isEmpty()) {
-            notifyUserDataformNotInstalled(project);
-            return Collections.emptyList();
-        } else {
-            return this.state.cachedDataformFunctionsNames();
-        }
-    }
-
-    @NotNull
-    public Collection<String> getCachedDataformVariablesNames() {
-        if (getState().dataformCoreJsFile().isEmpty()) {
-            notifyUserDataformNotInstalled(project);
-            return Collections.emptyList();
-        } else {
-            return this.state.cachedDataformVariablesNames();
-        }
-    }
 
     @NotNull
     public Collection<JSFunction> getCachedDataformFunctionsRef() {

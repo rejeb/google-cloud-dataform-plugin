@@ -46,7 +46,7 @@ public class SqlxConfigInjector implements MultiHostInjector {
             return;
         }
 
-        List<TextRange> jsRanges = collectJsElementRanges(configBlock);
+        List<TextRange> jsRanges = collectJsElementRanges(configBlock,configBlock.getTextRange().getStartOffset());
         if (hasOverlappingRanges(jsRanges)) {
             return;
         }

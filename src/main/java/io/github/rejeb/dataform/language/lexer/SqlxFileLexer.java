@@ -236,14 +236,13 @@ public class SqlxFileLexer extends LexerBase {
 
             currentPosition += 2; // Skip ${
 
-            while (currentPosition < endOffset && buffer.charAt(currentPosition) != '}') {
+            int depth = 1; // ← profondeur de l'accolade ouvrante
+            while (currentPosition < endOffset && depth > 0) {
+                char c = buffer.charAt(currentPosition);
+                if (c == '{') depth++;
+                else if (c == '}') depth--;
                 currentPosition++;
             }
-
-            if (currentPosition < endOffset) {
-                currentPosition++; // Include closing }
-            }
-
             currentTokenType = SharedTokenTypes.TEMPLATE_EXPRESSION;
             currentTokenEnd = currentPosition;
             return;
@@ -341,22 +340,19 @@ public class SqlxFileLexer extends LexerBase {
                 currentPosition + 1 < endOffset &&
                 buffer.charAt(currentPosition + 1) == '{') {
 
-            currentPosition += 2; // Skip ${
-
-            while (currentPosition < endOffset && buffer.charAt(currentPosition) != '}') {
+            currentPosition += 2;
+            int depth = 1;
+            while (currentPosition < endOffset && depth > 0) {
+                char c = buffer.charAt(currentPosition);
+                if (c == '{') depth++;
+                else if (c == '}') depth--;
                 currentPosition++;
             }
-
-            if (currentPosition < endOffset) {
-                currentPosition++; // Include closing }
-            }
-
             currentTokenType = SharedTokenTypes.TEMPLATE_EXPRESSION;
             currentTokenEnd = currentPosition;
             return;
         }
 
-        // Consume SQL content until we hit $ or end of buffer
         int start = currentPosition;
 
         while (currentPosition < endOffset) {

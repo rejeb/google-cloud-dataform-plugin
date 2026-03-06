@@ -24,4 +24,8 @@ public class Declaration {
     public Target getTarget() { return target; }
     public String getFileName() { return fileName; }
     public Target getCanonicalTarget() { return canonicalTarget; }
+
+    public boolean matchFileName(String fileName){
+        return fileName.endsWith(this.fileName.replace("\\","/"));
+    }
 }

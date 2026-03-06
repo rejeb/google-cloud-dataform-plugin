@@ -14,32 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.rejeb.dataform.language.compilation.model;
+package io.github.rejeb.dataform.language.fileEditor;
 
-public class CompilationError {
-    private String actionName;
-    private String fileName;
-    private String message;
-    private String stack;
+public record GraphTarget(String name, String fullName, String fileName,String type) {
 
-    public String getFileName() {
-        return fileName;
-    }
-
-    public String getMessage() {
-        return message;
-    }
-
-    public String getStack() {
-        return stack;
-    }
-
-    public String getActionName() {
-        return actionName;
-    }
-
-
-    public boolean matchFileName(String fileName){
-        return fileName.endsWith(this.fileName.replace("\\","/"));
-    }
 }

@@ -19,40 +19,15 @@ package io.github.rejeb.dataform.language.compilation.model;
 import java.util.Collections;
 import java.util.List;
 
-public class CompiledAssertion {
-    private Target target;
-    private String query;
-    private boolean disabled;
-    private String fileName;
-    private List<String> tags;
-    private List<Target> dependencyTargets;
-    private Target canonicalTarget;
-
-    public Target getTarget() {
-        return target;
+public record CompiledQuery(String tableName, List<String> preOps, String query, List<String> postOps,
+                            List<String> compilationErrors) {
+    public CompiledQuery(String tableName, String query) {
+        this(tableName, Collections.emptyList(), query, Collections.emptyList(), null);
     }
 
-    public String getQuery() {
-        return query.trim();
+    public CompiledQuery(String tableName, List<String> compilationErrors) {
+        this(tableName, List.of(), null, List.of(), compilationErrors);
     }
 
-    public boolean isDisabled() {
-        return disabled;
-    }
 
-    public String getFileName() {
-        return fileName;
-    }
-
-    public List<String> getTags() {
-        return tags != null ? tags : Collections.emptyList();
-    }
-
-    public List<Target> getDependencyTargets() {
-        return dependencyTargets != null ? dependencyTargets : Collections.emptyList();
-    }
-
-    public boolean matchFileName(String fileName){
-        return fileName.endsWith(this.fileName.replace("\\","/"));
-    }
 }

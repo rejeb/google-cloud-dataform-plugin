@@ -16,6 +16,8 @@
  */
 package io.github.rejeb.dataform.language.compilation.model;
 
+import java.util.Objects;
+
 public class Target {
     private String schema;
     private String name;
@@ -35,6 +37,18 @@ public class Target {
 
     public String getFullName() {
         return database + "." + schema + "." + name;
+    }
+
+    @Override
+    public boolean equals(Object object) {
+        if (object == null || getClass() != object.getClass()) return false;
+        Target target = (Target) object;
+        return Objects.equals(schema, target.schema) && Objects.equals(name, target.name) && Objects.equals(database, target.database);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(schema, name, database);
     }
 }
 

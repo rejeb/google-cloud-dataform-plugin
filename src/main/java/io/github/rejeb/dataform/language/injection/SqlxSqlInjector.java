@@ -44,7 +44,7 @@ public class SqlxSqlInjector implements MultiHostInjector {
 
         int textLength = text.length();
 
-        List<TextRange> jsRanges = collectJsElementRanges(sqlBlock);
+        List<TextRange> jsRanges = collectJsElementRanges(sqlBlock,sqlBlock.getTextRange().getStartOffset());
 
         if (jsRanges.isEmpty()) {
             registrar.startInjecting(BigQueryDialect.INSTANCE);

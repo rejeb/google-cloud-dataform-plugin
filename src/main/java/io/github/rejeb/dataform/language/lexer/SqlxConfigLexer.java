@@ -123,12 +123,10 @@ public class SqlxConfigLexer extends LexerBase {
             case '[':
                 currentTokenType = JsonElementTypes.L_BRACKET;
                 currentTokenEnd = ++currentPosition;
-                state = STATE_INITIAL;
                 break;
             case ']':
                 currentTokenType = JsonElementTypes.R_BRACKET;
                 currentTokenEnd = ++currentPosition;
-                state = STATE_INITIAL;
                 break;
             case ',':
                 currentTokenType = JsonElementTypes.COMMA;

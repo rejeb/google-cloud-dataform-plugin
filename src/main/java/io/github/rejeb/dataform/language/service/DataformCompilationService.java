@@ -24,16 +24,12 @@ import com.intellij.execution.util.ExecUtil;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.diagnostic.Logger;
-import com.intellij.openapi.progress.ProgressIndicator;
-import com.intellij.openapi.progress.ProgressManager;
-import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.Alarm;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.setup.DataformInterpreterManager;
-import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
@@ -45,24 +41,13 @@ import java.util.Optional;
 @Service(Service.Level.PROJECT)
 public final class DataformCompilationService implements Disposable {
     private static final Logger LOG = Logger.getInstance(DataformCompilationService.class);
-    private static final String COMPILE_RESULT_PATH = ".build/dataform-compile.json";
-    private static final int DEFAULT_DELAY_MS = 0;
     private final Project project;
-    private final Alarm alarm;
     private volatile CompiledGraph compiledGraph;
-    private static final int COMPILATION_DELAY_MS = 30000;
 
     public DataformCompilationService(Project project) {
         this.project = project;
-        this.alarm = new Alarm(Alarm.ThreadToUse.POOLED_THREAD, this);
-        scheduleNextCompilation(DEFAULT_DELAY_MS);
     }
 
-    private void scheduleNextCompilation(int delayMs) {
-        if (!project.isDisposed() && !alarm.isDisposed()) {
-            alarm.addRequest(this::runCompilation, delayMs);
-        }
-    }
 
     public CompiledGraph compile() {
         try {
@@ -95,9 +80,9 @@ public final class DataformCompilationService implements Disposable {
         return null;
     }
 
-    private void runCompilation() {
+    public CompiledGraph runIfFilesChanged() {
         if (project.isDisposed()) {
-            return;
+            return null;
         }
         try {
             Path compilationResultPath = getCompileResultPath();
@@ -105,17 +90,12 @@ public final class DataformCompilationService implements Disposable {
             if (compilationResultPath != null && Files.exists(compilationResultPath) && !hasSourcesChangedSince(compilationResultPath)) {
                 this.compiledGraph = new Gson().fromJson(Files.readString(compilationResultPath), CompiledGraph.class);
             } else {
-                ProgressManager.getInstance().run(new Task.Backgroundable(project, "Indexing....", false) {
-                    @Override
-                    public void run(@NotNull ProgressIndicator indicator) {
-                        compile();
-                        scheduleNextCompilation(COMPILATION_DELAY_MS);
-                    }
-                });
+             return compile();
             }
         } catch (IOException e) {
             LOG.error("Error during resolving compiled graph", e);
         }
+        return compiledGraph;
     }
 
     public CompiledGraph getCompiledGraph() {

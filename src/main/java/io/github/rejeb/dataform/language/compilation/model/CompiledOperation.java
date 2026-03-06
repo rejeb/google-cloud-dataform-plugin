@@ -18,6 +18,7 @@ package io.github.rejeb.dataform.language.compilation.model;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Stream;
 
 public class CompiledOperation {
     private Target target;
@@ -29,24 +30,6 @@ public class CompiledOperation {
     private Target canonicalTarget;
     private boolean hasOutput;
 
-    public static class Target {
-        private String schema;
-        private String name;
-        private String database;
-
-        public String getSchema() {
-            return schema;
-        }
-
-        public String getName() {
-            return name;
-        }
-
-        public String getDatabase() {
-            return database;
-        }
-    }
-
     public Target getTarget() {
         return target;
     }
@@ -54,6 +37,12 @@ public class CompiledOperation {
     public List<String> getQueries() {
         return queries != null ? queries : Collections.emptyList();
     }
+
+    public CompiledQuery getCompiledQueries() {
+        String queries = String.join(";\n", this.getQueries());
+        return new CompiledQuery(this.getTarget().getFullName(),queries);
+    }
+
 
     public boolean isDisabled() {
         return disabled;
@@ -65,5 +54,9 @@ public class CompiledOperation {
 
     public boolean isHasOutput() {
         return hasOutput;
+    }
+
+    public boolean matchFileName(String fileName) {
+        return fileName.endsWith(this.fileName.replace("\\", "/"));
     }
 }

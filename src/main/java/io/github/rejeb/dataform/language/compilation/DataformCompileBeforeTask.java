@@ -80,7 +80,7 @@ public final class DataformCompileBeforeTask implements CompileTask {
     private void printErrors(@NotNull CompileContext context, List<CompilationError> compilationErrors) {
         VirtualFile basePath = ProjectUtil.guessProjectDir(context.getProject());
         for (CompilationError error : compilationErrors) {
-            VirtualFile vf = basePath.findFileByRelativePath(error.getFileName());
+            VirtualFile vf = basePath.findFileByRelativePath(error.getFileName().replace("\\","/"));
             String url = vf != null ? vf.getUrl() : null;
             String fullMessage = error.getMessage();
             if (error.getStack() != null && !error.getStack().isBlank()) {

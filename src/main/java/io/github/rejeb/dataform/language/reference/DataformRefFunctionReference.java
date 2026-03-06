@@ -26,15 +26,14 @@ import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiManager;
 import com.intellij.psi.PsiReferenceBase;
-import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
-import io.github.rejeb.dataform.language.compilation.model.CompiledTable;
-import io.github.rejeb.dataform.language.compilation.model.Declaration;
+import io.github.rejeb.dataform.language.compilation.model.*;
 import io.github.rejeb.dataform.language.service.DataformCompilationService;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 public class DataformRefFunctionReference extends PsiReferenceBase<PsiElement> {
 
@@ -57,18 +56,25 @@ public class DataformRefFunctionReference extends PsiReferenceBase<PsiElement> {
             return null;
         }
 
-        CompiledTable table = graph.findTableByName(tableName);
-        if (table != null && table.getFileName() != null) {
-            return resolveFile(table.getFileName());
+        Optional<CompiledTable> table = graph.findTableByName(tableName);
+        if (table.isPresent() && table.get().getFileName() != null) {
+            return resolveFile(table.get().getFileName());
         }
 
-        Declaration declaration = graph.getDeclarations().stream()
-                .filter(d -> d.getTarget() != null && tableName.equals(d.getTarget().getName()))
-                .findFirst()
-                .orElse(null);
+        Optional<Declaration> declaration = graph.findDeclarationByName(tableName);
 
-        if (declaration != null && declaration.getFileName() != null) {
-            return resolveFile(declaration.getFileName());
+        if (declaration.isPresent() && declaration.get().getFileName() != null) {
+            return resolveFile(declaration.get().getFileName());
+        }
+
+        Optional<CompiledAssertion> assertion = graph.findAssertionByName(tableName);
+        if (assertion.isPresent() && assertion.get().getFileName() != null) {
+            return resolveFile(assertion.get().getFileName());
+        }
+
+        Optional<CompiledOperation> operation = graph.findOperationByName(tableName);
+        if (operation.isPresent() && operation.get().getFileName() != null) {
+            return resolveFile(operation.get().getFileName());
         }
         return null;
     }

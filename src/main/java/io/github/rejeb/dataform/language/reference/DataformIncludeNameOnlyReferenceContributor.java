@@ -25,9 +25,11 @@ import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.ProcessingContext;
 import io.github.rejeb.dataform.language.index.DataformJsFileIndex;
 import io.github.rejeb.dataform.language.psi.SqlxFile;
+import io.github.rejeb.dataform.language.util.DataformJsSymbolExtractor;
 import org.jetbrains.annotations.NotNull;
 import org.jspecify.annotations.NonNull;
 
+import java.util.List;
 import java.util.Map;
 
 public class DataformIncludeNameOnlyReferenceContributor extends PsiReferenceContributor {
@@ -75,19 +77,27 @@ public class DataformIncludeNameOnlyReferenceContributor extends PsiReferenceCon
                             return PsiReference.EMPTY_ARRAY;
                         }
 
+                        List<DataformJsSymbolExtractor.JsSymbol> localSymbols =
+                                DataformJsSymbolExtractor.extractSymbolsFromSqlxFile(topLevelFile);
+                        for (DataformJsSymbolExtractor.JsSymbol symbol : localSymbols) {
+                            if (referencedName.equals(symbol.name())) {
+                                return PsiReference.EMPTY_ARRAY;
+                            }
+                        }
+
                         Map<String, ?> exportsByFile = DataformJsFileIndex.getAllExports(project);
 
                         if (!exportsByFile.containsKey(referencedName)) {
 
                             return PsiReference.EMPTY_ARRAY;
                         }
-                        DataformIncludeFileReference ref= new DataformIncludeFileReference(element, referencedName);
+                        DataformIncludeFileReference ref = new DataformIncludeFileReference(element, referencedName);
                         PsiElement resolved = ref.resolve();
-                        if(resolved != null){
+                        if (resolved != null) {
                             return new PsiReference[]{
                                     ref
                             };
-                        }else {
+                        } else {
                             return PsiReference.EMPTY_ARRAY;
                         }
                     }

@@ -16,9 +16,10 @@
  */
 package io.github.rejeb.dataform.language.compilation.model;
 
+import java.util.ArrayList;
 import java.util.Collections;
-
 import java.util.List;
+import java.util.stream.Stream;
 
 public class CompiledTable {
     private String type;
@@ -31,27 +32,93 @@ public class CompiledTable {
     private List<Target> dependencyTargets;
     private String hermeticity;
     private Target canonicalTarget;
+    private boolean materialized = false;
     private String enumType;
+    private List<String> preOps = new ArrayList<>();
+    private List<String> postOps = new ArrayList<>();
+    private List<String> incrementalPreOps = new ArrayList<>();
+    private String incrementalQuery;
+
 
     public static class ActionDescriptor {
         private String description;
 
-        public String getDescription() { return description; }
+        public String getDescription() {
+            return description;
+        }
     }
 
-    public String getType() { return type; }
-    public Target getTarget() { return target; }
-    public String getQuery() { return query; }
-    public boolean isDisabled() { return disabled; }
-    public String getFileName() { return fileName; }
+    public String getType() {
+        return materialized ? "materialized_view" : "view";
+    }
+
+    public Target getTarget() {
+        return target;
+    }
+
+    public String getQuery() {
+        return query.trim();
+    }
+
+    public CompiledQuery getQueries() {
+        List<String> preOpsQueries = Stream.concat(preOps.stream(), incrementalPreOps.stream()).toList();
+
+        return new CompiledQuery(this.getTarget().getFullName(),preOpsQueries, query, postOps, null);
+    }
+
+    public boolean isDisabled() {
+        return disabled;
+    }
+
+    public String getFileName() {
+        return fileName;
+    }
+
     public List<String> getTags() {
         return tags != null ? tags : Collections.emptyList();
     }
-    public ActionDescriptor getActionDescriptor() { return actionDescriptor; }
+
+    public ActionDescriptor getActionDescriptor() {
+        return actionDescriptor;
+    }
+
     public List<Target> getDependencyTargets() {
         return dependencyTargets != null ? dependencyTargets : Collections.emptyList();
     }
-    public String getHermeticity() { return hermeticity; }
-    public Target getCanonicalTarget() { return canonicalTarget; }
-    public String getEnumType() { return enumType; }
+
+    public String getHermeticity() {
+        return hermeticity;
+    }
+
+    public Target getCanonicalTarget() {
+        return canonicalTarget;
+    }
+
+    public String getEnumType() {
+        return enumType;
+    }
+
+    public boolean isMaterialized() {
+        return materialized;
+    }
+
+    public List<String> getPreOps() {
+        return preOps;
+    }
+
+    public List<String> getPostOps() {
+        return postOps;
+    }
+
+    public List<String> getIncrementalPreOps() {
+        return incrementalPreOps;
+    }
+
+    public String getIncrementalQuery() {
+        return incrementalQuery;
+    }
+
+    public boolean matchFileName(String fileName) {
+        return fileName.endsWith(this.fileName.replace("\\", "/"));
+    }
 }

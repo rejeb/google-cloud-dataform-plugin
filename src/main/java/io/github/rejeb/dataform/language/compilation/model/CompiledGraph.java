@@ -20,7 +20,8 @@ package io.github.rejeb.dataform.language.compilation.model;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 public class CompiledGraph {
     private List<CompiledTable> tables;
@@ -50,40 +51,73 @@ public class CompiledGraph {
         return projectConfig;
     }
 
-    public Target findTableOrDeclaration(String name) {
-        CompiledTable table = findTableByName(name);
-        if (table != null && table.getTarget() != null) {
-            return table.getTarget();
-        }
+    public List<CompiledQuery> findCompiledQueryByFileName(String fileName) {
+        List<CompiledQuery> tableQueries = findTableByFileName(fileName).stream().map(CompiledTable::getQueries).toList();
 
-        return getDeclarations().stream()
-                .filter(d -> d.getTarget() != null && name.equals(d.getTarget().getName()))
-                .map(Declaration::getTarget)
-                .findFirst()
-                .orElse(null);
+        List<CompiledQuery> assertionQueries = findAssertionByFileName(fileName)
+                .stream()
+                .map(ca -> new CompiledQuery(ca.getTarget().getFullName(), ca.getQuery()))
+                .toList();
+
+        List<CompiledQuery> operationQueries = findOperationByFileName(fileName)
+                .stream()
+                .map(CompiledOperation::getCompiledQueries)
+                .toList();
+        List<CompiledQuery> compilationError = findCompilationErrorByFileName(fileName)
+                .stream()
+                .collect(Collectors.groupingBy(ce -> ce.getActionName() != null ? ce.getActionName() : ce.getFileName(),
+                        Collectors.mapping(CompilationError::getStack, Collectors.toList())
+
+                ))
+                .entrySet()
+                .stream()
+                .map(ce -> new CompiledQuery(ce.getKey(), ce.getValue()))
+                .toList();
+        List<CompiledQuery> queries = new ArrayList<>();
+        queries.addAll(tableQueries);
+        queries.addAll(assertionQueries);
+        queries.addAll(operationQueries);
+        queries.addAll(compilationError);
+
+        return queries;
     }
 
-    public List<Target> getAllAvailableTables() {
-        List<Target> allTables = new ArrayList<>();
-
-        getTables().stream()
-                .filter(t -> t.getTarget() != null)
-                .map(CompiledTable::getTarget)
-                .forEach(allTables::add);
-
-        getDeclarations().stream()
-                .filter(d -> d.getTarget() != null)
-                .map(Declaration::getTarget)
-                .forEach(allTables::add);
-
-        return allTables;
+    public List<CompiledTable> findTableByFileName(String fileName) {
+        return this.getTables().stream().filter(t -> t.matchFileName(fileName)).toList();
     }
 
-    public CompiledTable findTableByName(String name) {
-        return getTables().stream()
-                .filter(t -> t.getTarget() != null && name.equals(t.getTarget().getName()))
-                .findFirst()
-                .orElse(null);
+    public List<CompiledAssertion> findAssertionByFileName(String fileName) {
+        return this.getAssertions().stream().filter(t -> t.matchFileName(fileName)).toList();
+    }
+
+    public List<CompiledOperation> findOperationByFileName(String fileName) {
+        return this.getOperations().stream().filter(t -> t.matchFileName(fileName)).toList();
+    }
+
+    public List<Declaration> findDeclarationByFileName(String fileName) {
+        return this.getDeclarations().stream().filter(t -> t.matchFileName(fileName)).toList();
+    }
+
+
+    public List<CompilationError> findCompilationErrorByFileName(String fileName) {
+        return this.getGraphErrors().getCompilationErrors().stream().filter(t -> t.matchFileName(fileName)).toList();
+    }
+
+
+    public Optional<CompiledTable> findTableByName(String name) {
+        return this.getTables().stream().filter(t -> t.getTarget().getName().equals(name)).findFirst();
+    }
+
+    public Optional<CompiledAssertion> findAssertionByName(String name) {
+        return this.getAssertions().stream().filter(t -> t.getTarget().getName().equals(name)).findFirst();
+    }
+
+    public Optional<CompiledOperation> findOperationByName(String name) {
+        return this.getOperations().stream().filter(t -> t.getTarget().getName().equals(name)).findFirst();
+    }
+
+    public Optional<Declaration> findDeclarationByName(String name) {
+        return this.getDeclarations().stream().filter(t -> t.getTarget().getName().equals(name)).findFirst();
     }
 
     public GraphErrors getGraphErrors() {

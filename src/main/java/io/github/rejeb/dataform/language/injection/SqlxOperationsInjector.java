@@ -18,17 +18,18 @@ package io.github.rejeb.dataform.language.injection;
 
 import com.intellij.lang.injection.MultiHostInjector;
 import com.intellij.lang.injection.MultiHostRegistrar;
-import com.intellij.lang.javascript.JavascriptLanguage;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiElement;
 import com.intellij.sql.dialects.bigquery.BigQueryDialect;
-import io.github.rejeb.dataform.language.SqlxLanguage;
-import io.github.rejeb.dataform.language.psi.SqlxJsBlock;
 import io.github.rejeb.dataform.language.psi.SqlxOperationsBlock;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
+
+import static io.github.rejeb.dataform.language.injection.InjectionHelper.collectJsElementRanges;
+import static io.github.rejeb.dataform.language.injection.InjectionHelper.hasOverlappingRanges;
 
 public class SqlxOperationsInjector implements MultiHostInjector {
     @Override
@@ -39,11 +40,9 @@ public class SqlxOperationsInjector implements MultiHostInjector {
             return;
         }
 
-        String text = operationsBlock.getText();
 
-        if (text.isEmpty()) {
-            return;
-        }
+        String text = operationsBlock.getText();
+        if (text == null || text.isEmpty()) return;
 
         int startIndex = text.indexOf("{");
         int endIndex = text.lastIndexOf("}");
@@ -51,14 +50,72 @@ public class SqlxOperationsInjector implements MultiHostInjector {
         if (startIndex == -1 || endIndex == -1 || startIndex >= endIndex) {
             return;
         }
-        registrar.startInjecting(BigQueryDialect.INSTANCE)
-                .addPlace(
-                        null,
+
+        int textLength = text.length();
+
+        List<TextRange> jsRanges = collectJsElementRanges(operationsBlock, startIndex);
+
+        if (jsRanges.isEmpty()) {
+            registrar.startInjecting(BigQueryDialect.INSTANCE);
+            registrar.addPlace(null, null, operationsBlock, new TextRange(startIndex + 1, endIndex));
+            registrar.doneInjecting();
+            return;
+        }
+
+        jsRanges.sort(Comparator.comparingInt(TextRange::getStartOffset));
+
+        for (TextRange range : jsRanges) {
+            if (range.getStartOffset() < 0 || range.getEndOffset() > textLength) {
+                return;
+            }
+        }
+
+        if (hasOverlappingRanges(jsRanges)) {
+            return;
+        }
+
+        registrar.startInjecting(BigQueryDialect.INSTANCE);
+
+        int currentPos = startIndex + 1;
+        boolean hasAddedFragment = false;
+
+        for (TextRange jsRange : jsRanges) {
+            int fragmentStart = currentPos;
+            int fragmentEnd = jsRange.getStartOffset();
+
+            if (fragmentStart < fragmentEnd) {
+                registrar.addPlace(
+                        hasAddedFragment ? "" : null,
                         null,
                         operationsBlock,
-                        new TextRange(startIndex+1, endIndex)
-                )
-                .doneInjecting();
+                        new TextRange(fragmentStart, fragmentEnd)
+                );
+                hasAddedFragment = true;
+            }
+
+            registrar.addPlace(
+                    "NULL",
+                    "",
+                    operationsBlock,
+                    new TextRange(jsRange.getStartOffset(), jsRange.getStartOffset())
+            );
+
+            currentPos = jsRange.getEndOffset();
+        }
+
+        if (currentPos < endIndex) {
+            registrar.addPlace(
+                    hasAddedFragment ? "" : null,
+                    null,
+                    operationsBlock,
+                    new TextRange(currentPos, endIndex)
+            );
+            hasAddedFragment = true;
+        }
+
+        if (hasAddedFragment) {
+            registrar.doneInjecting();
+        }
 
     }
 

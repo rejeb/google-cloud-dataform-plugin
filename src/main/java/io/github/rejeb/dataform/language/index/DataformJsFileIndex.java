@@ -28,6 +28,7 @@ import com.intellij.psi.util.PsiTreeUtil;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class DataformJsFileIndex {
 
@@ -36,28 +37,19 @@ public class DataformJsFileIndex {
 
     @NotNull
     public static List<PsiFile> findDataformJsFiles(@NotNull Project project) {
-        List<PsiFile> result = new ArrayList<>();
+        PsiManager psiManager = PsiManager.getInstance(project);
         Collection<VirtualFile> jsFiles = FileTypeIndex.getFiles(
                 JavaScriptFileType.INSTANCE,
                 GlobalSearchScope.projectScope(project)
         );
-
-        if (jsFiles.isEmpty()) {
-            return result;
-        }
-
-        PsiManager psiManager = PsiManager.getInstance(project);
-
-        for (VirtualFile file : jsFiles) {
-            if (isDataformJsFile(file)) {
-                PsiFile psiFile = psiManager.findFile(file);
-                if (psiFile != null) {
-                    result.add(psiFile);
-                }
-            }
-        }
-
-        return result;
+        return jsFiles.stream()
+                .filter(DataformJsFileIndex::isDataformJsFile)
+                .collect(Collectors.groupingBy(VirtualFile::getNameWithoutExtension))
+                .values()
+                .stream()
+                .filter(group -> group.size() == 1)
+                .map(group -> psiManager.findFile(group.getFirst()))
+                .toList();
     }
 
     public static boolean isDataformJsFile(@NotNull VirtualFile file) {

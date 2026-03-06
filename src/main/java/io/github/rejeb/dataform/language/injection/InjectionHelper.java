@@ -32,9 +32,8 @@ public class InjectionHelper {
     );
 
 
-    public static List<TextRange> collectJsElementRanges(PsiElement sqlBlock) {
+    public static List<TextRange> collectJsElementRanges(PsiElement sqlBlock,int blockStartOffset) {
         List<TextRange> ranges = new ArrayList<>();
-        int blockStartOffset = sqlBlock.getTextRange().getStartOffset();
 
         PsiTreeUtil.processElements(sqlBlock, element -> {
 

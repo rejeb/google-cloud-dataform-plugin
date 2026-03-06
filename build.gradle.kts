@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "io.github.rejeb"
-version = "0.2.4"
+version = "0.2.5"
 
 repositories {
     mavenCentral()
@@ -27,6 +27,7 @@ dependencies {
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
         bundledPlugin("com.intellij.java")
         bundledPlugin("JavaScript")
+        bundledPlugin("NodeJS")
         bundledPlugin("com.intellij.database")
         bundledPlugin("org.jetbrains.plugins.yaml")
         bundledPlugin("com.intellij.modules.json")
@@ -45,7 +46,11 @@ intellijPlatform {
         }
 
         changeNotes = """
-            Initial version
+                <ul>
+                    <li>Add preview panel for compiled query and data lineage</li>
+                    <li>Fix template expression lexing issue</li>
+                    <li>Fix local sqlx file shadowing issue</li>
+                </ul>
         """.trimIndent()
     }
 }
