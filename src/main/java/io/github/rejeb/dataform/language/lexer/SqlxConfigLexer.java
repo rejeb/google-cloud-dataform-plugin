@@ -26,11 +26,9 @@ import org.jetbrains.annotations.Nullable;
 
 public class SqlxConfigLexer extends LexerBase {
 
-    // États du lexer
     private static final int STATE_INITIAL = 0;
     private static final int STATE_IN_VALUE = 1;
 
-    // Caractères spéciaux
     public static final char DOUBLE_QUOTE = '"';
     public static final char SINGLE_QUOTE = '\'';
     public static final char BACKTICK = '`';
@@ -140,15 +138,17 @@ public class SqlxConfigLexer extends LexerBase {
                 break;
 
             case DOUBLE_QUOTE:
-                lexString(DOUBLE_QUOTE, JsonElementTypes.DOUBLE_QUOTED_STRING);
+                lexLitteral(DOUBLE_QUOTE, JsonElementTypes.DOUBLE_QUOTED_STRING);
                 break;
             case SINGLE_QUOTE:
-                lexString(SINGLE_QUOTE, JsonElementTypes.SINGLE_QUOTED_STRING);
+                lexLitteral(SINGLE_QUOTE, JsonElementTypes.SINGLE_QUOTED_STRING);
                 break;
             case BACKTICK:
-                lexString(BACKTICK, SharedTokenTypes.JS_LITTERAL);
+                lexLitteral(BACKTICK, SharedTokenTypes.JS_LITTERAL);
                 break;
-
+            case '/':
+                lexComment();
+                break;
             case '$':
                 if (state == STATE_IN_VALUE || canStartJsExpression()) {
                     lexJsReference(null, -1);
@@ -243,7 +243,7 @@ public class SqlxConfigLexer extends LexerBase {
         }
     }
 
-    private void lexString(char coteChar, IElementType contentType) {
+    private void lexLitteral(char coteChar, IElementType contentType) {
         currentPosition++;
 
         while (currentPosition < endOffset) {
@@ -266,6 +266,36 @@ public class SqlxConfigLexer extends LexerBase {
 
         currentTokenType = contentType;
         currentTokenEnd = currentPosition;
+    }
+
+    private void lexComment() {
+        if (currentPosition + 1 >= endOffset) return;
+        char c = buffer.charAt(currentPosition);
+        char next = buffer.charAt(currentPosition + 1);
+
+        if (c == '/' && next == '/') {
+            while (currentPosition < endOffset && buffer.charAt(currentPosition) != '\n') {
+                currentPosition++;
+            }
+            currentTokenType = JsonElementTypes.LINE_COMMENT;
+            currentTokenEnd = currentPosition;
+            return;
+        }
+
+        if (c == '/' && next == '*') {
+            currentPosition += 2;
+            while (currentPosition + 1 < endOffset) {
+                if (buffer.charAt(currentPosition) == '*' &&
+                        buffer.charAt(currentPosition + 1) == '/') {
+                    currentPosition += 2;
+                    break;
+                }
+                currentPosition++;
+            }
+            currentTokenType = JsonElementTypes.BLOCK_COMMENT;
+            currentTokenEnd = currentPosition;
+        }
+
     }
 
     private boolean isNumeric(String str) {
@@ -297,6 +327,7 @@ public class SqlxConfigLexer extends LexerBase {
         }
         return true;
     }
+
 
     private void skipWhitespace() {
         while (currentPosition < endOffset &&

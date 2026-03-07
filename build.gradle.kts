@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "io.github.rejeb"
-version = "0.2.5"
+version = "0.2.6"
 
 repositories {
     mavenCentral()
@@ -47,9 +47,7 @@ intellijPlatform {
 
         changeNotes = """
                 <ul>
-                    <li>Add preview panel for compiled query and data lineage</li>
-                    <li>Fix template expression lexing issue</li>
-                    <li>Fix local sqlx file shadowing issue</li>
+                    <li>Fix Config lexer issue</li>
                 </ul>
         """.trimIndent()
     }

@@ -130,7 +130,6 @@ public class SqlxFileLexer extends LexerBase {
     }
 
     private void locateTokenInitial() {
-        // Skip whitespace
         if (Character.isWhitespace(buffer.charAt(currentPosition))) {
             skipWhitespace();
             currentTokenType = TokenType.WHITE_SPACE;
@@ -169,7 +168,6 @@ public class SqlxFileLexer extends LexerBase {
 
     private void continueInKeywordBlock(String keyword, IElementType tokenType, int state) {
         int endPos = currentPosition + keyword.length();
-        // Skip optional whitespace after keyword
         while (endPos < endOffset && Character.isWhitespace(buffer.charAt(endPos))) {
             endPos++;
         }
@@ -189,7 +187,6 @@ public class SqlxFileLexer extends LexerBase {
 
         int start = currentPosition;
 
-        // Consume characters and track brace depth
         while (currentPosition < endOffset) {
             char c = buffer.charAt(currentPosition);
 
@@ -234,9 +231,8 @@ public class SqlxFileLexer extends LexerBase {
                 currentPosition + 1 < endOffset &&
                 buffer.charAt(currentPosition + 1) == '{') {
 
-            currentPosition += 2; // Skip ${
-
-            int depth = 1; // ← profondeur de l'accolade ouvrante
+            currentPosition += 2;
+            int depth = 1;
             while (currentPosition < endOffset && depth > 0) {
                 char c = buffer.charAt(currentPosition);
                 if (c == '{') depth++;
@@ -252,7 +248,6 @@ public class SqlxFileLexer extends LexerBase {
             char c = buffer.charAt(currentPosition);
 
             if (c == '$' && currentPosition + 1 < endOffset && buffer.charAt(currentPosition + 1) == '{') {
-                // Return content before template expression if any
                 if (currentPosition > start) {
                     currentTokenType = tokenType;
                     currentTokenEnd = currentPosition;
@@ -279,7 +274,6 @@ public class SqlxFileLexer extends LexerBase {
             }
         }
 
-        // EOF reached
         if (currentPosition > start) {
             currentTokenType = tokenType;
             currentTokenEnd = currentPosition;
@@ -296,26 +290,22 @@ public class SqlxFileLexer extends LexerBase {
             return;
         }
 
-        // Check if we're at the start of a line
         boolean atStartOfLine = isStartOfLine();
 
         if (atStartOfLine) {
             int savedPos = currentPosition;
             int wsStart = currentPosition;
 
-            // Skip whitespace
             while (currentPosition < endOffset &&
                     Character.isWhitespace(buffer.charAt(currentPosition)) &&
                     buffer.charAt(currentPosition) != '\n') {
                 currentPosition++;
             }
 
-            // Check for CONFIG keyword
             if (currentPosition < endOffset && (matchKeyword(CONFIG_KEYWORD) ||
                     matchKeyword(JS_KEYWORD) ||
                     matchKeyword(PRE_OPERATIONS_KEYWORD) ||
                     matchKeyword(POST_OPERATIONS_KEYWORD))) {
-                // Return whitespace token if there was any
                 if (wsStart < savedPos + (currentPosition - savedPos)) {
                     currentPosition = savedPos;
                     skipWhitespace();
@@ -331,11 +321,9 @@ public class SqlxFileLexer extends LexerBase {
                 return;
             }
 
-            // Restore position
             currentPosition = savedPos;
         }
 
-        // Check for template expression ${...}
         if (buffer.charAt(currentPosition) == '$' &&
                 currentPosition + 1 < endOffset &&
                 buffer.charAt(currentPosition + 1) == '{') {
@@ -359,18 +347,15 @@ public class SqlxFileLexer extends LexerBase {
             char c = buffer.charAt(currentPosition);
 
             if (c == '$') {
-                // Check if it's part of a template expression
                 if (currentPosition + 1 < endOffset && buffer.charAt(currentPosition + 1) == '{') {
                     break;
                 }
                 currentPosition++;
             } else if (c == '\n') {
                 currentPosition++;
-                // Check if next line starts with config or js keyword
                 if (currentPosition < endOffset) {
                     int savedPos = currentPosition;
 
-                    // Skip whitespace at start of line
                     while (currentPosition < endOffset &&
                             Character.isWhitespace(buffer.charAt(currentPosition)) &&
                             buffer.charAt(currentPosition) != '\n') {
@@ -410,7 +395,6 @@ public class SqlxFileLexer extends LexerBase {
             }
         }
 
-        // Check that keyword is not part of a larger identifier
         int nextPos = currentPosition + keyword.length();
         if (nextPos < endOffset) {
             char nextChar = buffer.charAt(nextPos);
@@ -427,7 +411,6 @@ public class SqlxFileLexer extends LexerBase {
             return true;
         }
 
-        // Look back to see if we're at start of line
         int pos = currentPosition - 1;
         while (pos >= 0) {
             char c = buffer.charAt(pos);
