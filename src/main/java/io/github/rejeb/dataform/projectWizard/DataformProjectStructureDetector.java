@@ -60,6 +60,7 @@ public class DataformProjectStructureDetector extends ProjectStructureDetector {
                     detectedSourceRoot));
         }
         projectDescriptor.setModules(modules);
+        projectDescriptor.setLibraries(new ArrayList<>());
 
     }
 

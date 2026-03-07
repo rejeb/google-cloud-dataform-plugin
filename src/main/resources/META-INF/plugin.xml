@@ -31,7 +31,6 @@
     <depends>com.intellij.modules.platform</depends>
     <depends>JavaScript</depends>
     <depends>NodeJS</depends>
-    <depends>com.intellij.java</depends>
     <depends>com.intellij.database</depends>
     <depends>com.intellij.modules.json</depends>
     <depends>org.jetbrains.plugins.yaml</depends>
@@ -41,7 +40,8 @@
                 implementation="io.github.rejeb.dataform.language.completion.DataformJsonSchemaProviderFactory"/>
     </extensions>
     <extensions defaultExtensionNs="com.intellij">
-
+        <projectImportProvider
+                implementation="io.github.rejeb.dataform.projectWizard.DataformProjectImportProvider"/>
         <daemon.highlightInfoFilter
                 implementation="io.github.rejeb.dataform.language.highlight.SqlxHighlightInfoFilter"/>
         <facetType implementation="io.github.rejeb.dataform.projectWizard.DataformFacetType"/>

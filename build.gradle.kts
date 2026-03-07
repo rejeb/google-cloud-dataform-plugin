@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "io.github.rejeb"
-version = "0.2.6"
+version = "0.2.7"
 
 repositories {
     mavenCentral()
