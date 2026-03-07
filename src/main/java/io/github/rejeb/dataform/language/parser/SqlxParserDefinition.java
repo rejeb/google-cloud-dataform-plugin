@@ -98,12 +98,12 @@ public class SqlxParserDefinition implements ParserDefinition {
             return new SqlxJsBlock(node);
         }
 
-        if (type == SqlxElementTypes.JS_LITTERAL_ELEMENT) {
-            return new SqlxJsLitteralExpression(node);
+        if (type == SqlxElementTypes.JS_LITERAL_ELEMENT) {
+            return new SqlxJsLiteralExpression(node);
         }
 
         if (type == SqlxElementTypes.TEMPLATE_EXPRESSION_ELEMENT) {
-            return new SqlxJsLitteralExpression(node);
+            return new SqlxJsLiteralExpression(node);
         }
         return new SqlxPsiElement(node);
     }

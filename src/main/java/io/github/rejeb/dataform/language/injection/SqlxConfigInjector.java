@@ -47,9 +47,7 @@ public class SqlxConfigInjector implements MultiHostInjector {
         }
 
         List<TextRange> jsRanges = collectJsElementRanges(configBlock,configBlock.getTextRange().getStartOffset());
-        if (hasOverlappingRanges(jsRanges)) {
-            return;
-        }
+        jsRanges.sort(Comparator.comparingInt(TextRange::getStartOffset));
 
         if (jsRanges.isEmpty()) {
             registrar.startInjecting(Json5Language.INSTANCE);
@@ -57,8 +55,6 @@ public class SqlxConfigInjector implements MultiHostInjector {
             registrar.doneInjecting();
             return;
         }
-
-        jsRanges.sort(Comparator.comparingInt(TextRange::getStartOffset));
 
         registrar.startInjecting(Json5Language.INSTANCE);
 

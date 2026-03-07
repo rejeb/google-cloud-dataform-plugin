@@ -138,13 +138,13 @@ public class SqlxConfigLexer extends LexerBase {
                 break;
 
             case DOUBLE_QUOTE:
-                lexLitteral(DOUBLE_QUOTE, JsonElementTypes.DOUBLE_QUOTED_STRING);
+                lexLiteral(DOUBLE_QUOTE, JsonElementTypes.DOUBLE_QUOTED_STRING);
                 break;
             case SINGLE_QUOTE:
-                lexLitteral(SINGLE_QUOTE, JsonElementTypes.SINGLE_QUOTED_STRING);
+                lexLiteral(SINGLE_QUOTE, JsonElementTypes.SINGLE_QUOTED_STRING);
                 break;
             case BACKTICK:
-                lexLitteral(BACKTICK, SharedTokenTypes.JS_LITTERAL);
+                lexLiteral(BACKTICK, SharedTokenTypes.JS_LITERAL);
                 break;
             case '/':
                 lexComment();
@@ -199,7 +199,7 @@ public class SqlxConfigLexer extends LexerBase {
         } else if (isNumeric(tokenText)) {
             currentTokenType = JsonElementTypes.NUMBER_LITERAL;
         } else {
-            currentTokenType = SharedTokenTypes.JS_LITTERAL;
+            currentTokenType = SharedTokenTypes.JS_LITERAL;
         }
         currentTokenEnd = currentPosition;
     }
@@ -243,7 +243,7 @@ public class SqlxConfigLexer extends LexerBase {
         }
     }
 
-    private void lexLitteral(char coteChar, IElementType contentType) {
+    private void lexLiteral(char coteChar, IElementType contentType) {
         currentPosition++;
 
         while (currentPosition < endOffset) {

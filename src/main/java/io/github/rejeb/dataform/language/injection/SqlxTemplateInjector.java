@@ -22,7 +22,7 @@ import com.intellij.lang.javascript.JavascriptLanguage;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiLanguageInjectionHost;
-import io.github.rejeb.dataform.language.psi.SqlxJsLitteralExpression;
+import io.github.rejeb.dataform.language.psi.SqlxJsLiteralExpression;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
@@ -60,6 +60,6 @@ public class SqlxTemplateInjector implements MultiHostInjector {
     @NotNull
     @Override
     public List<? extends Class<? extends PsiElement>> elementsToInjectIn() {
-        return List.of(SqlxJsLitteralExpression.class);
+        return List.of(SqlxJsLiteralExpression.class);
     }
 }

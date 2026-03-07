@@ -122,6 +122,6 @@ public class SqlxOperationsInjector implements MultiHostInjector {
     @NotNull
     @Override
     public List<? extends Class<? extends PsiElement>> elementsToInjectIn() {
-        return Arrays.asList(SqlxOperationsBlock.class);
+        return List.of(SqlxOperationsBlock.class);
     }
 }

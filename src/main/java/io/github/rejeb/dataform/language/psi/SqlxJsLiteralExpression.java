@@ -23,9 +23,9 @@ import com.intellij.psi.LiteralTextEscaper;
 import com.intellij.psi.PsiLanguageInjectionHost;
 import org.jetbrains.annotations.NotNull;
 
-public class SqlxJsLitteralExpression extends ASTWrapperPsiElement implements PsiLanguageInjectionHost {
+public class SqlxJsLiteralExpression extends ASTWrapperPsiElement implements PsiLanguageInjectionHost {
 
-    public SqlxJsLitteralExpression(@NotNull ASTNode node) {
+    public SqlxJsLiteralExpression(@NotNull ASTNode node) {
         super(node);
     }
 

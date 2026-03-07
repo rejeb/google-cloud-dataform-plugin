@@ -475,11 +475,12 @@ public final class DataformJsonSchemaGenerator {
 
     private <V> String resolveTypeName(String typeName, String contextQualified,
                                        Map<String, V> index) {
-        List<String> parts = new ArrayList<>(Arrays.asList(contextQualified.split("\\.")));
-        while (!parts.isEmpty()) {
-            String candidate = String.join(".", parts) + "." + typeName;
+        String prefix = contextQualified;
+        while (!prefix.isEmpty()) {
+            String candidate = prefix + "." + typeName;
             if (index.containsKey(candidate)) return candidate;
-            parts.removeLast();
+            int dot = prefix.lastIndexOf('.');
+            prefix = dot >= 0 ? prefix.substring(0, dot) : "";
         }
         return index.containsKey(typeName) ? typeName : null;
     }

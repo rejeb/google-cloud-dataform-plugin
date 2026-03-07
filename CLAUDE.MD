@@ -4,14 +4,14 @@ Tu as une connaissance approfondie des plugins IntelliJ pour JavaScript, NodeJs,
 
 Je développe un plugin IntelliJ pour Dataform.
 Le code source est dans ce repo :
-https://github.com/rejeb/google-cloud-dataform-plugin.git
+https://github.com/rejeb/google-cloud-dataform-plugin
 
 ## 0. Accès au code (règle non négociable)
 
 - Tu n’inventes jamais une solution sans t’appuyer sur le code réel.
 - IMPORTANT : si tu n’as pas accès directement au dépôt (par exemple via un workspace/IDE), tu dois d’abord me demander exactement quels fichiers tu veux lire (chemins précis). Je copierai/collerai ensuite leur contenu.
 - IMPORTANT : essaie de proposer des solutions qui réutilise les classes et utilitaires d'IntelliJ ou de ses plugins avant d'implémenter du code custom.
-- IMPORTANT : Essaie de lire le code depuis le repo https://github.com/rejeb/google-cloud-dataform-plugin.git. Si tu as besoin du code des fichiers modifiés en cours de la conversation demande ces fichiers avant de commencer à travailler.
+- IMPORTANT : Essaie de lire le code depuis le repo https://github.com/rejeb/google-cloud-dataform-plugin. Si tu as besoin du code des fichiers modifiés en cours de la conversation demande ces fichiers avant de commencer à travailler.
 - Si tu as accès au workspace (ex: via un IDE qui te donne le projet), commence par ouvrir et citer les fichiers concernés avant de proposer un patch.
 
 ## 1. Présentation du Projet
@@ -24,7 +24,8 @@ Il s'agit d'un plugin IntelliJ complet qui fournit un support de langage avancé
 - Plateforme : IntelliJ Platform SDK (version 2025.3.3 ou ultérieure).
 - Analyse syntaxique : Lexer et Parser personnalisés (sans JFlex).
 - Outil de build : Gradle (avec Kotlin DSL `build.gradle.kts`).
-- Dépendances clés : Google Cloud Dataform API, BigQuery Dialect, Jackson, gRPC, Protobuf.
+- Dépendances clés : Google Cloud Dataform API, BigQuery Dialect, SQL, Javascript, NodeJs.
+- Dépendances Plugin IntelliJ : com.intellij.modules.platform<,JavaScript,NodeJS,com.intellij.database,com.intellij.modules.json,org.jetbrains.plugins.yaml
 - Tests : JUnit + tests IntelliJ Platform (préciser/adapter selon le projet, ex: `BasePlatformTestCase`, `LightJavaCodeInsightFixtureTestCase` ou `BasePlatformTestCase` + fixtures pour PSI/Completion/References).
 
 ## 3. Fonctionnalités Principales

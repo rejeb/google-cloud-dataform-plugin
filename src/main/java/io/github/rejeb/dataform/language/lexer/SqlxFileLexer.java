@@ -37,7 +37,6 @@ public class SqlxFileLexer extends LexerBase {
     private static final String PRE_OPERATIONS_KEYWORD = "pre_operations";
     private static final String POST_OPERATIONS_KEYWORD = "post_operations";
 
-
     private CharSequence buffer;
     private int endOffset;
     private int currentPosition;
@@ -151,12 +150,10 @@ public class SqlxFileLexer extends LexerBase {
             continueInKeywordBlock(JS_KEYWORD, SharedTokenTypes.JS_KEYWORD, JS_BLOCK);
             return;
         }
-
         if (matchKeyword(PRE_OPERATIONS_KEYWORD)) {
             continueInKeywordBlock(PRE_OPERATIONS_KEYWORD, SharedTokenTypes.PRE_OPERATIONS_KEYWORD, PRE_OPERATIONS_BLOCK);
             return;
         }
-
         if (matchKeyword(POST_OPERATIONS_KEYWORD)) {
             continueInKeywordBlock(POST_OPERATIONS_KEYWORD, SharedTokenTypes.POST_OPERATIONS_KEYWORD, POST_OPERATIONS_BLOCK);
             return;
@@ -226,21 +223,8 @@ public class SqlxFileLexer extends LexerBase {
 
         int start = currentPosition;
 
-
-        if (buffer.charAt(currentPosition) == '$' &&
-                currentPosition + 1 < endOffset &&
-                buffer.charAt(currentPosition + 1) == '{') {
-
-            currentPosition += 2;
-            int depth = 1;
-            while (currentPosition < endOffset && depth > 0) {
-                char c = buffer.charAt(currentPosition);
-                if (c == '{') depth++;
-                else if (c == '}') depth--;
-                currentPosition++;
-            }
-            currentTokenType = SharedTokenTypes.TEMPLATE_EXPRESSION;
-            currentTokenEnd = currentPosition;
+        // Handle ${...} template expression at current position
+        if (tryConsumeTemplateExpression()) {
             return;
         }
 
@@ -290,54 +274,35 @@ public class SqlxFileLexer extends LexerBase {
             return;
         }
 
-        boolean atStartOfLine = isStartOfLine();
-
-        if (atStartOfLine) {
+        if (isStartOfLine()) {
             int savedPos = currentPosition;
-            int wsStart = currentPosition;
 
+            // Skip non-newline leading whitespace to look ahead for a block keyword
             while (currentPosition < endOffset &&
                     Character.isWhitespace(buffer.charAt(currentPosition)) &&
                     buffer.charAt(currentPosition) != '\n') {
                 currentPosition++;
             }
 
-            if (currentPosition < endOffset && (matchKeyword(CONFIG_KEYWORD) ||
-                    matchKeyword(JS_KEYWORD) ||
-                    matchKeyword(PRE_OPERATIONS_KEYWORD) ||
-                    matchKeyword(POST_OPERATIONS_KEYWORD))) {
-                if (wsStart < savedPos + (currentPosition - savedPos)) {
-                    currentPosition = savedPos;
-                    skipWhitespace();
-                    if (currentPosition > savedPos) {
-                        currentTokenType = TokenType.WHITE_SPACE;
-                        currentTokenEnd = currentPosition;
-                        return;
-                    }
+            if (currentPosition < endOffset && matchesAnyBlockKeyword()) {
+                if (currentPosition > savedPos) {
+                    // Emit the leading whitespace before transitioning to YYINITIAL
+                    currentTokenType = TokenType.WHITE_SPACE;
+                    currentTokenEnd = currentPosition;
+                    return;
                 }
-                currentPosition = savedPos;
+                // No leading whitespace: transition directly
                 state = YYINITIAL;
                 locateTokenInitial();
                 return;
             }
 
+            // No keyword found: reset and continue as SQL content
             currentPosition = savedPos;
         }
 
-        if (buffer.charAt(currentPosition) == '$' &&
-                currentPosition + 1 < endOffset &&
-                buffer.charAt(currentPosition + 1) == '{') {
-
-            currentPosition += 2;
-            int depth = 1;
-            while (currentPosition < endOffset && depth > 0) {
-                char c = buffer.charAt(currentPosition);
-                if (c == '{') depth++;
-                else if (c == '}') depth--;
-                currentPosition++;
-            }
-            currentTokenType = SharedTokenTypes.TEMPLATE_EXPRESSION;
-            currentTokenEnd = currentPosition;
+        // Handle ${...} template expression at current position
+        if (tryConsumeTemplateExpression()) {
             return;
         }
 
@@ -356,14 +321,14 @@ public class SqlxFileLexer extends LexerBase {
                 if (currentPosition < endOffset) {
                     int savedPos = currentPosition;
 
+                    // Skip non-newline whitespace after newline to peek at keyword
                     while (currentPosition < endOffset &&
                             Character.isWhitespace(buffer.charAt(currentPosition)) &&
                             buffer.charAt(currentPosition) != '\n') {
                         currentPosition++;
                     }
 
-                    if (matchKeyword(CONFIG_KEYWORD) || matchKeyword(JS_KEYWORD) ||
-                            matchKeyword(PRE_OPERATIONS_KEYWORD) || matchKeyword(POST_OPERATIONS_KEYWORD)) {
+                    if (matchesAnyBlockKeyword()) {
                         currentPosition = savedPos;
                         break;
                     }
@@ -382,6 +347,40 @@ public class SqlxFileLexer extends LexerBase {
             currentTokenType = TokenType.BAD_CHARACTER;
             currentTokenEnd = ++currentPosition;
         }
+    }
+
+    /**
+     * Attempts to consume a ${...} template expression at the current position.
+     * On success, sets currentTokenType/currentTokenEnd and advances currentPosition.
+     *
+     * @return true if a template expression was consumed
+     */
+    private boolean tryConsumeTemplateExpression() {
+        if (currentPosition + 1 >= endOffset) return false;
+        if (buffer.charAt(currentPosition) != '$') return false;
+        if (buffer.charAt(currentPosition + 1) != '{') return false;
+
+        currentPosition += 2;
+        int depth = 1;
+        while (currentPosition < endOffset && depth > 0) {
+            char c = buffer.charAt(currentPosition);
+            if (c == '{') depth++;
+            else if (c == '}') depth--;
+            currentPosition++;
+        }
+        currentTokenType = SharedTokenTypes.TEMPLATE_EXPRESSION;
+        currentTokenEnd = currentPosition;
+        return true;
+    }
+
+    /**
+     * Returns true if the current position matches any SQLX top-level block keyword.
+     */
+    private boolean matchesAnyBlockKeyword() {
+        return matchKeyword(CONFIG_KEYWORD)
+                || matchKeyword(JS_KEYWORD)
+                || matchKeyword(PRE_OPERATIONS_KEYWORD)
+                || matchKeyword(POST_OPERATIONS_KEYWORD);
     }
 
     private boolean matchKeyword(String keyword) {

@@ -45,7 +45,7 @@ public class SqlxSqlInjector implements MultiHostInjector {
         int textLength = text.length();
 
         List<TextRange> jsRanges = collectJsElementRanges(sqlBlock,sqlBlock.getTextRange().getStartOffset());
-
+        jsRanges.sort(Comparator.comparingInt(TextRange::getStartOffset));
         if (jsRanges.isEmpty()) {
             registrar.startInjecting(BigQueryDialect.INSTANCE);
             registrar.addPlace(null, null, sqlBlock, new TextRange(0, textLength));
@@ -53,7 +53,7 @@ public class SqlxSqlInjector implements MultiHostInjector {
             return;
         }
 
-        jsRanges.sort(Comparator.comparingInt(TextRange::getStartOffset));
+
 
         for (TextRange range : jsRanges) {
             if (range.getStartOffset() < 0 || range.getEndOffset() > textLength) {

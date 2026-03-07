@@ -97,7 +97,7 @@
                 implementationClass="io.github.rejeb.dataform.language.completion.DataformWorkflowSettingsCompletionContributor"/>
 
         <completion.contributor
-                language="any"
+                language="SQL"
                 implementationClass="io.github.rejeb.dataform.language.completion.SqlxKeywordCompletionContributor"/>
 
         <psi.referenceContributor

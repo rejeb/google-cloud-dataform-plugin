@@ -24,11 +24,12 @@ import io.github.rejeb.dataform.language.psi.SqlxElementTypes;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 public class InjectionHelper {
-    private static final List<IElementType> JS_ELEMENT_TYPES = List.of(
+    private static final Set<IElementType> JS_ELEMENT_TYPES = Set.of(
             SqlxElementTypes.TEMPLATE_EXPRESSION_ELEMENT,
-            SqlxElementTypes.JS_LITTERAL_ELEMENT
+            SqlxElementTypes.JS_LITERAL_ELEMENT
     );
 
 

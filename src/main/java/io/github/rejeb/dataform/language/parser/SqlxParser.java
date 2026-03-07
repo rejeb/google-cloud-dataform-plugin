@@ -201,8 +201,8 @@ public class SqlxParser implements PsiParser {
             markElement(builder, SqlxElementTypes.CONFIG_NULL_VALUE);
         } else if (builder.getTokenType() == SharedTokenTypes.TEMPLATE_EXPRESSION) {
             markElement(builder, SqlxElementTypes.TEMPLATE_EXPRESSION_ELEMENT);
-        } else if (builder.getTokenType() == SharedTokenTypes.JS_LITTERAL) {
-            markElement(builder, SqlxElementTypes.JS_LITTERAL_ELEMENT);
+        } else if (builder.getTokenType() == SharedTokenTypes.JS_LITERAL) {
+            markElement(builder, SqlxElementTypes.JS_LITERAL_ELEMENT);
         } else {
             if (!builder.eof()) {
                 builder.advanceLexer();

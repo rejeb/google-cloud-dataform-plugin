@@ -20,7 +20,6 @@ import com.intellij.lang.javascript.psi.JSReferenceExpression;
 import com.intellij.patterns.PlatformPatterns;
 import com.intellij.psi.PsiReferenceContributor;
 import com.intellij.psi.PsiReferenceRegistrar;
-import io.github.rejeb.dataform.language.psi.SqlxJsLitteralExpression;
 import org.jetbrains.annotations.NotNull;
 
 public class DataformWorkflowSettingsReferenceContributor extends PsiReferenceContributor {
