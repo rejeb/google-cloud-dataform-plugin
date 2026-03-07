@@ -51,6 +51,14 @@ public class CompiledGraph {
         return projectConfig;
     }
 
+    public GraphErrors getGraphErrors() {
+        return graphErrors;
+    }
+
+    public void setGraphErrors(GraphErrors graphErrors) {
+        this.graphErrors = graphErrors;
+    }
+
     public List<CompiledQuery> findCompiledQueryByFileName(String fileName) {
         List<CompiledQuery> tableQueries = findTableByFileName(fileName).stream().map(CompiledTable::getQueries).toList();
 
@@ -120,8 +128,6 @@ public class CompiledGraph {
         return this.getDeclarations().stream().filter(t -> t.getTarget().getName().equals(name)).findFirst();
     }
 
-    public GraphErrors getGraphErrors() {
-        return graphErrors;
-    }
+
 }
 

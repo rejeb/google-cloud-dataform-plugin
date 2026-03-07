@@ -63,7 +63,7 @@ public class DataformModuleBuilder extends ModuleBuilder {
 
     @Override
     public ModuleType<?> getModuleType() {
-        return new DataformModuleType();
+        return DataformModuleType.getInstance();
     }
 
     @Nullable

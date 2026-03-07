@@ -25,7 +25,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public class DataformFacetType extends FacetType<DataformFacet, DataformFacetConfiguration> {
-    public static final FacetTypeId<DataformFacet> ID = new FacetTypeId<>(DataformModuleType.ID);
+    public static final String ID_STR = "DATAFORM_FACET";
+    public static final FacetTypeId<DataformFacet> ID = new FacetTypeId<>(ID_STR);
     public static final DataformFacetType INSTANCE = new DataformFacetType();
 
     public DataformFacetType() {

@@ -48,6 +48,7 @@ intellijPlatform {
         changeNotes = """
                 <ul>
                     <li>Fix Config lexer issue</li>
+                    <li>Fix NPE when compilation fails issue</li>
                 </ul>
         """.trimIndent()
     }

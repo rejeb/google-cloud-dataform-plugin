@@ -100,8 +100,7 @@ public class DataformJsFileIndex {
             if (lhs != null && "module.exports".equals(lhs.getText())) {
                 JSExpression rhs = assignment.getROperand();
 
-                if (rhs instanceof JSObjectLiteralExpression) {
-                    JSObjectLiteralExpression objLiteral = (JSObjectLiteralExpression) rhs;
+                if (rhs instanceof JSObjectLiteralExpression objLiteral) {
 
                     for (JSProperty property : objLiteral.getProperties()) {
                         String propName = property.getName();
@@ -137,7 +136,7 @@ public class DataformJsFileIndex {
 
         if (value instanceof JSReferenceExpression) {
 
-            referenceName = ((JSReferenceExpression) value).getReferencedName();
+            referenceName = ((JSReferenceExpression) value).getReferenceName();
         } else if (property.getName() != null && value == null) {
 
             referenceName = property.getName();

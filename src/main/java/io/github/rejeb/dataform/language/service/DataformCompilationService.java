@@ -17,6 +17,7 @@
 package io.github.rejeb.dataform.language.service;
 
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.intellij.execution.ExecutionException;
 import com.intellij.execution.configurations.GeneralCommandLine;
 import com.intellij.execution.process.ProcessOutput;
@@ -27,10 +28,10 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectUtil;
 import com.intellij.openapi.vfs.VirtualFile;
-import com.intellij.util.Alarm;
+import io.github.rejeb.dataform.language.compilation.model.CompilationError;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
+import io.github.rejeb.dataform.language.compilation.model.GraphErrors;
 import io.github.rejeb.dataform.setup.DataformInterpreterManager;
-import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -55,29 +56,50 @@ public final class DataformCompilationService implements Disposable {
                     .buildDataformCompileCommand();
             if (cmd.isPresent()) {
                 ProcessOutput output = ExecUtil.execAndGetOutput(cmd.get(), 300000);
-                Gson gson = new Gson();
+                Gson gson = new GsonBuilder().setPrettyPrinting().create();
                 String compilationResult = output.getStdout();
-                Path compileResultPath = getCompileResultPath();
-                Files.writeString(compileResultPath, output.getStdout());
-                this.compiledGraph = gson.fromJson(compilationResult, CompiledGraph.class);
+                if (compilationResult.isBlank()) {
+                    CompilationError compilationError = new CompilationError(output.getStderr());
+                    GraphErrors graphErrors = new GraphErrors();
+                    graphErrors.setCompilationErrors(List.of(compilationError));
+                    this.compiledGraph = new CompiledGraph();
+                    this.compiledGraph.setGraphErrors(graphErrors);
+                } else {
+                    this.compiledGraph = gson.fromJson(compilationResult, CompiledGraph.class);
+                }
+                getCompileResultPath().ifPresent(this::saveToFile);
                 return this.compiledGraph;
             }
-        } catch (ExecutionException | IOException e) {
+        } catch (ExecutionException e) {
             LOG.error("Error during Indexing", e);
         }
         return null;
     }
 
-    private @Nullable Path getCompileResultPath() {
+    private void saveToFile(Path compileResultPath) {
         try {
-            String basePath = ProjectUtil.guessProjectDir(project).getPath();
-            Path buildDir = Path.of(basePath, ".build");
-            Files.createDirectories(buildDir);
-            return buildDir.resolve("dataform-compile.json");
+            Gson gson = new GsonBuilder().setPrettyPrinting().create();
+            Files.writeString(compileResultPath, gson.toJson(this.compiledGraph));
         } catch (IOException e) {
-            LOG.error("Error during resolving compile result path", e);
+            LOG.error("Error during save to file", e);
         }
-        return null;
+    }
+
+    private Optional<Path> getCompileResultPath() {
+
+        return Optional
+                .ofNullable(ProjectUtil.guessProjectDir(project))
+                .map(basePath -> {
+                    try {
+                        Path buildDir = Path.of(basePath.getPath(), ".build");
+                        Files.createDirectories(buildDir);
+                        return buildDir.resolve("dataform-compile.json");
+                    } catch (IOException e) {
+                        LOG.error("Error during resolving compile result path", e);
+                    }
+                    return null;
+                });
+
     }
 
     public CompiledGraph runIfFilesChanged() {
@@ -85,12 +107,14 @@ public final class DataformCompilationService implements Disposable {
             return null;
         }
         try {
-            Path compilationResultPath = getCompileResultPath();
+            Optional<Path> compilationResultPath = getCompileResultPath();
 
-            if (compilationResultPath != null && Files.exists(compilationResultPath) && !hasSourcesChangedSince(compilationResultPath)) {
-                this.compiledGraph = new Gson().fromJson(Files.readString(compilationResultPath), CompiledGraph.class);
+            if (compilationResultPath.isPresent() &&
+                    Files.exists(compilationResultPath.get()) &&
+                    compilationResultPath.stream().noneMatch(this::hasSourcesChangedSince)) {
+                this.compiledGraph = new Gson().fromJson(Files.readString(compilationResultPath.get()), CompiledGraph.class);
             } else {
-             return compile();
+                return compile();
             }
         } catch (IOException e) {
             LOG.error("Error during resolving compiled graph", e);
@@ -107,7 +131,8 @@ public final class DataformCompilationService implements Disposable {
         compiledGraph = null;
     }
 
-    private boolean hasSourcesChangedSince(Path referenceFile) throws IOException {
+    private boolean hasSourcesChangedSince(Path referenceFile) {
+        try {
         long lastCompileTime = Files.getLastModifiedTime(referenceFile).toMillis();
 
         VirtualFile projectDir = ProjectUtil.guessProjectDir(project);
@@ -125,6 +150,9 @@ public final class DataformCompilationService implements Disposable {
         for (String fileName : configFiles) {
             VirtualFile file = projectDir.findChild(fileName);
             if (file != null && file.getTimeStamp() > lastCompileTime) return true;
+        }
+        } catch (IOException e) {
+            LOG.error("Error checking for changes", e);
         }
 
         return false;

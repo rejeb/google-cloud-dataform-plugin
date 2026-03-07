@@ -52,7 +52,8 @@
         <compiler.task execute="BEFORE"
                        implementation="io.github.rejeb.dataform.language.compilation.DataformCompileBeforeTask"/>
         <moduleBuilder builderClass="io.github.rejeb.dataform.projectWizard.DataformModuleBuilder"/>
-
+        <moduleType id="DATAFORM_MODULE"
+                    implementationClass="io.github.rejeb.dataform.projectWizard.DataformModuleType"/>
         <postStartupActivity
                 order="first"
                 implementation="io.github.rejeb.dataform.setup.DataformInstaller"/>

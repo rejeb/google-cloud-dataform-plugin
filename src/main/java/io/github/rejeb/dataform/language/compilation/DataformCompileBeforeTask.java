@@ -49,8 +49,8 @@ public final class DataformCompileBeforeTask implements CompileTask {
 
             CompiledGraph compiledGraph = compilationService.compile();
             hasErrors = compiledGraph == null ||
-                        compiledGraph.getGraphErrors() != null &&
-                        !compiledGraph.getGraphErrors().getCompilationErrors().isEmpty();
+                    compiledGraph.getGraphErrors() != null &&
+                            !compiledGraph.getGraphErrors().getCompilationErrors().isEmpty();
 
             if (hasErrors) {
                 printErrors(context, compiledGraph.getGraphErrors().getCompilationErrors());
@@ -80,11 +80,11 @@ public final class DataformCompileBeforeTask implements CompileTask {
     private void printErrors(@NotNull CompileContext context, List<CompilationError> compilationErrors) {
         VirtualFile basePath = ProjectUtil.guessProjectDir(context.getProject());
         for (CompilationError error : compilationErrors) {
-            VirtualFile vf = basePath.findFileByRelativePath(error.getFileName().replace("\\","/"));
+            VirtualFile vf = error.getFileName() != null ? basePath.findFileByRelativePath(error.getFileName().replace("\\", "/")) : null;
             String url = vf != null ? vf.getUrl() : null;
-            String fullMessage = error.getMessage();
+            String fullMessage = error.getMessage() != null ? error.getMessage() + "\n" : "";
             if (error.getStack() != null && !error.getStack().isBlank()) {
-                fullMessage += "\n" + error.getStack();
+                fullMessage += error.getStack();
             }
             context.addMessage(
                     CompilerMessageCategory.ERROR,

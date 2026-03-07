@@ -28,10 +28,6 @@ public class DataformModuleType extends ModuleType<DataformModuleBuilder> {
     public static final String ID = "DATAFORM_MODULE";
     public static final DataformModuleType INSTANCE = new DataformModuleType();
 
-    static {
-        ModuleTypeManager.getInstance().registerModuleType(INSTANCE, true);
-    }
-
     protected DataformModuleType() {
         super(ID);
     }

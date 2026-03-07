@@ -22,6 +22,13 @@ public class CompilationError {
     private String message;
     private String stack;
 
+    public CompilationError() {
+    }
+
+    public CompilationError(String stack) {
+        this.stack = stack;
+    }
+
     public String getFileName() {
         return fileName;
     }
@@ -39,7 +46,7 @@ public class CompilationError {
     }
 
 
-    public boolean matchFileName(String fileName){
-        return fileName.endsWith(this.fileName.replace("\\","/"));
+    public boolean matchFileName(String fileName) {
+        return this.fileName != null && fileName.endsWith(this.fileName.replace("\\", "/"));
     }
 }

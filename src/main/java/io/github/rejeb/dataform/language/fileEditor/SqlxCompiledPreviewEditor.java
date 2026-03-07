@@ -76,6 +76,7 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
         mainPanel.add(tabs, BorderLayout.CENTER);
 
         tabs.setBackground(UIUtil.getPanelBackground());
+        updateCompiledSql();
     }
 
     public void updateCompiledSql() {
@@ -104,7 +105,7 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
                         WriteCommandAction.runWriteCommandAction(project, () -> {
                             queryPanel.setContent(compiledQueries);
                             lineagePanel.setData(lineageGraphs);
-                        }), ModalityState.NON_MODAL
+                        }), ModalityState.nonModal()
                 );
 
                 mainPanel.revalidate();
@@ -116,7 +117,7 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
                         WriteCommandAction.runWriteCommandAction(project, () ->
                                 queryPanel.getEditor().getDocument().setText(
                                         "-- Compilation error:\n-- " + error.getMessage())
-                        ), ModalityState.NON_MODAL
+                        ), ModalityState.nonModal()
                 );
             }
         });

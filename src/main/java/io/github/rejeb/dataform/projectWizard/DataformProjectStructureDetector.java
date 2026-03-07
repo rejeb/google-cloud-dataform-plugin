@@ -52,7 +52,7 @@ public class DataformProjectStructureDetector extends ProjectStructureDetector {
                                       @NotNull ProjectDescriptor projectDescriptor,
                                       @NotNull ProjectFromSourcesBuilder builder) {
         List<ModuleDescriptor> modules = new ArrayList<>();
-
+        projectDescriptor.setModules(new ArrayList<>());
         for (DetectedProjectRoot root : roots) {
             DetectedSourceRoot detectedSourceRoot = new DataformDetectedSourceRoot(root.getDirectory(), null);
             modules.add(new ModuleDescriptor(root.getDirectory(),
