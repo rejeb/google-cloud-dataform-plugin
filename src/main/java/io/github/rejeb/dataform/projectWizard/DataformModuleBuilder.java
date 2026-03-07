@@ -88,10 +88,12 @@ public class DataformModuleBuilder extends ModuleBuilder {
         String workflowSettingsContent = String.format(
                 "defaultProject: %s\n" +
                         "defaultLocation: %s\n" +
-                        "defaultDataset: %s",
+                        "defaultDataset: %s\n" +
+                        "dataformCoreVersion: %s\n",
                 settings.getGcpProjectId(),
                 settings.getDefaultLocation(),
-                settings.getDefaultSchema()
+                settings.getDefaultSchema(),
+                settings.getDataformCoreVersion()
         );
         workflowSettings.setBinaryContent(workflowSettingsContent.getBytes());
 

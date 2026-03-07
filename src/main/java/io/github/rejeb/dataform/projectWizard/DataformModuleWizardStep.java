@@ -30,6 +30,7 @@ public class DataformModuleWizardStep extends ModuleWizardStep {
     private final JBTextField gcpProjectIdField = new JBTextField();
     private final JBTextField defaultSchemaField = new JBTextField("dataform");
     private final JBTextField defaultLocationField = new JBTextField("US");
+    private final JBTextField dataformCoreVersionField = new JBTextField("3.0.0");
     private final JPanel mainPanel;
 
     public DataformModuleWizardStep(DataformModuleBuilder builder) {
@@ -39,6 +40,7 @@ public class DataformModuleWizardStep extends ModuleWizardStep {
                 .addLabeledComponent("GCP Project ID:", gcpProjectIdField)
                 .addLabeledComponent("Default schema:", defaultSchemaField)
                 .addLabeledComponent("Default location:", defaultLocationField)
+                .addLabeledComponent("Dataform core version",dataformCoreVersionField)
                 .addComponentFillVertically(new JPanel(), 0)
                 .getPanel();
     }
@@ -54,6 +56,7 @@ public class DataformModuleWizardStep extends ModuleWizardStep {
         settings.setGcpProjectId(gcpProjectIdField.getText().trim());
         settings.setDefaultSchema(defaultSchemaField.getText().trim());
         settings.setDefaultLocation(defaultLocationField.getText().trim());
+        settings.setDataformCoreVersion(dataformCoreVersionField.getText().trim());
     }
 
     @Override
@@ -66,6 +69,9 @@ public class DataformModuleWizardStep extends ModuleWizardStep {
         }
         if (defaultLocationField.getText().trim().isEmpty()) {
             throw new ConfigurationException("Default Location is required");
+        }
+        if (dataformCoreVersionField.getText().trim().isEmpty()) {
+            throw new ConfigurationException("Dataform core version is required");
         }
         return true;
     }

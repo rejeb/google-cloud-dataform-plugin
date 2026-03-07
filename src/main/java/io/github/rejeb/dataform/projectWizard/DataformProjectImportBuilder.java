@@ -47,7 +47,7 @@ public class DataformProjectImportBuilder extends ProjectImportBuilder<VirtualFi
                                          ModifiableArtifactModel artifactModel) {
         Module module = model.newModule(
                 project.getBasePath() + "/" + project.getName() + ".iml",
-                DataformModuleType.ID  // ✅ Type Dataform dès la création
+                DataformModuleType.ID
         );
         ModifiableRootModel rootModel = ModuleRootManager.getInstance(module).getModifiableModel();
         VirtualFile baseDir = ProjectUtil.guessProjectDir(project);

@@ -35,6 +35,6 @@ public class DataformProjectRoot extends DetectedProjectRoot {
 
     @Override
     public boolean canContainRoot(@NotNull DetectedProjectRoot root) {
-        return root instanceof JavaModuleSourceRoot;
+        return root instanceof DataformProjectRoot;
     }
 }

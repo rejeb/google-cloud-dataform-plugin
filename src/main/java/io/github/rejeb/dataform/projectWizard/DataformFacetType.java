@@ -30,7 +30,7 @@ public class DataformFacetType extends FacetType<DataformFacet, DataformFacetCon
     public static final DataformFacetType INSTANCE = new DataformFacetType();
 
     public DataformFacetType() {
-        super(ID, DataformModuleType.ID, "Dataform Module");
+        super(ID, ID_STR, "Dataform Facet");
     }
 
     @Override

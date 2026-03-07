@@ -14,7 +14,6 @@ public class DataformProjectImportProvider extends ProjectImportProvider {
 
     @Override
     public boolean canImport(@NotNull VirtualFile fileOrDirectory, @Nullable Project project) {
-        // Activer uniquement pour les dossiers Dataform
         if (!fileOrDirectory.isDirectory()) return false;
         return fileOrDirectory.findChild("dataform.json") != null ||
                 fileOrDirectory.findChild("workflow_settings.yaml") != null;

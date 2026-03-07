@@ -20,11 +20,13 @@ public class DataformProjectSettings {
     private String gcpProjectId;
     private String defaultSchema;
     private String defaultLocation;
+    private String dataformCoreVersion;
 
     public DataformProjectSettings() {
         this.gcpProjectId = "";
         this.defaultSchema = "dataform";
         this.defaultLocation = "US";
+        this.dataformCoreVersion="3.0.0";
     }
 
     public String getGcpProjectId() {
@@ -49,5 +51,13 @@ public class DataformProjectSettings {
 
     public void setDefaultLocation(String defaultLocation) {
         this.defaultLocation = defaultLocation;
+    }
+
+    public String getDataformCoreVersion() {
+        return dataformCoreVersion;
+    }
+
+    public void setDataformCoreVersion(String dataformCoreVersion) {
+        this.dataformCoreVersion = dataformCoreVersion;
     }
 }
