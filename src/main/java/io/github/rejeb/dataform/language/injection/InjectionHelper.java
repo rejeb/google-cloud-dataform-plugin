@@ -23,6 +23,7 @@ import com.intellij.psi.util.PsiTreeUtil;
 import io.github.rejeb.dataform.language.psi.SqlxElementTypes;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Set;
 
@@ -32,26 +33,22 @@ public class InjectionHelper {
             SqlxElementTypes.JS_LITERAL_ELEMENT
     );
 
-
-    public static List<TextRange> collectJsElementRanges(PsiElement sqlBlock,int blockStartOffset) {
-        List<TextRange> ranges = new ArrayList<>();
-
+    public static LinkedHashMap<TextRange, PsiElement> collectJsElements(
+            PsiElement sqlBlock, int blockStartOffset) {
+        LinkedHashMap<TextRange, PsiElement> result = new LinkedHashMap<>();
         PsiTreeUtil.processElements(sqlBlock, element -> {
-
-            IElementType elementType = element.getNode().getElementType();
-            if (JS_ELEMENT_TYPES.contains(elementType)) {
-
-                TextRange absoluteRange = element.getTextRange();
-                TextRange relativeRange = new TextRange(
-                        absoluteRange.getStartOffset() - blockStartOffset,
-                        absoluteRange.getEndOffset() - blockStartOffset
+            IElementType type = element.getNode().getElementType();
+            if (JS_ELEMENT_TYPES.contains(type)) {
+                TextRange abs = element.getTextRange();
+                TextRange rel = new TextRange(
+                        abs.getStartOffset() - blockStartOffset,
+                        abs.getEndOffset() - blockStartOffset
                 );
-                ranges.add(relativeRange);
+                result.put(rel, element);
             }
             return true;
         });
-
-        return ranges;
+        return result;
     }
 
     public static boolean hasOverlappingRanges(List<TextRange> ranges) {

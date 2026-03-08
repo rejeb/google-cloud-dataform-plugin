@@ -24,12 +24,13 @@ import com.intellij.psi.PsiElement;
 import io.github.rejeb.dataform.language.psi.SqlxConfigBlock;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 
-import static io.github.rejeb.dataform.language.injection.InjectionHelper.collectJsElementRanges;
-import static io.github.rejeb.dataform.language.injection.InjectionHelper.hasOverlappingRanges;
+import static io.github.rejeb.dataform.language.injection.InjectionHelper.collectJsElements;
+
 
 public class SqlxConfigInjector implements MultiHostInjector {
 
@@ -46,7 +47,8 @@ public class SqlxConfigInjector implements MultiHostInjector {
             return;
         }
 
-        List<TextRange> jsRanges = collectJsElementRanges(configBlock,configBlock.getTextRange().getStartOffset());
+        LinkedHashMap<TextRange, PsiElement> jsElements = collectJsElements(configBlock, configBlock.getTextRange().getStartOffset());
+        List<TextRange> jsRanges = new ArrayList<>(jsElements.keySet());
         jsRanges.sort(Comparator.comparingInt(TextRange::getStartOffset));
 
         if (jsRanges.isEmpty()) {

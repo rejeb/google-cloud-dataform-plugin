@@ -16,7 +16,7 @@
  */
 package io.github.rejeb.dataform.language.compilation.model;
 
-public class Declaration extends CompiledAction {
+public class Declaration {
     private Target target;
     private String fileName;
     private Target canonicalTarget;

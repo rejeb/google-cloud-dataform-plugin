@@ -47,8 +47,7 @@ intellijPlatform {
 
         changeNotes = """
                 <ul>
-                    <li>Fix Config lexer issue</li>
-                    <li>Fix NPE when compilation fails issue</li>
+                    <li>Add autocomplete on bigQuery tables schemas. Require a database bigQuery connection configured.</li>
                 </ul>
         """.trimIndent()
     }

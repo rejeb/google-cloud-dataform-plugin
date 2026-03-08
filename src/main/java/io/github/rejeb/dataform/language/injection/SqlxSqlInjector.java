@@ -19,20 +19,23 @@ package io.github.rejeb.dataform.language.injection;
 import com.intellij.lang.injection.MultiHostInjector;
 import com.intellij.lang.injection.MultiHostRegistrar;
 import com.intellij.openapi.util.TextRange;
+import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
-import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.sql.dialects.bigquery.BigQueryDialect;
 import io.github.rejeb.dataform.language.psi.SqlxSqlBlock;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Collections;
 
-import static io.github.rejeb.dataform.language.injection.InjectionHelper.collectJsElementRanges;
+import static io.github.rejeb.dataform.language.injection.InjectionHelper.collectJsElements;
 import static io.github.rejeb.dataform.language.injection.InjectionHelper.hasOverlappingRanges;
 
 public class SqlxSqlInjector implements MultiHostInjector {
+
     @Override
     public void getLanguagesToInject(@NotNull MultiHostRegistrar registrar,
                                      @NotNull PsiElement context) {
@@ -43,9 +46,14 @@ public class SqlxSqlInjector implements MultiHostInjector {
         if (text == null || text.isEmpty()) return;
 
         int textLength = text.length();
+        int blockAbsoluteStart = sqlBlock.getTextRange().getStartOffset();
 
-        List<TextRange> jsRanges = collectJsElementRanges(sqlBlock,sqlBlock.getTextRange().getStartOffset());
+        LinkedHashMap<TextRange, PsiElement> jsElements =
+                collectJsElements(sqlBlock, blockAbsoluteStart);
+
+        List<TextRange> jsRanges = new ArrayList<>(jsElements.keySet());
         jsRanges.sort(Comparator.comparingInt(TextRange::getStartOffset));
+
         if (jsRanges.isEmpty()) {
             registrar.startInjecting(BigQueryDialect.INSTANCE);
             registrar.addPlace(null, null, sqlBlock, new TextRange(0, textLength));
@@ -53,17 +61,14 @@ public class SqlxSqlInjector implements MultiHostInjector {
             return;
         }
 
-
-
         for (TextRange range : jsRanges) {
-            if (range.getStartOffset() < 0 || range.getEndOffset() > textLength) {
-                return;
-            }
+            if (range.getStartOffset() < 0 || range.getEndOffset() > textLength) return;
         }
 
-        if (hasOverlappingRanges(jsRanges)) {
-            return;
-        }
+        if (hasOverlappingRanges(jsRanges)) return;
+
+        VirtualFile vFile = sqlBlock.getContainingFile().getVirtualFile();
+        String currentFileName = vFile != null ? vFile.getNameWithoutExtension() : null;
 
         registrar.startInjecting(BigQueryDialect.INSTANCE);
 
@@ -84,8 +89,14 @@ public class SqlxSqlInjector implements MultiHostInjector {
                 hasAddedFragment = true;
             }
 
+            PsiElement jsElement = jsElements.get(jsRange);
+            String placeholder = (jsElement != null)
+                    ? SqlxRefSelfResolver.resolveToSqlIdentifier(jsElement, currentFileName)
+                    : null;
+            if (placeholder == null) placeholder = "NULL";
+
             registrar.addPlace(
-                    "NULL",
+                    placeholder,
                     "",
                     sqlBlock,
                     new TextRange(jsRange.getStartOffset(), jsRange.getStartOffset())
@@ -114,5 +125,4 @@ public class SqlxSqlInjector implements MultiHostInjector {
     public List<? extends Class<? extends PsiElement>> elementsToInjectIn() {
         return List.of(SqlxSqlBlock.class);
     }
-
 }
