@@ -26,13 +26,13 @@ import javax.swing.*;
 
 public class DataformModuleType extends ModuleType<DataformModuleBuilder> {
     public static final String ID = "DATAFORM_MODULE";
-
+    private static final DataformModuleType INSTANCE = new DataformModuleType();
     protected DataformModuleType() {
         super(ID);
     }
 
     public static DataformModuleType getInstance() {
-        return (DataformModuleType) ModuleTypeManager.getInstance().findByID(ID);
+        return INSTANCE;
     }
 
     @Override

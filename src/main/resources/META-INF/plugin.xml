@@ -29,6 +29,7 @@
 
 
     <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.java</depends>
     <depends>JavaScript</depends>
     <depends>NodeJS</depends>
     <depends>com.intellij.database</depends>
@@ -52,8 +53,7 @@
         <compiler.task execute="BEFORE"
                        implementation="io.github.rejeb.dataform.language.compilation.DataformCompileBeforeTask"/>
         <moduleBuilder builderClass="io.github.rejeb.dataform.projectWizard.DataformModuleBuilder"/>
-        <moduleType id="DATAFORM_MODULE"
-                    implementationClass="io.github.rejeb.dataform.projectWizard.DataformModuleType"/>
+
         <postStartupActivity
                 order="first"
                 implementation="io.github.rejeb.dataform.setup.DataformInstaller"/>

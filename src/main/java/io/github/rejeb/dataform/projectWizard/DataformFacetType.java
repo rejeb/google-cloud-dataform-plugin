@@ -47,6 +47,6 @@ public class DataformFacetType extends FacetType<DataformFacet, DataformFacetCon
 
     @Override
     public boolean isSuitableModuleType(ModuleType moduleType) {
-        return moduleType.getId().equals(DataformModuleType.ID);
+        return true;
     }
 }
