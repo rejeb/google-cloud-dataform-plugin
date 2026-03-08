@@ -128,6 +128,12 @@ public class CompiledGraph {
         return this.getDeclarations().stream().filter(t -> t.getTarget().getName().equals(name)).findFirst();
     }
 
+    public Optional<Target> findTargetByRefName(String refName) {
+        return findTableByName(refName).map(CompiledTable::getTarget)
+                .or(() -> findDeclarationByName(refName).map(Declaration::getTarget))
+                .or(() -> findAssertionByName(refName).map(CompiledAssertion::getTarget))
+                .or(() -> findOperationByName(refName).map(CompiledOperation::getTarget));
+    }
 
 }
 

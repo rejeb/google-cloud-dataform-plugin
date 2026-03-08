@@ -46,13 +46,7 @@ public class SqlxTemplateInjector implements MultiHostInjector {
         if (endOffset > startOffset) {
             TextRange injectionRange = new TextRange(startOffset, endOffset);
             registrar.startInjecting(JavascriptLanguage.INSTANCE);
-            registrar.addPlace("const when = () => {}; " +
-                    "const incremental = () => false; " +
-                    "const self = () => ''; " +
-                    "const ref = () => ''; " +
-                    "const resolve = () => ''; " +
-                    "const assert = () => {}; " +
-                    "const config = {};\n",  null, (PsiLanguageInjectionHost) context, injectionRange);
+            registrar.addPlace(null,  null, (PsiLanguageInjectionHost) context, injectionRange);
             registrar.doneInjecting();
         }
     }

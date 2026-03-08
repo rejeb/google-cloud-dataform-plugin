@@ -109,12 +109,12 @@ public class DataformRefFunctionReference extends PsiReferenceBase<PsiElement> {
                 .filter(t -> t.getTarget() != null && !t.isDisabled())
                 .map(table -> {
                     String name = table.getTarget().getName();
-                    String schema = table.getTarget().getSchema();
+                    String fullName = table.getTarget().getFullName();
 
                     LookupElementBuilder element = LookupElementBuilder.create(name)
                             .withIcon(AllIcons.Nodes.DataTables)
                             .withTypeText(table.getType())
-                            .withTailText(" (" + schema + ")", true);
+                            .withTailText(" (" + fullName + ")", true);
                     return PrioritizedLookupElement.withPriority(element, 200.0);
                 })
                 .forEach(variants::add);
@@ -123,12 +123,12 @@ public class DataformRefFunctionReference extends PsiReferenceBase<PsiElement> {
                 .filter(d -> d.getTarget() != null)
                 .map(declaration -> {
                     String name = declaration.getTarget().getName();
-                    String schema = declaration.getTarget().getSchema();
+                    String fullName = declaration.getTarget().getFullName();
 
                     LookupElementBuilder element = LookupElementBuilder.create(name)
                             .withIcon(AllIcons.Nodes.DataSchema)
                             .withTypeText("source")
-                            .withTailText(" (" + schema + ")", true);
+                            .withTailText(" (" + fullName + ")", true);
                     return PrioritizedLookupElement.withPriority(element, 200.0);
                 })
                 .forEach(variants::add);

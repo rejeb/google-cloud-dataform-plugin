@@ -112,7 +112,7 @@ public class SqlxSqlInjector implements MultiHostInjector {
     @NotNull
     @Override
     public List<? extends Class<? extends PsiElement>> elementsToInjectIn() {
-        return Collections.singletonList(SqlxSqlBlock.class);
+        return List.of(SqlxSqlBlock.class);
     }
 
 }
