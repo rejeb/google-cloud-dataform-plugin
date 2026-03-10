@@ -21,7 +21,7 @@ import com.intellij.openapi.vfs.VirtualFile;
 import com.jetbrains.jsonSchema.extension.JsonSchemaFileProvider;
 import com.jetbrains.jsonSchema.extension.JsonSchemaProviderFactory;
 import com.jetbrains.jsonSchema.extension.SchemaType;
-import io.github.rejeb.dataform.language.schema.DataformJsonSchemaGenerator;
+import io.github.rejeb.dataform.language.schema.json.DataformJsonSchemaGenerator;
 import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;

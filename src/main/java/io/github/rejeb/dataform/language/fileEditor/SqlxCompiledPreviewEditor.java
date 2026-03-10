@@ -38,6 +38,7 @@ import com.intellij.util.ui.UIUtil;
 import icons.DatabaseIcons;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.compilation.model.CompiledQuery;
+import io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService;
 import io.github.rejeb.dataform.language.service.DataformCompilationService;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -95,6 +96,11 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
                     String path = file.getCanonicalPath();
                     compiledQueries = graph.findCompiledQueryByFileName(path);
                     lineageGraphs = LineageGraphHelper.buildGraph(graph, path);
+                }
+
+                if (graph != null && (graph.getGraphErrors() == null
+                        || graph.getGraphErrors().getCompilationErrors().isEmpty())) {
+                    project.getService(DataformTableSchemaService.class).refreshAsync(graph);
                 }
                 indicator.checkCanceled();
             }

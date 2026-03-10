@@ -26,6 +26,8 @@ import com.intellij.sql.psi.SqlLanguage;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
 import io.github.rejeb.dataform.language.compilation.model.CompiledQuery;
+import io.github.rejeb.dataform.language.schema.sql.ColumnInfo;
+import io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService;
 
 import javax.swing.*;
 import java.awt.*;
@@ -83,7 +85,9 @@ class TableQuerySection extends JPanel {
         preOpsSection.setContent(
                 !formattedPreOps.isEmpty()
                         ? String.join("\n", formattedPreOps) : null);
-        querySection.setContent(formattedQuery);
+        DataformTableSchemaService service = project.getService(DataformTableSchemaService.class);
+        var schema = service.getSchema(compiledQuery.tableName()).map(columns -> columns.stream().map(ColumnInfo::toString).toList()).map(columns ->String.join("\n",columns)).orElse("");
+        querySection.setContent(schema);
         postOpsSection.setContent(
                 !formattedPostOps.isEmpty()
                         ? String.join("\n", formattedPostOps) : null);

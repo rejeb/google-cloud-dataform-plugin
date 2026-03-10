@@ -24,12 +24,14 @@ public class ProjectConfig {
     private String defaultSchema;
     private String assertionSchema;
     private String defaultDatabase;
+    private String defaultLocation;    // ← AJOUT (ex: "EU", "US", "europe-west1")
     private Map<String, Object> vars;
 
-    public String getWarehouse() { return warehouse; }
-    public String getDefaultSchema() { return defaultSchema; }
-    public String getAssertionSchema() { return assertionSchema; }
-    public String getDefaultDatabase() { return defaultDatabase; }
+    public String getWarehouse()        { return warehouse; }
+    public String getDefaultSchema()    { return defaultSchema; }
+    public String getAssertionSchema()  { return assertionSchema; }
+    public String getDefaultDatabase()  { return defaultDatabase; }
+    public String getDefaultLocation()  { return defaultLocation; }  // ← AJOUT
     public Map<String, Object> getVars() {
         return vars != null ? vars : Collections.emptyMap();
     }

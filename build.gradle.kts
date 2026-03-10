@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "io.github.rejeb"
-version = "0.2.7"
+version = "0.2.8"
 
 repositories {
     mavenCentral()
@@ -19,6 +19,7 @@ repositories {
 dependencies {
     implementation(platform("com.google.cloud:libraries-bom:26.72.0"))
     implementation("com.google.cloud:google-cloud-dataform")
+    implementation("com.google.cloud:google-cloud-bigquery")
     testImplementation("junit:junit:4.13.2")
 
     testImplementation("org.junit.vintage:junit-vintage-engine:5.10.0")
@@ -47,7 +48,7 @@ intellijPlatform {
 
         changeNotes = """
                 <ul>
-                    <li>Add autocomplete on bigQuery tables schemas. Require a database bigQuery connection configured.</li>
+                    <li>Add autocomplete on bigQuery tables created with Dataform code.</li>
                 </ul>
         """.trimIndent()
     }

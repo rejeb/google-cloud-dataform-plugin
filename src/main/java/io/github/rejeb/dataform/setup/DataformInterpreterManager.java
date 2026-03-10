@@ -58,6 +58,7 @@ public final class DataformInterpreterManager {
         if (dataformCorePath.isEmpty()) {
             init();
         }
+
         return dataformCorePath;
     }
 
