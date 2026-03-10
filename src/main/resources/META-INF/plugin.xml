@@ -43,12 +43,8 @@
     </extensions>
     <extensions defaultExtensionNs="com.intellij">
 
-        <sql.dataSourceProvider
-                implementation="io.github.rejeb.dataform.language.schema.sql.DataformDataSourceProvider"/>
         <sql.resolveExtension
                 implementation="io.github.rejeb.dataform.language.schema.sql.DataformSqlResolveExtension"/>
-        <database.dataSourceManager
-                implementation="io.github.rejeb.dataform.language.schema.sql.DataformDatasourceManager"/>
         <projectImportProvider
                 implementation="io.github.rejeb.dataform.projectWizard.DataformProjectImportProvider"/>
         <daemon.highlightInfoFilter

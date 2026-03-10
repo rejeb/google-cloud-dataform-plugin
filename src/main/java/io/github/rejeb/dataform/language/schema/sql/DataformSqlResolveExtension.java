@@ -52,23 +52,21 @@ public class DataformSqlResolveExtension implements SqlResolveExtension {
 
             String tableName = parts[2];
 
-            // Résolution de table
             if (processor.mayAccept(ObjectKind.TABLE)
                     && tableName.equalsIgnoreCase(refName)) {
-                DataformDasCatalog dataformDasCatalog = new DataformDasCatalog(parts [0],new HashMap<>());
-                DataformDasSchema dataformDasSchema = new DataformDasSchema(dataformDasCatalog,parts[1],List.of());
+                DataformDasCatalog dataformDasCatalog = new DataformDasCatalog(parts[0], new HashMap<>());
+                DataformDasSchema dataformDasSchema = new DataformDasSchema(dataformDasCatalog, parts[1], List.of());
                 DataformDasTable table = new DataformDasTable(
-                        dataformDasSchema, tableName, List.of());
+                        dataformDasSchema, tableName, entry.getValue());
                 if (!processor.executeObject(table, null, null,
                         ResolveState.initial())) return false;
             }
 
-            // Résolution de colonne (ref sans qualificateur)
             if (processor.mayAccept(ObjectKind.COLUMN)) {
+                DataformDasTable table = new DataformDasTable(
+                        null, tableName, entry.getValue());
                 for (ColumnInfo col : entry.getValue()) {
                     if (col.name().startsWith(refName)) {
-                       DataformDasTable table = new DataformDasTable(
-                                null, tableName, entry.getValue());
                         DataformDasColumn column = new DataformDasColumn(table, col);
                         if (!processor.executeObject(column, null, null,
                                 ResolveState.initial())) return false;

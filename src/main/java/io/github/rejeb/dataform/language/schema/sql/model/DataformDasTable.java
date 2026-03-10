@@ -63,7 +63,7 @@ public class DataformDasTable implements DasTable {
     public @NotNull JBIterable<? extends DasObject> getDasChildren(@Nullable ObjectKind kind) {
         if (kind == ObjectKind.COLUMN) {
             return JBIterable.from(myColumns)
-                    .map(col -> new DataformDasColumn(this, col));
+                    .map(col -> new DataformDasColumn(null, col));
         }
         return JBIterable.empty();
     }

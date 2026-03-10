@@ -20,14 +20,12 @@ public class DataformDasModel implements DasModel {
     private final List<DasObject> myRoots;
 
     public DataformDasModel(Map<String, List<ColumnInfo>> cache) {
-        // Grouper par project → dataset
         Map<String, Map<String, List<Map.Entry<String, List<ColumnInfo>>>>> tree
                 = new LinkedHashMap<>();
 
         for (Map.Entry<String, List<ColumnInfo>> entry : cache.entrySet()) {
             String[] parts = entry.getKey().split("\\.", 3);
             if (parts.length != 3) continue;
-            // parts[0]=project, parts[1]=dataset, parts[2]=table
             tree.computeIfAbsent(parts[0], k -> new LinkedHashMap<>())
                     .computeIfAbsent(parts[1], k -> new ArrayList<>())
                     .add(entry);
@@ -61,7 +59,6 @@ public class DataformDasModel implements DasModel {
 
     @Override
     public boolean contains(@Nullable DasObject o) {
-        // Vérifier si l'objet appartient à ce modèle
         DasObject current = o;
         while (current != null) {
             if (myRoots.contains(current)) return true;
