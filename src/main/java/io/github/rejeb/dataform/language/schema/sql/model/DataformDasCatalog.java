@@ -32,11 +32,6 @@ public class DataformDasCatalog implements DasNamespace {
     }
 
     @Override
-    public @Nullable DasObject getDasParent() {
-        return null;
-    }
-
-    @Override
     public @NotNull ObjectKind getKind() {
         return ObjectKind.DATABASE;
     }
@@ -47,8 +42,8 @@ public class DataformDasCatalog implements DasNamespace {
     }
 
     @Override
-    public @NotNull JBIterable<? extends DasObject> getDasChildren(@NotNull ObjectKind kind) {
-        if (kind == ObjectKind.SCHEMA || kind == null) {
+    public @NotNull JBIterable<? extends DasObject> getDasChildren(@Nullable ObjectKind kind) {
+        if (kind == ObjectKind.SCHEMA) {
             return JBIterable.from(mySchemas);
         }
         return JBIterable.empty();

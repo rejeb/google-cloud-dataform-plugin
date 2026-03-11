@@ -20,18 +20,38 @@ public class DataformDasColumn implements DasColumn {
         this.myInfo = info;
     }
 
-    @Override public @NotNull String getName() { return myInfo.name(); }
-    @Override public @Nullable DasObject getDasParent() { return myParent; }
-    @Override public @NotNull ObjectKind getKind() { return ObjectKind.COLUMN; }
+    @Override
+    public @NotNull String getName() {
+        return myInfo.name();
+    }
+
+    @Override
+    public @Nullable DasObject getDasParent() {
+        return myParent;
+    }
+
+    @Override
+    public @NotNull ObjectKind getKind() {
+        return ObjectKind.COLUMN;
+    }
 
     @Override
     public boolean isQuoted() {
         return false;
     }
 
-    @Override public boolean isNotNull() { return "REQUIRED".equals(myInfo.mode()); }
-    @Override public @Nullable String getDefault() { return myInfo.name(); }
-    @Override public @NotNull DasType getDasType() {
+    @Override
+    public boolean isNotNull() {
+        return "REQUIRED".equals(myInfo.mode());
+    }
+
+    @Override
+    public @Nullable String getDefault() {
+        return myInfo.name();
+    }
+
+    @Override
+    public @NotNull DasType getDasType() {
         return PropertyConverter.importDasType(myInfo.type());
     }
 

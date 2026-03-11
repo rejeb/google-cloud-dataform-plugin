@@ -50,7 +50,7 @@ public class DataformDasSchema implements DasNamespace {
     }
 
     @Override
-    public @NotNull JBIterable<? extends DasObject> getDasChildren(@NotNull ObjectKind kind) {
+    public @NotNull JBIterable<? extends DasObject> getDasChildren(@Nullable ObjectKind kind) {
         if (kind == ObjectKind.TABLE) {
             return JBIterable.from(myTables);
         }

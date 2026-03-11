@@ -1,5 +1,6 @@
 package io.github.rejeb.dataform.language.schema.sql;
 
+import com.intellij.database.model.DasModel;
 import com.intellij.database.model.ObjectKind;
 import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.psi.PsiElement;
@@ -8,10 +9,7 @@ import com.intellij.psi.ResolveState;
 import com.intellij.sql.psi.SqlReference;
 import com.intellij.sql.psi.SqlScopeProcessor;
 import com.intellij.sql.psi.impl.SqlResolveExtension;
-import io.github.rejeb.dataform.language.schema.sql.model.DataformDasCatalog;
-import io.github.rejeb.dataform.language.schema.sql.model.DataformDasColumn;
-import io.github.rejeb.dataform.language.schema.sql.model.DataformDasSchema;
-import io.github.rejeb.dataform.language.schema.sql.model.DataformDasTable;
+import io.github.rejeb.dataform.language.schema.sql.model.*;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.HashMap;
@@ -24,7 +22,6 @@ public class DataformSqlResolveExtension implements SqlResolveExtension {
     public boolean process(@NotNull SqlReference ref,
                            @NotNull SqlScopeProcessor processor) {
 
-        // 1. Vérifier qu'on est dans un .sqlx (via injection)
         PsiElement place = processor.getPlace();
         if (place == null) return true;
 
@@ -33,11 +30,9 @@ public class DataformSqlResolveExtension implements SqlResolveExtension {
                 .getTopLevelFile(place.getContainingFile());
         if (topLevel == null || !topLevel.getName().endsWith(".sqlx")) return true;
 
-        // 2. Vérifier que le kind attendu est compatible
         if (!processor.mayAccept(ObjectKind.TABLE)
                 && !processor.mayAccept(ObjectKind.COLUMN)) return true;
 
-        // 3. Récupérer le cache
         DataformTableSchemaService svc = place.getProject()
                 .getService(DataformTableSchemaService.class);
         Map<String, List<ColumnInfo>> cache = svc.getAllSchemas();
@@ -45,7 +40,6 @@ public class DataformSqlResolveExtension implements SqlResolveExtension {
 
         String refName = ref.getReferenceName();
 
-        // 4. Injecter les DasObject
         for (Map.Entry<String, List<ColumnInfo>> entry : cache.entrySet()) {
             String[] parts = entry.getKey().split("\\.", 3);
             if (parts.length != 3) continue;
