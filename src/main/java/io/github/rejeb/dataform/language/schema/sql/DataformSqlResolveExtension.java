@@ -1,6 +1,5 @@
 package io.github.rejeb.dataform.language.schema.sql;
 
-import com.intellij.database.model.DasModel;
 import com.intellij.database.model.ObjectKind;
 import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.psi.PsiElement;
@@ -9,12 +8,13 @@ import com.intellij.psi.ResolveState;
 import com.intellij.sql.psi.SqlReference;
 import com.intellij.sql.psi.SqlScopeProcessor;
 import com.intellij.sql.psi.impl.SqlResolveExtension;
-import io.github.rejeb.dataform.language.schema.sql.model.*;
+import io.github.rejeb.dataform.language.schema.sql.model.DataformDasCatalog;
+import io.github.rejeb.dataform.language.schema.sql.model.DataformDasColumn;
+import io.github.rejeb.dataform.language.schema.sql.model.DataformDasSchema;
+import io.github.rejeb.dataform.language.schema.sql.model.DataformDasTable;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class DataformSqlResolveExtension implements SqlResolveExtension {
 
@@ -39,6 +39,34 @@ public class DataformSqlResolveExtension implements SqlResolveExtension {
         if (cache.isEmpty()) return true;
 
         String refName = ref.getReferenceName();
+
+        if (processor.mayAccept(ObjectKind.DATABASE)) {
+            Map<String, Map<String, List<Map.Entry<String, List<ColumnInfo>>>>> tree
+                    = buildTree(cache);
+
+            for (Map.Entry<String, Map<String, List<Map.Entry<String, List<ColumnInfo>>>>> db : tree.entrySet()) {
+                if (db.getKey().equalsIgnoreCase(refName)) {
+                    DataformDasCatalog dataformDasCatalog = new DataformDasCatalog(db.getKey(), db.getValue());
+                    if (!processor.executeObject(dataformDasCatalog, null, null,
+                            ResolveState.initial())) return false;
+                }
+            }
+        }
+
+        if (processor.mayAccept(ObjectKind.SCHEMA)) {
+            Map<String, Map<String, List<Map.Entry<String, List<ColumnInfo>>>>> tree
+                    = buildTree(cache);
+
+            for (Map.Entry<String, Map<String, List<Map.Entry<String, List<ColumnInfo>>>>> db : tree.entrySet()) {
+                DataformDasCatalog dataformDasCatalog = new DataformDasCatalog(db.getKey(), db.getValue());
+                for (Map.Entry<String, List<Map.Entry<String, List<ColumnInfo>>>> schema : db.getValue().entrySet())
+                    if (schema.getKey().equalsIgnoreCase(refName)) {
+                        DataformDasSchema dataformDasSchema = new DataformDasSchema(dataformDasCatalog, schema.getKey(), schema.getValue());
+                        if (!processor.executeObject(dataformDasSchema, null, null,
+                                ResolveState.initial())) return false;
+                    }
+            }
+        }
 
         for (Map.Entry<String, List<ColumnInfo>> entry : cache.entrySet()) {
             String[] parts = entry.getKey().split("\\.", 3);
@@ -69,5 +97,20 @@ public class DataformSqlResolveExtension implements SqlResolveExtension {
             }
         }
         return true;
+    }
+
+    private Map<String, Map<String, List<Map.Entry<String, List<ColumnInfo>>>>> buildTree(Map<String, List<ColumnInfo>> cache) {
+        Map<String, Map<String, List<Map.Entry<String, List<ColumnInfo>>>>> tree
+                = new LinkedHashMap<>();
+
+        for (Map.Entry<String, List<ColumnInfo>> entry : cache.entrySet()) {
+            String[] parts = entry.getKey().split("\\.", 3);
+            if (parts.length != 3) continue;
+            tree.computeIfAbsent(parts[0], k -> new LinkedHashMap<>())
+                    .computeIfAbsent(parts[1], k -> new ArrayList<>())
+                    .add(entry);
+        }
+
+        return tree;
     }
 }

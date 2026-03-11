@@ -86,8 +86,7 @@ class TableQuerySection extends JPanel {
                 !formattedPreOps.isEmpty()
                         ? String.join("\n", formattedPreOps) : null);
         DataformTableSchemaService service = project.getService(DataformTableSchemaService.class);
-        var schema = service.getSchema(compiledQuery.tableName()).map(columns -> columns.stream().map(ColumnInfo::toString).toList()).map(columns ->String.join("\n",columns)).orElse("");
-        querySection.setContent(schema);
+        querySection.setContent(formattedQuery);
         postOpsSection.setContent(
                 !formattedPostOps.isEmpty()
                         ? String.join("\n", formattedPostOps) : null);
