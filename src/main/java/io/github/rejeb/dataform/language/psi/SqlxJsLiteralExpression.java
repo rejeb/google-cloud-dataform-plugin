@@ -19,6 +19,7 @@ package io.github.rejeb.dataform.language.psi;
 import com.intellij.extapi.psi.ASTWrapperPsiElement;
 import com.intellij.lang.ASTNode;
 import com.intellij.openapi.util.TextRange;
+import com.intellij.psi.ElementManipulators;
 import com.intellij.psi.LiteralTextEscaper;
 import com.intellij.psi.PsiLanguageInjectionHost;
 import org.jetbrains.annotations.NotNull;
@@ -36,7 +37,7 @@ public class SqlxJsLiteralExpression extends ASTWrapperPsiElement implements Psi
 
     @Override
     public PsiLanguageInjectionHost updateText(@NotNull String text) {
-        return this;
+        return ElementManipulators.handleContentChange(this,text);
     }
 
     @NotNull
@@ -75,6 +76,10 @@ public class SqlxJsLiteralExpression extends ASTWrapperPsiElement implements Psi
             @Override
             public TextRange getRelevantTextRange() {
                 String text = myHost.getText();
+
+                if (text.startsWith("${") && text.endsWith("}") && text.length() > 3) {
+                    return new TextRange(2, text.length() - 1);
+                }
 
                 return new TextRange(0, text.length());
             }

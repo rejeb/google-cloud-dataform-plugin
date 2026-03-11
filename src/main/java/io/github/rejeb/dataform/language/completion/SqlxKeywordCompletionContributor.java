@@ -16,15 +16,10 @@
  */
 package io.github.rejeb.dataform.language.completion;
 
-import com.intellij.codeInsight.completion.*;
-import com.intellij.codeInsight.lookup.LookupElementBuilder;
+import com.intellij.codeInsight.completion.CompletionContributor;
+import com.intellij.codeInsight.completion.CompletionType;
 import com.intellij.patterns.PlatformPatterns;
 import com.intellij.psi.PsiElement;
-import com.intellij.psi.PsiFile;
-import com.intellij.sql.psi.SqlFile;
-import com.intellij.util.ProcessingContext;
-import io.github.rejeb.dataform.language.psi.SqlxFile;
-import org.jetbrains.annotations.NotNull;
 
 public class SqlxKeywordCompletionContributor extends CompletionContributor {
 
@@ -38,62 +33,7 @@ public class SqlxKeywordCompletionContributor extends CompletionContributor {
     public SqlxKeywordCompletionContributor() {
         extend(CompletionType.BASIC,
                 PlatformPatterns.psiElement(),
-                new CompletionProvider<>() {
-                    @Override
-                    protected void addCompletions(@NotNull CompletionParameters parameters,
-                                                  @NotNull ProcessingContext context,
-                                                  @NotNull CompletionResultSet result) {
-
-                        PsiElement position = parameters.getPosition();
-                        PsiFile file = position.getContainingFile();
-
-                        if (!(file instanceof SqlxFile)&&!(file instanceof SqlFile)) {
-                            return;
-                        }
-
-                        // Check if we're at the start of a line (potentially after whitespace)
-                        if (!isAtStartOfLine(position)) {
-                            return;
-                        }
-
-                        // Add SQLX keywords to completion
-                        for (String keyword : SQLX_KEYWORDS) {
-                            LookupElementBuilder element = LookupElementBuilder.create(keyword)
-                                    .withTypeText("SQLX keyword")
-                                    .withBoldness(true)
-                                    .withInsertHandler((ctx, item) -> {
-                                        // Add opening brace after keyword
-                                        ctx.getDocument().insertString(ctx.getTailOffset(), " {");
-                                        ctx.getEditor().getCaretModel().moveToOffset(ctx.getTailOffset());
-                                    });
-
-                            result.addElement(PrioritizedLookupElement.withPriority(element, 100.0));
-                        }
-                    }
-                });
+                new SqlxKeywordCompletionProvider());
     }
 
-    private boolean isAtStartOfLine(PsiElement element) {
-        PsiElement prev = element.getPrevSibling();
-
-        // Walk backwards through siblings
-        while (prev != null) {
-            String text = prev.getText();
-
-            // If we find a newline, we're at the start of a line
-            if (text.contains("\n")) {
-                return true;
-            }
-
-            // If we find non-whitespace content, we're not at the start
-            if (!text.trim().isEmpty()) {
-                return false;
-            }
-
-            prev = prev.getPrevSibling();
-        }
-
-        // If no previous siblings, we're at the start of the file
-        return true;
-    }
 }

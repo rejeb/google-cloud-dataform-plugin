@@ -1,3 +1,19 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package io.github.rejeb.dataform.language.injection;
 
 import com.intellij.openapi.project.Project;
@@ -13,30 +29,12 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-/**
- * Resolves Dataform template expressions found in SQL blocks to BigQuery SQL identifiers.
- *
- * <p>Supported patterns:
- * <ul>
- *   <li>{@code ${ref("tableName")}} or {@code ${ref('tableName')}} → lookup in CompiledGraph</li>
- *   <li>{@code ${self()}} → lookup by current file name (without extension)</li>
- * </ul>
- *
- * <p>Returns a backtick-quoted BigQuery identifier, e.g. {@code `project.dataset.table`}.
- * Returns {@code null} if the pattern is unrecognized or the graph is unavailable/unresolved.
- */
 public final class SqlxRefSelfResolver {
 
-    /**
-     * Matches ${ref("name")} and ${ref('name')} — single string argument only.
-     */
     private static final Pattern REF_PATTERN = Pattern.compile(
             "\\$\\{\\s*ref\\s*\\(\\s*['\"]([^'\"]+)['\"]\\s*\\)\\s*\\}"
     );
 
-    /**
-     * Matches ${self()}.
-     */
     private static final Pattern SELF_PATTERN = Pattern.compile(
             "\\$\\{\\s*self\\s*\\(\\s*\\)\\s*\\}"
     );
@@ -44,14 +42,6 @@ public final class SqlxRefSelfResolver {
     private SqlxRefSelfResolver() {
     }
 
-    /**
-     * Attempts to resolve a TEMPLATE_EXPRESSION_ELEMENT or JS_LITERAL_ELEMENT PSI element
-     * to a BigQuery-qualified SQL identifier.
-     *
-     * @param element         PSI element whose text is e.g. {@code ${ref("my_table")}}
-     * @param currentFileName name of the .sqlx file without extension, used for {@code ${self()}}
-     * @return BigQuery identifier like {@code `project.dataset.table`}, or {@code null} if unresolvable
-     */
     @Nullable
     public static String resolveToSqlIdentifier(@NotNull PsiElement element,
                                                 @Nullable String currentFileName) {
@@ -66,7 +56,6 @@ public final class SqlxRefSelfResolver {
         CompiledGraph graph = compilationService.getCompiledGraph();
         if (graph == null) return null;
 
-        // Case 1: ${ref("tableName")} or ${ref('tableName')}
         Matcher refMatcher = REF_PATTERN.matcher(text);
         if (refMatcher.matches()) {
             String refName = refMatcher.group(1);
@@ -75,7 +64,6 @@ public final class SqlxRefSelfResolver {
                     .orElse(null);
         }
 
-        // Case 2: ${self()} — resolves to the current file's own action target
         if (SELF_PATTERN.matcher(text).matches() && currentFileName != null) {
             return graph.findTargetByRefName(currentFileName)
                     .map(SqlxRefSelfResolver::toBigQueryIdentifier)
@@ -85,15 +73,13 @@ public final class SqlxRefSelfResolver {
         return null;
     }
 
-
     @NotNull
     private static String toBigQueryIdentifier(@NotNull Target target) {
-        return Stream.of(target.getDatabase(), target.getSchema(), target.getName())
+        return Stream.of("dataform", target.getDatabase(), target.getSchema(), target.getName())
                 .filter(part -> part != null && !part.isBlank())
                 .map(SqlxRefSelfResolver::quoteIfNeeded)
                 .collect(Collectors.joining("."));
     }
-
 
     private static String quoteIfNeeded(@NotNull String part) {
         return part.matches("[a-zA-Z_][a-zA-Z0-9_]*") ? part : "`" + part + "`";

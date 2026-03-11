@@ -17,7 +17,7 @@ repositories {
 }
 
 dependencies {
-    implementation(platform("com.google.cloud:libraries-bom:26.72.0"))
+    implementation(platform("com.google.cloud:libraries-bom:26.77.0"))
     implementation("com.google.cloud:google-cloud-dataform")
     implementation("com.google.cloud:google-cloud-bigquery")
     testImplementation("junit:junit:4.13.2")

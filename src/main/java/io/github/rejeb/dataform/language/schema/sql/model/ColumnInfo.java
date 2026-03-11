@@ -14,18 +14,42 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.rejeb.dataform.language.schema.sql;
+package io.github.rejeb.dataform.language.schema.sql.model;
 
-import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Collections;
 import java.util.List;
 
-public interface BigQueryDryRunSchemaExtractor {
 
-    @NotNull
-    List<ColumnInfo> extractSchema(@NotNull String projectId,
-                                   @Nullable String location,
-                                   @NotNull String dryRunQuery);
+public record ColumnInfo(
+        @NotNull String name,
+        @NotNull String type,
+        @NotNull String mode,
+        @Nullable String description,
+        @NotNull List<ColumnInfo> subFields
+) {
+    public ColumnInfo(@NotNull String name, @NotNull String type, @NotNull String mode,@Nullable String description) {
+        this(name, type, mode,description, Collections.emptyList());
+    }
+
+
+
+    public boolean isRecord() {
+        return "RECORD".equals(type) || "STRUCT".equals(type);
+    }
+
+    public boolean isRepeated() {
+        return "REPEATED".equals(mode);
+    }
+
+    @Override
+    public String toString() {
+        return "ColumnInfo{" +
+                "name='" + name + '\'' +
+                ", type='" + type + '\'' +
+                ", mode='" + mode + '\'' +
+                '}';
+    }
 }

@@ -25,6 +25,7 @@ import com.intellij.openapi.project.ProjectUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import io.github.rejeb.dataform.language.compilation.model.CompilationError;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
+import io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService;
 import io.github.rejeb.dataform.language.service.DataformCompilationService;
 import org.jetbrains.annotations.NotNull;
 
@@ -56,6 +57,8 @@ public final class DataformCompileBeforeTask implements CompileTask {
                 printErrors(context, compiledGraph.getGraphErrors().getCompilationErrors());
             } else {
                 context.addMessage(CompilerMessageCategory.INFORMATION, "Dataform compile succeeded", null, -1, -1);
+                DataformTableSchemaService tableSchemaService = context.getProject().getService(DataformTableSchemaService.class);
+                tableSchemaService.refreshAsync(compiledGraph);
             }
         } catch (Exception e) {
             LOG.error("Error during compile", e);

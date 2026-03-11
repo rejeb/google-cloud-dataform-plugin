@@ -43,6 +43,10 @@ public class CompiledOperation {
         return new CompiledQuery(this.getTarget().getFullName(),queries);
     }
 
+    public List<Target> getDependencyTargets() {
+        return dependencyTargets != null ? dependencyTargets : Collections.emptyList();
+    }
+
 
     public boolean isDisabled() {
         return disabled;

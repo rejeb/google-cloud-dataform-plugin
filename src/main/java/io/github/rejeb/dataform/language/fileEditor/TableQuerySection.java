@@ -26,7 +26,6 @@ import com.intellij.sql.psi.SqlLanguage;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
 import io.github.rejeb.dataform.language.compilation.model.CompiledQuery;
-import io.github.rejeb.dataform.language.schema.sql.ColumnInfo;
 import io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService;
 
 import javax.swing.*;

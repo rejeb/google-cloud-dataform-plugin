@@ -42,6 +42,31 @@
                 implementation="io.github.rejeb.dataform.language.completion.DataformJsonSchemaProviderFactory"/>
     </extensions>
     <extensions defaultExtensionNs="com.intellij">
+        <projectService serviceInterface="io.github.rejeb.dataform.setup.DataformInterpreterManager"
+                        serviceImplementation="io.github.rejeb.dataform.setup.DataformInterpreterManagerImpl"
+                        testServiceImplementation="io.github.rejeb.dataform.language.setup.DataformInterpreterManagerTestImpl"
+        />
+        <projectService serviceInterface="io.github.rejeb.dataform.language.schema.json.ProtoParser"
+                        serviceImplementation="io.github.rejeb.dataform.language.schema.json.ProtoParserImpl"
+        />
+        <projectService serviceInterface="io.github.rejeb.dataform.language.schema.json.DataformJsonSchemaGenerator"
+                        serviceImplementation="io.github.rejeb.dataform.language.schema.json.DataformJsonSchemaGeneratorImpl"
+        />
+        <projectService serviceInterface="io.github.rejeb.dataform.language.schema.sql.BigQueryDryRunSchemaExtractor"
+                        serviceImplementation="io.github.rejeb.dataform.language.schema.sql.BigQueryDryRunSchemaExtractorImpl"
+        />
+        <projectService serviceInterface="io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService"
+                        serviceImplementation="io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaServiceImpl"
+        />
+        <projectService serviceInterface="io.github.rejeb.dataform.language.service.DataformCompilationService"
+                        serviceImplementation="io.github.rejeb.dataform.language.service.DataformCompilationServiceImpl"
+        />
+        <projectService serviceInterface="io.github.rejeb.dataform.language.service.DataformCoreIndexService"
+                        serviceImplementation="io.github.rejeb.dataform.language.service.DataformCoreIndexServiceImpl"
+        />
+        <projectService serviceInterface="io.github.rejeb.dataform.language.service.WorkflowSettingsService"
+                        serviceImplementation="io.github.rejeb.dataform.language.service.WorkflowSettingsServiceImpl"
+        />
 
         <sql.resolveExtension
                 implementation="io.github.rejeb.dataform.language.schema.sql.DataformSqlResolveExtension"/>
@@ -127,6 +152,13 @@
         <lang.elementManipulator
                 forClass="io.github.rejeb.dataform.language.psi.SqlxSqlBlock"
                 implementationClass="io.github.rejeb.dataform.language.psi.SqlxSqlBlockManipulator"/>
+        <lang.elementManipulator
+                forClass="io.github.rejeb.dataform.language.psi.SqlxConfigBlock"
+                implementationClass="io.github.rejeb.dataform.language.psi.SqlxConfigBlockManipulator"/>
+
+        <lang.elementManipulator
+                forClass="io.github.rejeb.dataform.language.psi.SqlxJsLiteralExpression"
+                implementationClass="io.github.rejeb.dataform.language.psi.SqlxJsLiteralExpressionManipulator"/>
 
         <notificationGroup id="Dataform.Notifications"
                            displayType="BALLOON"

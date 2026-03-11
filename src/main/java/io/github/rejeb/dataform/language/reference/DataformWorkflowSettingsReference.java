@@ -20,6 +20,7 @@ import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiReferenceBase;
 import com.intellij.util.IncorrectOperationException;
+import io.github.rejeb.dataform.language.service.WorkflowSettingsProperty;
 import io.github.rejeb.dataform.language.service.WorkflowSettingsService;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -52,7 +53,7 @@ public class DataformWorkflowSettingsReference extends PsiReferenceBase<PsiEleme
         var current = service.getWorkflowProperties();
         for (int i = 0; i < propertyPath.length; i++) {
             String part = propertyPath[i];
-            WorkflowSettingsService.WorkflowSettingsProperty prop = current.get(part);
+            WorkflowSettingsProperty prop = current.get(part);
 
             if (prop == null) {
                 return null;

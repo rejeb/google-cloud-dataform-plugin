@@ -24,64 +24,23 @@ import com.intellij.psi.PsiElement;
 import io.github.rejeb.dataform.language.psi.SqlxConfigBlock;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
-
-import static io.github.rejeb.dataform.language.injection.InjectionHelper.collectJsElements;
-
 
 public class SqlxConfigInjector implements MultiHostInjector {
 
-
     @Override
-    public void getLanguagesToInject(@NotNull MultiHostRegistrar registrar, @NotNull PsiElement context) {
+    public void getLanguagesToInject(@NotNull MultiHostRegistrar registrar,
+                                     @NotNull PsiElement context) {
         if (!(context instanceof SqlxConfigBlock configBlock)) {
             return;
         }
-
         String text = configBlock.getText();
-
         if (text.isEmpty()) {
             return;
         }
 
-        LinkedHashMap<TextRange, PsiElement> jsElements = collectJsElements(configBlock, configBlock.getTextRange().getStartOffset());
-        List<TextRange> jsRanges = new ArrayList<>(jsElements.keySet());
-        jsRanges.sort(Comparator.comparingInt(TextRange::getStartOffset));
-
-        if (jsRanges.isEmpty()) {
-            registrar.startInjecting(Json5Language.INSTANCE);
-            registrar.addPlace(null, null, configBlock, new TextRange(0, text.length()));
-            registrar.doneInjecting();
-            return;
-        }
-
         registrar.startInjecting(Json5Language.INSTANCE);
-
-        int currentPos = 0;
-
-        for (int i = 0; i < jsRanges.size(); i++) {
-            TextRange jsRange = jsRanges.get(i);
-
-            // Inject the part before the JS element
-            if (currentPos < jsRange.getStartOffset()) {
-                TextRange beforeRange = new TextRange(currentPos, jsRange.getStartOffset());
-                registrar.addPlace(null, null, configBlock, beforeRange);
-            }
-
-            String placeholder = "\"__js_placeholder_" + i + "__\"";
-            registrar.addPlace(placeholder, null, configBlock, new TextRange(jsRange.getStartOffset(), jsRange.getStartOffset()));
-
-            currentPos = jsRange.getEndOffset();
-        }
-
-        if (currentPos < text.length()) {
-            TextRange remainingRange = new TextRange(currentPos, text.length());
-            registrar.addPlace(null, null, configBlock, remainingRange);
-        }
-
+        registrar.addPlace(null, null, configBlock, new TextRange(0, text.length()));
         registrar.doneInjecting();
     }
 
@@ -90,5 +49,4 @@ public class SqlxConfigInjector implements MultiHostInjector {
     public List<? extends Class<? extends PsiElement>> elementsToInjectIn() {
         return List.of(SqlxConfigBlock.class);
     }
-
 }

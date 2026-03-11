@@ -1,6 +1,23 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package io.github.rejeb.dataform.language.schema.sql;
 
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
+import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
 
 import java.util.Collections;
 import java.util.List;
@@ -8,9 +25,6 @@ import java.util.Map;
 
 public class DataformCteQueryBuilderTest extends BasePlatformTestCase {
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // No substitution
-    // ─────────────────────────────────────────────────────────────────────────
 
     public void testNoSubstitutionWhenKnownSchemasEmpty() {
         String query = "SELECT * FROM project.dataset.table_a";
@@ -22,21 +36,17 @@ public class DataformCteQueryBuilderTest extends BasePlatformTestCase {
         String query = "SELECT * FROM project.dataset.other_table";
         Map<String, List<ColumnInfo>> schemas = Map.of(
                 "project.dataset.table_b",
-                List.of(new ColumnInfo("col1", "STRING", "NULLABLE"))
+                List.of(new ColumnInfo("col1", "STRING", "NULLABLE", null))
         );
         String result = DataformCteQueryBuilder.buildDryRunQuery(query, schemas, getProject());
         assertEquals(query, result);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // FQN quoting variants
-    // ─────────────────────────────────────────────────────────────────────────
-
     public void testSubstitutesUnquotedFqn() {
         String query = "SELECT a.col1 FROM project.dataset.table_b AS a";
         Map<String, List<ColumnInfo>> schemas = Map.of(
                 "project.dataset.table_b",
-                List.of(new ColumnInfo("col1", "STRING", "NULLABLE"))
+                List.of(new ColumnInfo("col1", "STRING", "NULLABLE", null))
         );
         String result = DataformCteQueryBuilder.buildDryRunQuery(query, schemas, getProject());
         assertTrue(result.contains("_df_table_b AS ("));
@@ -49,7 +59,7 @@ public class DataformCteQueryBuilderTest extends BasePlatformTestCase {
         String query = "SELECT * FROM `my-project.dataset.table_c`";
         Map<String, List<ColumnInfo>> schemas = Map.of(
                 "my-project.dataset.table_c",
-                List.of(new ColumnInfo("id", "INT64", "REQUIRED"))
+                List.of(new ColumnInfo("id", "INT64", "REQUIRED", null))
         );
         String result = DataformCteQueryBuilder.buildDryRunQuery(query, schemas, getProject());
         assertTrue(result.contains("_df_table_c AS ("));
@@ -62,7 +72,7 @@ public class DataformCteQueryBuilderTest extends BasePlatformTestCase {
         String query = "SELECT * FROM `proj`.`ds`.`tbl`";
         Map<String, List<ColumnInfo>> schemas = Map.of(
                 "proj.ds.tbl",
-                List.of(new ColumnInfo("name", "STRING", "NULLABLE"))
+                List.of(new ColumnInfo("name", "STRING", "NULLABLE", null))
         );
         String result = DataformCteQueryBuilder.buildDryRunQuery(query, schemas, getProject());
         assertTrue(result.contains("_df_tbl AS ("));
@@ -74,20 +84,16 @@ public class DataformCteQueryBuilderTest extends BasePlatformTestCase {
         String query = "SELECT * FROM `my-project`.dataset.table_d";
         Map<String, List<ColumnInfo>> schemas = Map.of(
                 "my-project.dataset.table_d",
-                List.of(new ColumnInfo("val", "FLOAT64", "NULLABLE"))
+                List.of(new ColumnInfo("val", "FLOAT64", "NULLABLE", null))
         );
         String result = DataformCteQueryBuilder.buildDryRunQuery(query, schemas, getProject());
         assertTrue(result.contains("_df_table_d AS ("));
         assertFalse(result.contains("`my-project`.dataset.table_d"));
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Column types
-    // ─────────────────────────────────────────────────────────────────────────
-
     public void testHandlesRepeatedColumn() {
         List<ColumnInfo> columns = List.of(
-                new ColumnInfo("tags", "STRING", "REPEATED")
+                new ColumnInfo("tags", "STRING", "REPEATED", null)
         );
         String result = DataformCteQueryBuilder.buildDryRunQuery(
                 "SELECT * FROM proj.ds.t", Map.of("proj.ds.t", columns), getProject());
@@ -96,10 +102,10 @@ public class DataformCteQueryBuilderTest extends BasePlatformTestCase {
 
     public void testHandlesStructColumn() {
         List<ColumnInfo> columns = List.of(
-                new ColumnInfo("address", "RECORD", "NULLABLE",
+                new ColumnInfo("address", "RECORD", "NULLABLE", null,
                         List.of(
-                                new ColumnInfo("city", "STRING", "NULLABLE"),
-                                new ColumnInfo("zip", "INT64", "NULLABLE")
+                                new ColumnInfo("city", "STRING", "NULLABLE", null),
+                                new ColumnInfo("zip", "INT64", "NULLABLE", null)
                         ))
         );
         String result = DataformCteQueryBuilder.buildDryRunQuery(
@@ -117,9 +123,9 @@ public class DataformCteQueryBuilderTest extends BasePlatformTestCase {
 
     public void testNormalizesLegacyTypeNames() {
         List<ColumnInfo> columns = List.of(
-                new ColumnInfo("count", "INTEGER", "NULLABLE"),
-                new ColumnInfo("ratio", "FLOAT", "NULLABLE"),
-                new ColumnInfo("flag", "BOOLEAN", "NULLABLE")
+                new ColumnInfo("count", "INTEGER", "NULLABLE", null),
+                new ColumnInfo("ratio", "FLOAT", "NULLABLE", null),
+                new ColumnInfo("flag", "BOOLEAN", "NULLABLE", null)
         );
         String result = DataformCteQueryBuilder.buildDryRunQuery(
                 "SELECT * FROM proj.ds.t", Map.of("proj.ds.t", columns), getProject());
@@ -128,21 +134,15 @@ public class DataformCteQueryBuilderTest extends BasePlatformTestCase {
         assertTrue(result.contains("CAST(NULL AS BOOL) AS flag"));
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Safety : no substitution inside string literals or comments
-    // ─────────────────────────────────────────────────────────────────────────
 
     public void testDoesNotSubstituteInsideStringLiteral() {
-        // FQN appears inside a string value — must NOT be replaced
         String query = "SELECT 'proj.ds.table_b' AS label FROM proj.ds.table_b";
         Map<String, List<ColumnInfo>> schemas = Map.of(
                 "proj.ds.table_b",
-                List.of(new ColumnInfo("col1", "STRING", "NULLABLE"))
+                List.of(new ColumnInfo("col1", "STRING", "NULLABLE", null))
         );
         String result = DataformCteQueryBuilder.buildDryRunQuery(query, schemas, getProject());
-        // The string literal part must be unchanged
         assertTrue(result.contains("'proj.ds.table_b'"));
-        // The FROM reference must be substituted
         assertTrue(result.contains("FROM _df_table_b"));
     }
 
@@ -150,37 +150,25 @@ public class DataformCteQueryBuilderTest extends BasePlatformTestCase {
         String query = "-- FROM proj.ds.table_e\nSELECT * FROM proj.ds.table_e";
         Map<String, List<ColumnInfo>> schemas = Map.of(
                 "proj.ds.table_e",
-                List.of(new ColumnInfo("x", "STRING", "NULLABLE"))
+                List.of(new ColumnInfo("x", "STRING", "NULLABLE", null))
         );
         String result = DataformCteQueryBuilder.buildDryRunQuery(query, schemas, getProject());
-        // Comment content must be untouched
         assertTrue(result.contains("-- FROM proj.ds.table_e"));
-        // The real FROM must be substituted
         assertTrue(result.contains("FROM _df_table_e"));
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Alias collision
-    // ─────────────────────────────────────────────────────────────────────────
-
     public void testAliasCollisionResolution() {
-        // Two tables from different schemas but same table name
         String query = "SELECT * FROM schema1.ds.orders JOIN schema2.ds.orders AS o2 ON true";
         Map<String, List<ColumnInfo>> schemas = Map.of(
-                "schema1.ds.orders", List.of(new ColumnInfo("id", "INT64", "NULLABLE")),
-                "schema2.ds.orders", List.of(new ColumnInfo("ref", "STRING", "NULLABLE"))
+                "schema1.ds.orders", List.of(new ColumnInfo("id", "INT64", "NULLABLE", null)),
+                "schema2.ds.orders", List.of(new ColumnInfo("ref", "STRING", "NULLABLE", null))
         );
         String result = DataformCteQueryBuilder.buildDryRunQuery(query, schemas, getProject());
-        // Both CTEs must appear with distinct aliases
         long cteCount = result.lines()
                 .filter(l -> l.contains("_df_") && l.contains("AS ("))
                 .count();
         assertEquals(2, cteCount);
     }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Multiple tables in one query
-    // ─────────────────────────────────────────────────────────────────────────
 
     public void testMultipleTablesSubstitutedInOneQuery() {
         String query = """
@@ -190,12 +178,12 @@ public class DataformCteQueryBuilderTest extends BasePlatformTestCase {
                 """;
         Map<String, List<ColumnInfo>> schemas = Map.of(
                 "proj.ds.table_x", List.of(
-                        new ColumnInfo("id", "INT64", "NULLABLE"),
-                        new ColumnInfo("col1", "STRING", "NULLABLE")
+                        new ColumnInfo("id", "INT64", "NULLABLE", null),
+                        new ColumnInfo("col1", "STRING", "NULLABLE", null)
                 ),
                 "proj.ds.table_y", List.of(
-                        new ColumnInfo("id", "INT64", "NULLABLE"),
-                        new ColumnInfo("col2", "STRING", "NULLABLE")
+                        new ColumnInfo("id", "INT64", "NULLABLE", null),
+                        new ColumnInfo("col2", "STRING", "NULLABLE", null)
                 )
         );
         String result = DataformCteQueryBuilder.buildDryRunQuery(query, schemas, getProject());
@@ -208,31 +196,21 @@ public class DataformCteQueryBuilderTest extends BasePlatformTestCase {
     }
 
     public void testMergesWithExistingWithClause() {
-        String query = """
-            WITH
-            existing_cte AS (
-                SELECT * FROM _df_dep
-            )
-            SELECT * FROM existing_cte
-            """;
         Map<String, List<ColumnInfo>> schemas = Map.of(
                 "proj.ds.dep",
-                List.of(new ColumnInfo("id", "INT64", "NULLABLE"))
+                List.of(new ColumnInfo("id", "INT64", "NULLABLE", null))
         );
-        // Simulate that _df_dep was already substituted in the query
-        String queryWithSubstitution = query.replace("_df_dep",
-                "proj.ds.dep"); // pretend the original had the FQN
+
         String queryFqn = """
-            WITH
-            existing_cte AS (
-                SELECT * FROM proj.ds.dep
-            )
-            SELECT * FROM existing_cte
-            """;
+                WITH
+                existing_cte AS (
+                    SELECT * FROM proj.ds.dep
+                )
+                SELECT * FROM existing_cte
+                """;
 
         String result = DataformCteQueryBuilder.buildDryRunQuery(queryFqn, schemas, getProject());
 
-        // Must have exactly ONE "WITH" keyword
         long withCount = result.lines()
                 .filter(l -> l.trim().equalsIgnoreCase("WITH"))
                 .count();

@@ -1,3 +1,19 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package io.github.rejeb.dataform.language.schema.sql;
 
 import com.intellij.openapi.application.ReadAction;
@@ -10,6 +26,7 @@ import com.intellij.psi.PsiFileFactory;
 import com.intellij.psi.tree.IElementType;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.sql.dialects.bigquery.BigQueryDialect;
+import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
 import org.jetbrains.annotations.NotNull;
 import org.jspecify.annotations.NonNull;
 
@@ -246,22 +263,17 @@ public final class DataformCteQueryBuilder {
     private static @NotNull String quoteColIfNeeded(@NotNull String name) {
         return name.matches("[a-zA-Z_][a-zA-Z0-9_]*") ? name : "`" + name + "`";
     }
+
     @NotNull
     private static String mergeWithClauses(@NotNull String ourWith,
                                            @NotNull String modifiedQuery) {
         String trimmed = modifiedQuery.stripLeading();
 
-        // Check if the query already starts with a WITH clause (case-insensitive)
         if (!trimmed.toUpperCase().startsWith("WITH")) {
             return ourWith + "\n" + modifiedQuery;
         }
 
-        // Strip the leading "WITH" keyword from the existing query, preserving
-        // whatever whitespace or CTEs follow it
-        String existingBody = trimmed.substring(4); // remove "WITH"
-
-        // ourWith ends without a trailing comma (StringJoiner suffix = "")
-        // → append comma + newline before the existing CTEs
+        String existingBody = trimmed.substring(4);
         return ourWith + ",\n" + existingBody;
     }
 

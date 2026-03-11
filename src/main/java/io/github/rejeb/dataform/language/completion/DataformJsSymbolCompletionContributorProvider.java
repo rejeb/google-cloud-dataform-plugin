@@ -41,6 +41,7 @@ import io.github.rejeb.dataform.language.index.DataformJsFileIndex;
 import io.github.rejeb.dataform.language.psi.SqlxFile;
 import io.github.rejeb.dataform.language.service.DataformCoreIndexService;
 import io.github.rejeb.dataform.language.service.DataformFunctionCompletionObject;
+import io.github.rejeb.dataform.language.service.WorkflowSettingsProperty;
 import io.github.rejeb.dataform.language.service.WorkflowSettingsService;
 import org.jetbrains.annotations.NotNull;
 
@@ -154,7 +155,7 @@ public class DataformJsSymbolCompletionContributorProvider extends CompletionPro
 
         for (String property : properties) {
             LookupElementBuilder element = LookupElementBuilder.create(property).withTypeText("workflow_settings.yaml").withIcon(AllIcons.Json.Object);
-            WorkflowSettingsService.WorkflowSettingsProperty prop = service.getWorkflowProperties().get(property);
+            WorkflowSettingsProperty prop = service.getWorkflowProperties().get(property);
 
             if (prop != null && prop.hasChildren()) {
                 element = element.withInsertHandler((ctx, item) -> {
@@ -196,12 +197,13 @@ public class DataformJsSymbolCompletionContributorProvider extends CompletionPro
                 .create(variable.getName())
                 .withTypeText("Dataform")
                 .withIcon(AllIcons.Nodes.Variable)
-                .withInsertHandler((insertContext, item) -> {
+                .withInsertHandler((ctx, item) -> {
                     if (variable.getQualifiedName() != null) {
-                        Editor editor = insertContext.getEditor();
+                        Editor editor = ctx.getEditor();
                         int offset = editor.getCaretModel().getOffset();
-                        editor.getDocument().insertString(offset, "");
+                        editor.getDocument().insertString(offset, ".");
                         editor.getCaretModel().moveToOffset(offset + 1);
+                        AutoPopupController.getInstance(ctx.getProject()).scheduleAutoPopup(editor);
                     }
                 }).withBoldness(true);
     }
@@ -211,12 +213,13 @@ public class DataformJsSymbolCompletionContributorProvider extends CompletionPro
                 .create(function.name())
                 .withTypeText("Dataform")
                 .withIcon(AllIcons.Nodes.Function)
-                .withInsertHandler((insertContext, item) -> {
+                .withInsertHandler((ctx, item) -> {
                     if (!function.signature().isEmpty()) {
-                        Editor editor = insertContext.getEditor();
+                        Editor editor = ctx.getEditor();
                         int offset = editor.getCaretModel().getOffset();
                         editor.getDocument().insertString(offset, "()");
                         editor.getCaretModel().moveToOffset(offset + 1);
+                        AutoPopupController.getInstance(ctx.getProject()).scheduleAutoPopup(editor);
                     }
                 }).withTailText(function.signature(), true).withBoldness(true);
     }
