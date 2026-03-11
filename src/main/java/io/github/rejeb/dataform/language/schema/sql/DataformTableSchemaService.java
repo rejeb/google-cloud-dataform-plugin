@@ -37,12 +37,10 @@ public final class DataformTableSchemaService {
 
     public void refreshAsync(@NotNull CompiledGraph graph) {
         if (running.compareAndSet(false, true)) {
-            // Pas de tâche en cours → démarrer immédiatement
             pendingRefresh = false;
             pendingGraph = null;
             startTask(graph);
         } else {
-            // Tâche en cours → mémoriser pour relancer après
             pendingGraph = graph;
             pendingRefresh = true;
             LOG.debug("Schema extraction already running, will re-run after completion");
@@ -62,7 +60,6 @@ public final class DataformTableSchemaService {
                     LOG.warn("Schema extraction failed: " + e);
                 } finally {
                     running.set(false);
-                    // Re-run si un nouveau graph est arrivé pendant l'extraction
                     if (pendingRefresh && pendingGraph != null) {
                         CompiledGraph next = pendingGraph;
                         pendingGraph = null;
@@ -135,7 +132,6 @@ public final class DataformTableSchemaService {
         indicator.setFraction(1.0);
         LOG.info("Schema extraction complete: "
                 + resolvedInThisRun.size() + "/" + total + " tables resolved");
-        DataformSchemaWriter.writeSchemas(project, projectId, schemaCache);
     }
 
     private void processTable(@NotNull CompiledTable table,
