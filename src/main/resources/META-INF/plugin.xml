@@ -52,6 +52,9 @@
         <projectService serviceInterface="io.github.rejeb.dataform.language.schema.json.DataformJsonSchemaGenerator"
                         serviceImplementation="io.github.rejeb.dataform.language.schema.json.DataformJsonSchemaGeneratorImpl"
         />
+        <projectService serviceInterface="io.github.rejeb.dataform.language.schema.dts.DataformDtsGenerator"
+                        serviceImplementation="io.github.rejeb.dataform.language.schema.dts.DataformDtsGeneratorImpl"
+        />
         <projectService serviceInterface="io.github.rejeb.dataform.language.schema.sql.BigQueryDryRunSchemaExtractor"
                         serviceImplementation="io.github.rejeb.dataform.language.schema.sql.BigQueryDryRunSchemaExtractorImpl"
         />

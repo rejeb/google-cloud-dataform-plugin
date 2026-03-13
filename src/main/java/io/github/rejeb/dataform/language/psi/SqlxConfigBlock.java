@@ -18,12 +18,9 @@ package io.github.rejeb.dataform.language.psi;
 
 import com.intellij.extapi.psi.ASTWrapperPsiElement;
 import com.intellij.lang.ASTNode;
-import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.ElementManipulators;
 import com.intellij.psi.LiteralTextEscaper;
 import com.intellij.psi.PsiLanguageInjectionHost;
-import com.intellij.psi.tree.IElementType;
-import com.intellij.psi.util.PsiTreeUtil;
 import org.jetbrains.annotations.NotNull;
 
 public class SqlxConfigBlock extends ASTWrapperPsiElement implements PsiLanguageInjectionHost {
@@ -45,59 +42,6 @@ public class SqlxConfigBlock extends ASTWrapperPsiElement implements PsiLanguage
     @NotNull
     @Override
     public LiteralTextEscaper<? extends PsiLanguageInjectionHost> createLiteralTextEscaper() {
-        return new LiteralTextEscaper<>(this) {
-
-            @Override
-            public boolean decode(@NotNull TextRange rangeInsideHost, @NotNull StringBuilder outChars) {
-                String fullText = myHost.getText();
-                String sub = rangeInsideHost.substring(fullText);
-
-                StringBuilder replaced = new StringBuilder(sub);
-                int blockStart = rangeInsideHost.getStartOffset();
-
-                PsiTreeUtil.processElements(myHost, element -> {
-                    IElementType type = element.getNode().getElementType();
-                    if (type == SqlxElementTypes.JS_LITERAL_ELEMENT
-                            || type == SqlxElementTypes.TEMPLATE_EXPRESSION_ELEMENT) {
-                        TextRange abs = element.getTextRange();
-                        int relStart = abs.getStartOffset() - myHost.getTextRange().getStartOffset() - blockStart;
-                        int relEnd = abs.getEndOffset() - myHost.getTextRange().getStartOffset() - blockStart;
-                        if (relStart >= 0 && relEnd <= replaced.length() && relStart < relEnd) {
-                            int len = relEnd - relStart;
-                            String placeholder = buildPlaceholder(len);
-                            replaced.replace(relStart, relEnd, placeholder);
-                        }
-                    }
-                    return true;
-                });
-
-                outChars.append(replaced);
-                return true;
-            }
-
-            @Override
-            public int getOffsetInHost(int offsetInDecoded, @NotNull TextRange rangeInsideHost) {
-                return rangeInsideHost.getStartOffset() + offsetInDecoded;
-            }
-
-            @Override
-            public @NotNull TextRange getRelevantTextRange() {
-                return new TextRange(0, myHost.getTextLength());
-            }
-
-            @Override
-            public boolean isOneLine() {
-                return false;
-            }
-
-            private String buildPlaceholder(int len) {
-                if (len < 2) return "\"\"".substring(0, len);
-                StringBuilder sb = new StringBuilder(len);
-                sb.append('"');
-                for (int i = 1; i < len - 1; i++) sb.append('x');
-                sb.append('"');
-                return sb.toString();
-            }
-        };
+        return LiteralTextEscaper.createSimple(this);
     }
 }

@@ -16,7 +16,6 @@
  */
 package io.github.rejeb.dataform.language.parser;
 
-import com.intellij.json.JsonElementTypes;
 import com.intellij.lang.ASTNode;
 import com.intellij.lang.ParserDefinition;
 import com.intellij.lang.PsiParser;
@@ -34,12 +33,24 @@ import io.github.rejeb.dataform.language.lexer.SqlxLexerAdapter;
 import io.github.rejeb.dataform.language.psi.*;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Map;
+import java.util.function.Function;
+
 public class SqlxParserDefinition implements ParserDefinition {
 
     private static final TokenSet WHITE_SPACES = TokenSet.create(TokenType.WHITE_SPACE);
     private static final TokenSet COMMENTS = TokenSet.create(SharedTokenTypes.COMMENT);
 
     private static final IFileElementType FILE = new IFileElementType(SqlxLanguage.INSTANCE);
+    private static final Map<IElementType, Function<ASTNode, PsiElement>> PSI_FACTORY = Map.of(
+            SqlxElementTypes.SQL_BLOCK, SqlxSqlBlock::new,
+            SqlxElementTypes.CONFIG_BLOCK, SqlxConfigBlock::new,
+            SqlxElementTypes.JS_BLOCK, SqlxJsBlock::new,
+            SqlxElementTypes.JS_LITERAL_ELEMENT, SqlxJsLiteralExpression::new,
+            SqlxElementTypes.TEMPLATE_EXPRESSION_ELEMENT, SqlxJsLiteralExpression::new,
+            SharedTokenTypes.PRE_OPERATIONS_CONTENT, SqlxPreOperationsBlock::new,
+            SharedTokenTypes.POST_OPERATIONS_CONTENT, SqlxPostOperationsBlock::new
+    );
 
     @NotNull
     @Override
@@ -72,40 +83,13 @@ public class SqlxParserDefinition implements ParserDefinition {
     @NotNull
     @Override
     public TokenSet getStringLiteralElements() {
-        return TokenSet.create(JsonElementTypes.STRING_LITERAL);
+        return TokenSet.EMPTY;
     }
 
     @NotNull
     @Override
     public PsiElement createElement(ASTNode node) {
-        IElementType type = node.getElementType();
-
-        if (type == SqlxElementTypes.SQL_BLOCK) {
-            return new SqlxSqlBlock(node);
-        }
-
-        if (type == SharedTokenTypes.PRE_OPERATIONS_CONTENT) {
-            return new SqlxPreOperationsBlock(node);
-        }
-        if (type == SharedTokenTypes.POST_OPERATIONS_CONTENT) {
-            return new SqlxPostOperationsBlock(node);
-        }
-
-        if (type == SqlxElementTypes.CONFIG_BLOCK) {
-            return new SqlxConfigBlock(node);
-        }
-        if (type == SqlxElementTypes.JS_BLOCK) {
-            return new SqlxJsBlock(node);
-        }
-
-        if (type == SqlxElementTypes.JS_LITERAL_ELEMENT) {
-            return new SqlxJsLiteralExpression(node);
-        }
-
-        if (type == SqlxElementTypes.TEMPLATE_EXPRESSION_ELEMENT) {
-            return new SqlxJsLiteralExpression(node);
-        }
-        return new SqlxPsiElement(node);
+        return PSI_FACTORY.getOrDefault(node.getElementType(), SqlxPsiElement::new).apply(node);
     }
 
     @Override

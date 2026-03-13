@@ -59,7 +59,7 @@ public final class DataformJsonSchemaGeneratorImpl implements DataformJsonSchema
     private final Map<String, ProtoModel.ProtoEnum> enumIndex = new HashMap<>();
     private final ObjectMapper mapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
     private final Project project;
-    private Optional<VirtualFile> configSchemaFile = Optional.empty();
+    private Optional<ObjectNode> configSchema = Optional.empty();
     private Optional<VirtualFile> workflowSettingsSchemaFile = Optional.empty();
 
     public DataformJsonSchemaGeneratorImpl(@NotNull Project project) {
@@ -79,22 +79,14 @@ public final class DataformJsonSchemaGeneratorImpl implements DataformJsonSchema
         }
     }
 
-    public Optional<VirtualFile> generateSqlxConfigSchema() {
+    public Optional<ObjectNode> generateSqlxConfigSchema() {
         ProtoParser protoParser = this.project.getService(ProtoParser.class);
         if (!protoParser.configProtoFileExists()) {
             return Optional.empty();
-        } else if (configSchemaFile.isEmpty()) {
-            try {
-                this.configSchemaFile = Optional.of(PsiFileFactory.getInstance(project)
-                        .createFileFromText("sqlx_config_schema.json",
-                                JsonLanguage.INSTANCE,
-                                mapper.writeValueAsString(buildSqlxConfigSchema()))
-                        .getVirtualFile());
-            } catch (JsonProcessingException e) {
-                LOGGER.error("Unable to serialize sqlx config schema", e);
-            }
+        } else if (configSchema.isEmpty()) {
+            this.configSchema = Optional.of(buildSqlxConfigSchema());
         }
-        return this.configSchemaFile;
+        return this.configSchema;
     }
 
     public Optional<VirtualFile> generateWorkflowSettingsSchema() {

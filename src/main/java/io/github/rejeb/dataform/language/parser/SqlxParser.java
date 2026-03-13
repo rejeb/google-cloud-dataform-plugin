@@ -16,7 +16,6 @@
  */
 package io.github.rejeb.dataform.language.parser;
 
-import com.intellij.json.JsonElementTypes;
 import com.intellij.lang.ASTNode;
 import com.intellij.lang.PsiBuilder;
 import com.intellij.lang.PsiParser;
@@ -38,7 +37,7 @@ public class SqlxParser implements PsiParser {
 
             if (tokenType == SharedTokenTypes.CONFIG_KEYWORD) {
                 markElement(builder, SharedTokenTypes.CONFIG_KEYWORD);
-                parseConfigBlock(builder);
+                markElement(builder,SqlxElementTypes.CONFIG_BLOCK);
             } else if (tokenType == SharedTokenTypes.JS_KEYWORD) {
                 markElement(builder, SharedTokenTypes.JS_KEYWORD);
                 parseJsBlock(builder);
@@ -120,130 +119,6 @@ public class SqlxParser implements PsiParser {
         }
 
         sqlMarker.done(SqlxElementTypes.SQL_BLOCK);
-    }
-
-    private void parseConfigBlock(PsiBuilder builder) {
-        PsiBuilder.Marker marker = builder.mark();
-
-        if (builder.getTokenType() == JsonElementTypes.L_CURLY) {
-            parseConfigObject(builder);
-        }
-
-        marker.done(SqlxElementTypes.CONFIG_BLOCK);
-    }
-
-    private void parseConfigObject(PsiBuilder builder) {
-        PsiBuilder.Marker objectMarker = builder.mark();
-        builder.advanceLexer();
-
-        while (!builder.eof() && builder.getTokenType() != JsonElementTypes.R_CURLY) {
-            parseConfigProperty(builder);
-
-            if (builder.getTokenType() == JsonElementTypes.COMMA) {
-                builder.advanceLexer();
-            }
-        }
-
-        if (builder.getTokenType() == JsonElementTypes.R_CURLY) {
-            builder.advanceLexer();
-        }
-
-        objectMarker.done(SqlxElementTypes.CONFIG_OBJECT);
-    }
-
-    private void parseConfigProperty(PsiBuilder builder) {
-        PsiBuilder.Marker propertyMarker = builder.mark();
-
-        IElementType keyType = builder.getTokenType();
-        if (keyType == JsonElementTypes.DOUBLE_QUOTED_STRING ||
-                keyType == JsonElementTypes.SINGLE_QUOTED_STRING ||
-                keyType == JsonElementTypes.IDENTIFIER) {
-            builder.advanceLexer();
-        } else {
-            propertyMarker.error("Property key expected");
-            if (!builder.eof()) {
-                builder.advanceLexer();
-            }
-            propertyMarker.drop();
-            return;
-        }
-
-        if (builder.getTokenType() == JsonElementTypes.COLON) {
-            builder.advanceLexer();
-            parseConfigValue(builder);
-        } else {
-            propertyMarker.error("':' expected");
-            if (!builder.eof()) {
-                builder.advanceLexer();
-            }
-            propertyMarker.drop();
-            return;
-        }
-
-        propertyMarker.done(SqlxElementTypes.CONFIG_PROPERTY);
-    }
-
-
-    private void parseConfigValue(PsiBuilder builder) {
-
-        if (builder.getTokenType() == JsonElementTypes.L_CURLY) {
-            parseConfigObject(builder);
-        } else if (builder.getTokenType() == JsonElementTypes.L_BRACKET) {
-            parseConfigArray(builder);
-        } else if (builder.getTokenType() == JsonElementTypes.DOUBLE_QUOTED_STRING ||
-                builder.getTokenType() == JsonElementTypes.SINGLE_QUOTED_STRING) {
-            parseStringValue(builder);
-        } else if (builder.getTokenType() == JsonElementTypes.NUMBER_LITERAL) {
-            markElement(builder, SqlxElementTypes.CONFIG_NUMBER_VALUE);
-        } else if (builder.getTokenType() == JsonElementTypes.BOOLEAN_LITERAL) {
-            markElement(builder, SqlxElementTypes.CONFIG_BOOLEAN_VALUE);
-        } else if (builder.getTokenType() == JsonElementTypes.NULL) {
-            markElement(builder, SqlxElementTypes.CONFIG_NULL_VALUE);
-        } else if (builder.getTokenType() == SharedTokenTypes.TEMPLATE_EXPRESSION) {
-            markElement(builder, SqlxElementTypes.TEMPLATE_EXPRESSION_ELEMENT);
-        } else if (builder.getTokenType() == SharedTokenTypes.JS_LITERAL) {
-            markElement(builder, SqlxElementTypes.JS_LITERAL_ELEMENT);
-        } else {
-            if (!builder.eof()) {
-                builder.advanceLexer();
-            }
-        }
-
-    }
-
-
-    private void parseStringValue(PsiBuilder builder) {
-        PsiBuilder.Marker stringMarker = builder.mark();
-
-        while (!builder.eof()) {
-            IElementType tokenType = builder.getTokenType();
-
-            if (tokenType == JsonElementTypes.DOUBLE_QUOTED_STRING ||
-                    tokenType == JsonElementTypes.SINGLE_QUOTED_STRING) {
-                builder.advanceLexer();
-            } else {
-                break;
-            }
-        }
-
-        stringMarker.done(SqlxElementTypes.CONFIG_STRING_VALUE);
-    }
-
-    private void parseConfigArray(PsiBuilder builder) {
-        PsiBuilder.Marker arrayMarker = builder.mark();
-        builder.advanceLexer();
-
-        while (!builder.eof() && builder.getTokenType() != JsonElementTypes.R_BRACKET) {
-            parseConfigValue(builder);
-
-            if (builder.getTokenType() == JsonElementTypes.COMMA) {
-                builder.advanceLexer();
-            }
-        }
-        if (builder.getTokenType() == JsonElementTypes.R_BRACKET) {
-            builder.advanceLexer();
-        }
-        arrayMarker.done(SqlxElementTypes.CONFIG_ARRAY);
     }
 
 

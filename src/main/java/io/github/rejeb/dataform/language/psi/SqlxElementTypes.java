@@ -25,11 +25,5 @@ public interface SqlxElementTypes {
     IElementType SQL_BLOCK = new IElementType("SQL_BLOCK", SqlxLanguage.INSTANCE);
     IElementType TEMPLATE_EXPRESSION_ELEMENT = new IElementType("TEMPLATE_EXPRESSION_ELEMENT", SqlxLanguage.INSTANCE);
     IElementType JS_LITERAL_ELEMENT = new IElementType("JS_LITERAL_ELEMENT", SqlxLanguage.INSTANCE);
-    IElementType CONFIG_OBJECT = new IElementType("CONFIG_OBJECT", SqlxLanguage.INSTANCE);
-    IElementType CONFIG_ARRAY = new IElementType("CONFIG_ARRAY", SqlxLanguage.INSTANCE);
-    IElementType CONFIG_PROPERTY = new IElementType("CONFIG_PROPERTY", SqlxLanguage.INSTANCE);
-    IElementType CONFIG_STRING_VALUE = new IElementType("CONFIG_STRING_VALUE", SqlxLanguage.INSTANCE);
-    IElementType CONFIG_NUMBER_VALUE = new IElementType("CONFIG_NUMBER_VALUE", SqlxLanguage.INSTANCE);
-    IElementType CONFIG_BOOLEAN_VALUE = new IElementType("CONFIG_BOOLEAN_VALUE", SqlxLanguage.INSTANCE);
-    IElementType CONFIG_NULL_VALUE = new IElementType("CONFIG_NULL_VALUE", SqlxLanguage.INSTANCE);
+
 }

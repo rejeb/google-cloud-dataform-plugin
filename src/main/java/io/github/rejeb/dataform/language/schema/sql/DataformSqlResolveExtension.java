@@ -17,6 +17,7 @@
 package io.github.rejeb.dataform.language.schema.sql;
 
 import com.intellij.database.model.ObjectKind;
+import com.intellij.database.symbols.DasSymbol;
 import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
@@ -24,6 +25,7 @@ import com.intellij.psi.ResolveState;
 import com.intellij.sql.psi.SqlReference;
 import com.intellij.sql.psi.SqlScopeProcessor;
 import com.intellij.sql.psi.impl.SqlResolveExtension;
+import com.intellij.sql.symbols.DasSymbolUtil;
 import io.github.rejeb.dataform.language.schema.sql.model.*;
 import org.jetbrains.annotations.NotNull;
 
@@ -65,7 +67,8 @@ public class DataformSqlResolveExtension implements SqlResolveExtension {
                 DataformDasSchema dataformDasSchema = new DataformDasSchema(dataformDasCatalog, parts[1], List.of());
                 DataformDasTable table = new DataformDasTable(
                         dataformDasSchema, tableName, entry.getValue());
-                if (!processor.executeObject(table, null, null,
+                DasSymbol tableSymbol = DasSymbolUtil.wrapObjectToSymbol(table, processor);
+                if (!processor.execute(tableSymbol,
                         ResolveState.initial())) return false;
             }
 
@@ -75,7 +78,8 @@ public class DataformSqlResolveExtension implements SqlResolveExtension {
                 for (ColumnInfo col : entry.getValue()) {
                     if (col.name().startsWith(refName)) {
                         DataformDasColumn column = new DataformDasColumn(table, col);
-                        if (!processor.executeObject(column, null, null,
+                        DasSymbol columnSymbol = DasSymbolUtil.wrapObjectToSymbol(column, processor);
+                        if (!processor.execute(columnSymbol,
                                 ResolveState.initial())) return false;
                     }
                 }
@@ -84,18 +88,4 @@ public class DataformSqlResolveExtension implements SqlResolveExtension {
         return false;
     }
 
-    private Map<String, Map<String, List<Map.Entry<String, List<ColumnInfo>>>>> buildTree(Map<String, List<ColumnInfo>> cache) {
-        Map<String, Map<String, List<Map.Entry<String, List<ColumnInfo>>>>> tree
-                = new LinkedHashMap<>();
-
-        for (Map.Entry<String, List<ColumnInfo>> entry : cache.entrySet()) {
-            String[] parts = entry.getKey().split("\\.", 3);
-            if (parts.length != 3) continue;
-            tree.computeIfAbsent(parts[0], k -> new LinkedHashMap<>())
-                    .computeIfAbsent(parts[1], k -> new ArrayList<>())
-                    .add(entry);
-        }
-
-        return tree;
-    }
 }

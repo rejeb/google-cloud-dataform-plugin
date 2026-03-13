@@ -19,6 +19,7 @@ package io.github.rejeb.dataform.language.injection;
 import com.intellij.json.json5.Json5Language;
 import com.intellij.lang.injection.MultiHostInjector;
 import com.intellij.lang.injection.MultiHostRegistrar;
+import com.intellij.lang.javascript.JavascriptLanguage;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiElement;
 import io.github.rejeb.dataform.language.psi.SqlxConfigBlock;
@@ -38,9 +39,9 @@ public class SqlxConfigInjector implements MultiHostInjector {
         if (text.isEmpty()) {
             return;
         }
-
-        registrar.startInjecting(Json5Language.INSTANCE);
-        registrar.addPlace(null, null, configBlock, new TextRange(0, text.length()));
+        String ifaceName = "DataformConfig";
+        registrar.startInjecting(JavascriptLanguage.INSTANCE);
+        registrar.addPlace("(/** @type {" + ifaceName + "} */(", "))",  configBlock, new TextRange(0, text.length()));
         registrar.doneInjecting();
     }
 

@@ -10,6 +10,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectUtil;
 import com.intellij.openapi.startup.ProjectActivity;
 import com.intellij.openapi.vfs.VirtualFile;
+import io.github.rejeb.dataform.language.schema.dts.DataformDtsGenerator;
 import io.github.rejeb.dataform.projectWizard.DataformFacet;
 import io.github.rejeb.dataform.projectWizard.DataformFacetType;
 import kotlin.Unit;
@@ -36,6 +37,7 @@ public class DataformProjectStartup implements ProjectActivity {
         if (!isDataformProject) return null;
 
         WriteAction.runAndWait(() -> {
+            project.getService(DataformDtsGenerator.class).generateDts();
             ModuleManager moduleManager = ModuleManager.getInstance(project);
 
             Module[] modules = moduleManager.getModules();

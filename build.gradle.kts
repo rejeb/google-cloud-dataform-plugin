@@ -50,6 +50,8 @@ intellijPlatform {
                 <ul>
                     <li>Add autocomplete on bigQuery tables created with Dataform code.</li>
                     <li>Add table schema view tab.</li>
+                    <li>Add indexes caches.</li>
+                    <li>Fixing issues.</li>
                 </ul>
         """.trimIndent()
     }

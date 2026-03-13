@@ -23,8 +23,7 @@ import com.intellij.psi.LiteralTextEscaper;
 import com.intellij.psi.PsiLanguageInjectionHost;
 import org.jetbrains.annotations.NotNull;
 
-public class SqlxSqlBlock extends ASTWrapperPsiElement
-        implements PsiLanguageInjectionHost {
+public class SqlxSqlBlock extends SqlxPsiElement {
 
     public SqlxSqlBlock(@NotNull ASTNode node) {
         super(node);

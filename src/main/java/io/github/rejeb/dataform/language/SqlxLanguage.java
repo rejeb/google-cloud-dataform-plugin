@@ -27,6 +27,6 @@ public class SqlxLanguage extends Language {
     public static final SqlxLanguage INSTANCE = new SqlxLanguage();
 
     private SqlxLanguage() {
-        super(JavascriptLanguage.INSTANCE,"SQLX");
+        super("SQLX");
     }
 }

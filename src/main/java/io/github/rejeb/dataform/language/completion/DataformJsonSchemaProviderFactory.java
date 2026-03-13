@@ -26,6 +26,6 @@ import java.util.List;
 public class DataformJsonSchemaProviderFactory implements JsonSchemaProviderFactory {
     @Override
     public @NotNull List<JsonSchemaFileProvider> getProviders(@NotNull Project project) {
-        return List.of(new DataformConfigSchemaProvider(project), new DataformWorkflowSettingsSchemaProvider(project));
+        return List.of(new DataformWorkflowSettingsSchemaProvider(project));
     }
 }

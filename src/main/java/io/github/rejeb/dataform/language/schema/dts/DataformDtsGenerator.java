@@ -14,15 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.rejeb.dataform.language.schema.json;
+package io.github.rejeb.dataform.language.schema.dts;
 
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.intellij.openapi.vfs.VirtualFile;
-
-import java.util.Optional;
-
-public interface DataformJsonSchemaGenerator {
-    Optional<ObjectNode> generateSqlxConfigSchema();
-
-    Optional<VirtualFile> generateWorkflowSettingsSchema();
+public interface DataformDtsGenerator {
+    void generateDts();
 }
