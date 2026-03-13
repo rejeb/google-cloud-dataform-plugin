@@ -49,6 +49,7 @@ intellijPlatform {
         changeNotes = """
                 <ul>
                     <li>Add autocomplete on bigQuery tables created with Dataform code.</li>
+                    <li>Add table schema view tab.</li>
                 </ul>
         """.trimIndent()
     }

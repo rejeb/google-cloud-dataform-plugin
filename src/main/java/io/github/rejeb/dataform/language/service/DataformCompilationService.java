@@ -17,9 +17,11 @@
 package io.github.rejeb.dataform.language.service;
 
 import com.intellij.openapi.Disposable;
+import com.intellij.openapi.components.PersistentStateComponent;
+import com.intellij.util.xmlb.annotations.Tag;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 
-public interface DataformCompilationService extends Disposable {
+public interface DataformCompilationService extends Disposable, PersistentStateComponent<DataformCompilationService.State> {
 
 
     CompiledGraph compile();
@@ -29,6 +31,12 @@ public interface DataformCompilationService extends Disposable {
 
     CompiledGraph getCompiledGraph();
 
+    class State {
+        @Tag("compiledGraphJson")
+        public String compiledGraphJson = null;
 
+        @Tag("lastCompileTimestamp")
+        public long lastCompileTimestamp = -1;
+    }
 }
 

@@ -58,7 +58,7 @@ public final class DataformCompileBeforeTask implements CompileTask {
             } else {
                 context.addMessage(CompilerMessageCategory.INFORMATION, "Dataform compile succeeded", null, -1, -1);
                 DataformTableSchemaService tableSchemaService = context.getProject().getService(DataformTableSchemaService.class);
-                tableSchemaService.refreshAsync(compiledGraph);
+                tableSchemaService.refreshAsync(compiledGraph, true);
             }
         } catch (Exception e) {
             LOG.error("Error during compile", e);

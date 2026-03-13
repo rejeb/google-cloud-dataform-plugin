@@ -52,7 +52,7 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
 
     private final JPanel mainPanel = new JPanel(new BorderLayout());
     private final JTabbedPane tabs;
-
+    private final SchemaPanel schemaPanel;
     private final LineagePanel lineagePanel;
     private final QueryPanel queryPanel;
 
@@ -63,15 +63,16 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
     public SqlxCompiledPreviewEditor(Project project, VirtualFile file) {
         this.project = project;
         this.file = file;
-
+        schemaPanel = new SchemaPanel(project);
         lineagePanel = new LineagePanel(project);
         queryPanel = new QueryPanel(project, resolveFileType(file));
 
         tabs = new JBTabbedPane();
         tabs.setOpaque(false);
         tabs.setBorder(JBUI.Borders.empty());
-        tabs.addTab("Query", DatabaseIcons.Sql, queryPanel);
         tabs.addTab("Lineage", AllIcons.General.Layout, lineagePanel);
+        tabs.addTab("Query", DatabaseIcons.Sql, queryPanel);
+        tabs.addTab("Schema", AllIcons.Nodes.DataTables, schemaPanel);
         mainPanel.setOpaque(true);
         mainPanel.setBackground(UIUtil.getPanelBackground());
         mainPanel.add(tabs, BorderLayout.CENTER);
@@ -100,7 +101,7 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
 
                 if (graph != null && (graph.getGraphErrors() == null
                         || graph.getGraphErrors().getCompilationErrors().isEmpty())) {
-                    project.getService(DataformTableSchemaService.class).refreshAsync(graph);
+                    project.getService(DataformTableSchemaService.class).refreshAsync(graph, false);
                 }
                 indicator.checkCanceled();
             }
@@ -109,6 +110,7 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
             public void onSuccess() {
                 ApplicationManager.getApplication().invokeLater(() ->
                         WriteCommandAction.runWriteCommandAction(project, () -> {
+                            schemaPanel.setContent(lineageGraphs);
                             queryPanel.setContent(compiledQueries);
                             lineagePanel.setData(lineageGraphs);
                         }), ModalityState.nonModal()

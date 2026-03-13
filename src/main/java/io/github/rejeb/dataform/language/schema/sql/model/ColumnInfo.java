@@ -19,6 +19,7 @@ package io.github.rejeb.dataform.language.schema.sql.model;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.Serializable;
 import java.util.Collections;
 import java.util.List;
 
@@ -29,7 +30,7 @@ public record ColumnInfo(
         @NotNull String mode,
         @Nullable String description,
         @NotNull List<ColumnInfo> subFields
-) {
+) implements Serializable {
     public ColumnInfo(@NotNull String name, @NotNull String type, @NotNull String mode,@Nullable String description) {
         this(name, type, mode,description, Collections.emptyList());
     }

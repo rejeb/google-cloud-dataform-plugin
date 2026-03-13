@@ -19,7 +19,6 @@ package io.github.rejeb.dataform.setup;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.intellij.execution.configurations.GeneralCommandLine;
-import com.intellij.openapi.components.Service;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.vfs.LocalFileSystem;
@@ -29,9 +28,10 @@ import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Optional;
 
-public final class DataformInterpreterManagerImpl implements  DataformInterpreterManager {
+public final class DataformInterpreterManagerImpl implements DataformInterpreterManager {
     private final Project project;
     private Optional<VirtualFile> dataformCorePath;
     private Optional<VirtualFile> dataformCliDir;
@@ -73,16 +73,29 @@ public final class DataformInterpreterManagerImpl implements  DataformInterprete
     }
 
     public Optional<GeneralCommandLine> buildDataformCompileCommand() {
-        String dataformCliCmd = SystemInfo.isWindows ? "dataform.cmd" : "dataform";
         Path nodeBinDir = NodeInterpreterManager
                 .getInstance(project)
                 .nodeBinDir();
+
         return Optional.ofNullable(nodeBinDir).map(binDir -> {
-            String dataformExecutable = binDir.resolve(dataformCliCmd).toAbsolutePath().toString();
+            String pathEnv = binDir.toFile().getAbsolutePath()
+                    + File.pathSeparator + System.getenv("PATH");
+
+            if (SystemInfo.isWindows) {
+                Optional<Path> gitBash = findGitBash();
+                if (gitBash.isPresent()) {
+                    return buildGitBashCommand(gitBash.get(), binDir, pathEnv);
+                }
+                String dataformExecutable = binDir.resolve("dataform.cmd").toAbsolutePath().toString();
+                GeneralCommandLine cmd = new GeneralCommandLine(dataformExecutable, "compile", "--json")
+                        .withWorkDirectory(project.getBasePath());
+                cmd.getEnvironment().put("PATH", pathEnv);
+                return cmd;
+            }
+
+            String dataformExecutable = binDir.resolve("dataform").toAbsolutePath().toString();
             GeneralCommandLine cmd = new GeneralCommandLine(dataformExecutable, "compile", "--json")
                     .withWorkDirectory(project.getBasePath());
-            String pathEnv = nodeBinDir.toFile().getAbsolutePath() + File.pathSeparator +
-                    System.getenv("PATH");
             cmd.getEnvironment().put("PATH", pathEnv);
             return cmd;
         });
@@ -119,5 +132,39 @@ public final class DataformInterpreterManagerImpl implements  DataformInterprete
         }
     }
 
+    private Optional<Path> findGitBash() {
+        List<Path> candidates = List.of(
+                Path.of("C:\\Program Files\\Git\\bin\\bash.exe"),
+                Path.of("C:\\Program Files (x86)\\Git\\bin\\bash.exe"),
+                Path.of(System.getProperty("user.home"), "AppData", "Local", "Programs", "Git", "bin", "bash.exe")
+        );
+
+        return candidates.stream()
+                .filter(p -> p.toFile().exists())
+                .findFirst();
+    }
+
+    private GeneralCommandLine buildGitBashCommand(@NotNull Path bashExe,
+                                                   @NotNull Path nodeBinDir,
+                                                   @NotNull String winPathEnv) {
+        String posixNodeBinDir = nodeBinDir.toAbsolutePath().toString()
+                .replace("\\", "/")
+                .replaceFirst("^([A-Za-z]):", "/$1")
+                .toLowerCase(java.util.Locale.ROOT);
+
+        String bashCommand = String.format(
+                "export PATH=\"%s:$PATH\"; dataform compile --json",
+                posixNodeBinDir
+        );
+
+        GeneralCommandLine cmd = new GeneralCommandLine(
+                bashExe.toAbsolutePath().toString(),
+                "-c",
+                bashCommand
+        ).withWorkDirectory(project.getBasePath());
+
+        cmd.getEnvironment().put("PATH", winPathEnv);
+        return cmd;
+    }
 
 }

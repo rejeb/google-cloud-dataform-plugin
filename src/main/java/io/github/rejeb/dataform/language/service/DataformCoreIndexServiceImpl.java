@@ -21,10 +21,7 @@ import com.intellij.lang.javascript.psi.JSVariable;
 import com.intellij.lang.javascript.psi.ecma6.TypeScriptModule;
 import com.intellij.notification.NotificationGroupManager;
 import com.intellij.notification.NotificationType;
-import com.intellij.openapi.components.PersistentStateComponent;
-import com.intellij.openapi.components.Service;
-import com.intellij.openapi.components.State;
-import com.intellij.openapi.components.Storage;
+import com.intellij.openapi.components.*;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
@@ -38,7 +35,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Optional;
 
-@State(name = "DataformCoreIndexService", storages = @Storage("DataformCoreIndexService.xml"))
+@State(name = "DataformCoreIndexService", storages = @Storage(
+        value = StoragePathMacros.CACHE_FILE)
+)
 public final class DataformCoreIndexServiceImpl implements DataformCoreIndexService {
     private ServiceState state;
     private final Project project;
