@@ -21,7 +21,7 @@ Il s'agit d'un plugin IntelliJ complet qui fournit un support de langage avancé
 ## 2. Stack Technique
 
 - Langage principal : Java 21.
-- Plateforme : IntelliJ Platform SDK (version 2025.3.3 ou ultérieure).
+- Plateforme : IntelliJ Platform SDK (version 2025.2.6.1 ou ultérieure).
 - Analyse syntaxique : Lexer et Parser personnalisés (sans JFlex).
 - Outil de build : Gradle (avec Kotlin DSL `build.gradle.kts`).
 - Dépendances clés : Google Cloud Dataform API, BigQuery Dialect, SQL, Javascript, NodeJs.

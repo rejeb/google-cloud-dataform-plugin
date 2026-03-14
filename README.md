@@ -1,123 +1,152 @@
 # Google Cloud Dataform Plugin for IntelliJ IDEA
 
-A comprehensive IntelliJ IDEA plugin that provides advanced language support for Google Cloud Dataform projects, enabling developers to work efficiently with SQLX files and Dataform workflows.
+Advanced IDE support for [Google Cloud Dataform](https://cloud.google.com/dataform) projects —
+syntax highlighting, intelligent completion, BigQuery SQL validation, and full multi-language
+support for `.sqlx` files.
 
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
-![Platform](https://img.shields.io/badge/platform-IntelliJ-lightgrey.svg)
-![version](https://img.shields.io/badge/version-0.2.7-green.svg)
-[![Java](https://img.shields.io/badge/Java-21-blue)](https://www.java.com/fr/)
+![Platform](https://img.shields.io/badge/platform-IntelliJ%20IDEA-lightgrey.svg)
+![Version](https://img.shields.io/badge/version-0.2.8-green.svg)
+[![Java](https://img.shields.io/badge/Java-21-blue)](https://www.java.com/)
+
+---
 
 ## Features
 
 ### SQLX Language Support
-- **Syntax Highlighting**: Full syntax highlighting for SQLX files with support for SQL, JavaScript, and config blocks
-- **Code Completion**: Intelligent code completion for:
-  - Dataform built-in functions (`ref()`, `declare()`, `publish()`, etc.)
-  - JavaScript symbols and TypeScript definitions
-  - Workflow settings and configuration properties
-  - JSON schema-based completion for configuration files
-- **Code Navigation**: Navigate between references, includes, and declarations
-- **BigQuery SQL Support**: Native BigQuery SQL dialect integration with proper syntax validation
+- **Syntax highlighting** — dedicated highlighting for `config`, `js`, `pre_operations`,
+  `post_operations`, SQL blocks, and template expressions `${...}`
+- **Multi-language injection** — each block is parsed by its native language engine:
+  - `config { }` → JavaScript (with full TypeScript type inference)
+  - `js { }` → JavaScript
+  - SQL body / `pre_operations` / `post_operations` → BigQuery SQL dialect
+  - `${...}` template expressions → JavaScript
 
-### Multi-Language Injection
-- **SQL Injection**: BigQuery SQL support within SQLX SQL blocks with template expression handling
-- **JavaScript Injection**: Full JavaScript/TypeScript support in JS blocks
-- **Config Injection**: JSON-based configuration with schema validation
-- **Template Injection**: Support for Dataform template expressions
+### Smart Code Completion
+- **Config block** — property names and enum values inferred from the Dataform proto schema,
+  exposed as a TypeScript `.d.ts` declaration file (auto-generated in `.dataform/types/`)
+- **Dataform built-in functions** — `ref()`, `resolve()`, `self()`, `assert()`, etc.,
+  with signatures and documentation
+- **JavaScript symbols** — variables and functions declared in `js { }` blocks and
+  `includes/` files are available across the project
+- **Workflow settings** — completion and navigation for properties defined in
+  `workflow_settings.yaml`
+- **BigQuery SQL** — native dialect completion inside SQL blocks
 
-### Smart References
-- **File References**: Navigate to included files and definitions
-- **Symbol References**: Jump to function declarations and usages
-- **Workflow Settings References**: Link to workflow configuration properties
+### Navigation & References
+- `Ctrl+Click` / `Ctrl+B` on `ref("table_name")` → navigates to the target `.sqlx` file
+- Jump to function declarations in `includes/` files
+- Workflow settings property references
+
+### Schema Validation
+- `workflow_settings.yaml` — JSON schema validation with auto-generated schema from
+  the Dataform proto definition
+- Config block — TypeScript type checking via `.d.ts` (updated automatically when
+  the Dataform core package changes)
 
 ### Project Setup
-- **Module Builder**: Create new Dataform projects with proper structure
-- **CLI Integration**: Automatic Dataform CLI installation and setup
-- **Project Indexing**: Fast indexing of Dataform core definitions and JavaScript symbols
+- **New project wizard** — creates a ready-to-use Dataform project structure
+- **Dataform CLI integration** — automatic installation and detection of the
+  `@dataform/core` npm package
+- **Framework detector** — auto-detects existing Dataform projects on import
 
-## Installation
-
-1. Download the plugin from the [JetBrains Marketplace](https://plugins.jetbrains.com/) (once published)
-2. Install via IntelliJ IDEA: `Settings` → `Plugins` → `Marketplace` → Search for "Google Cloud Dataform"
-3. Restart IntelliJ IDEA
+---
 
 ## Requirements
 
-- IntelliJ IDEA 2025.3.2 or later
-- Java 21 or later
-- Node.js (for Dataform CLI)
+| Requirement | Version |
+|---|---|
+| IntelliJ IDEA | 2025.3.2 or later |
+| Java | 21 or later |
+| Node.js | LTS recommended |
+| Dataform CLI | Auto-installed by the plugin |
 
-## Usage
+---
 
-### Creating a New Dataform Project
-1. `File` → `New` → `Project`
-2. Select "Dataform" from the project types
-3. Configure your project settings
-4. The plugin will automatically set up the project structure and install the Dataform CLI
+## Installation
 
-### Working with SQLX Files
-1. Create or open `.sqlx` files in your Dataform project
-2. Use code completion (`Ctrl+Space`) for Dataform functions and BigQuery SQL
-3. Navigate between references using `Ctrl+Click` or `Ctrl+B`
-4. Benefit from syntax validation and error highlighting
+### From JetBrains Marketplace
+1. Open **Settings → Plugins → Marketplace**
+2. Search for **Google Cloud Dataform**
+3. Click **Install** and restart IntelliJ IDEA
 
-### Configuration Files
-- `workflow_settings.yaml`: JSON schema validation and completion
-- `dataform.json`: Project configuration with schema support
-- Package definitions with TypeScript type information
+### From disk
+1. Download the `.zip` from [GitHub Releases](https://github.com/rejeb/google-cloud-dataform-plugin/releases)
+2. **Settings → Plugins → ⚙ → Install Plugin from Disk…**
 
-## Development
+---
 
-### Building from Source
+## Getting Started
+
+### New Dataform project
+1. **File → New → Project → Dataform**
+2. Configure your GCP project and dataset defaults
+3. The plugin installs `@dataform/core` and initializes the project structure
+
+### Existing project
+Open any folder containing a `workflow_settings.yaml` — the plugin detects it automatically
+and activates all features.
+
+### Working with `.sqlx` files
+- Use **Ctrl+Space** for completion anywhere in the file
+- Each block has independent language support — the `config { }` block behaves like a
+  JavaScript object with full type awareness
+- Navigate to referenced tables with **Ctrl+Click** on `ref("...")`
+
+### Tip — injection background color
+IntelliJ highlights injected language fragments with a colored background by default.
+To disable it: **Settings → Editor → Color Scheme → General → Code →
+Injected language fragment** → uncheck **Background**.
+
+---
+
+## Building from Source
 
 ```bash
+# Build
 ./gradlew build
-```
 
-### Running the Plugin in Development Mode
-
-```bash
+# Run in a sandboxed IDE instance
 ./gradlew runIde
+
+# Run tests
+./gradlew test
 ```
 
-### Project Structure
+### Project structure
 
 ```
 src/main/java/io/github/rejeb/dataform/
 ├── language/
-│   ├── completion/         # Code completion contributors
-│   ├── injection/          # Language injection (SQL, JS, Config)
-│   ├── lexer/             # Lexer for SQLX files
-│   ├── parser/            # Parser definition
-│   ├── psi/               # PSI elements
-│   ├── reference/         # Reference resolution
-│   ├── service/           # Indexing and core services
-│   └── util/              # Utility classes
-├── projectWizard/         # New project wizard
-└── setup/                 # CLI installation and setup
+│   ├── completion/     # Completion contributors (JS symbols, config, workflow settings)
+│   ├── highlight/      # Syntax highlighter, annotators, highlight filters
+│   ├── injection/      # Multi-language injectors (SQL, JS, config, template)
+│   ├── lexer/          # JFlex-based SQLX lexer
+│   ├── parser/         # SQLX parser definition and PSI elements
+│   ├── psi/            # PSI node types and manipulators
+│   ├── reference/      # Reference contributors (ref(), includes, workflow settings)
+│   ├── schema/
+│   │   ├── dts/        # TypeScript .d.ts generator for config block types
+│   │   ├── json/       # JSON schema generator (proto → JSON Schema)
+│   │   └── sql/        # BigQuery dry-run schema extractor
+│   └── service/        # Core index, compilation, workflow settings services
+├── projectWizard/      # New project wizard and framework detector
+└── setup/              # Dataform CLI installer and interpreter manager
 ```
 
-## Technologies
-
-- **Kotlin**: Plugin implementation
-- **JFlex**: Lexer generation
-- **IntelliJ Platform SDK**: Core plugin functionality
-- **Google Cloud Dataform API**: Dataform integration
-- **BigQuery Dialect**: SQL support
+---
 
 ## License
 
-Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.
+Licensed under the [Apache License, Version 2.0](LICENSE).
+
+---
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit issues and pull requests.
+Issues and pull requests are welcome on the
+[GitHub repository](https://github.com/rejeb/google-cloud-dataform-plugin).
 
 ## Author
 
-**rbenrejeb**
-- GitHub: [@rejeb](https://github.com/rejeb)
-
-## Support
-
-For issues and feature requests, please use the [GitHub issue tracker](https://github.com/rejeb/google-cloud-dataform-plugin/issues).
+**rbenrejeb** · [@rejeb](https://github.com/rejeb)

@@ -20,7 +20,7 @@
 
     <name>Google Cloud Dataform</name>
 
-    <vendor url="https://github.com/rejeb">rbenrejeb</vendor>
+    <vendor url="https://github.com/rejeb/google-cloud-dataform-plugin">rbenrejeb</vendor>
 
     <description><![CDATA[
         Plugin to develop using google cloud dataform.<br>
