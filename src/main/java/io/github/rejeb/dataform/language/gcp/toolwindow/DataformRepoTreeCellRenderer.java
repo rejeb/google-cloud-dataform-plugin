@@ -64,6 +64,6 @@ public class DataformRepoTreeCellRenderer extends ColoredTreeCellRenderer {
     @NotNull
     private static Icon iconForFile(@NotNull String fileName) {
         FileType fileType = FileTypeManager.getInstance().getFileTypeByFileName(fileName);
-        return fileType.getIcon() != null ? fileType.getIcon() : AllIcons.FileTypes.Unknown;
+        return fileType.getIcon() != null ? fileType.getIcon() : AllIcons.FileTypes.Text;
     }
 }

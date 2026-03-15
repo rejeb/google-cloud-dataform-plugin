@@ -97,7 +97,7 @@ public class WorkspaceOperationsTest extends BasePlatformTestCase {
         handlerWithResolver(fullConfig, List.of("definitions/my_table.sqlx"))
                 .pushCode("dev");
 
-        verify(repository).push("test-project", "europe-west1", "test-repo", "dev");
+        verify(repository).push("test-project", "europe-west1", "test-repo", "dev",any(),any());
     }
 
     public void testPushCodeSkipsWhenNoDataformFilesPresent() {
@@ -115,7 +115,7 @@ public class WorkspaceOperationsTest extends BasePlatformTestCase {
 
     public void testPushCodePropagatesGcpApiException() {
         doThrow(new GcpApiException("failure", new RuntimeException()))
-                .when(repository).push(any(), any(), any(), any());
+                .when(repository).push(any(), any(), any(), any(),any(),any());
 
         assertThrows(GcpApiException.class,
                 () -> handlerWithResolver(fullConfig, List.of("definitions/my_table.sqlx"))

@@ -104,6 +104,9 @@ public class DataformModuleBuilder extends ModuleBuilder {
                 "*.log";
         gitignore.setBinaryContent(gitignoreContent.getBytes());
 
+        VirtualFile gcloudignore = baseDir.createChildData(this, ".gcloudignore");
+        String gcloudIgnoreContent = "# ignore files when pushing to gcp dataform repository using dataform API\n";
+        gcloudignore.setBinaryContent(gcloudIgnoreContent.getBytes());
 
         VirtualFile exampleSqlx = definitionsDir.createChildData(this, "example_table.sqlx");
         String exampleSqlxContent = String.format(

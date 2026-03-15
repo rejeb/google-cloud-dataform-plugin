@@ -18,6 +18,7 @@ package io.github.rejeb.dataform.language.gcp.workspace;
 
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.application.WriteAction;
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.roots.ProjectRootManager;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -31,11 +32,11 @@ import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Function;
 
 public class WorkspaceOperationsHandler implements WorkspaceOperations {
+    private static final Logger LOG = Logger.getInstance(WorkspaceOperationsHandler.class);
 
     private final WorkspaceRepository workspaceRepository;
     private final GcpConfigProvider configProvider;
@@ -72,14 +73,14 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
     }
 
     @Override
-    public void pushCode(@NotNull String workspaceId) {
+    public void commitCode(@NotNull String workspaceId) {
         GcpConfig config = readConfig();
         if (config == null) return;
 
         List<String> paths = ReadAction.compute(() -> filesResolver.apply(project));
         if (paths.isEmpty()) return;
-
-        workspaceRepository.push(config.projectId, config.location, config.repositoryId, workspaceId);
+        CommitAuthorConfig author = configProvider.getCommitAuthor();
+        workspaceRepository.commit(config.projectId, config.location, config.repositoryId, workspaceId,author);
     }
 
     @Override
@@ -108,6 +109,48 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
     @Override
     public void testConnection(@NotNull DataformRepositoryConfig config) {
         workspaceRepository.findAll(config.projectId(), config.location(), config.repositoryId());
+    }
+
+    @Override
+    public void pushCode(@NotNull String workspaceId) {
+        GcpConfig config = readConfig();
+        if (config == null) return;
+
+        // 1. Lire les fichiers locaux (paths filtrés + contenu)
+        Map<String, String> localFiles = ReadAction.compute(() -> {
+            List<String> paths = filesResolver.apply(project);
+            VirtualFile[] roots = ProjectRootManager.getInstance(project).getContentRoots();
+            if (roots.length == 0 || paths.isEmpty()) return Map.of();
+
+            VirtualFile contentRoot = roots[0];
+            Map<String, String> result = new LinkedHashMap<>();
+            for (String path : paths) {
+                VirtualFile vf = contentRoot.findFileByRelativePath(path);
+                if (vf != null && !vf.isDirectory()) {
+                    try {
+                        result.put(path, new String(vf.contentsToByteArray(), StandardCharsets.UTF_8));
+                    } catch (IOException e) {
+                        LOG.warn("Cannot read local file: " + path, e);
+                    }
+                }
+            }
+            return result;
+        });
+
+        if (localFiles.isEmpty()) return;
+
+        // 2. Lire les paths distants (juste les paths, pas le contenu)
+        Set<String> remotePaths = workspaceRepository.listAllPaths(
+                config.projectId, config.location, config.repositoryId, workspaceId);
+
+        // 3. Fichiers à supprimer = distants qui ne sont plus en local
+        Set<String> toDelete = new HashSet<>(remotePaths);
+        toDelete.removeAll(localFiles.keySet());
+
+        // 4. Push
+        workspaceRepository.push(
+                config.projectId, config.location, config.repositoryId,
+                workspaceId, localFiles, toDelete);
     }
 
     /**

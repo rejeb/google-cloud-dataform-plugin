@@ -24,6 +24,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public interface WorkspaceRepository {
 
@@ -43,11 +44,12 @@ public interface WorkspaceRepository {
      *
      * @throws GcpApiException on network or API error
      */
-    void push(
+    void commit(
             @NotNull String projectId,
             @NotNull String location,
             @NotNull String repositoryId,
-            @NotNull String workspaceId
+            @NotNull String workspaceId,
+            @NotNull CommitAuthorConfig author
     );
 
     /**
@@ -92,6 +94,23 @@ public interface WorkspaceRepository {
             @NotNull String location,
             @NotNull String repositoryId,
             @Nullable String workspaceId
+    );
+
+    @NotNull
+    Set<String> listAllPaths(
+            @NotNull String projectId,
+            @NotNull String location,
+            @NotNull String repositoryId,
+            @NotNull String workspaceId
+    );
+
+    void push(
+            @NotNull String projectId,
+            @NotNull String location,
+            @NotNull String repositoryId,
+            @NotNull String workspaceId,
+            @NotNull Map<String, String> filesToWrite,
+            @NotNull Set<String> pathsToDelete
     );
 
 }

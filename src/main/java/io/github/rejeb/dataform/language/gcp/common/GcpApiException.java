@@ -25,4 +25,8 @@ public class GcpApiException extends RuntimeException {
     public GcpApiException(String message, Throwable cause) {
         super(message, cause);
     }
+
+    public GcpApiException(String message) {
+        super(message);
+    }
 }

@@ -17,6 +17,7 @@
 package io.github.rejeb.dataform.language.gcp.workspace.repository;
 
 import com.google.cloud.dataform.v1beta1.*;
+import com.google.protobuf.ByteString;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.util.concurrency.AppExecutorUtil;
 import io.github.rejeb.dataform.language.gcp.common.CommitAuthorConfig;
@@ -26,10 +27,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -64,23 +62,34 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
         return result;
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * @throws GcpApiException if the push fails or ADC is missing
-     */
     @Override
-    public void push(
+    public void commit(
             @NotNull String projectId,
             @NotNull String location,
             @NotNull String repositoryId,
-            @NotNull String workspaceId
+            @NotNull String workspaceId,
+            @NotNull CommitAuthorConfig author
     ) {
         try (DataformClient client = DataformClient.create()) {
-            PushGitCommitsRequest request = PushGitCommitsRequest.newBuilder()
-                    .setName(workspaceName(projectId, location, repositoryId, workspaceId))
+            String wsName = workspaceName(projectId, location, repositoryId, workspaceId);
+
+            // Étape 1 : commit les changements non commités du workspace
+            CommitWorkspaceChangesRequest commitRequest = CommitWorkspaceChangesRequest.newBuilder()
+                    .setName(wsName)
+                    .setAuthor(CommitAuthor.newBuilder()
+                            .setName(author.name())
+                            .setEmailAddress(author.emailAddress())
+                            .build())
+                    .setCommitMessage("Changes from IntelliJ Dataform Plugin")
                     .build();
-            client.pushGitCommits(request);
+            client.commitWorkspaceChanges(commitRequest);
+
+            // Étape 2 : push vers le remote Git
+            PushGitCommitsRequest pushRequest = PushGitCommitsRequest.newBuilder()
+                    .setName(wsName)
+                    .build();
+            client.pushGitCommits(pushRequest);
+
         } catch (IOException e) {
             throw new GcpApiException(
                     "Failed to create DataformClient — check Application Default Credentials.", e);
@@ -88,6 +97,7 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
             throw new GcpApiException("Error pushing commits to GCP Dataform workspace.", e);
         }
     }
+
 
     @Override
     public void pull(
@@ -112,6 +122,61 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
                     "Failed to create DataformClient — check Application Default Credentials.", e);
         } catch (Exception e) {
             throw new GcpApiException("Error pulling commits from GCP Dataform workspace.", e);
+        }
+    }
+
+    @Override
+    public void push(
+            @NotNull String projectId,
+            @NotNull String location,
+            @NotNull String repositoryId,
+            @NotNull String workspaceId,
+            @NotNull Map<String, String> filesToWrite,
+            @NotNull Set<String> pathsToDelete
+    ) {
+        try (DataformClient client = DataformClient.create()) {
+            String wsName = workspaceName(projectId, location, repositoryId, workspaceId);
+
+            // Écrire / mettre à jour les fichiers locaux
+            for (Map.Entry<String, String> entry : filesToWrite.entrySet()) {
+                WriteFileRequest request = WriteFileRequest.newBuilder()
+                        .setWorkspace(wsName)
+                        .setPath(entry.getKey())
+                        .setContents(ByteString.copyFromUtf8(entry.getValue()))
+                        .build();
+                client.writeFile(request);
+            }
+
+            for (String path : pathsToDelete) {
+                RemoveFileRequest request = RemoveFileRequest.newBuilder()
+                        .setWorkspace(wsName)
+                        .setPath(path)
+                        .build();
+                client.removeFile(request);
+            }
+
+        } catch (IOException e) {
+            throw new GcpApiException(
+                    "Failed to create DataformClient — check Application Default Credentials.", e);
+        } catch (Exception e) {
+            throw new GcpApiException("Error syncing files to GCP Dataform workspace.", e);
+        }
+    }
+
+    @Override
+    @NotNull
+    public Set<String> listAllPaths(
+            @NotNull String projectId,
+            @NotNull String location,
+            @NotNull String repositoryId,
+            @NotNull String workspaceId
+    ) {
+        try (DataformClient client = DataformClient.create()) {
+            return new HashSet<>(listAllWorkspacePaths(
+                    client, projectId, location, repositoryId, workspaceId, ""));
+        } catch (IOException e) {
+            throw new GcpApiException(
+                    "Failed to create DataformClient — check Application Default Credentials.", e);
         }
     }
 

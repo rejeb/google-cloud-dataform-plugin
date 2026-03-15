@@ -132,6 +132,16 @@ public final class DataformGcpServiceImpl
     }
 
     @Override
+    public void commitCode(@NotNull String workspaceId) {
+        try {
+            workspaceOperations.commitCode(workspaceId);
+        } catch (GcpApiException e) {
+            LOG.error("Failed to push code to Dataform workspace: " + workspaceId, e);
+        }
+    }
+
+
+    @Override
     public void pushCode(@NotNull String workspaceId) {
         try {
             workspaceOperations.pushCode(workspaceId);

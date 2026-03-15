@@ -152,6 +152,11 @@ public class DataformGcpPanel extends JPanel {
             }
 
             @Override
+            public void onCommit(@NotNull String workspaceId) {
+                commit(workspaceId);
+            }
+
+            @Override
             public void onConfigure() {
                 openConfigDialog();
             }
@@ -216,6 +221,17 @@ public class DataformGcpPanel extends JPanel {
         });
     }
 
+    private void commit(@NotNull String workspaceId) {
+        ProgressManager.getInstance().run(
+                new Task.Backgroundable(project, "Pushing to workspace '" + workspaceId + "'…") {
+                    @Override
+                    public void run(@NotNull ProgressIndicator indicator) {
+                        DataformGcpService.getInstance(project).commitCode(workspaceId);
+                    }
+                }
+        );
+    }
+
     private void push(@NotNull String workspaceId) {
         ProgressManager.getInstance().run(
                 new Task.Backgroundable(project, "Pushing to workspace '" + workspaceId + "'…") {
@@ -241,6 +257,8 @@ public class DataformGcpPanel extends JPanel {
         void onSync(@Nullable String workspaceId);
 
         void onPush(@NotNull String workspaceId);
+
+        void onCommit(@NotNull String workspaceId);
 
         void onConfigure();
     }

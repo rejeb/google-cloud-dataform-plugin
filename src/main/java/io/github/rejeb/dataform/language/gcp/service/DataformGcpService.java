@@ -41,6 +41,13 @@ public interface DataformGcpService {
      * @return list of workspaces, or empty list if config is missing or the API call fails
      */
     @NotNull List<Workspace> listWorkspaces();
+    /**
+     * Pushes local Git commits in the given workspace to the remote repository.
+     * <p>Must be called off the EDT.
+     *
+     * @param workspaceId the target workspace ID
+     */
+    void commitCode(@NotNull String workspaceId);
 
     /**
      * Pushes local Git commits in the given workspace to the remote repository.

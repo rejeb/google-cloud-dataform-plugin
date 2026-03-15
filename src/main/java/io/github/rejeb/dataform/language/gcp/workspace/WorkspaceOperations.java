@@ -37,7 +37,7 @@ public interface WorkspaceOperations {
      * @param workspaceId the target workspace ID
      * @throws GcpApiException on API error
      */
-    void pushCode(@NotNull String workspaceId);
+    void commitCode(@NotNull String workspaceId);
 
     /**
      * Pulls changes from the remote into the given workspace,
@@ -62,4 +62,6 @@ public interface WorkspaceOperations {
     void syncCode(@Nullable String workspaceId);
 
     void testConnection(@NotNull DataformRepositoryConfig config);
+
+    void pushCode(@NotNull String workspaceId);
 }
