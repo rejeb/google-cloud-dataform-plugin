@@ -139,15 +139,12 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
 
         if (localFiles.isEmpty()) return;
 
-        // 2. Lire les paths distants (juste les paths, pas le contenu)
         Set<String> remotePaths = workspaceRepository.listAllPaths(
                 config.projectId, config.location, config.repositoryId, workspaceId);
 
-        // 3. Fichiers à supprimer = distants qui ne sont plus en local
         Set<String> toDelete = new HashSet<>(remotePaths);
         toDelete.removeAll(localFiles.keySet());
 
-        // 4. Push
         workspaceRepository.push(
                 config.projectId, config.location, config.repositoryId,
                 workspaceId, localFiles, toDelete);

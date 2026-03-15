@@ -66,7 +66,6 @@ public class DataformProjectStartup implements ProjectActivity {
                 VirtualFile[] roots = ProjectRootManager.getInstance(project).getContentRoots();
                 if (roots.length == 0) return;
                 VirtualFile contentRoot = roots[0];
-                ensureDataformDirExcluded(project, contentRoot);
                 ensureGitignoreContainsDataform(contentRoot);
             } catch (IOException e) {
             }
@@ -89,38 +88,6 @@ public class DataformProjectStartup implements ProjectActivity {
         }
 
         return null;
-    }
-
-    private static void ensureDataformDirExcluded(
-            @NotNull Project project,
-            @NotNull VirtualFile contentRoot
-    ) throws IOException {
-        VirtualFile dataformDir = contentRoot.findChild(".dataform");
-        if (dataformDir == null) {
-            dataformDir = contentRoot.createChildDirectory(null, ".dataform");
-        }
-
-        // Marquer comme excluded pour IntelliJ (hors index)
-        VirtualFile finalDataformDir = dataformDir;
-        ModuleRootModificationUtil.updateModel(
-                ModuleManager
-                        .getInstance(project).getModules()[0],
-                model -> {
-                    for (var entry : model.getContentEntries()) {
-                        if (entry.getFile() != null &&
-                                entry.getFile().equals(contentRoot)) {
-                            // Eviter les doublons
-                            boolean alreadyExcluded = java.util.Arrays
-                                    .stream(entry.getExcludeFolders())
-                                    .anyMatch(f -> f.getFile() != null &&
-                                            f.getFile().equals(finalDataformDir));
-                            if (!alreadyExcluded) {
-                                entry.addExcludeFolder(finalDataformDir);
-                            }
-                        }
-                    }
-                }
-        );
     }
 
     private static void ensureGitignoreContainsDataform(
