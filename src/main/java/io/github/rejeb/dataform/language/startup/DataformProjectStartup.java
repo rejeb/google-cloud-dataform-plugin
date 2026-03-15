@@ -10,6 +10,8 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectUtil;
 import com.intellij.openapi.startup.ProjectActivity;
 import com.intellij.openapi.vfs.VirtualFile;
+import io.github.rejeb.dataform.language.gcp.service.DataformGcpService;
+import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
 import io.github.rejeb.dataform.language.schema.dts.DataformDtsGenerator;
 import io.github.rejeb.dataform.projectWizard.DataformFacet;
 import io.github.rejeb.dataform.projectWizard.DataformFacetType;
@@ -17,6 +19,8 @@ import kotlin.Unit;
 import kotlin.coroutines.Continuation;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+
+import java.util.Map;
 
 public class DataformProjectStartup implements ProjectActivity {
 
@@ -55,6 +59,22 @@ public class DataformProjectStartup implements ProjectActivity {
                 }
             }
         });
+
+        if (GcpRepositorySettings.getInstance(project).getConfig() == null) {
+            return null;
+        }
+        if (GcpRepositorySettings.getInstance(project).getConfig() != null) {
+            Map<String, String> cached = DataformGcpService.getInstance(project).getCachedFiles();
+            if (cached.isEmpty()) {
+                // Pas de cache persistant — charger depuis GCP
+                DataformGcpService.getInstance(project).refreshFilesAsync(null, files ->
+                        LOG.info("Dataform GCP file cache loaded: " + files.size() + " files.")
+                );
+            } else {
+                LOG.info("Dataform GCP file cache restored from disk: " + cached.size() + " files.");
+            }
+
+        }
 
         return null;
     }

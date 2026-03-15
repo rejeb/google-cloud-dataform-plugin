@@ -107,6 +107,16 @@ public class DataformRepoTreeModel extends DefaultTreeModel {
         reload();
     }
 
+    public void setLoading(boolean loading) {
+        DefaultMutableTreeNode root = (DefaultMutableTreeNode) getRoot();
+        root.removeAllChildren();
+        if (loading) {
+            root.add(new DefaultMutableTreeNode("Loading…"));
+        }
+        reload();
+    }
+
+
     /**
      * Holds the path and content of a single repository file node.
      *

@@ -73,4 +73,29 @@ public interface DataformGcpService {
      */
     void testConnection(@NotNull DataformRepositoryConfig config);
 
+    /**
+     * Fetches files from GCP in background and updates the internal cache.
+     * Notifies the given callback on the EDT when done.
+     *
+     * @param workspaceId workspace to fetch from, or {@code null} for repo main
+     * @param onDone      called on EDT with the fetched files (empty map on error)
+     */
+    void refreshFilesAsync(
+            @Nullable String workspaceId,
+            @NotNull java.util.function.Consumer<Map<String, String>> onDone
+    );
+
+    /**
+     * @return the last successfully fetched files, or an empty map if cache is empty
+     */
+    @NotNull Map<String, String> getCachedFiles();
+
+    /**
+     * Invalidates the file cache.
+     */
+    void invalidateCache();
+
+    /** @return {@code true} if a background file refresh is currently running */
+    boolean isLoading();
+
 }

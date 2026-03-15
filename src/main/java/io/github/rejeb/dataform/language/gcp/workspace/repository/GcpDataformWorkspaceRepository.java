@@ -18,6 +18,7 @@ package io.github.rejeb.dataform.language.gcp.workspace.repository;
 
 import com.google.cloud.dataform.v1beta1.*;
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.util.concurrency.AppExecutorUtil;
 import io.github.rejeb.dataform.language.gcp.common.CommitAuthorConfig;
 import io.github.rejeb.dataform.language.gcp.common.GcpApiException;
 import io.github.rejeb.dataform.language.gcp.workspace.Workspace;
@@ -29,6 +30,10 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.function.Function;
 
 public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
 
@@ -180,52 +185,55 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
             @NotNull String location,
             @NotNull String repositoryId
     ) {
-        List<String> paths = listAllRepositoryPaths(client, projectId, location, repositoryId,"");
-        Map<String, String> result = new LinkedHashMap<>();
-        for (String path : paths) {
-            String content = readRepositoryFile(client, projectId, location, repositoryId, path);
-            result.put(path, content);
-        }
-        return result;
+        List<String> paths = listAllRepositoryPaths(client, projectId, location, repositoryId, "");
+        return readFilesInParallel(paths, path ->
+                readRepositoryFile(client, projectId, location, repositoryId, path));
     }
 
     @NotNull
-    private List<String> listAllRepositoryPaths(
+    private Map<String, String> readAllWorkspaceFiles(
             @NotNull DataformClient client,
             @NotNull String projectId,
             @NotNull String location,
             @NotNull String repositoryId,
-            @NotNull String directoryPath   // "" for root, "definitions/marts" for subdir
+            @NotNull String workspaceId
     ) {
-        List<String> paths = new ArrayList<>();
+        List<String> paths = listAllWorkspacePaths(
+                client, projectId, location, repositoryId, workspaceId, "");
+        return readFilesInParallel(paths, path ->
+                readWorkspaceFile(client, projectId, location, repositoryId, workspaceId, path));
+    }
 
-        QueryRepositoryDirectoryContentsRequest request =
-                QueryRepositoryDirectoryContentsRequest.newBuilder()
-                        .setName(repositoryName(projectId, location, repositoryId))
-                        .setPath(directoryPath)
-                        .build();
+    @NotNull
+    private static Map<String, String> readFilesInParallel(
+            @NotNull List<String> paths,
+            @NotNull Function<String, String> reader
+    ) {
+        if (paths.isEmpty()) return Map.of();
 
-        DataformClient.QueryRepositoryDirectoryContentsPagedResponse response =
-                client.queryRepositoryDirectoryContents(request);
+        ExecutorService executor = AppExecutorUtil.getAppExecutorService();
 
-        for (DirectoryEntry entry : response.iterateAll()) {
-            if (entry.hasFile()) {
-                // entry.getFile().getPath() retourne juste le nom, pas le path complet
-                String fullPath = directoryPath.isEmpty()
-                        ? entry.getFile()
-                        : directoryPath + "/" + entry.getFile();
-                paths.add(fullPath);
-            } else if (entry.hasDirectory()) {
-                // Idem : reconstruire le path complet du sous-dossier
-                String subDir = directoryPath.isEmpty()
-                        ? entry.getDirectory()
-                        : directoryPath + "/" + entry.getDirectory();
-                paths.addAll(listAllRepositoryPaths(
-                        client, projectId, location, repositoryId, subDir));
+        List<Future<Map.Entry<String, String>>> futures = paths.stream()
+                .map(path -> executor.submit(() -> Map.entry(path, reader.apply(path))))
+                .toList();
+
+        Map<String, String> result = new LinkedHashMap<>();
+        for (Future<Map.Entry<String, String>> future : futures) {
+            try {
+                Map.Entry<String, String> entry = future.get();
+                result.put(entry.getKey(), entry.getValue());
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new GcpApiException("File reading interrupted.", e);
+            } catch (ExecutionException e) {
+                Throwable cause = e.getCause();
+                if (cause instanceof GcpApiException gae) throw gae;
+                throw new GcpApiException("Error reading file from GCP Dataform.", cause);
             }
         }
-        return paths;
+        return result;
     }
+
 
     @NotNull
     private String readRepositoryFile(
@@ -243,47 +251,23 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
         return response.getContents().toStringUtf8();
     }
 
-// ── Workspace ─────────────────────────────────────────────────────────────
-
     @NotNull
-    private Map<String, String> readAllWorkspaceFiles(
+    private List<String> listAllRepositoryPaths(
             @NotNull DataformClient client,
             @NotNull String projectId,
             @NotNull String location,
             @NotNull String repositoryId,
-            @NotNull String workspaceId
-    ) {
-        List<String> paths = listAllWorkspacePaths(
-                client, projectId, location, repositoryId, workspaceId,"");
-        Map<String, String> result = new LinkedHashMap<>();
-        for (String path : paths) {
-            String content = readWorkspaceFile(
-                    client, projectId, location, repositoryId, workspaceId, path);
-            result.put(path, content);
-        }
-        return result;
-    }
-
-    @NotNull
-    private List<String> listAllWorkspacePaths(
-            @NotNull DataformClient client,
-            @NotNull String projectId,
-            @NotNull String location,
-            @NotNull String repositoryId,
-            @NotNull String workspaceId,
-            @NotNull String directoryPath   // "" for root
+            @NotNull String directoryPath
     ) {
         List<String> paths = new ArrayList<>();
 
-        QueryDirectoryContentsRequest request = QueryDirectoryContentsRequest.newBuilder()
-                .setWorkspace(workspaceName(projectId, location, repositoryId, workspaceId))
-                .setPath(directoryPath)
-                .build();
+        QueryRepositoryDirectoryContentsRequest request =
+                QueryRepositoryDirectoryContentsRequest.newBuilder()
+                        .setName(repositoryName(projectId, location, repositoryId))
+                        .setPath(directoryPath)
+                        .build();
 
-        DataformClient.QueryDirectoryContentsPagedResponse response =
-                client.queryDirectoryContents(request);
-
-        for (DirectoryEntry entry : response.iterateAll()) {
+        for (DirectoryEntry entry : client.queryRepositoryDirectoryContents(request).iterateAll()) {
             if (entry.hasFile()) {
                 String fullPath = directoryPath.isEmpty()
                         ? entry.getFile()
@@ -293,13 +277,43 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
                 String subDir = directoryPath.isEmpty()
                         ? entry.getDirectory()
                         : directoryPath + "/" + entry.getDirectory();
-                paths.addAll(listAllWorkspacePaths(
-                        client, projectId, location, repositoryId, workspaceId, subDir));
+                paths.addAll(listAllRepositoryPaths(
+                        client, projectId, location, repositoryId, subDir));
             }
         }
         return paths;
     }
 
+    @NotNull
+    private List<String> listAllWorkspacePaths(
+            @NotNull DataformClient client,
+            @NotNull String projectId,
+            @NotNull String location,
+            @NotNull String repositoryId,
+            @NotNull String workspaceId,
+            @NotNull String directoryPath
+    ) {
+        List<String> paths = new ArrayList<>();
+
+        QueryDirectoryContentsRequest request = QueryDirectoryContentsRequest.newBuilder()
+                .setWorkspace(workspaceName(projectId, location, repositoryId, workspaceId))
+                .setPath(directoryPath)
+                .build();
+
+        for (DirectoryEntry entry : client.queryDirectoryContents(request).iterateAll()) {
+            if (entry.hasFile()) {
+                // Workspace API retourne le path complet → pas de préfixage
+                paths.add(entry.getFile());
+            } else if (entry.hasDirectory()) {
+                // Workspace API retourne le path complet → récurser directement
+                paths.addAll(listAllWorkspacePaths(
+                        client, projectId, location, repositoryId, workspaceId,
+                        entry.getDirectory()
+                ));
+            }
+        }
+        return paths;
+    }
 
     @NotNull
     private String readWorkspaceFile(

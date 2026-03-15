@@ -25,6 +25,8 @@ import com.intellij.openapi.project.Project;
 import com.intellij.ui.ScrollPaneFactory;
 import com.intellij.ui.components.labels.LinkLabel;
 import com.intellij.ui.treeStructure.Tree;
+import com.intellij.util.ui.tree.TreeUtil;
+import io.github.rejeb.dataform.language.gcp.service.DataformGcpFilesLoadedListener;
 import io.github.rejeb.dataform.language.gcp.service.DataformGcpService;
 import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
 import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
@@ -92,6 +94,35 @@ public class DataformGcpPanel extends JPanel {
         tree.setCellRenderer(new DataformRepoTreeCellRenderer());
         tree.setRowHeight(0);
 
+        DataformGcpService service = DataformGcpService.getInstance(project);
+        Map<String, String> cached = service.getCachedFiles();
+
+        if (!cached.isEmpty()) {
+            // Cache dispo → affichage immédiat
+            treeModel.setFiles(cached);
+            TreeUtil.expandAll(tree);
+        } else if (!service.isLoading()) {
+            // Pas de cache ET pas de chargement en cours → déclencher
+            treeModel.setLoading(true);
+            service.refreshFilesAsync(null, files -> {
+                treeModel.setLoading(false);
+                treeModel.setFiles(files);
+                TreeUtil.expandAll(tree);
+            });
+        } else {
+            // Chargement déjà en cours (déclenché par startup) → juste afficher "Loading…"
+            treeModel.setLoading(true);
+            project.getMessageBus()
+                    .connect()
+                    .subscribe(DataformGcpFilesLoadedListener.TOPIC,
+                            (DataformGcpFilesLoadedListener) files -> {
+                                treeModel.setLoading(false);
+                                treeModel.setFiles(files);
+                                TreeUtil.expandAll(tree);
+                            }
+                    );
+        }
+        refreshWorkspaces();
         add(toolbar, BorderLayout.NORTH);
         add(ScrollPaneFactory.createScrollPane(tree), BorderLayout.CENTER);
         revalidate();

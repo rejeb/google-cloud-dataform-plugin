@@ -25,7 +25,7 @@ import org.jetbrains.annotations.Nullable;
 
 @State(
         name = "DataformGcpRepositorySettings",
-        storages = @Storage("dataformGcpRepository.xml")
+        storages = @Storage("dataform-gcp-repository-setting.xml")
 )
 public final class GcpRepositorySettingsImpl
         implements GcpRepositorySettings, PersistentStateComponent<GcpRepositorySettingsImpl.State> {

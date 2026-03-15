@@ -88,15 +88,8 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
         GcpConfig config = readConfig();
         if (config == null) return Map.of();
 
-        if (workspaceId != null) {
-            CommitAuthorConfig author = configProvider.getCommitAuthor();
-            workspaceRepository.pull(
-                    config.projectId, config.location, config.repositoryId, workspaceId, author);
-            return Map.of();
-        }
-
         return workspaceRepository.readAllFiles(
-                config.projectId, config.location, config.repositoryId, null);
+                config.projectId, config.location, config.repositoryId, workspaceId);
     }
 
     @Override

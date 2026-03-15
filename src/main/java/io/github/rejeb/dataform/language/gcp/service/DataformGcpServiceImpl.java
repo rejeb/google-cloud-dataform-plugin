@@ -16,28 +16,44 @@
  */
 package io.github.rejeb.dataform.language.gcp.service;
 
+import com.intellij.openapi.components.PersistentStateComponent;
+import com.intellij.openapi.components.State;
+import com.intellij.openapi.components.Storage;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
+import io.github.rejeb.dataform.language.gcp.common.GcpApiException;
 import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
 import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
 import io.github.rejeb.dataform.language.gcp.settings.WorkflowSettingsGcpConfigProvider;
 import io.github.rejeb.dataform.language.gcp.workspace.Workspace;
 import io.github.rejeb.dataform.language.gcp.workspace.WorkspaceOperationsHandler;
-import io.github.rejeb.dataform.language.gcp.common.GcpApiException;
 import io.github.rejeb.dataform.language.gcp.workspace.repository.GcpDataformWorkspaceRepository;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
-public final class DataformGcpServiceImpl implements DataformGcpService {
+@State(
+        name = "DataformGcpFileCache",
+        storages = @Storage("dataform-gcp-file-cache.xml")
+)
+public final class DataformGcpServiceImpl
+        implements DataformGcpService, PersistentStateComponent<DataformGcpServiceImpl.CacheState> {
 
     private static final Logger LOG = Logger.getInstance(DataformGcpServiceImpl.class);
 
     private final WorkspaceOperationsHandler workspaceOperations;
+    private final Project project;
+    private final AtomicBoolean loading = new AtomicBoolean(false);
+    /** Persistent cache state. */
+    private CacheState cacheState = new CacheState();
 
     public DataformGcpServiceImpl(@NotNull Project project) {
+        this.project = project;
         var configProvider = new WorkflowSettingsGcpConfigProvider(
                 GcpRepositorySettings.getInstance(project)
         );
@@ -45,6 +61,62 @@ public final class DataformGcpServiceImpl implements DataformGcpService {
                 new GcpDataformWorkspaceRepository(),
                 configProvider,
                 project
+        );
+    }
+
+    @Override
+    public @Nullable CacheState getState() {
+        return cacheState;
+    }
+
+    @Override
+    public void loadState(@NotNull CacheState state) {
+        this.cacheState = state;
+    }
+
+    @Override
+    @NotNull
+    public Map<String, String> getCachedFiles() {
+        return cacheState.files != null ? Map.copyOf(cacheState.files) : Map.of();
+    }
+
+    @Override
+    public void invalidateCache() {
+        cacheState.files = null;
+    }
+
+    @Override
+    public void refreshFilesAsync(
+            @Nullable String workspaceId,
+            @NotNull Consumer<Map<String, String>> onDone
+    ) {
+        if (!loading.compareAndSet(false, true)) {
+            return;
+        }
+        com.intellij.openapi.progress.ProgressManager.getInstance().run(
+                new com.intellij.openapi.progress.Task.Backgroundable(
+                        project, "Loading Dataform repository files…", false) {
+                    @Override
+                    public void run(
+                            @NotNull com.intellij.openapi.progress.ProgressIndicator indicator
+                    ) {
+                        try {
+                            Map<String, String> files = workspaceOperations.pullCode(workspaceId);
+                            cacheState.files = new HashMap<>(files);
+                            com.intellij.openapi.application.ApplicationManager
+                                    .getApplication()
+                                    .invokeLater(() -> onDone.accept(files));
+                            project.getMessageBus()
+                                    .syncPublisher(DataformGcpFilesLoadedListener.TOPIC)
+                                    .onFilesLoaded(files);
+                        } catch (GcpApiException e) {
+                            LOG.warn("Failed to refresh Dataform files.", e);
+                            com.intellij.openapi.application.ApplicationManager
+                                    .getApplication()
+                                    .invokeLater(() -> onDone.accept(Map.of()));
+                        }
+                    }
+                }
         );
     }
 
@@ -72,7 +144,9 @@ public final class DataformGcpServiceImpl implements DataformGcpService {
     @NotNull
     public Map<String, String> pullCode(@Nullable String workspaceId) {
         try {
-            return workspaceOperations.pullCode(workspaceId);
+            Map<String, String> files = workspaceOperations.pullCode(workspaceId);
+            cacheState.files = new HashMap<>(files);   // mise à jour du cache persistant
+            return files;
         } catch (GcpApiException e) {
             LOG.error("Failed to pull code from Dataform workspace: " + workspaceId, e);
             return Map.of();
@@ -83,6 +157,7 @@ public final class DataformGcpServiceImpl implements DataformGcpService {
     public void syncCode(@Nullable String workspaceId) {
         try {
             workspaceOperations.syncCode(workspaceId);
+            invalidateCache();
         } catch (GcpApiException e) {
             LOG.error("Failed to sync code from Dataform: " + workspaceId, e);
         }
@@ -93,5 +168,18 @@ public final class DataformGcpServiceImpl implements DataformGcpService {
         workspaceOperations.testConnection(config);
     }
 
+    @Override
+    public boolean isLoading() {
+        return loading.get();
+    }
+
+    /**
+     * XML-serializable cache state.
+     * {@code files} maps relative path → file content.
+     */
+    public static final class CacheState {
+        @Nullable
+        public Map<String, String> files;
+    }
 
 }
