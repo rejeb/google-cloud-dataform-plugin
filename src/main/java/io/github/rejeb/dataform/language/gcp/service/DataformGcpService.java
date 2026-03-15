@@ -63,7 +63,7 @@ public interface DataformGcpService {
      *
      * @param workspaceId the target workspace ID
      */
-    @NotNull Map<String, String> pullCode(@Nullable String workspaceId);
+    @NotNull Map<String, String> fetchCode(@Nullable String workspaceId);
 
     /**
      * Pulls files from the given workspace (or repo main if {@code null})
@@ -72,7 +72,7 @@ public interface DataformGcpService {
      *
      * @param workspaceId the target workspace ID, or {@code null} to sync from repo main
      */
-    void syncCode(@Nullable String workspaceId);
+    void pullCode(@Nullable String workspaceId);
 
     /**
      * Tests the connection to the given Dataform repository config

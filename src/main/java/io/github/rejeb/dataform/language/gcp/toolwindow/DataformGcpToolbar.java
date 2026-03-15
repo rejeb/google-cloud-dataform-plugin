@@ -27,7 +27,7 @@ import com.intellij.openapi.ui.ComboBox;
 import com.intellij.ui.components.JBLabel;
 import io.github.rejeb.dataform.language.gcp.toolwindow.action.PullFromWorkspaceAction;
 import io.github.rejeb.dataform.language.gcp.toolwindow.action.PushToWorkspaceAction;
-import io.github.rejeb.dataform.language.gcp.toolwindow.action.SyncFromWorkspaceAction;
+import io.github.rejeb.dataform.language.gcp.toolwindow.action.RefreshAction;
 import io.github.rejeb.dataform.language.gcp.workspace.Workspace;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -35,7 +35,6 @@ import org.jetbrains.annotations.Nullable;
 import javax.swing.*;
 import java.awt.*;
 import java.util.List;
-import java.util.function.Supplier;
 
 public class DataformGcpToolbar extends JPanel {
 
@@ -79,16 +78,9 @@ public class DataformGcpToolbar extends JPanel {
     private JComponent buildToolbarComponent() {
         DefaultActionGroup group = new DefaultActionGroup();
 
-        group.add(new AnAction("Refresh Workspaces", "Load workspaces from GCP", AllIcons.Actions.Refresh) {
-            @Override
-            public void actionPerformed(@NotNull AnActionEvent e) {
-                callback.onRefreshWorkspaces();
-            }
-        });
-
+        group.add(new RefreshAction(this::getSelectedWorkspaceId, callback));
         group.addSeparator();
         group.add(new PullFromWorkspaceAction(this::getSelectedWorkspaceId, callback));
-        group.add(new SyncFromWorkspaceAction(this::getSelectedWorkspaceId, callback));
         group.add(new PushToWorkspaceAction(this::getSelectedWorkspaceId, callback));
         group.addSeparator();
         group.add(new AnAction("Configure Repository", "Configure Dataform GCP repository",

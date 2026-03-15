@@ -101,7 +101,7 @@ public final class DataformGcpServiceImpl
                             @NotNull com.intellij.openapi.progress.ProgressIndicator indicator
                     ) {
                         try {
-                            Map<String, String> files = workspaceOperations.pullCode(workspaceId);
+                            Map<String, String> files = workspaceOperations.fetchCode(workspaceId);
                             cacheState.files = new HashMap<>(files);
                             com.intellij.openapi.application.ApplicationManager
                                     .getApplication()
@@ -152,9 +152,9 @@ public final class DataformGcpServiceImpl
 
     @Override
     @NotNull
-    public Map<String, String> pullCode(@Nullable String workspaceId) {
+    public Map<String, String> fetchCode(@Nullable String workspaceId) {
         try {
-            Map<String, String> files = workspaceOperations.pullCode(workspaceId);
+            Map<String, String> files = workspaceOperations.fetchCode(workspaceId);
             cacheState.files = new HashMap<>(files);   // mise à jour du cache persistant
             return files;
         } catch (GcpApiException e) {
@@ -164,9 +164,9 @@ public final class DataformGcpServiceImpl
     }
 
     @Override
-    public void syncCode(@Nullable String workspaceId) {
+    public void pullCode(@Nullable String workspaceId) {
         try {
-            workspaceOperations.syncCode(workspaceId);
+            workspaceOperations.pullCode(workspaceId);
             invalidateCache();
         } catch (GcpApiException e) {
             LOG.error("Failed to sync code from Dataform: " + workspaceId, e);

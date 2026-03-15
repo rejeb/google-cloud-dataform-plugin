@@ -50,7 +50,7 @@ public interface WorkspaceOperations {
      *         empty map otherwise
      * @throws GcpApiException on API error
      */
-    @NotNull Map<String, String> pullCode(@Nullable String workspaceId);
+    @NotNull Map<String, String> fetchCode(@Nullable String workspaceId);
 
     /**
      * Pulls files from the given workspace (or repo main if {@code null})
@@ -59,7 +59,7 @@ public interface WorkspaceOperations {
      * @param workspaceId the target workspace ID, or {@code null} to sync from repo main
      * @throws GcpApiException on API error
      */
-    void syncCode(@Nullable String workspaceId);
+    void pullCode(@Nullable String workspaceId);
 
     void testConnection(@NotNull DataformRepositoryConfig config);
 

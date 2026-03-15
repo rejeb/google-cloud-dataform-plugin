@@ -137,13 +137,13 @@ public class DataformGcpPanel extends JPanel {
             }
 
             @Override
-            public void onPull(@Nullable String workspaceId) {
-                pull(workspaceId);
+            public void onFetch(@Nullable String workspaceId) {
+                fetch(workspaceId);
             }
 
             @Override
-            public void onSync(@Nullable String workspaceId) {
-                sync(workspaceId);
+            public void onPull(@Nullable String workspaceId) {
+                pull(workspaceId);
             }
 
             @Override
@@ -185,7 +185,7 @@ public class DataformGcpPanel extends JPanel {
         });
     }
 
-    private void pull(@Nullable String workspaceId) {
+    private void fetch(@Nullable String workspaceId) {
         String title = workspaceId != null
                 ? "Pulling from workspace '" + workspaceId + "'…"
                 : "Reading files from repo main branch…";
@@ -194,13 +194,13 @@ public class DataformGcpPanel extends JPanel {
             @Override
             public void run(@NotNull ProgressIndicator indicator) {
                 Map<String, String> files = DataformGcpService.getInstance(project)
-                        .pullCode(workspaceId);
+                        .fetchCode(workspaceId);
                 ApplicationManager.getApplication().invokeLater(() -> treeModel.setFiles(files));
             }
         });
     }
 
-    private void sync(@Nullable String workspaceId) {
+    private void pull(@Nullable String workspaceId) {
         String title = workspaceId != null
                 ? "Syncing from workspace '" + workspaceId + "'…"
                 : "Syncing from repo main branch…";
@@ -208,7 +208,7 @@ public class DataformGcpPanel extends JPanel {
         ProgressManager.getInstance().run(new Task.Backgroundable(project, title) {
             @Override
             public void run(@NotNull ProgressIndicator indicator) {
-                DataformGcpService.getInstance(project).syncCode(workspaceId);
+                DataformGcpService.getInstance(project).pullCode(workspaceId);
                 ApplicationManager.getApplication().invokeLater(
                         () -> JOptionPane.showMessageDialog(
                                 DataformGcpPanel.this,
@@ -249,12 +249,12 @@ public class DataformGcpPanel extends JPanel {
     public interface PanelCallback {
         void onRefreshWorkspaces();
 
-        void onPull(@Nullable String workspaceId);
+        void onFetch(@Nullable String workspaceId);
 
         /**
          * Pull and apply files to local project.
          */
-        void onSync(@Nullable String workspaceId);
+        void onPull(@Nullable String workspaceId);
 
         void onPush(@NotNull String workspaceId);
 

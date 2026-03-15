@@ -85,7 +85,7 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
 
     @Override
     @NotNull
-    public Map<String, String> pullCode(@Nullable String workspaceId) {
+    public Map<String, String> fetchCode(@Nullable String workspaceId) {
         GcpConfig config = readConfig();
         if (config == null) return Map.of();
 
@@ -94,7 +94,7 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
     }
 
     @Override
-    public void syncCode(@Nullable String workspaceId) {
+    public void pullCode(@Nullable String workspaceId) {
         GcpConfig config = readConfig();
         if (config == null) return;
 

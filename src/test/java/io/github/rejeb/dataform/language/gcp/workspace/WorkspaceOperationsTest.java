@@ -137,8 +137,8 @@ public class WorkspaceOperationsTest extends BasePlatformTestCase {
         assertEquals("my-workspace", workspace.workspaceId());
     }
 
-    public void testPullCodeWithWorkspaceIdCallsRepository() {
-        handler(fullConfig).pullCode("dev");
+    public void testFetchCodeWithWorkspaceIdCallsRepository() {
+        handler(fullConfig).fetchCode("dev");
 
         verify(repository).pull(
                 "test-project", "europe-west1", "test-repo", "dev",
@@ -146,26 +146,26 @@ public class WorkspaceOperationsTest extends BasePlatformTestCase {
         );
     }
 
-    public void testPullCodeWithWorkspaceIdReturnsEmptyMap() {
-        Map<String, String> result = handler(fullConfig).pullCode("dev");
+    public void testFetchCodeWithWorkspaceIdReturnsEmptyMap() {
+        Map<String, String> result = handler(fullConfig).fetchCode("dev");
 
         assertTrue(result.isEmpty());
     }
 
-    public void testPullCodeWithWorkspaceIdSkipsWhenConfigMissing() {
-        handler(emptyConfig).pullCode("dev");
+    public void testFetchCodeWithWorkspaceIdSkipsWhenConfigMissing() {
+        handler(emptyConfig).fetchCode("dev");
 
         verifyNoInteractions(repository);
     }
 
-    public void testPullCodeWithWorkspaceIdPropagatesGcpApiException() {
+    public void testFetchCodeWithWorkspaceIdPropagatesGcpApiException() {
         doThrow(new GcpApiException("failure", new RuntimeException()))
                 .when(repository).pull(any(), any(), any(), any(),any());
 
-        assertThrows(GcpApiException.class, () -> handler(fullConfig).pullCode("dev"));
+        assertThrows(GcpApiException.class, () -> handler(fullConfig).fetchCode("dev"));
     }
 
-    public void testPullCodeFromRepositoryReturnsFileContents() {
+    public void testFetchCodeFromRepositoryReturnsFileContents() {
         List<String> paths = List.of("definitions/my_table.sqlx", "workflow_settings.yaml");
         Map<String, String> expected = Map.of(
                 "definitions/my_table.sqlx", "SELECT 1",
@@ -175,67 +175,67 @@ public class WorkspaceOperationsTest extends BasePlatformTestCase {
                 "test-project", "europe-west1", "test-repo", paths))
                 .thenReturn(expected);
 
-        Map<String, String> result = handlerWithResolver(fullConfig, paths).pullCode(null);
+        Map<String, String> result = handlerWithResolver(fullConfig, paths).fetchCode(null);
 
         assertEquals(expected, result);
     }
 
-    public void testPullCodeFromRepositorySkipsWhenNoFiles() {
-        Map<String, String> result = handlerWithResolver(fullConfig, List.of()).pullCode(null);
+    public void testFetchCodeFromRepositorySkipsWhenNoFiles() {
+        Map<String, String> result = handlerWithResolver(fullConfig, List.of()).fetchCode(null);
 
         assertTrue(result.isEmpty());
         verifyNoInteractions(repository);
     }
 
-    public void testPullCodeFromRepositorySkipsWhenConfigMissing() {
+    public void testFetchCodeFromRepositorySkipsWhenConfigMissing() {
         Map<String, String> result = handlerWithResolver(
                 emptyConfig, List.of("definitions/my_table.sqlx")
-        ).pullCode(null);
+        ).fetchCode(null);
 
         assertTrue(result.isEmpty());
         verifyNoInteractions(repository);
     }
 
-    public void testPullCodeFromRepositoryPropagatesGcpApiException() {
+    public void testFetchCodeFromRepositoryPropagatesGcpApiException() {
+        List<String> paths = List.of("definitions/my_table.sqlx");
+        doThrow(new GcpApiException("failure", new RuntimeException()))
+                .when(repository).readFilesFromRepository(any(), any(), any(), any());
+
+        assertThrows(GcpApiException.class,
+                () -> handlerWithResolver(fullConfig, paths).fetchCode(null));
+    }
+
+    public void testPullCodeCallsReadFilesFromRepository() {
+        List<String> paths = List.of("definitions/my_table.sqlx");
+        when(repository.readFilesFromRepository(
+                "test-project", "europe-west1", "test-repo", paths))
+                .thenReturn(Map.of("definitions/my_table.sqlx", "SELECT 1"));
+
+        handlerWithResolver(fullConfig, paths).pullCode(null);
+
+        verify(repository).readFilesFromRepository(
+                "test-project", "europe-west1", "test-repo", paths);
+    }
+
+    public void testPullCodeSkipsWhenNoFiles() {
+        handlerWithResolver(fullConfig, List.of()).pullCode(null);
+
+        verifyNoInteractions(repository);
+    }
+
+    public void testPullCodeSkipsWhenConfigMissing() {
+        handlerWithResolver(emptyConfig, List.of("definitions/my_table.sqlx")).pullCode(null);
+
+        verifyNoInteractions(repository);
+    }
+
+    public void testPullCodePropagatesGcpApiException() {
         List<String> paths = List.of("definitions/my_table.sqlx");
         doThrow(new GcpApiException("failure", new RuntimeException()))
                 .when(repository).readFilesFromRepository(any(), any(), any(), any());
 
         assertThrows(GcpApiException.class,
                 () -> handlerWithResolver(fullConfig, paths).pullCode(null));
-    }
-
-    public void testSyncCodeCallsReadFilesFromRepository() {
-        List<String> paths = List.of("definitions/my_table.sqlx");
-        when(repository.readFilesFromRepository(
-                "test-project", "europe-west1", "test-repo", paths))
-                .thenReturn(Map.of("definitions/my_table.sqlx", "SELECT 1"));
-
-        handlerWithResolver(fullConfig, paths).syncCode(null);
-
-        verify(repository).readFilesFromRepository(
-                "test-project", "europe-west1", "test-repo", paths);
-    }
-
-    public void testSyncCodeSkipsWhenNoFiles() {
-        handlerWithResolver(fullConfig, List.of()).syncCode(null);
-
-        verifyNoInteractions(repository);
-    }
-
-    public void testSyncCodeSkipsWhenConfigMissing() {
-        handlerWithResolver(emptyConfig, List.of("definitions/my_table.sqlx")).syncCode(null);
-
-        verifyNoInteractions(repository);
-    }
-
-    public void testSyncCodePropagatesGcpApiException() {
-        List<String> paths = List.of("definitions/my_table.sqlx");
-        doThrow(new GcpApiException("failure", new RuntimeException()))
-                .when(repository).readFilesFromRepository(any(), any(), any(), any());
-
-        assertThrows(GcpApiException.class,
-                () -> handlerWithResolver(fullConfig, paths).syncCode(null));
     }
 
 
