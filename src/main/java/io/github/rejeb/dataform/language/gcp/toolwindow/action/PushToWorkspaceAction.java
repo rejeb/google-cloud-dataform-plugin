@@ -17,6 +17,7 @@
 package io.github.rejeb.dataform.language.gcp.toolwindow.action;
 
 import com.intellij.icons.AllIcons;
+import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.ui.Messages;
@@ -35,7 +36,7 @@ public class PushToWorkspaceAction extends AnAction {
             @NotNull Supplier<@Nullable String> workspaceIdSupplier,
             @NotNull DataformGcpPanel.PanelCallback callback
     ) {
-        super("Push Files", "Push local files to the selected workspace", AllIcons.Actions.Upload);
+        super(() -> "Push Files from Local to Workspace", AllIcons.Actions.Upload);
         this.workspaceIdSupplier = workspaceIdSupplier;
         this.callback = callback;
     }
@@ -51,5 +52,23 @@ public class PushToWorkspaceAction extends AnAction {
             return;
         }
         callback.onPush(workspaceId);
+    }
+
+    @Override
+    public void update(@NotNull AnActionEvent e) {
+        String workspaceId = workspaceIdSupplier.get();
+        boolean hasWorkspace = workspaceId != null;
+
+        e.getPresentation().setEnabled(hasWorkspace);
+        e.getPresentation().setText(
+                hasWorkspace
+                        ? "Push local files to workspace '" + workspaceId + "'"
+                        : "Select a workspace to enable push"
+        );
+    }
+
+    @Override
+    public @NotNull ActionUpdateThread getActionUpdateThread() {
+        return ActionUpdateThread.EDT;
     }
 }

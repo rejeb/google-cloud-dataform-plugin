@@ -17,8 +17,10 @@
 package io.github.rejeb.dataform.language.gcp.toolwindow.action;
 
 import com.intellij.icons.AllIcons;
+import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
+import com.intellij.openapi.ui.Messages;
 import io.github.rejeb.dataform.language.gcp.toolwindow.DataformGcpPanel;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -34,7 +36,7 @@ public class PullFromWorkspaceAction extends AnAction {
             @NotNull Supplier<@Nullable String> workspaceIdSupplier,
             @NotNull DataformGcpPanel.PanelCallback callback
     ) {
-        super("Pull Files", "Pull files from the selected workspace or repo main branch",
+        super(()->"Pull Files from Workspace to Local",
                 AllIcons.Actions.Download);
         this.workspaceIdSupplier = workspaceIdSupplier;
         this.callback = callback;
@@ -42,6 +44,32 @@ public class PullFromWorkspaceAction extends AnAction {
 
     @Override
     public void actionPerformed(@NotNull AnActionEvent e) {
-        callback.onPull(workspaceIdSupplier.get());
+        String workspaceId = workspaceIdSupplier.get();
+        if (workspaceId == null) {
+            Messages.showWarningDialog(
+                    "Please select a workspace before pulling.",
+                    "No Workspace Selected"
+            );
+            return;
+        }
+        callback.onPush(workspaceId);
+    }
+
+    @Override
+    public void update(@NotNull AnActionEvent e) {
+        String workspaceId = workspaceIdSupplier.get();
+        boolean hasWorkspace = workspaceId != null;
+
+        e.getPresentation().setEnabled(hasWorkspace);
+        e.getPresentation().setText(
+                hasWorkspace
+                        ? "Pull workspace '" + workspaceId + "' files to local"
+                        : "Select a workspace to enable push"
+        );
+    }
+
+    @Override
+    public @NotNull ActionUpdateThread getActionUpdateThread() {
+        return ActionUpdateThread.EDT;
     }
 }

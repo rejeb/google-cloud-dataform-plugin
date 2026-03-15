@@ -52,6 +52,17 @@ public final class GcpRepositorySettingsImpl
     }
 
     @Override
+    public void setSelectedWorkspaceId(@Nullable String workspaceId) {
+        getState().selectedWorkspaceId = workspaceId;
+    }
+
+    @Override
+    @Nullable
+    public String getSelectedWorkspaceId() {
+        return getState().selectedWorkspaceId;
+    }
+
+    @Override
     public @Nullable State getState() {
         return state;
     }
@@ -61,10 +72,10 @@ public final class GcpRepositorySettingsImpl
         this.state = state;
     }
 
-    /** Bean XML-serializable par IntelliJ. */
     public static final class State {
         public @Nullable String projectId;
         public @Nullable String repositoryId;
         public @Nullable String location;
+        public @Nullable String selectedWorkspaceId;
     }
 }

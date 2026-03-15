@@ -22,8 +22,11 @@ import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.wm.ToolWindow;
+import com.intellij.openapi.wm.ToolWindowManager;
 import com.intellij.ui.ScrollPaneFactory;
 import com.intellij.ui.components.labels.LinkLabel;
+import com.intellij.ui.tabs.*;
 import com.intellij.ui.treeStructure.Tree;
 import com.intellij.util.ui.tree.TreeUtil;
 import io.github.rejeb.dataform.language.gcp.service.DataformGcpFilesLoadedListener;
@@ -33,7 +36,6 @@ import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
 import io.github.rejeb.dataform.language.gcp.workspace.Workspace;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.jspecify.annotations.NonNull;
 
 import javax.swing.*;
 import java.awt.*;
@@ -52,7 +54,6 @@ public class DataformGcpPanel extends JPanel {
         this.project = project;
 
         DataformRepositoryConfig config = GcpRepositorySettings.getInstance(project).getConfig();
-
         if (config == null) {
             showUnconfiguredState();
         } else {
@@ -82,10 +83,87 @@ public class DataformGcpPanel extends JPanel {
         removeAll();
         setLayout(new BorderLayout());
 
+        // Panel contenu (CardLayout)
+        JPanel contentPanel = new JPanel(new CardLayout());
+        contentPanel.add(buildFilesView(config), "FILES");
+        contentPanel.add(buildGitView(), "GIT");
+
+        // Barre latérale gauche
+        JPanel sideBar = buildSideBar(contentPanel);
+
+        add(sideBar, BorderLayout.WEST);
+        add(contentPanel, BorderLayout.CENTER);
+
+        // Afficher la vue Files par défaut
+        ((CardLayout) contentPanel.getLayout()).show(contentPanel, "FILES");
+        ToolWindow toolWindow = ToolWindowManager.getInstance(project)
+                .getToolWindow("Dataform");
+        if (toolWindow != null) {
+            toolWindow.setTitle("GCP remote project view");
+        }
+        revalidate();
+        repaint();
+    }
+
+    private JPanel buildSideBar(@NotNull JPanel contentPanel) {
+        JPanel sideBar = new JPanel();
+        sideBar.setLayout(new BoxLayout(sideBar, BoxLayout.Y_AXIS));
+        sideBar.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1,
+                UIManager.getColor("Separator.foreground")));
+
+        sideBar.add(buildSideBarButton(
+                AllIcons.Actions.ProjectDirectory,
+                "Files",
+                "GCP remote project view",   // ← titre
+                contentPanel, "FILES"
+        ));
+        sideBar.add(buildSideBarButton(
+                AllIcons.Vcs.Branch,
+                "Git",
+                "Commit",                    // ← titre
+                contentPanel, "GIT"
+        ));
+        sideBar.add(Box.createVerticalGlue()); // pousse les boutons vers le haut
+        return sideBar;
+    }
+
+    private JButton buildSideBarButton(
+            @NotNull Icon icon,
+            @NotNull String tooltip,
+            @NotNull String title,        // ← nouveau paramètre
+            @NotNull JPanel contentPanel,
+            @NotNull String cardKey
+    ) {
+        JButton btn = new JButton(icon);
+        btn.setToolTipText(tooltip);
+        btn.setBorderPainted(false);
+        btn.setContentAreaFilled(false);
+        btn.setFocusPainted(false);
+        btn.setAlignmentX(Component.CENTER_ALIGNMENT);
+        btn.setMaximumSize(new Dimension(30, 30));
+        btn.setPreferredSize(new Dimension(30, 30));
+        btn.addActionListener(e -> {
+            ((CardLayout) contentPanel.getLayout()).show(contentPanel, cardKey);
+            // Changer le titre du ToolWindow
+            ToolWindow toolWindow = ToolWindowManager.getInstance(project)
+                    .getToolWindow("Dataform"); // l'id déclaré dans plugin.xml
+            if (toolWindow != null) {
+                toolWindow.setTitle(title);
+            }
+        });
+        return btn;
+    }
+
+    private JPanel buildGitView() {
+        return new JPanel(); // vide pour l'instant
+    }
+
+
+    private JComponent buildFilesView(@NotNull DataformRepositoryConfig config) {
+        JPanel panel = new JPanel(new BorderLayout());
+
         treeModel = new DataformRepoTreeModel(config.repositoryId());
-
         PanelCallback callback = buildPanelCallback();
-
         toolbar = new DataformGcpToolbar(project, callback);
 
         tree = new Tree(treeModel);
@@ -98,11 +176,9 @@ public class DataformGcpPanel extends JPanel {
         Map<String, String> cached = service.getCachedFiles();
 
         if (!cached.isEmpty()) {
-            // Cache dispo → affichage immédiat
             treeModel.setFiles(cached);
             TreeUtil.expandAll(tree);
         } else if (!service.isLoading()) {
-            // Pas de cache ET pas de chargement en cours → déclencher
             treeModel.setLoading(true);
             service.refreshFilesAsync(null, files -> {
                 treeModel.setLoading(false);
@@ -110,7 +186,6 @@ public class DataformGcpPanel extends JPanel {
                 TreeUtil.expandAll(tree);
             });
         } else {
-            // Chargement déjà en cours (déclenché par startup) → juste afficher "Loading…"
             treeModel.setLoading(true);
             project.getMessageBus()
                     .connect()
@@ -119,17 +194,17 @@ public class DataformGcpPanel extends JPanel {
                                 treeModel.setLoading(false);
                                 treeModel.setFiles(files);
                                 TreeUtil.expandAll(tree);
-                            }
-                    );
+                            });
         }
+
         refreshWorkspaces();
-        add(toolbar, BorderLayout.NORTH);
-        add(ScrollPaneFactory.createScrollPane(tree), BorderLayout.CENTER);
-        revalidate();
-        repaint();
+
+        panel.add(toolbar, BorderLayout.NORTH);
+        panel.add(ScrollPaneFactory.createScrollPane(tree), BorderLayout.CENTER);
+        return panel;
     }
 
-    private @NonNull PanelCallback buildPanelCallback() {
+    private @NotNull PanelCallback buildPanelCallback() {
         return new PanelCallback() {
             @Override
             public void onRefreshWorkspaces() {
@@ -202,8 +277,8 @@ public class DataformGcpPanel extends JPanel {
 
     private void pull(@Nullable String workspaceId) {
         String title = workspaceId != null
-                ? "Syncing from workspace '" + workspaceId + "'…"
-                : "Syncing from repo main branch…";
+                ? "Pulling from workspace '" + workspaceId + "'…"
+                : "Pulling from repo main branch…";
 
         ProgressManager.getInstance().run(new Task.Backgroundable(project, title) {
             @Override

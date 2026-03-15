@@ -18,7 +18,7 @@ public class RefreshAction extends AnAction {
             @NotNull Supplier<@Nullable String> workspaceIdSupplier,
             @NotNull DataformGcpPanel.PanelCallback callback
     ) {
-        super("Refresh Workspaces", "Load workspaces from GCP",
+        super(() -> "Refresh Workspaces",
                 AllIcons.Actions.Refresh);
         this.workspaceIdSupplier = workspaceIdSupplier;
         this.callback = callback;

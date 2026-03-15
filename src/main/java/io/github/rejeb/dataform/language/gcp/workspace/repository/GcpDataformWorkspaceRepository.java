@@ -81,6 +81,7 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
                             .setEmailAddress(author.emailAddress())
                             .build())
                     .setCommitMessage("Changes from IntelliJ Dataform Plugin")
+
                     .build();
             client.commitWorkspaceChanges(commitRequest);
 

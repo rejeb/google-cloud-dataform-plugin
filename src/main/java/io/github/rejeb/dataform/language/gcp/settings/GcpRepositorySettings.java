@@ -32,6 +32,10 @@ public interface GcpRepositorySettings {
     /** Persists the given configuration. */
     void saveConfig(@NotNull DataformRepositoryConfig config);
 
+    void setSelectedWorkspaceId(@Nullable String workspaceId);
+
+    @Nullable String getSelectedWorkspaceId();
+
     // Legacy compat — dérivés de getConfig()
     default @Nullable String getRepositoryId() {
         DataformRepositoryConfig c = getConfig();

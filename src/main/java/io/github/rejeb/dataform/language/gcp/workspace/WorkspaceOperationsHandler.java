@@ -77,8 +77,6 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
         GcpConfig config = readConfig();
         if (config == null) return;
 
-        List<String> paths = ReadAction.compute(() -> filesResolver.apply(project));
-        if (paths.isEmpty()) return;
         CommitAuthorConfig author = configProvider.getCommitAuthor();
         workspaceRepository.commit(config.projectId, config.location, config.repositoryId, workspaceId,author);
     }
