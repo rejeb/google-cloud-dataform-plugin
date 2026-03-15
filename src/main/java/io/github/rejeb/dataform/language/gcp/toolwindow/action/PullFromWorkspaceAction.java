@@ -52,7 +52,7 @@ public class PullFromWorkspaceAction extends AnAction {
             );
             return;
         }
-        callback.onPush(workspaceId);
+        callback.onPull(workspaceId);
     }
 
     @Override

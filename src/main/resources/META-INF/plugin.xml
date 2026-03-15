@@ -79,7 +79,7 @@
                 serviceImplementation="io.github.rejeb.dataform.language.gcp.service.DataformGcpServiceImpl"/>
 
         <toolWindow
-                id="Dataform GCP"
+                id="Dataform Tools"
                 anchor="right"
                 factoryClass="io.github.rejeb.dataform.language.gcp.toolwindow.DataformGcpToolWindowFactory"
                 icon="/icons/dataform-panel.png"/>

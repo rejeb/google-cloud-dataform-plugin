@@ -22,12 +22,10 @@ import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.wm.ToolWindow;
-import com.intellij.openapi.wm.ToolWindowManager;
 import com.intellij.ui.ScrollPaneFactory;
 import com.intellij.ui.components.labels.LinkLabel;
-import com.intellij.ui.tabs.*;
 import com.intellij.ui.treeStructure.Tree;
+import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.tree.TreeUtil;
 import io.github.rejeb.dataform.language.gcp.service.DataformGcpFilesLoadedListener;
 import io.github.rejeb.dataform.language.gcp.service.DataformGcpService;
@@ -83,24 +81,17 @@ public class DataformGcpPanel extends JPanel {
         removeAll();
         setLayout(new BorderLayout());
 
-        // Panel contenu (CardLayout)
         JPanel contentPanel = new JPanel(new CardLayout());
         contentPanel.add(buildFilesView(config), "FILES");
         contentPanel.add(buildGitView(), "GIT");
 
-        // Barre latérale gauche
         JPanel sideBar = buildSideBar(contentPanel);
 
         add(sideBar, BorderLayout.WEST);
         add(contentPanel, BorderLayout.CENTER);
 
-        // Afficher la vue Files par défaut
         ((CardLayout) contentPanel.getLayout()).show(contentPanel, "FILES");
-        ToolWindow toolWindow = ToolWindowManager.getInstance(project)
-                .getToolWindow("Dataform");
-        if (toolWindow != null) {
-            toolWindow.setTitle("GCP remote project view");
-        }
+
         revalidate();
         repaint();
     }
@@ -108,29 +99,26 @@ public class DataformGcpPanel extends JPanel {
     private JPanel buildSideBar(@NotNull JPanel contentPanel) {
         JPanel sideBar = new JPanel();
         sideBar.setLayout(new BoxLayout(sideBar, BoxLayout.Y_AXIS));
-        sideBar.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1,
-                UIManager.getColor("Separator.foreground")));
+        sideBar.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 1,
+                UIManager.getColor("Separator.separatorColor")));
 
         sideBar.add(buildSideBarButton(
                 AllIcons.Actions.ProjectDirectory,
                 "Files",
-                "GCP remote project view",   // ← titre
                 contentPanel, "FILES"
         ));
         sideBar.add(buildSideBarButton(
                 AllIcons.Vcs.Branch,
                 "Git",
-                "Commit",                    // ← titre
                 contentPanel, "GIT"
         ));
-        sideBar.add(Box.createVerticalGlue()); // pousse les boutons vers le haut
+        sideBar.add(Box.createVerticalGlue());
         return sideBar;
     }
 
     private JButton buildSideBarButton(
             @NotNull Icon icon,
             @NotNull String tooltip,
-            @NotNull String title,        // ← nouveau paramètre
             @NotNull JPanel contentPanel,
             @NotNull String cardKey
     ) {
@@ -142,22 +130,11 @@ public class DataformGcpPanel extends JPanel {
         btn.setAlignmentX(Component.CENTER_ALIGNMENT);
         btn.setMaximumSize(new Dimension(30, 30));
         btn.setPreferredSize(new Dimension(30, 30));
-        btn.addActionListener(e -> {
-            ((CardLayout) contentPanel.getLayout()).show(contentPanel, cardKey);
-            // Changer le titre du ToolWindow
-            ToolWindow toolWindow = ToolWindowManager.getInstance(project)
-                    .getToolWindow("Dataform"); // l'id déclaré dans plugin.xml
-            if (toolWindow != null) {
-                toolWindow.setTitle(title);
-            }
-        });
+        btn.addActionListener(e ->
+                ((CardLayout) contentPanel.getLayout()).show(contentPanel, cardKey)
+        );
         return btn;
     }
-
-    private JPanel buildGitView() {
-        return new JPanel(); // vide pour l'instant
-    }
-
 
     private JComponent buildFilesView(@NotNull DataformRepositoryConfig config) {
         JPanel panel = new JPanel(new BorderLayout());
@@ -199,10 +176,39 @@ public class DataformGcpPanel extends JPanel {
 
         refreshWorkspaces();
 
-        panel.add(toolbar, BorderLayout.NORTH);
+        // Titre contextuel
+        JLabel titleLabel = new JLabel("GCP remote project view");
+        titleLabel.setFont(JBUI.Fonts.label().asBold());
+        titleLabel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(1, 0, 1, 0,
+                        UIManager.getColor("Separator.separatorColor")),
+                JBUI.Borders.empty(4, 8)
+        ));
+
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.add(titleLabel, BorderLayout.NORTH);
+        topPanel.add(toolbar, BorderLayout.CENTER);
+
+        panel.add(topPanel, BorderLayout.NORTH);
         panel.add(ScrollPaneFactory.createScrollPane(tree), BorderLayout.CENTER);
         return panel;
     }
+
+    private JPanel buildGitView() {
+        JPanel panel = new JPanel(new BorderLayout());
+
+        JLabel titleLabel = new JLabel("Commit");
+        titleLabel.setFont(JBUI.Fonts.label().asBold());
+        titleLabel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(1, 0, 1, 0,
+                        UIManager.getColor("Separator.separatorColor")),
+                JBUI.Borders.empty(4, 8)
+        ));
+
+        panel.add(titleLabel, BorderLayout.NORTH);
+        return panel;
+    }
+
 
     private @NotNull PanelCallback buildPanelCallback() {
         return new PanelCallback() {
@@ -241,12 +247,10 @@ public class DataformGcpPanel extends JPanel {
     private void openConfigDialog() {
         DataformRepositoryConfigDialog dialog = new DataformRepositoryConfigDialog(project);
         if (dialog.showAndGet()) {
-            // Sauvegarde OK → réinitialise le panel avec la nouvelle config
             DataformRepositoryConfig config = GcpRepositorySettings.getInstance(project).getConfig();
             if (config != null) initConfiguredState(config);
         }
     }
-
 
     private void refreshWorkspaces() {
         ProgressManager.getInstance().run(new Task.Backgroundable(project, "Loading Dataform workspaces…") {
@@ -298,7 +302,7 @@ public class DataformGcpPanel extends JPanel {
 
     private void commit(@NotNull String workspaceId) {
         ProgressManager.getInstance().run(
-                new Task.Backgroundable(project, "Pushing to workspace '" + workspaceId + "'…") {
+                new Task.Backgroundable(project, "Committing workspace '" + workspaceId + "'…") {
                     @Override
                     public void run(@NotNull ProgressIndicator indicator) {
                         DataformGcpService.getInstance(project).commitCode(workspaceId);
@@ -318,17 +322,11 @@ public class DataformGcpPanel extends JPanel {
         );
     }
 
-    /**
-     * Callback interface used by toolbar actions to trigger panel operations.
-     */
     public interface PanelCallback {
         void onRefreshWorkspaces();
 
         void onFetch(@Nullable String workspaceId);
 
-        /**
-         * Pull and apply files to local project.
-         */
         void onPull(@Nullable String workspaceId);
 
         void onPush(@NotNull String workspaceId);
