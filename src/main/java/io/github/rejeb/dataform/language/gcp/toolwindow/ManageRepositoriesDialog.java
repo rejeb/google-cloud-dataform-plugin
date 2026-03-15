@@ -27,6 +27,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
+import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -40,14 +41,12 @@ public class ManageRepositoriesDialog extends DialogWrapper {
         super(project, true);
         this.project = project;
         setTitle("Manage Dataform Repositories");
-        setOKButtonText("Close");
-        setCancelButtonText(null);
 
         GcpRepositorySettings.getInstance(project).getAllConfigs().forEach(listModel::addElement);
 
         repoList.setCellRenderer(new DefaultListCellRenderer() {
             @Override
-            public java.awt.Component getListCellRendererComponent(
+            public Component getListCellRendererComponent(
                     JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
                 super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
                 if (value instanceof DataformRepositoryConfig c) {
@@ -67,10 +66,26 @@ public class ManageRepositoriesDialog extends DialogWrapper {
                 .setAddAction(button -> addRepository())
                 .setEditAction(button -> editSelected())
                 .setRemoveAction(button -> removeSelected())
+                .setEditActionUpdater(e -> !repoList.isSelectionEmpty())
+                .setRemoveActionUpdater(e -> !repoList.isSelectionEmpty())
                 .disableUpDownActions()
                 .createPanel();
-        decorated.setPreferredSize(new java.awt.Dimension(520, 280));
+        decorated.setPreferredSize(new Dimension(520, 280));
         return decorated;
+    }
+
+    /**
+     * Exposes only a "Close" button — changes are persisted immediately on each action.
+     */
+    @Override
+    protected @NotNull Action @NotNull [] createActions() {
+        return new Action[]{getOKAction()};
+    }
+
+    @Override
+    protected void createDefaultActions() {
+        super.createDefaultActions();
+        setOKButtonText("Close");
     }
 
     private void addRepository() {

@@ -33,6 +33,7 @@ public class RepositorySelectorPanel extends JPanel {
     private final Project project;
     private final ComboBox<DataformRepositoryConfig> repoCombo = new ComboBox<>();
     private final Runnable onSelectionChanged;
+    private boolean updating = false;
 
     public RepositorySelectorPanel(@NotNull Project project, @NotNull Runnable onSelectionChanged) {
         super(new FlowLayout(FlowLayout.LEFT, 6, 4));
@@ -50,6 +51,7 @@ public class RepositorySelectorPanel extends JPanel {
         });
 
         repoCombo.addItemListener(e -> {
+            if (updating) return;
             if (e.getStateChange() == ItemEvent.SELECTED && e.getItem() instanceof DataformRepositoryConfig c) {
                 GcpRepositorySettings.getInstance(project).setActiveRepositoryId(c.repositoryId());
                 onSelectionChanged.run();
@@ -66,12 +68,19 @@ public class RepositorySelectorPanel extends JPanel {
      * Reloads the combo from persisted settings and restores the active selection.
      */
     public void refresh() {
-        repoCombo.removeAllItems();
-        List<DataformRepositoryConfig> all = GcpRepositorySettings.getInstance(project).getAllConfigs();
-        String activeId = GcpRepositorySettings.getInstance(project).getActiveRepositoryId();
-        for (DataformRepositoryConfig c : all) {
-            repoCombo.addItem(c);
-            if (c.repositoryId().equals(activeId)) repoCombo.setSelectedItem(c);
+        updating = true;
+        try {
+            repoCombo.removeAllItems();
+            List<DataformRepositoryConfig> all = GcpRepositorySettings.getInstance(project).getAllConfigs();
+            String activeId = GcpRepositorySettings.getInstance(project).getActiveRepositoryId();
+            DataformRepositoryConfig toSelect = null;
+            for (DataformRepositoryConfig c : all) {
+                repoCombo.addItem(c);
+                if (c.repositoryId().equals(activeId)) toSelect = c;
+            }
+            if (toSelect != null) repoCombo.setSelectedItem(toSelect);
+        } finally {
+            updating = false;
         }
     }
 }

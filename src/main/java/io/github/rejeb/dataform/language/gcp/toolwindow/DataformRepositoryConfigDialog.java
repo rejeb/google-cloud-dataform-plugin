@@ -93,11 +93,6 @@ public class DataformRepositoryConfigDialog extends DialogWrapper {
         return null;
     }
 
-    @Override
-    protected void doOKAction() {
-        GcpRepositorySettings.getInstance(project).saveConfig(buildConfig());
-        super.doOKAction();
-    }
 
     private void testConnection() {
         ValidationInfo validation = doValidate();
