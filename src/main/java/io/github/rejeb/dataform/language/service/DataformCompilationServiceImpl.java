@@ -41,7 +41,7 @@ import java.util.Optional;
 
 @State(
         name = "DataformCompilationService",
-        storages = @Storage(value = StoragePathMacros.CACHE_FILE)
+        storages = @Storage("dataform-compilation-result.xml")
 )
 public final class DataformCompilationServiceImpl
         implements DataformCompilationService {

@@ -1,0 +1,345 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package io.github.rejeb.dataform.language.gcp.workspace.repository;
+
+import com.google.cloud.dataform.v1beta1.*;
+import com.intellij.openapi.diagnostic.Logger;
+import io.github.rejeb.dataform.language.gcp.common.CommitAuthorConfig;
+import io.github.rejeb.dataform.language.gcp.common.GcpApiException;
+import io.github.rejeb.dataform.language.gcp.workspace.Workspace;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
+
+    private static final Logger LOG = Logger.getInstance(GcpDataformWorkspaceRepository.class);
+
+    @Override
+    @NotNull
+    public List<Workspace> findAll(
+            @NotNull String projectId,
+            @NotNull String location,
+            @NotNull String repositoryId
+    ) {
+        List<Workspace> result = new ArrayList<>();
+        try (DataformClient client = DataformClient.create()) {
+            String parent = RepositoryName.of(projectId, location, repositoryId).toString();
+            ListWorkspacesRequest request = ListWorkspacesRequest.newBuilder()
+                    .setParent(parent)
+                    .build();
+            for (var w : client.listWorkspaces(request).iterateAll()) {
+                result.add(Workspace.fromResourceName(w.getName()));
+            }
+        } catch (IOException e) {
+            throw new GcpApiException(
+                    "Failed to create DataformClient — check Application Default Credentials.", e);
+        } catch (Exception e) {
+            throw new GcpApiException("Error fetching workspaces from GCP Dataform API.", e);
+        }
+        return result;
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * @throws GcpApiException if the push fails or ADC is missing
+     */
+    @Override
+    public void push(
+            @NotNull String projectId,
+            @NotNull String location,
+            @NotNull String repositoryId,
+            @NotNull String workspaceId
+    ) {
+        try (DataformClient client = DataformClient.create()) {
+            PushGitCommitsRequest request = PushGitCommitsRequest.newBuilder()
+                    .setName(workspaceName(projectId, location, repositoryId, workspaceId))
+                    .build();
+            client.pushGitCommits(request);
+        } catch (IOException e) {
+            throw new GcpApiException(
+                    "Failed to create DataformClient — check Application Default Credentials.", e);
+        } catch (Exception e) {
+            throw new GcpApiException("Error pushing commits to GCP Dataform workspace.", e);
+        }
+    }
+
+    @Override
+    public void pull(
+            @NotNull String projectId,
+            @NotNull String location,
+            @NotNull String repositoryId,
+            @NotNull String workspaceId,
+            @NotNull CommitAuthorConfig author
+    ) {
+        try (DataformClient client = DataformClient.create()) {
+            CommitAuthor commitAuthor = CommitAuthor.newBuilder()
+                    .setName(author.name())
+                    .setEmailAddress(author.emailAddress())
+                    .build();
+            PullGitCommitsRequest request = PullGitCommitsRequest.newBuilder()
+                    .setName(workspaceName(projectId, location, repositoryId, workspaceId))
+                    .setAuthor(commitAuthor)
+                    .build();
+            client.pullGitCommits(request);
+        } catch (IOException e) {
+            throw new GcpApiException(
+                    "Failed to create DataformClient — check Application Default Credentials.", e);
+        } catch (Exception e) {
+            throw new GcpApiException("Error pulling commits from GCP Dataform workspace.", e);
+        }
+    }
+
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Each path is fetched individually via {@code ReadRepositoryFileRequest}.
+     * Paths not found on the remote are silently skipped.
+     *
+     * @throws GcpApiException if the client cannot be created
+     */
+    @Override
+    @NotNull
+    public Map<String, String> readFilesFromRepository(
+            @NotNull String projectId,
+            @NotNull String location,
+            @NotNull String repositoryId,
+            @NotNull List<String> paths
+    ) {
+        Map<String, String> result = new LinkedHashMap<>();
+        try (DataformClient client = DataformClient.create()) {
+            String repoName = RepositoryName.of(projectId, location, repositoryId).toString();
+            for (String path : paths) {
+                try {
+                    ReadRepositoryFileRequest request = ReadRepositoryFileRequest.newBuilder()
+                            .setName(repoName)
+                            .setPath(path)
+                            .build();
+                    ReadRepositoryFileResponse response = client.readRepositoryFile(request);
+                    result.put(path, response.getContents().toStringUtf8());
+                } catch (Exception e) {
+                    LOG.warn("Skipping file not found in repository: " + path, e);
+                }
+            }
+        } catch (IOException e) {
+            throw new GcpApiException(
+                    "Failed to create DataformClient — check Application Default Credentials.", e);
+        }
+        return result;
+    }
+
+    @Override
+    @NotNull
+    public Map<String, String> readAllFiles(
+            @NotNull String projectId,
+            @NotNull String location,
+            @NotNull String repositoryId,
+            @Nullable String workspaceId
+    ) {
+        try (DataformClient client = DataformClient.create()) {
+            if (workspaceId != null) {
+                return readAllWorkspaceFiles(client, projectId, location, repositoryId, workspaceId);
+            } else {
+                return readAllRepositoryFiles(client, projectId, location, repositoryId);
+            }
+        } catch (IOException e) {
+            throw new GcpApiException(
+                    "Failed to create DataformClient — check Application Default Credentials.", e);
+        } catch (GcpApiException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new GcpApiException("Error reading files from GCP Dataform.", e);
+        }
+    }
+
+    @NotNull
+    private Map<String, String> readAllRepositoryFiles(
+            @NotNull DataformClient client,
+            @NotNull String projectId,
+            @NotNull String location,
+            @NotNull String repositoryId
+    ) {
+        List<String> paths = listAllRepositoryPaths(client, projectId, location, repositoryId,"");
+        Map<String, String> result = new LinkedHashMap<>();
+        for (String path : paths) {
+            String content = readRepositoryFile(client, projectId, location, repositoryId, path);
+            result.put(path, content);
+        }
+        return result;
+    }
+
+    @NotNull
+    private List<String> listAllRepositoryPaths(
+            @NotNull DataformClient client,
+            @NotNull String projectId,
+            @NotNull String location,
+            @NotNull String repositoryId,
+            @NotNull String directoryPath   // "" for root, "definitions/marts" for subdir
+    ) {
+        List<String> paths = new ArrayList<>();
+
+        QueryRepositoryDirectoryContentsRequest request =
+                QueryRepositoryDirectoryContentsRequest.newBuilder()
+                        .setName(repositoryName(projectId, location, repositoryId))
+                        .setPath(directoryPath)
+                        .build();
+
+        DataformClient.QueryRepositoryDirectoryContentsPagedResponse response =
+                client.queryRepositoryDirectoryContents(request);
+
+        for (DirectoryEntry entry : response.iterateAll()) {
+            if (entry.hasFile()) {
+                // entry.getFile().getPath() retourne juste le nom, pas le path complet
+                String fullPath = directoryPath.isEmpty()
+                        ? entry.getFile()
+                        : directoryPath + "/" + entry.getFile();
+                paths.add(fullPath);
+            } else if (entry.hasDirectory()) {
+                // Idem : reconstruire le path complet du sous-dossier
+                String subDir = directoryPath.isEmpty()
+                        ? entry.getDirectory()
+                        : directoryPath + "/" + entry.getDirectory();
+                paths.addAll(listAllRepositoryPaths(
+                        client, projectId, location, repositoryId, subDir));
+            }
+        }
+        return paths;
+    }
+
+    @NotNull
+    private String readRepositoryFile(
+            @NotNull DataformClient client,
+            @NotNull String projectId,
+            @NotNull String location,
+            @NotNull String repositoryId,
+            @NotNull String path
+    ) {
+        ReadRepositoryFileRequest request = ReadRepositoryFileRequest.newBuilder()
+                .setName(repositoryName(projectId, location, repositoryId))
+                .setPath(path)
+                .build();
+        ReadRepositoryFileResponse response = client.readRepositoryFile(request);
+        return response.getContents().toStringUtf8();
+    }
+
+// ── Workspace ─────────────────────────────────────────────────────────────
+
+    @NotNull
+    private Map<String, String> readAllWorkspaceFiles(
+            @NotNull DataformClient client,
+            @NotNull String projectId,
+            @NotNull String location,
+            @NotNull String repositoryId,
+            @NotNull String workspaceId
+    ) {
+        List<String> paths = listAllWorkspacePaths(
+                client, projectId, location, repositoryId, workspaceId,"");
+        Map<String, String> result = new LinkedHashMap<>();
+        for (String path : paths) {
+            String content = readWorkspaceFile(
+                    client, projectId, location, repositoryId, workspaceId, path);
+            result.put(path, content);
+        }
+        return result;
+    }
+
+    @NotNull
+    private List<String> listAllWorkspacePaths(
+            @NotNull DataformClient client,
+            @NotNull String projectId,
+            @NotNull String location,
+            @NotNull String repositoryId,
+            @NotNull String workspaceId,
+            @NotNull String directoryPath   // "" for root
+    ) {
+        List<String> paths = new ArrayList<>();
+
+        QueryDirectoryContentsRequest request = QueryDirectoryContentsRequest.newBuilder()
+                .setWorkspace(workspaceName(projectId, location, repositoryId, workspaceId))
+                .setPath(directoryPath)
+                .build();
+
+        DataformClient.QueryDirectoryContentsPagedResponse response =
+                client.queryDirectoryContents(request);
+
+        for (DirectoryEntry entry : response.iterateAll()) {
+            if (entry.hasFile()) {
+                String fullPath = directoryPath.isEmpty()
+                        ? entry.getFile()
+                        : directoryPath + "/" + entry.getFile();
+                paths.add(fullPath);
+            } else if (entry.hasDirectory()) {
+                String subDir = directoryPath.isEmpty()
+                        ? entry.getDirectory()
+                        : directoryPath + "/" + entry.getDirectory();
+                paths.addAll(listAllWorkspacePaths(
+                        client, projectId, location, repositoryId, workspaceId, subDir));
+            }
+        }
+        return paths;
+    }
+
+
+    @NotNull
+    private String readWorkspaceFile(
+            @NotNull DataformClient client,
+            @NotNull String projectId,
+            @NotNull String location,
+            @NotNull String repositoryId,
+            @NotNull String workspaceId,
+            @NotNull String path
+    ) {
+        ReadFileRequest request = ReadFileRequest.newBuilder()
+                .setWorkspace(workspaceName(projectId, location, repositoryId, workspaceId))
+                .setPath(path)
+                .build();
+        ReadFileResponse response = client.readFile(request);
+        return response.getFileContents().toStringUtf8();
+    }
+
+
+    private static String workspaceName(
+            @NotNull String projectId,
+            @NotNull String location,
+            @NotNull String repositoryId,
+            @NotNull String workspaceId
+    ) {
+        return WorkspaceName.of(projectId, location, repositoryId, workspaceId).toString();
+    }
+
+    /**
+     * Builds the fully-qualified GCP Dataform repository resource name.
+     * Format: projects/{project}/locations/{location}/repositories/{repository}
+     */
+    @NotNull
+    private static String repositoryName(
+            @NotNull String projectId,
+            @NotNull String location,
+            @NotNull String repositoryId
+    ) {
+        return "projects/" + projectId
+                + "/locations/" + location
+                + "/repositories/" + repositoryId;
+    }
+}

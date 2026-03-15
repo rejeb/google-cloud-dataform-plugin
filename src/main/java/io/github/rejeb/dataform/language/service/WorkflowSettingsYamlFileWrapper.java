@@ -28,6 +28,8 @@ import org.jetbrains.yaml.psi.impl.YAMLFileImpl;
 import java.util.Collection;
 
 public class WorkflowSettingsYamlFileWrapper extends YAMLFileImpl {
+    public static final String DATAFORM_KEY = "dataform";
+    public static final String PROJECT_CONFIG_KEY = "projectConfig";
     private final YAMLFile originalFile;
 
     public WorkflowSettingsYamlFileWrapper(YAMLFile modifiedFile, YAMLFile originalFile) {
@@ -92,7 +94,7 @@ public class WorkflowSettingsYamlFileWrapper extends YAMLFileImpl {
 
     private static String wrapWithParents(String yamlContent) {
         String[] lines = yamlContent.split("\n");
-        StringBuilder result = new StringBuilder("dataform:\n").append(" projectConfig:\n");
+        StringBuilder result = new StringBuilder(DATAFORM_KEY + ":\n").append(" " + PROJECT_CONFIG_KEY + ":\n");
 
         for (String line : lines) {
             if (!line.trim().isEmpty()) {

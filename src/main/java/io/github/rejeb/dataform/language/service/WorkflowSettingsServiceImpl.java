@@ -31,10 +31,10 @@ import org.jetbrains.yaml.psi.YAMLFile;
 import org.jetbrains.yaml.psi.YAMLKeyValue;
 import org.jetbrains.yaml.psi.YAMLMapping;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
+
+import static io.github.rejeb.dataform.language.service.WorkflowSettingsYamlFileWrapper.DATAFORM_KEY;
+import static io.github.rejeb.dataform.language.service.WorkflowSettingsYamlFileWrapper.PROJECT_CONFIG_KEY;
 
 public final class WorkflowSettingsServiceImpl implements WorkflowSettingsService {
     private final Project project;
@@ -87,16 +87,35 @@ public final class WorkflowSettingsServiceImpl implements WorkflowSettingsServic
     }
 
     @Nullable
+    public WorkflowSettingsProperty getProperty(@Nullable String propKey) {
+        if (propKey == null || propKey.isEmpty()) {
+            return null;
+        }
+
+        return Arrays
+                .stream(propKey.split("\\."))
+                .reduce(
+                        getOriginalFileProps(),
+                        (current, key) -> {
+
+                            if (current == null || !current.hasChildren()) {
+                                return null;
+                            }
+                            return current.children().get(key);
+                        },
+                        (left, right) -> right
+                );
+
+    }
+
+    @Nullable
     public WorkflowSettingsYamlFileWrapper findWorkflowSettingsFile() {
         if (DumbService.isDumb(project)) {
             return null;
         }
 
         return ReadAction.nonBlocking(() -> {
-            Collection<VirtualFile> files = FilenameIndex.getVirtualFilesByName(
-                    "workflow_settings.yaml",
-                    GlobalSearchScope.projectScope(project)
-            );
+            Collection<VirtualFile> files = FilenameIndex.getVirtualFilesByName("workflow_settings.yaml", GlobalSearchScope.projectScope(project));
 
             if (files.isEmpty()) {
                 return null;
@@ -145,5 +164,14 @@ public final class WorkflowSettingsServiceImpl implements WorkflowSettingsServic
         YAMLKeyValue wrappedKeyValue = yamlFile.getWrappedKeyValue(keyValue);
         return new WorkflowSettingsProperty(key, value, wrappedKeyValue, null);
     }
+
+
+    @Nullable
+    private WorkflowSettingsProperty getOriginalFileProps() {
+        Map<String, WorkflowSettingsProperty> children = this.getWorkflowProperties().get(DATAFORM_KEY)
+                .children();
+        return children != null ? children.get(PROJECT_CONFIG_KEY) : null;
+    }
+
 
 }

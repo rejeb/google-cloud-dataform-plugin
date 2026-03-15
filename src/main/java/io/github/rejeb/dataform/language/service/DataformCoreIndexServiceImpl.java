@@ -36,7 +36,7 @@ import java.util.Collections;
 import java.util.Optional;
 
 @State(name = "DataformCoreIndexService", storages = @Storage(
-        value = StoragePathMacros.CACHE_FILE)
+        value = "dataform-core-index.xml")
 )
 public final class DataformCoreIndexServiceImpl implements DataformCoreIndexService {
     private ServiceState state;

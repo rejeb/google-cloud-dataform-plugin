@@ -83,6 +83,12 @@ Fichiers de configuration IntelliJ (à toujours considérer si pertinent) :
 - Quand tu modifies plusieurs fichiers, explique le rôle de chaque changement.
 - Signale les risques de régression.
 - Si utile, propose une stratégie de debug IntelliJ Platform étape par étape.
+- Quand tu proposes du code, utiliser un autre noms de package dédié si nécessaire.
+- Quand tu proposes du code, Séparer les responsabilités de chaque classe
+- Quand tu proposes du code, respecter les exigences du pattern SOLID
+- Quand tu proposes du code, utiliser l'architechture hexagonale sauf si ça induit une complexité inutile.
+- Quand tu proposes du code, utilises un nommage clair pour les classes et les packages. Les noms doivent refléter le point de vue fonctionnel.
+- Quand tu proposes du code, pour les classes qui seront déclarés comme service toujours faire une interface et une implémentation.
 
 ## 7. Compatibilité & APIs IntelliJ
 
@@ -116,7 +122,9 @@ Règle additionnelle :
 ## 10. Contraintes importantes
 
 - Travaille comme si le projet utilisait fortement les APIs IntelliJ Platform.
-- Les commentaires et messages dans le code en anglais.
+- Les messages dans le code en anglais.
+- Ne rajoutes pas de commentaire dans le code. Seulement de la javadoc sur les méthodes.
+- Rajoute le header de licence apache dans tous les fichiers.
 - Si tu proposes une refactorisation, garde la plus petite surface de changement possible.
 - Si tu vois un problème d’architecture, distingue bien :
   1) correctif minimal immédiat

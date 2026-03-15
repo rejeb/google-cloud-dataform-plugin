@@ -70,7 +70,19 @@
         <projectService serviceInterface="io.github.rejeb.dataform.language.service.WorkflowSettingsService"
                         serviceImplementation="io.github.rejeb.dataform.language.service.WorkflowSettingsServiceImpl"
         />
+        <projectService
+                serviceInterface="io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings"
+                serviceImplementation="io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettingsImpl"/>
 
+        <projectService
+                serviceInterface="io.github.rejeb.dataform.language.gcp.service.DataformGcpService"
+                serviceImplementation="io.github.rejeb.dataform.language.gcp.service.DataformGcpServiceImpl"/>
+
+        <toolWindow
+                id="Dataform GCP"
+                anchor="right"
+                factoryClass="io.github.rejeb.dataform.language.gcp.toolwindow.DataformGcpToolWindowFactory"
+                icon="/icons/dataform-panel.png"/>
         <sql.resolveExtension
                 implementation="io.github.rejeb.dataform.language.schema.sql.DataformSqlResolveExtension"/>
         <projectImportProvider

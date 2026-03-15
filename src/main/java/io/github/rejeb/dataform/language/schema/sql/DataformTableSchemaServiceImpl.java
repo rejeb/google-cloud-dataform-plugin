@@ -28,6 +28,7 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VirtualFileManager;
 import io.github.rejeb.dataform.language.compilation.model.*;
 import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
@@ -47,7 +48,7 @@ import java.util.stream.Collectors;
 @State(
         name = "DataformTableSchemaService",
         storages = @Storage(
-                value = StoragePathMacros.CACHE_FILE)
+                value = "dataform-table-schema.xml")
 )
 public final class DataformTableSchemaServiceImpl
         implements DataformTableSchemaService {
@@ -126,9 +127,6 @@ public final class DataformTableSchemaServiceImpl
             public void run(@NotNull ProgressIndicator indicator) {
                 try {
                     runExtraction(graph, indicator, forceRefresh);
-                    ApplicationManager.getApplication().invokeLater(() ->
-                            VirtualFileManager.getInstance().refreshWithoutFileWatcher(true)
-                    );
                 } catch (Exception e) {
                     LOG.warn("Schema extraction failed: " + e);
                 } finally {
