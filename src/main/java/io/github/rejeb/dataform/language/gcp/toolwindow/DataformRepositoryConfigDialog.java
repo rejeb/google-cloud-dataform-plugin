@@ -44,14 +44,12 @@ public class DataformRepositoryConfigDialog extends DialogWrapper {
     private final JButton testButton            = new JButton("Test Connection");
     private final JLabel  testResultLabel       = new JBLabel();
 
-    public DataformRepositoryConfigDialog(@NotNull Project project) {
+    public DataformRepositoryConfigDialog(@NotNull Project project, @Nullable DataformRepositoryConfig existing) {
         super(project, true);
         this.project = project;
-        setTitle("Configure Dataform Repository");
+        setTitle(existing == null ? "Add Dataform Repository" : "Edit Dataform Repository");
         setOKButtonText("Save");
 
-        // Pré-remplir si déjà configuré
-        DataformRepositoryConfig existing = GcpRepositorySettings.getInstance(project).getConfig();
         if (existing != null) {
             projectIdField.setText(existing.projectId());
             repositoryIdField.setText(existing.repositoryId());
@@ -59,8 +57,13 @@ public class DataformRepositoryConfigDialog extends DialogWrapper {
         }
 
         testButton.addActionListener(e -> testConnection());
-
         init();
+    }
+
+    /** @return the config built from the dialog fields, or {@code null} if dialog was cancelled */
+    @Nullable
+    public DataformRepositoryConfig getResultConfig() {
+        return buildConfig().orNull();
     }
 
     @Override

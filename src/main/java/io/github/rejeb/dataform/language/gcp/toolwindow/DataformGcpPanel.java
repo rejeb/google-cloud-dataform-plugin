@@ -31,36 +31,41 @@ public class DataformGcpPanel extends JPanel {
 
     private final Project project;
     private FilesView filesView;
+    private RepositorySelectorPanel repositorySelectorPanel;
 
     public DataformGcpPanel(@NotNull Project project) {
         super(new BorderLayout());
         this.project = project;
+        refresh();
 
-        DataformRepositoryConfig config = GcpRepositorySettings.getInstance(project).getConfig();
+    }
+
+    public void refresh() {
+        removeAll();
+        DataformRepositoryConfig config = GcpRepositorySettings.getInstance(project).getActiveConfig();
         if (config == null) {
             showUnconfiguredState();
         } else {
             initConfiguredState(config);
         }
+        revalidate();
+        repaint();
     }
 
     private void showUnconfiguredState() {
-        removeAll();
         LinkLabel<Void> link = new LinkLabel<>(
-                "Configure Dataform repository",
-                AllIcons.General.Settings,
-                (aSource, aLinkData) -> openConfigDialog()
+                "Add a Dataform repository",
+                AllIcons.General.Add,
+                (aSource, aLinkData) -> openManageDialog()
         );
         link.setHorizontalAlignment(SwingConstants.CENTER);
         JPanel center = new JPanel(new GridBagLayout());
         center.add(link);
         add(center, BorderLayout.CENTER);
-        revalidate();
-        repaint();
     }
 
     private void initConfiguredState(@NotNull DataformRepositoryConfig config) {
-        removeAll();
+        repositorySelectorPanel = new RepositorySelectorPanel(project, this::onRepositorySelected);
 
         PanelCallback callback = buildPanelCallback();
         filesView = new FilesView(project, config, callback);
@@ -71,12 +76,22 @@ public class DataformGcpPanel extends JPanel {
 
         JPanel sideBar = buildSideBar(contentPanel);
 
+        add(repositorySelectorPanel, BorderLayout.NORTH);   // NEW
         add(sideBar, BorderLayout.WEST);
         add(contentPanel, BorderLayout.CENTER);
         ((CardLayout) contentPanel.getLayout()).show(contentPanel, "FILES");
+    }
 
+    private void onRepositorySelected() {
+        DataformRepositoryConfig active = GcpRepositorySettings.getInstance(project).getActiveConfig();
+        if (active != null) initConfiguredState(active);
         revalidate();
         repaint();
+    }
+
+    private void openManageDialog() {
+        new ManageRepositoriesDialog(project).show();
+        refresh();
     }
 
     private JPanel buildSideBar(@NotNull JPanel contentPanel) {
@@ -110,31 +125,45 @@ public class DataformGcpPanel extends JPanel {
         return btn;
     }
 
-    private void openConfigDialog() {
-        DataformRepositoryConfigDialog dialog = new DataformRepositoryConfigDialog(project);
-        if (dialog.showAndGet()) {
-            DataformRepositoryConfig config = GcpRepositorySettings.getInstance(project).getConfig();
-            if (config != null) initConfiguredState(config);
-        }
-    }
 
     private @NotNull PanelCallback buildPanelCallback() {
         return new PanelCallback() {
-            @Override public void onRefreshWorkspaces() { filesView.refreshWorkspaces(); }
-            @Override public void onFetch(@Nullable String workspaceId) { filesView.fetch(workspaceId); }
-            @Override public void onPull(@Nullable String workspaceId) { filesView.pull(workspaceId); }
-            @Override public void onPush(@NotNull String workspaceId) { filesView.push(workspaceId); }
-            @Override public void onCommit(@NotNull String workspaceId) { /* TODO */ }
-            @Override public void onConfigure() { openConfigDialog(); }
+            @Override
+            public void onRefreshWorkspaces() {
+                filesView.refreshWorkspaces();
+            }
+
+            @Override
+            public void onFetch(@Nullable String workspaceId) {
+                filesView.fetch(workspaceId);
+            }
+
+            @Override
+            public void onPull(@Nullable String workspaceId) {
+                filesView.pull(workspaceId);
+            }
+
+            @Override
+            public void onPush(@NotNull String workspaceId) {
+                filesView.push(workspaceId);
+            }
+
+            @Override
+            public void onCommit(@NotNull String workspaceId) { /* TODO */ }
+
         };
     }
 
     public interface PanelCallback {
         void onRefreshWorkspaces();
+
         void onFetch(@Nullable String workspaceId);
+
         void onPull(@Nullable String workspaceId);
+
         void onPush(@NotNull String workspaceId);
+
         void onCommit(@NotNull String workspaceId);
-        void onConfigure();
+
     }
 }

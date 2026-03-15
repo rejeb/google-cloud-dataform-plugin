@@ -103,14 +103,7 @@ public class DataformGcpToolbar extends JPanel {
         group.addSeparator();
         group.add(new PullFromWorkspaceAction(this::getSelectedWorkspaceId, callback));
         group.add(new PushToWorkspaceAction(this::getSelectedWorkspaceId, callback));
-        group.addSeparator();
-        group.add(new AnAction("Configure Repository", "Configure Dataform GCP repository",
-                AllIcons.General.Settings) {
-            @Override
-            public void actionPerformed(@NotNull AnActionEvent e) {
-                callback.onConfigure();
-            }
-        });
+
         ActionToolbar toolbar = ActionManager.getInstance()
                 .createActionToolbar("DataformGcpToolbar", group, true);
         toolbar.setTargetComponent(this);

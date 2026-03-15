@@ -23,6 +23,9 @@ import com.intellij.openapi.project.Project;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @State(
         name = "DataformGcpRepositorySettings",
         storages = @Storage("dataform-gcp-repository-setting.xml")
@@ -35,31 +38,69 @@ public final class GcpRepositorySettingsImpl
     public GcpRepositorySettingsImpl(@NotNull Project project) {}
 
     @Override
-    public @Nullable DataformRepositoryConfig getConfig() {
-        if (state.projectId == null || state.repositoryId == null || state.location == null) {
-            return null;
+    public @NotNull List<DataformRepositoryConfig> getAllConfigs() {
+        List<DataformRepositoryConfig> result = new ArrayList<>();
+        for (RepoState r : state.repositories) {
+            if (r.projectId != null && r.repositoryId != null && r.location != null) {
+                DataformRepositoryConfig c = new DataformRepositoryConfig(r.projectId, r.repositoryId, r.location);
+                if (c.isComplete()) result.add(c);
+            }
         }
-        DataformRepositoryConfig config = new DataformRepositoryConfig(
-                state.projectId, state.repositoryId, state.location);
-        return config.orNull();
+        // Migration: if the new list is empty but old single-repo fields are set, migrate them
+        if (result.isEmpty() && state.projectId != null && state.repositoryId != null && state.location != null) {
+            DataformRepositoryConfig migrated = new DataformRepositoryConfig(
+                    state.projectId, state.repositoryId, state.location);
+            if (migrated.isComplete()) {
+                result.add(migrated);
+                state.repositories.add(new RepoState(state.projectId, state.repositoryId, state.location));
+                if (state.activeRepositoryId == null) state.activeRepositoryId = state.repositoryId;
+                state.projectId = null;
+                state.repositoryId = null;
+                state.location = null;
+            }
+        }
+        return result;
     }
 
     @Override
-    public void saveConfig(@NotNull DataformRepositoryConfig config) {
-        state.projectId = config.projectId();
-        state.repositoryId = config.repositoryId();
-        state.location = config.location();
+    public void saveAllConfigs(@NotNull List<DataformRepositoryConfig> configs) {
+        state.repositories.clear();
+        for (DataformRepositoryConfig c : configs) {
+            state.repositories.add(new RepoState(c.projectId(), c.repositoryId(), c.location()));
+        }
+    }
+
+    @Override
+    public @Nullable DataformRepositoryConfig getActiveConfig() {
+        List<DataformRepositoryConfig> all = getAllConfigs();
+        if (all.isEmpty()) return null;
+        if (state.activeRepositoryId != null) {
+            return all.stream()
+                    .filter(c -> c.repositoryId().equals(state.activeRepositoryId))
+                    .findFirst()
+                    .orElse(all.get(0));
+        }
+        return all.get(0);
+    }
+
+    @Override
+    public void setActiveRepositoryId(@Nullable String repositoryId) {
+        state.activeRepositoryId = repositoryId;
+    }
+
+    @Override
+    public @Nullable String getActiveRepositoryId() {
+        return state.activeRepositoryId;
     }
 
     @Override
     public void setSelectedWorkspaceId(@Nullable String workspaceId) {
-        getState().selectedWorkspaceId = workspaceId;
+        state.selectedWorkspaceId = workspaceId;
     }
 
     @Override
-    @Nullable
-    public String getSelectedWorkspaceId() {
-        return getState().selectedWorkspaceId;
+    public @Nullable String getSelectedWorkspaceId() {
+        return state.selectedWorkspaceId;
     }
 
     @Override
@@ -73,9 +114,25 @@ public final class GcpRepositorySettingsImpl
     }
 
     public static final class State {
+        public @Nullable String projectId;        // legacy migration field
+        public @Nullable String repositoryId;     // legacy migration field
+        public @Nullable String location;         // legacy migration field
+        public @Nullable String selectedWorkspaceId;
+        public @Nullable String activeRepositoryId;
+        public @NotNull List<RepoState> repositories = new ArrayList<>();
+    }
+
+    public static final class RepoState {
         public @Nullable String projectId;
         public @Nullable String repositoryId;
         public @Nullable String location;
-        public @Nullable String selectedWorkspaceId;
+
+        public RepoState() {}
+
+        public RepoState(@NotNull String projectId, @NotNull String repositoryId, @NotNull String location) {
+            this.projectId = projectId;
+            this.repositoryId = repositoryId;
+            this.location = location;
+        }
     }
 }

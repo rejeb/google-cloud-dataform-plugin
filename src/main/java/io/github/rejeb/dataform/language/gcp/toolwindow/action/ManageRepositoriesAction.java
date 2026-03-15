@@ -14,28 +14,29 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.rejeb.dataform.language.gcp.toolwindow;
+package io.github.rejeb.dataform.language.gcp.toolwindow.action;
 
+import com.intellij.icons.AllIcons;
+import com.intellij.openapi.actionSystem.AnAction;
+import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.wm.ToolWindow;
-import com.intellij.openapi.wm.ToolWindowFactory;
-import com.intellij.ui.content.Content;
-import com.intellij.ui.content.ContentFactory;
-import io.github.rejeb.dataform.language.gcp.toolwindow.action.ManageRepositoriesAction;
+import io.github.rejeb.dataform.language.gcp.toolwindow.ManageRepositoriesDialog;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.List;
+public class ManageRepositoriesAction extends AnAction {
 
-public class DataformGcpToolWindowFactory implements ToolWindowFactory {
+    private final Project project;
+    private final Runnable onRepositoryChanged;
+
+    public ManageRepositoriesAction(@NotNull Project project, @NotNull Runnable onRepositoryChanged) {
+        super("Manage Repositories", "Add, edit or remove Dataform GCP repositories", AllIcons.General.Settings);
+        this.project = project;
+        this.onRepositoryChanged = onRepositoryChanged;
+    }
 
     @Override
-    public void createToolWindowContent(@NotNull Project project, @NotNull ToolWindow toolWindow) {
-        DataformGcpPanel panel = new DataformGcpPanel(project);
-        Content content = ContentFactory.getInstance()
-                .createContent(panel, "", false);
-        toolWindow.getContentManager().addContent(content);
-        toolWindow.setTitleActions(List.of(
-                new ManageRepositoriesAction(project, panel::refresh)
-        ));
+    public void actionPerformed(@NotNull AnActionEvent e) {
+        new ManageRepositoriesDialog(project).show();
+        onRepositoryChanged.run();
     }
 }

@@ -20,35 +20,61 @@ import com.intellij.openapi.project.Project;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.List;
+
 public interface GcpRepositorySettings {
 
     static GcpRepositorySettings getInstance(@NotNull Project project) {
         return project.getService(GcpRepositorySettings.class);
     }
 
-    /** @return the full config, or {@code null} if not yet configured */
-    @Nullable DataformRepositoryConfig getConfig();
+    /** @return all configured repositories, never null */
+    @NotNull List<DataformRepositoryConfig> getAllConfigs();
 
-    /** Persists the given configuration. */
-    void saveConfig(@NotNull DataformRepositoryConfig config);
+    /** Replaces the full list of configured repositories. */
+    void saveAllConfigs(@NotNull List<DataformRepositoryConfig> configs);
+
+    /** @return the currently active repository config, or {@code null} if none configured */
+    @Nullable DataformRepositoryConfig getActiveConfig();
+
+    /** Sets the active repository by its repositoryId. */
+    void setActiveRepositoryId(@Nullable String repositoryId);
+
+    /** @return the active repositoryId, or {@code null} */
+    @Nullable String getActiveRepositoryId();
 
     void setSelectedWorkspaceId(@Nullable String workspaceId);
 
     @Nullable String getSelectedWorkspaceId();
 
-    // Legacy compat — dérivés de getConfig()
+    /** @deprecated use {@link #getActiveConfig()} */
+    @Deprecated
+    default @Nullable DataformRepositoryConfig getConfig() {
+        return getActiveConfig();
+    }
+
+    /** @deprecated use {@link #saveAllConfigs(List)} */
+    @Deprecated
+    default void saveConfig(@NotNull DataformRepositoryConfig config) {
+        List<DataformRepositoryConfig> existing = new java.util.ArrayList<>(getAllConfigs());
+        existing.removeIf(c -> c.repositoryId().equals(config.repositoryId()));
+        existing.add(config);
+        saveAllConfigs(existing);
+        setActiveRepositoryId(config.repositoryId());
+    }
+
     default @Nullable String getRepositoryId() {
-        DataformRepositoryConfig c = getConfig();
+        DataformRepositoryConfig c = getActiveConfig();
         return c != null ? c.repositoryId() : null;
     }
 
     default @Nullable String getProjectId() {
-        DataformRepositoryConfig c = getConfig();
+        DataformRepositoryConfig c = getActiveConfig();
         return c != null ? c.projectId() : null;
     }
 
     default @Nullable String getLocation() {
-        DataformRepositoryConfig c = getConfig();
+        DataformRepositoryConfig c = getActiveConfig();
         return c != null ? c.location() : null;
     }
 }
