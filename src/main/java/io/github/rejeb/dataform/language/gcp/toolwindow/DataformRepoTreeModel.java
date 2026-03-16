@@ -1,5 +1,5 @@
 /*
- * Licensed to the Apache Software Foundation (ASF) under one or more
+ * Licensed to the Apache Software Foundation (ASF) one or more
  * contributor license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
  * The ASF licenses this file to You under the Apache License, Version 2.0
@@ -16,15 +16,18 @@
  */
 package io.github.rejeb.dataform.language.gcp.toolwindow;
 
+import io.github.rejeb.dataform.language.gcp.workspace.UncommittedChange;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
-import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.*;
 
 public class DataformRepoTreeModel extends DefaultTreeModel {
+
+    /** path → ChangeState, mis à jour par fetchGitStatuses */
+    private Map<String, UncommittedChange.ChangeState> gitStatuses = Map.of();
 
     public DataformRepoTreeModel(@NotNull String repositoryId) {
         super(new DefaultMutableTreeNode(
@@ -36,6 +39,27 @@ public class DataformRepoTreeModel extends DefaultTreeModel {
         DefaultMutableTreeNode root = (DefaultMutableTreeNode) getRoot();
         root.setUserObject(new RootEntry(repositoryId + " (remote)"));
         nodeChanged(root);
+    }
+
+    /**
+     * Met à jour la map des états Git et force le re-rendu du tree.
+     * Doit être appelé sur l'EDT.
+     */
+    public void setGitStatuses(@NotNull List<UncommittedChange> changes) {
+        Map<String, UncommittedChange.ChangeState> map = new HashMap<>();
+        for (UncommittedChange c : changes) {
+            map.put(c.path(), c.state());
+        }
+        this.gitStatuses = Collections.unmodifiableMap(map);
+        reload(); // force le re-rendu de tous les nœuds
+    }
+
+    /**
+     * Retourne l'état Git du fichier donné, ou {@code null} si non modifié.
+     */
+    @Nullable
+    public UncommittedChange.ChangeState getChangeState(@NotNull String relativePath) {
+        return gitStatuses.get(relativePath);
     }
 
     /** Marker type for the root node. */
@@ -51,13 +75,11 @@ public class DataformRepoTreeModel extends DefaultTreeModel {
         DefaultMutableTreeNode root = (DefaultMutableTreeNode) getRoot();
         root.removeAllChildren();
 
-        // path → node pour tous les dossiers déjà créés
         Map<String, DefaultMutableTreeNode> dirNodes = new TreeMap<>();
 
-        for (String path : new java.util.TreeSet<>(files.keySet())) {
+        for (String path : new TreeSet<>(files.keySet())) {
             String[] segments = path.split("/");
 
-            // Créer les dossiers intermédiaires si nécessaire
             StringBuilder currentPath = new StringBuilder();
             for (int i = 0; i < segments.length - 1; i++) {
                 if (!currentPath.isEmpty()) currentPath.append("/");
@@ -65,10 +87,10 @@ public class DataformRepoTreeModel extends DefaultTreeModel {
 
                 String dirPath = currentPath.toString();
                 if (!dirNodes.containsKey(dirPath)) {
-                    DefaultMutableTreeNode dirNode = new DefaultMutableTreeNode(segments[i]);
+                    DefaultMutableTreeNode dirNode =
+                            new DefaultMutableTreeNode(segments[i]);
                     dirNodes.put(dirPath, dirNode);
 
-                    // Rattacher au parent immédiatement
                     String parentPath = dirPath.contains("/")
                             ? dirPath.substring(0, dirPath.lastIndexOf('/'))
                             : null;
@@ -80,7 +102,6 @@ public class DataformRepoTreeModel extends DefaultTreeModel {
                 }
             }
 
-            // Nœud fichier — rattaché au dossier parent direct
             String parentPath = segments.length > 1
                     ? path.substring(0, path.lastIndexOf('/'))
                     : null;
@@ -98,10 +119,6 @@ public class DataformRepoTreeModel extends DefaultTreeModel {
         reload();
     }
 
-
-    /**
-     * Clears all nodes from the tree.
-     */
     public void clear() {
         ((DefaultMutableTreeNode) getRoot()).removeAllChildren();
         reload();
@@ -115,7 +132,6 @@ public class DataformRepoTreeModel extends DefaultTreeModel {
         }
         reload();
     }
-
 
     /**
      * Holds the path and content of a single repository file node.

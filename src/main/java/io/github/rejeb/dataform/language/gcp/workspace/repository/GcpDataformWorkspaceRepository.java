@@ -23,6 +23,7 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.util.concurrency.AppExecutorUtil;
 import io.github.rejeb.dataform.language.gcp.common.CommitAuthorConfig;
 import io.github.rejeb.dataform.language.gcp.common.GcpApiException;
+import io.github.rejeb.dataform.language.gcp.workspace.UncommittedChange;
 import io.github.rejeb.dataform.language.gcp.workspace.Workspace;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -77,7 +78,7 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
     // -------------------------------------------------------------------------
 
     @Override
-    public void commit(
+    public void pushGitCommits(
             @NotNull String projectId,
             @NotNull String location,
             @NotNull String repositoryId,
@@ -86,16 +87,6 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
     ) {
         try (DataformClient client = createDataformClient()) {
             String wsName = workspaceName(projectId, location, repositoryId, workspaceId);
-
-            CommitWorkspaceChangesRequest commitRequest = CommitWorkspaceChangesRequest.newBuilder()
-                    .setName(wsName)
-                    .setAuthor(CommitAuthor.newBuilder()
-                            .setName(author.name())
-                            .setEmailAddress(author.emailAddress())
-                            .build())
-                    .setCommitMessage("Changes from IntelliJ Dataform Plugin")
-                    .build();
-            client.commitWorkspaceChanges(commitRequest);
 
             PushGitCommitsRequest pushRequest = PushGitCommitsRequest.newBuilder()
                     .setName(wsName)
@@ -330,6 +321,60 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
                     "Error creating workspace \"" + workspaceId + "\": " + e.getMessage(), e);
         }
     }
+
+    @Override
+    @NotNull
+    public List<UncommittedChange> fetchFileGitStatuses(
+            @NotNull String projectId,
+            @NotNull String location,
+            @NotNull String repositoryId,
+            @NotNull String workspaceId
+    ) {
+        try (DataformClient client = createDataformClient()) {
+            FetchFileGitStatusesRequest request = FetchFileGitStatusesRequest.newBuilder()
+                    .setName(workspaceName(projectId, location, repositoryId, workspaceId))
+                    .build();
+            FetchFileGitStatusesResponse response = client.fetchFileGitStatuses(request);
+            return response.getUncommittedFileChangesList().stream()
+                    .map(c -> new UncommittedChange(c.getPath(), mapState(c.getState())))
+                    .toList();
+        } catch (IOException e) {
+            throw new GcpApiException(
+                    "Failed to create DataformClient — check Application Default Credentials.", e);
+        } catch (Exception e) {
+            throw new GcpApiException("Error fetching git statuses from workspace.", e);
+        }
+    }
+
+    @Override
+    public void commitWorkspaceChanges(
+            @NotNull String projectId,
+            @NotNull String location,
+            @NotNull String repositoryId,
+            @NotNull String workspaceId,
+            @NotNull List<String> paths,
+            @NotNull String message,
+            @NotNull CommitAuthorConfig author
+    ) {
+        try (DataformClient client = createDataformClient()) {
+            CommitWorkspaceChangesRequest request = CommitWorkspaceChangesRequest.newBuilder()
+                    .setName(workspaceName(projectId, location, repositoryId, workspaceId))
+                    .setAuthor(CommitAuthor.newBuilder()
+                            .setName(author.name())
+                            .setEmailAddress(author.emailAddress())
+                            .build())
+                    .setCommitMessage(message)
+                    .addAllPaths(paths)
+                    .build();
+            client.commitWorkspaceChanges(request);
+        } catch (IOException e) {
+            throw new GcpApiException(
+                    "Failed to create DataformClient — check Application Default Credentials.", e);
+        } catch (Exception e) {
+            throw new GcpApiException("Error committing workspace changes.", e);
+        }
+    }
+
 
     // -------------------------------------------------------------------------
     // Private helpers
@@ -591,5 +636,17 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
             current = current.getCause();
         }
         return false;
+    }
+
+    private static UncommittedChange.ChangeState mapState(
+            @NotNull FetchFileGitStatusesResponse.UncommittedFileChange.State state
+    ) {
+        return switch (state) {
+            case ADDED -> UncommittedChange.ChangeState.ADDED;
+            case DELETED -> UncommittedChange.ChangeState.DELETED;
+            case MODIFIED -> UncommittedChange.ChangeState.MODIFIED;
+            case HAS_CONFLICTS -> UncommittedChange.ChangeState.HAS_CONFLICTS;
+            default -> UncommittedChange.ChangeState.UNKNOWN;
+        };
     }
 }

@@ -21,11 +21,13 @@ import com.intellij.openapi.project.Project;
 import com.intellij.ui.components.labels.LinkLabel;
 import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
 import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
+import io.github.rejeb.dataform.language.gcp.workspace.UncommittedChange;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.awt.*;
+import java.util.List;
 
 public class DataformGcpPanel extends JPanel {
 
@@ -41,7 +43,8 @@ public class DataformGcpPanel extends JPanel {
 
     public void refresh() {
         removeAll();
-        DataformRepositoryConfig config = GcpRepositorySettings.getInstance(project).getActiveConfig();
+        DataformRepositoryConfig config =
+                GcpRepositorySettings.getInstance(project).getActiveConfig();
         if (config == null) {
             showUnconfiguredState();
         } else {
@@ -64,14 +67,17 @@ public class DataformGcpPanel extends JPanel {
     }
 
     private void initConfiguredState(@NotNull DataformRepositoryConfig config) {
-        repositorySelectorPanel = new RepositorySelectorPanel(project, this::onRepositorySelected);
-
         PanelCallback callback = buildPanelCallback();
+
+        repositorySelectorPanel = new RepositorySelectorPanel(
+                project, this::onRepositorySelected, callback);
+
         filesView = new FilesView(project, config, callback);
+        CommitView commitView = new CommitView(project, callback);
 
         JPanel contentPanel = new JPanel(new CardLayout());
         contentPanel.add(filesView, "FILES");
-        contentPanel.add(new CommitView(project), "GIT");
+        contentPanel.add(commitView, "GIT");
 
         JPanel sideBar = buildSideBar(contentPanel);
 
@@ -82,8 +88,15 @@ public class DataformGcpPanel extends JPanel {
     }
 
     private void onRepositorySelected() {
-        DataformRepositoryConfig active = GcpRepositorySettings.getInstance(project).getActiveConfig();
-        if (active != null) initConfiguredState(active);
+        removeAll();
+        DataformRepositoryConfig active =
+                GcpRepositorySettings.getInstance(project).getActiveConfig();
+        if (active != null) {
+            initConfiguredState(active);
+            filesView.refreshWorkspaces();
+        } else {
+            showUnconfiguredState();
+        }
         revalidate();
         repaint();
     }
@@ -98,17 +111,16 @@ public class DataformGcpPanel extends JPanel {
         sideBar.setLayout(new BoxLayout(sideBar, BoxLayout.Y_AXIS));
         sideBar.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 1,
                 UIManager.getColor("Separator.separatorColor")));
-        sideBar.add(buildSideBarButton(AllIcons.Actions.ProjectDirectory, "Files", contentPanel, "FILES"));
+        sideBar.add(buildSideBarButton(AllIcons.Actions.ProjectDirectory, "Files",
+                contentPanel, "FILES"));
         sideBar.add(buildSideBarButton(AllIcons.Vcs.Branch, "Git", contentPanel, "GIT"));
         sideBar.add(Box.createVerticalGlue());
         return sideBar;
     }
 
     private JButton buildSideBarButton(
-            @NotNull Icon icon,
-            @NotNull String tooltip,
-            @NotNull JPanel contentPanel,
-            @NotNull String cardKey
+            @NotNull Icon icon, @NotNull String tooltip,
+            @NotNull JPanel contentPanel, @NotNull String cardKey
     ) {
         JButton btn = new JButton(icon);
         btn.setToolTipText(tooltip);
@@ -119,8 +131,7 @@ public class DataformGcpPanel extends JPanel {
         btn.setMaximumSize(new Dimension(30, 30));
         btn.setPreferredSize(new Dimension(30, 30));
         btn.addActionListener(e ->
-                ((CardLayout) contentPanel.getLayout()).show(contentPanel, cardKey)
-        );
+                ((CardLayout) contentPanel.getLayout()).show(contentPanel, cardKey));
         return btn;
     }
 
@@ -147,11 +158,27 @@ public class DataformGcpPanel extends JPanel {
             }
 
             @Override
-            public void onCommit(@NotNull String workspaceId) { /* TODO */ }
+            public void onCreateWorkspace(@NotNull String workspaceId) {
+                filesView.createWorkspace(workspaceId, repositorySelectorPanel);
+            }
 
             @Override
-            public void onCreateWorkspace(@NotNull String workspaceId) {
-                filesView.createWorkspace(workspaceId);
+            public void onFetchGitStatuses(@NotNull String workspaceId) {
+                filesView.fetchGitStatuses(workspaceId);
+            }
+
+            @Override
+            public void onCommitWorkspaceChanges(
+                    @NotNull String workspaceId,
+                    @NotNull List<String> paths,
+                    @NotNull String message
+            ) {
+                filesView.commitWorkspaceChanges(workspaceId, paths, message);
+            }
+
+            @Override
+            public void onPushGitCommits(@NotNull String workspaceId) {
+                filesView.pushGitCommits(workspaceId);
             }
         };
     }
@@ -161,9 +188,12 @@ public class DataformGcpPanel extends JPanel {
         void onFetch(@Nullable String workspaceId);
         void onPull(@Nullable String workspaceId);
         void onPush(@NotNull String workspaceId);
-        void onCommit(@NotNull String workspaceId);
-
-        /** Called when the user requests the creation of a new workspace. */
         void onCreateWorkspace(@NotNull String workspaceId);
+        void onFetchGitStatuses(@NotNull String workspaceId);
+        void onCommitWorkspaceChanges(
+                @NotNull String workspaceId,
+                @NotNull List<String> paths,
+                @NotNull String message);
+        void onPushGitCommits(@NotNull String workspaceId);
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Licensed to the Apache Software Foundation (ASF) under one or more
+ * Licensed to the Apache Software Foundation (ASF) one or more
  * contributor license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
  * The ASF licenses this file to You under the Apache License, Version 2.0
@@ -21,14 +21,27 @@ import com.intellij.openapi.fileTypes.FileType;
 import com.intellij.openapi.fileTypes.FileTypeManager;
 import com.intellij.ui.ColoredTreeCellRenderer;
 import com.intellij.ui.SimpleTextAttributes;
-import icons.JavaScriptCoreIcons;
-import io.github.rejeb.dataform.language.DataformIcons;
+import io.github.rejeb.dataform.language.gcp.workspace.UncommittedChange;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import javax.swing.tree.DefaultMutableTreeNode;
+import java.awt.*;
 
 public class DataformRepoTreeCellRenderer extends ColoredTreeCellRenderer {
+
+    // Couleurs identiques au plugin Git d'IntelliJ
+    private static final Color COLOR_ADDED    = new Color(0x629755);
+    private static final Color COLOR_MODIFIED = new Color(0x6897BB);
+    private static final Color COLOR_DELETED  = new Color(0x808080);
+    private static final Color COLOR_CONFLICT = new Color(0xBC3F3C);
+
+    private final DataformRepoTreeModel treeModel;
+
+    public DataformRepoTreeCellRenderer(@NotNull DataformRepoTreeModel treeModel) {
+        this.treeModel = treeModel;
+    }
 
     @Override
     public void customizeCellRenderer(
@@ -49,16 +62,35 @@ public class DataformRepoTreeCellRenderer extends ColoredTreeCellRenderer {
 
         } else if (userObject instanceof DataformRepoTreeModel.FileEntry file) {
             setIcon(iconForFile(file.displayName()));
-            append(file.displayName(), SimpleTextAttributes.REGULAR_ATTRIBUTES);
+            UncommittedChange.ChangeState state =
+                    treeModel.getChangeState(file.relativePath());
+            append(file.displayName(), textAttributesFor(state));
 
         } else if (userObject instanceof String dirName) {
-            // Directory node — userObject is just the folder name string
             setIcon(AllIcons.Nodes.Folder);
             append(dirName, SimpleTextAttributes.REGULAR_ATTRIBUTES);
 
         } else {
             append(String.valueOf(userObject), SimpleTextAttributes.GRAYED_ATTRIBUTES);
         }
+    }
+
+    @NotNull
+    private static SimpleTextAttributes textAttributesFor(
+            @Nullable UncommittedChange.ChangeState state
+    ) {
+        if (state == null) return SimpleTextAttributes.REGULAR_ATTRIBUTES;
+        return switch (state) {
+            case ADDED         -> new SimpleTextAttributes(
+                    SimpleTextAttributes.STYLE_PLAIN, COLOR_ADDED);
+            case MODIFIED      -> new SimpleTextAttributes(
+                    SimpleTextAttributes.STYLE_PLAIN, COLOR_MODIFIED);
+            case DELETED       -> new SimpleTextAttributes(
+                    SimpleTextAttributes.STYLE_STRIKEOUT, COLOR_DELETED);
+            case HAS_CONFLICTS -> new SimpleTextAttributes(
+                    SimpleTextAttributes.STYLE_PLAIN, COLOR_CONFLICT);
+            default            -> SimpleTextAttributes.REGULAR_ATTRIBUTES;
+        };
     }
 
     @NotNull

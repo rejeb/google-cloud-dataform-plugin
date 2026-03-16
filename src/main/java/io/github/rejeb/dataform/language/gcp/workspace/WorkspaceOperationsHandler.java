@@ -73,11 +73,11 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
     }
 
     @Override
-    public void commitCode(@NotNull String workspaceId) {
+    public void pushGitCommits(@NotNull String workspaceId) {
         GcpConfig config = readConfig();
         if (config == null) return;
         CommitAuthorConfig author = configProvider.getCommitAuthor();
-        workspaceRepository.commit(config.projectId, config.location, config.repositoryId,
+        workspaceRepository.pushGitCommits(config.projectId, config.location, config.repositoryId,
                 workspaceId, author);
     }
 
@@ -170,6 +170,29 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
                 config.repositoryId,
                 workspaceId
         );
+    }
+
+    @Override
+    @NotNull
+    public List<UncommittedChange> fetchGitStatuses(@NotNull String workspaceId) {
+        GcpConfig config = readConfig();
+        if (config == null) return List.of();
+        return workspaceRepository.fetchFileGitStatuses(
+                config.projectId(), config.location(), config.repositoryId(), workspaceId);
+    }
+
+    @Override
+    public void commitWorkspaceChanges(
+            @NotNull String workspaceId,
+            @NotNull List<String> paths,
+            @NotNull String message
+    ) {
+        GcpConfig config = readConfig();
+        if (config == null) return;
+        CommitAuthorConfig author = configProvider.getCommitAuthor();
+        workspaceRepository.commitWorkspaceChanges(
+                config.projectId(), config.location(), config.repositoryId(),
+                workspaceId, paths, message, author);
     }
 
     // -------------------------------------------------------------------------

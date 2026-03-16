@@ -25,6 +25,7 @@ import io.github.rejeb.dataform.language.gcp.common.GcpApiException;
 import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
 import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
 import io.github.rejeb.dataform.language.gcp.settings.WorkflowSettingsGcpConfigProvider;
+import io.github.rejeb.dataform.language.gcp.workspace.UncommittedChange;
 import io.github.rejeb.dataform.language.gcp.workspace.Workspace;
 import io.github.rejeb.dataform.language.gcp.workspace.WorkspaceOperations;
 import io.github.rejeb.dataform.language.gcp.workspace.WorkspaceOperationsHandler;
@@ -133,9 +134,9 @@ public final class DataformGcpServiceImpl
     }
 
     @Override
-    public void commitCode(@NotNull String workspaceId) {
+    public void pushGitCommits(@NotNull String workspaceId) {
         try {
-            workspaceOperations.commitCode(workspaceId);
+            workspaceOperations.pushGitCommits(workspaceId);
         } catch (GcpApiException e) {
             LOG.error("Failed to commit code to Dataform workspace: " + workspaceId, e);
         }
@@ -192,6 +193,32 @@ public final class DataformGcpServiceImpl
     public void createWorkspace(@NotNull String workspaceId) {
         workspaceOperations.createWorkspace(workspaceId);
     }
+
+    @Override
+    @NotNull
+    public List<UncommittedChange> fetchGitStatuses(@NotNull String workspaceId) {
+        try {
+            return workspaceOperations.fetchGitStatuses(workspaceId);
+        } catch (GcpApiException e) {
+            LOG.error("Failed to fetch git statuses for workspace: " + workspaceId, e);
+            return List.of();
+        }
+    }
+
+    @Override
+    public void commitWorkspaceChanges(
+            @NotNull String workspaceId,
+            @NotNull List<String> paths,
+            @NotNull String message
+    ) {
+        try {
+            workspaceOperations.commitWorkspaceChanges(workspaceId, paths, message);
+        } catch (GcpApiException e) {
+            LOG.error("Failed to commit workspace changes: " + workspaceId, e);
+            throw e;
+        }
+    }
+
 
     public static final class CacheState {
         @Nullable

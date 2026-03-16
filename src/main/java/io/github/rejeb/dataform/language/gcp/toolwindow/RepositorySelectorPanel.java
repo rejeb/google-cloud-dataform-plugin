@@ -17,12 +17,17 @@
 package io.github.rejeb.dataform.language.gcp.toolwindow;
 
 import com.intellij.icons.AllIcons;
+import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.ComboBox;
 import com.intellij.ui.components.JBLabel;
 import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
 import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
+import io.github.rejeb.dataform.language.gcp.toolwindow.action.CreateWorkspaceAction;
+import io.github.rejeb.dataform.language.gcp.toolwindow.action.RefreshAction;
+import io.github.rejeb.dataform.language.gcp.workspace.Workspace;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.awt.*;
@@ -33,47 +38,47 @@ public class RepositorySelectorPanel extends JPanel {
 
     private final Project project;
     private final ComboBox<DataformRepositoryConfig> repoCombo = new ComboBox<>();
-    private final Runnable onSelectionChanged;
-    private boolean updating = false;
+    private final ComboBox<WorkspaceItem> workspaceCombo = new ComboBox<>();
+    private final Runnable onRepositoryChanged;
+    private final DataformGcpPanel.PanelCallback callback;
+    private boolean updatingRepo = false;
+    private boolean updatingWorkspace = false;
 
-    public RepositorySelectorPanel(@NotNull Project project, @NotNull Runnable onSelectionChanged) {
+    public RepositorySelectorPanel(
+            @NotNull Project project,
+            @NotNull Runnable onRepositoryChanged,
+            @NotNull DataformGcpPanel.PanelCallback callback
+    ) {
         super(new FlowLayout(FlowLayout.LEFT, 6, 4));
         this.project = project;
-        this.onSelectionChanged = onSelectionChanged;
+        this.onRepositoryChanged = onRepositoryChanged;
+        this.callback = callback;
 
-        repoCombo.setRenderer(new DefaultListCellRenderer() {
-            @Override
-            public Component getListCellRendererComponent(
-                    JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
-                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-                if (value instanceof DataformRepositoryConfig c) setText(c.displayName());
-                return this;
-            }
-        });
+        buildRepoCombo();
+        buildWorkspaceCombo();
 
-        repoCombo.addItemListener(e -> {
-            if (updating) return;
-            if (e.getStateChange() == ItemEvent.SELECTED && e.getItem() instanceof DataformRepositoryConfig c) {
-                GcpRepositorySettings.getInstance(project).setActiveRepositoryId(c.repositoryId());
-                onSelectionChanged.run();
-            }
-        });
+        ActionToolbar toolbar = buildToolbar();
 
         add(new JBLabel("Repository:"));
         add(repoCombo);
+        add(new JBLabel("Workspace:"));
+        add(workspaceCombo);
+        add(toolbar.getComponent());
         add(buildConfigureButton());
 
         refresh();
     }
 
-    /**
-     * Reloads the combo from persisted settings and restores the active selection.
-     */
+    // -------------------------------------------------------------------------
+    // Public API
+    // -------------------------------------------------------------------------
+
     public void refresh() {
-        updating = true;
+        updatingRepo = true;
         try {
             repoCombo.removeAllItems();
-            List<DataformRepositoryConfig> all = GcpRepositorySettings.getInstance(project).getAllConfigs();
+            List<DataformRepositoryConfig> all =
+                    GcpRepositorySettings.getInstance(project).getAllConfigs();
             String activeId = GcpRepositorySettings.getInstance(project).getActiveRepositoryId();
             DataformRepositoryConfig toSelect = null;
             for (DataformRepositoryConfig c : all) {
@@ -82,8 +87,99 @@ public class RepositorySelectorPanel extends JPanel {
             }
             if (toSelect != null) repoCombo.setSelectedItem(toSelect);
         } finally {
-            updating = false;
+            updatingRepo = false;
         }
+    }
+
+    public void setWorkspaces(@NotNull List<Workspace> workspaces) {
+        String previouslySelected =
+                GcpRepositorySettings.getInstance(project).getSelectedWorkspaceId();
+        updatingWorkspace = true;
+        try {
+            workspaceCombo.removeAllItems();
+            workspaceCombo.addItem(new WorkspaceItem(null, "No workspace (repo main)"));
+            for (Workspace w : workspaces) {
+                workspaceCombo.addItem(new WorkspaceItem(w.workspaceId(), w.workspaceId()));
+            }
+            if (previouslySelected != null) {
+                for (int i = 0; i < workspaceCombo.getItemCount(); i++) {
+                    if (previouslySelected.equals(workspaceCombo.getItemAt(i).workspaceId())) {
+                        workspaceCombo.setSelectedIndex(i);
+                        return;
+                    }
+                }
+            }
+            workspaceCombo.setSelectedIndex(0);
+            GcpRepositorySettings.getInstance(project).setSelectedWorkspaceId(null);
+        } finally {
+            updatingWorkspace = false;
+        }
+    }
+
+    public void selectWorkspace(@Nullable String workspaceId) {
+        if (workspaceId == null) {
+            workspaceCombo.setSelectedIndex(0);
+            return;
+        }
+        for (int i = 0; i < workspaceCombo.getItemCount(); i++) {
+            if (workspaceId.equals(workspaceCombo.getItemAt(i).workspaceId())) {
+                workspaceCombo.setSelectedIndex(i);
+                return;
+            }
+        }
+    }
+
+    @Nullable
+    public String getSelectedWorkspaceId() {
+        WorkspaceItem selected = (WorkspaceItem) workspaceCombo.getSelectedItem();
+        return selected != null ? selected.workspaceId() : null;
+    }
+
+    // -------------------------------------------------------------------------
+    // Private builders
+    // -------------------------------------------------------------------------
+
+    private void buildRepoCombo() {
+        repoCombo.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(
+                    JList<?> list, Object value, int index,
+                    boolean isSelected, boolean cellHasFocus) {
+                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                if (value instanceof DataformRepositoryConfig c) setText(c.displayName());
+                return this;
+            }
+        });
+        repoCombo.addItemListener(e -> {
+            if (updatingRepo) return;
+            if (e.getStateChange() == ItemEvent.SELECTED
+                    && e.getItem() instanceof DataformRepositoryConfig c) {
+                GcpRepositorySettings.getInstance(project).setActiveRepositoryId(c.repositoryId());
+                onRepositoryChanged.run();
+            }
+        });
+    }
+
+    private void buildWorkspaceCombo() {
+        workspaceCombo.addItem(new WorkspaceItem(null, "No workspace (repo main)"));
+        workspaceCombo.addItemListener(e -> {
+            if (updatingWorkspace) return;
+            if (e.getStateChange() == ItemEvent.SELECTED) {
+                WorkspaceItem selected = (WorkspaceItem) e.getItem();
+                GcpRepositorySettings.getInstance(project)
+                        .setSelectedWorkspaceId(selected.workspaceId());
+            }
+        });
+    }
+
+    private ActionToolbar buildToolbar() {
+        DefaultActionGroup group = new DefaultActionGroup();
+        group.add(new RefreshAction(this::getSelectedWorkspaceId, callback));
+        group.add(new CreateWorkspaceAction(callback));
+        ActionToolbar toolbar = ActionManager.getInstance()
+                .createActionToolbar("DataformRepoSelector", group, true);
+        toolbar.setTargetComponent(this);
+        return toolbar;
     }
 
     private JButton buildConfigureButton() {
@@ -96,8 +192,13 @@ public class RepositorySelectorPanel extends JPanel {
         button.addActionListener(e -> {
             new ManageRepositoriesDialog(project).show();
             refresh();
-            onSelectionChanged.run();
+            onRepositoryChanged.run();
         });
         return button;
+    }
+
+    private record WorkspaceItem(@Nullable String workspaceId, @NotNull String label) {
+        @Override
+        public String toString() { return label; }
     }
 }

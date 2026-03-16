@@ -18,6 +18,7 @@ package io.github.rejeb.dataform.language.gcp.service;
 
 import com.intellij.openapi.project.Project;
 import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
+import io.github.rejeb.dataform.language.gcp.workspace.UncommittedChange;
 import io.github.rejeb.dataform.language.gcp.workspace.Workspace;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -35,7 +36,7 @@ public interface DataformGcpService {
     @NotNull List<Workspace> listWorkspaces();
 
     /** Commits local workspace changes. Must be called off the EDT. */
-    void commitCode(@NotNull String workspaceId);
+    void pushGitCommits(@NotNull String workspaceId);
 
     /** Pushes committed changes to remote. Must be called off the EDT. */
     void pushCode(@NotNull String workspaceId);
@@ -78,4 +79,23 @@ public interface DataformGcpService {
      * @throws GcpApiException if creation fails (already exists, permissions, network…)
      */
     void createWorkspace(@NotNull String workspaceId);
+
+    /**
+     * Returns all uncommitted file changes in the given workspace.
+     * Must be called off the EDT.
+     */
+    @NotNull List<UncommittedChange> fetchGitStatuses(@NotNull String workspaceId);
+
+    /**
+     * Commits the specified files in the given workspace.
+     * Must be called off the EDT.
+     *
+     * @param paths   relative paths of files to include in the commit
+     * @param message commit message (must not be blank)
+     */
+    void commitWorkspaceChanges(
+            @NotNull String workspaceId,
+            @NotNull List<String> paths,
+            @NotNull String message
+    );
 }

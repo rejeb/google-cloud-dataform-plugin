@@ -18,6 +18,7 @@ package io.github.rejeb.dataform.language.gcp.workspace.repository;
 
 import io.github.rejeb.dataform.language.gcp.common.CommitAuthorConfig;
 import io.github.rejeb.dataform.language.gcp.common.GcpApiException;
+import io.github.rejeb.dataform.language.gcp.workspace.UncommittedChange;
 import io.github.rejeb.dataform.language.gcp.workspace.Workspace;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -44,7 +45,7 @@ public interface WorkspaceRepository {
      *
      * @throws GcpApiException on network or API error
      */
-    void commit(
+    void pushGitCommits(
             @NotNull String projectId,
             @NotNull String location,
             @NotNull String repositoryId,
@@ -131,5 +132,32 @@ public interface WorkspaceRepository {
             @NotNull String location,
             @NotNull String repositoryId,
             @NotNull String workspaceId
+    );
+
+    /**
+     * Returns all files with uncommitted Git changes in the given workspace.
+     *
+     * @throws GcpApiException on API error
+     */
+    @NotNull List<UncommittedChange> fetchFileGitStatuses(
+            @NotNull String projectId,
+            @NotNull String location,
+            @NotNull String repositoryId,
+            @NotNull String workspaceId
+    );
+
+    /**
+     * Commits the specified files in the given workspace with the provided message.
+     *
+     * @throws GcpApiException on API error
+     */
+    void commitWorkspaceChanges(
+            @NotNull String projectId,
+            @NotNull String location,
+            @NotNull String repositoryId,
+            @NotNull String workspaceId,
+            @NotNull List<String> paths,
+            @NotNull String message,
+            @NotNull CommitAuthorConfig author
     );
 }

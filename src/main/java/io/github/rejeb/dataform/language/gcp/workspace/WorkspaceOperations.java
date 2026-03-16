@@ -37,7 +37,7 @@ public interface WorkspaceOperations {
      * @param workspaceId the target workspace ID
      * @throws GcpApiException on API error
      */
-    void commitCode(@NotNull String workspaceId);
+    void pushGitCommits(@NotNull String workspaceId);
 
     /**
      * Fetches file contents from the given workspace or from repo main if {@code null}.
@@ -86,4 +86,26 @@ public interface WorkspaceOperations {
      * @throws GcpApiException if creation fails or config is missing
      */
     void createWorkspace(@NotNull String workspaceId);
+
+    /**
+     * Returns all files with uncommitted Git changes in the given workspace.
+     *
+     * @throws GcpApiException on API error
+     */
+    @NotNull List<UncommittedChange> fetchGitStatuses(@NotNull String workspaceId);
+
+    /**
+     * Commits the specified files in the given workspace with the provided message.
+     *
+     * @param workspaceId the target workspace
+     * @param paths       relative paths of files to include in the commit
+     * @param message     commit message (must not be blank)
+     * @throws GcpApiException on API error
+     */
+    void commitWorkspaceChanges(
+            @NotNull String workspaceId,
+            @NotNull List<String> paths,
+            @NotNull String message
+    );
+
 }
