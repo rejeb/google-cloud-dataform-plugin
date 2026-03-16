@@ -180,6 +180,15 @@ public class DataformGcpPanel extends JPanel {
             public void onPushGitCommits(@NotNull String workspaceId) {
                 filesView.pushGitCommits(workspaceId);
             }
+
+            @Override
+            public void onCommitAndPushWorkspaceChanges(
+                    @NotNull String workspaceId,
+                    @NotNull List<String> paths,
+                    @NotNull String message
+            ) {
+                filesView.commitAndPushWorkspaceChanges(workspaceId, paths, message);
+            }
         };
     }
 
@@ -190,6 +199,11 @@ public class DataformGcpPanel extends JPanel {
         void onPush(@NotNull String workspaceId);
         void onCreateWorkspace(@NotNull String workspaceId);
         void onFetchGitStatuses(@NotNull String workspaceId);
+        void onCommitAndPushWorkspaceChanges(
+                @NotNull String workspaceId,
+                @NotNull List<String> paths,
+                @NotNull String message);
+
         void onCommitWorkspaceChanges(
                 @NotNull String workspaceId,
                 @NotNull List<String> paths,

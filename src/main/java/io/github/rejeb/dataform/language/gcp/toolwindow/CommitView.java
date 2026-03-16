@@ -88,7 +88,7 @@ public class CommitView extends JPanel {
 
         commitBtn.addActionListener(e -> onCommit());
         pushBtn.addActionListener(e -> onPush());
-        commitPushBtn.addActionListener(e -> { onCommit(); onPush(); });
+        commitPushBtn.addActionListener(e -> onCommitAndPush());
 
         JPanel buttonsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 4));
         buttonsPanel.add(pushBtn);
@@ -144,6 +144,34 @@ public class CommitView extends JPanel {
         }
         List<String> paths = selected.stream().map(UncommittedChange::path).toList();
         callback.onCommitWorkspaceChanges(workspaceId, paths, message);
+    }
+
+    private void onCommitAndPush() {
+        String message = commitMessageField.getText().trim();
+        if (message.isBlank()) {
+            JOptionPane.showMessageDialog(this,
+                    "Please enter a commit message.", "Commit Message Required",
+                    JOptionPane.WARNING_MESSAGE);
+            commitMessageField.requestFocus();
+            return;
+        }
+        List<UncommittedChange> selected = changeList.getSelectedValuesList();
+        if (selected.isEmpty()) {
+            JOptionPane.showMessageDialog(this,
+                    "Please select at least one file to commit.", "No Files Selected",
+                    JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        String workspaceId =
+                GcpRepositorySettings.getInstance(project).getSelectedWorkspaceId();
+        if (workspaceId == null) {
+            JOptionPane.showMessageDialog(this,
+                    "Please select a workspace first.", "No Workspace Selected",
+                    JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        List<String> paths = selected.stream().map(UncommittedChange::path).toList();
+        callback.onCommitAndPushWorkspaceChanges(workspaceId, paths, message);
     }
 
     private void onPush() {

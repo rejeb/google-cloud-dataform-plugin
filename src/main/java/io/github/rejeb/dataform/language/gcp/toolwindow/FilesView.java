@@ -219,6 +219,44 @@ public class FilesView extends JPanel {
                 });
     }
 
+    public void commitAndPushWorkspaceChanges(
+            @NotNull String workspaceId,
+            @NotNull List<String> paths,
+            @NotNull String message
+    ) {
+        ProgressManager.getInstance().run(
+                new Task.Backgroundable(project, "Committing and pushing changes…") {
+                    private GcpApiException error;
+
+                    @Override
+                    public void run(@NotNull ProgressIndicator indicator) {
+                        try {
+                            indicator.setText("Committing changes…");
+                            DataformGcpService.getInstance(project)
+                                    .commitWorkspaceChanges(workspaceId, paths, message);
+                            indicator.setText("Pushing commits…");
+                            DataformGcpService.getInstance(project)
+                                    .pushGitCommits(workspaceId);
+                        } catch (GcpApiException e) {
+                            error = e;
+                        }
+                    }
+
+                    @Override
+                    public void onSuccess() {
+                        if (error != null) {
+                            ApplicationManager.getApplication().invokeLater(() ->
+                                    JOptionPane.showMessageDialog(
+                                            FilesView.this, error.getMessage(),
+                                            "Commit & Push Failed", JOptionPane.ERROR_MESSAGE));
+                        } else {
+                            fetchGitStatuses(workspaceId);
+                        }
+                    }
+                });
+    }
+
+
     public void createWorkspace(
             @NotNull String workspaceId,
             @NotNull RepositorySelectorPanel selectorPanel
