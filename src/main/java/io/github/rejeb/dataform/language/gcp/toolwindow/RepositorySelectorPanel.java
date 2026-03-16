@@ -16,6 +16,7 @@
  */
 package io.github.rejeb.dataform.language.gcp.toolwindow;
 
+import com.intellij.icons.AllIcons;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.ComboBox;
 import com.intellij.ui.components.JBLabel;
@@ -45,7 +46,7 @@ public class RepositorySelectorPanel extends JPanel {
             public Component getListCellRendererComponent(
                     JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
                 super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-                if (value instanceof DataformRepositoryConfig c) setText(c.repositoryId());
+                if (value instanceof DataformRepositoryConfig c) setText(c.displayName());
                 return this;
             }
         });
@@ -60,6 +61,7 @@ public class RepositorySelectorPanel extends JPanel {
 
         add(new JBLabel("Repository:"));
         add(repoCombo);
+        add(buildConfigureButton());
 
         refresh();
     }
@@ -82,5 +84,20 @@ public class RepositorySelectorPanel extends JPanel {
         } finally {
             updating = false;
         }
+    }
+
+    private JButton buildConfigureButton() {
+        JButton button = new JButton(AllIcons.General.Settings);
+        button.setToolTipText("Manage Repositories");
+        button.setBorderPainted(false);
+        button.setContentAreaFilled(false);
+        button.setFocusPainted(false);
+        button.setPreferredSize(new Dimension(24, 24));
+        button.addActionListener(e -> {
+            new ManageRepositoriesDialog(project).show();
+            refresh();
+            onSelectionChanged.run();
+        });
+        return button;
     }
 }

@@ -34,8 +34,5 @@ public class DataformGcpToolWindowFactory implements ToolWindowFactory {
         Content content = ContentFactory.getInstance()
                 .createContent(panel, "", false);
         toolWindow.getContentManager().addContent(content);
-        toolWindow.setTitleActions(List.of(
-                new ManageRepositoriesAction(project, panel::refresh)
-        ));
     }
 }

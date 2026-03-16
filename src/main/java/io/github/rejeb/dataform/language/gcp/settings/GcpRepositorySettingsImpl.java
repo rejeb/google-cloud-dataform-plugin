@@ -35,30 +35,19 @@ public final class GcpRepositorySettingsImpl
 
     private State state = new State();
 
-    public GcpRepositorySettingsImpl(@NotNull Project project) {}
+    public GcpRepositorySettingsImpl(@NotNull Project project) {
+    }
 
     @Override
     public @NotNull List<DataformRepositoryConfig> getAllConfigs() {
         List<DataformRepositoryConfig> result = new ArrayList<>();
         for (RepoState r : state.repositories) {
             if (r.projectId != null && r.repositoryId != null && r.location != null) {
-                DataformRepositoryConfig c = new DataformRepositoryConfig(r.projectId, r.repositoryId, r.location);
+                DataformRepositoryConfig c = new DataformRepositoryConfig(r.label, r.projectId, r.repositoryId, r.location);
                 if (c.isComplete()) result.add(c);
             }
         }
-        // Migration: if the new list is empty but old single-repo fields are set, migrate them
-        if (result.isEmpty() && state.projectId != null && state.repositoryId != null && state.location != null) {
-            DataformRepositoryConfig migrated = new DataformRepositoryConfig(
-                    state.projectId, state.repositoryId, state.location);
-            if (migrated.isComplete()) {
-                result.add(migrated);
-                state.repositories.add(new RepoState(state.projectId, state.repositoryId, state.location));
-                if (state.activeRepositoryId == null) state.activeRepositoryId = state.repositoryId;
-                state.projectId = null;
-                state.repositoryId = null;
-                state.location = null;
-            }
-        }
+
         return result;
     }
 
@@ -66,7 +55,7 @@ public final class GcpRepositorySettingsImpl
     public void saveAllConfigs(@NotNull List<DataformRepositoryConfig> configs) {
         state.repositories.clear();
         for (DataformRepositoryConfig c : configs) {
-            state.repositories.add(new RepoState(c.projectId(), c.repositoryId(), c.location()));
+            state.repositories.add(new RepoState(c.label(), c.projectId(), c.repositoryId(), c.location()));
         }
     }
 
@@ -114,22 +103,23 @@ public final class GcpRepositorySettingsImpl
     }
 
     public static final class State {
-        public @Nullable String projectId;        // legacy migration field
-        public @Nullable String repositoryId;     // legacy migration field
-        public @Nullable String location;         // legacy migration field
         public @Nullable String selectedWorkspaceId;
         public @Nullable String activeRepositoryId;
         public @NotNull List<RepoState> repositories = new ArrayList<>();
     }
 
     public static final class RepoState {
+        public @Nullable String label;
         public @Nullable String projectId;
         public @Nullable String repositoryId;
         public @Nullable String location;
 
-        public RepoState() {}
+        public RepoState() {
+        }
 
-        public RepoState(@NotNull String projectId, @NotNull String repositoryId, @NotNull String location) {
+        public RepoState(@Nullable String label, @NotNull String projectId,
+                         @NotNull String repositoryId, @NotNull String location) {
+            this.label = label;
             this.projectId = projectId;
             this.repositoryId = repositoryId;
             this.location = location;

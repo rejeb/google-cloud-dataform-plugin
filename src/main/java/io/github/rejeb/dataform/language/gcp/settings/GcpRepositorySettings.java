@@ -53,16 +53,6 @@ public interface GcpRepositorySettings {
         return getActiveConfig();
     }
 
-    /** @deprecated use {@link #saveAllConfigs(List)} */
-    @Deprecated
-    default void saveConfig(@NotNull DataformRepositoryConfig config) {
-        List<DataformRepositoryConfig> existing = new java.util.ArrayList<>(getAllConfigs());
-        existing.removeIf(c -> c.repositoryId().equals(config.repositoryId()));
-        existing.add(config);
-        saveAllConfigs(existing);
-        setActiveRepositoryId(config.repositoryId());
-    }
-
     default @Nullable String getRepositoryId() {
         DataformRepositoryConfig c = getActiveConfig();
         return c != null ? c.repositoryId() : null;

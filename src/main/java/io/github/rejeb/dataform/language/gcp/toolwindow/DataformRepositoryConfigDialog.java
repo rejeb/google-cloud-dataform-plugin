@@ -38,6 +38,7 @@ import java.awt.*;
 public class DataformRepositoryConfigDialog extends DialogWrapper {
 
     private final Project project;
+    private final JBTextField labelField          = new JBTextField(30);
     private final JBTextField projectIdField    = new JBTextField(30);
     private final JBTextField repositoryIdField = new JBTextField(30);
     private final JBTextField locationField     = new JBTextField(30);
@@ -74,6 +75,7 @@ public class DataformRepositoryConfigDialog extends DialogWrapper {
         testRow.add(testResultLabel);
 
         return FormBuilder.createFormBuilder()
+                .addLabeledComponent(new JBLabel("Label:"), labelField, 1, false)
                 .addLabeledComponent(new JBLabel("GCP Project ID:"), projectIdField, 1, false)
                 .addLabeledComponent(new JBLabel("Repository Name:"), repositoryIdField, 1, false)
                 .addLabeledComponent(new JBLabel("Location:"), locationField, 1, false)
@@ -141,7 +143,9 @@ public class DataformRepositoryConfigDialog extends DialogWrapper {
 
     @NotNull
     private DataformRepositoryConfig buildConfig() {
+        String label = labelField.getText().trim();
         return new DataformRepositoryConfig(
+                label.isEmpty() ? repositoryIdField.getText().trim() : label,
                 projectIdField.getText().trim(),
                 repositoryIdField.getText().trim(),
                 locationField.getText().trim()

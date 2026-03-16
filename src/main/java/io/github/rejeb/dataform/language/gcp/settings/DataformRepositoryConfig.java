@@ -22,23 +22,31 @@ import org.jetbrains.annotations.Nullable;
 /**
  * Immutable snapshot of the Dataform GCP repository configuration.
  *
+ * @param label        User-defined display name for this repository (optional)
  * @param projectId    GCP project ID hosting the Dataform repository
  * @param repositoryId Dataform repository name
  * @param location     GCP location (e.g. "europe-west1")
  */
 public record DataformRepositoryConfig(
+        @Nullable String label,
         @NotNull String projectId,
         @NotNull String repositoryId,
         @NotNull String location
 ) {
-    /** @return {@code true} if all fields are non-blank */
+    /** @return {@code true} if all required fields are non-blank */
     public boolean isComplete() {
         return !projectId.isBlank() && !repositoryId.isBlank() && !location.isBlank();
     }
 
-    /** @return {@code null} if any field is blank, otherwise {@code this} */
+    /** @return {@code null} if any required field is blank, otherwise {@code this} */
     @Nullable
     public DataformRepositoryConfig orNull() {
         return isComplete() ? this : null;
+    }
+
+    /** @return the label if set and non-blank, otherwise the repositoryId */
+    @NotNull
+    public String displayName() {
+        return (label != null && !label.isBlank()) ? label : repositoryId;
     }
 }

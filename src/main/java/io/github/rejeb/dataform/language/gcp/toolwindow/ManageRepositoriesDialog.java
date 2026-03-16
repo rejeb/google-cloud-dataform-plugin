@@ -19,6 +19,7 @@ package io.github.rejeb.dataform.language.gcp.toolwindow;
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
+import com.intellij.openapi.ui.Messages;
 import com.intellij.ui.ToolbarDecorator;
 import com.intellij.ui.components.JBList;
 import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
@@ -50,7 +51,7 @@ public class ManageRepositoriesDialog extends DialogWrapper {
                     JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
                 super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
                 if (value instanceof DataformRepositoryConfig c) {
-                    setText(c.repositoryId() + "  [" + c.projectId() + " / " + c.location() + "]");
+                    setText(c.displayName() + "  [" + c.projectId() + " / " + c.location()+ " / " + c.repositoryId() + "]");
                     setIcon(AllIcons.Nodes.DataSchema);
                 }
                 return this;
@@ -119,14 +120,24 @@ public class ManageRepositoriesDialog extends DialogWrapper {
     private void removeSelected() {
         int idx = repoList.getSelectedIndex();
         if (idx < 0) return;
-        DataformRepositoryConfig removed = listModel.get(idx);
+        DataformRepositoryConfig target = listModel.get(idx);
+
+        int confirmed = Messages.showYesNoDialog(
+                project,
+                "Remove repository \"" + target.displayName() + "\"?\nThis cannot be undone.",
+                "Remove Repository",
+                Messages.getWarningIcon()
+        );
+        if (confirmed != Messages.YES) return;
+
         listModel.remove(idx);
         persistList();
         GcpRepositorySettings settings = GcpRepositorySettings.getInstance(project);
-        if (removed.repositoryId().equals(settings.getActiveRepositoryId())) {
+        if (target.repositoryId().equals(settings.getActiveRepositoryId())) {
             settings.setActiveRepositoryId(listModel.isEmpty() ? null : listModel.get(0).repositoryId());
         }
     }
+
 
     private void persistList() {
         List<DataformRepositoryConfig> all = new ArrayList<>();
