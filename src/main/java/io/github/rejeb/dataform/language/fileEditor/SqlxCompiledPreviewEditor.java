@@ -20,6 +20,7 @@ import com.intellij.icons.AllIcons;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.command.WriteCommandAction;
+import com.intellij.openapi.editor.ex.EditorEx;
 import com.intellij.openapi.fileEditor.FileEditor;
 import com.intellij.openapi.fileEditor.FileEditorState;
 import com.intellij.openapi.fileTypes.FileType;
@@ -30,6 +31,7 @@ import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Key;
+import com.intellij.openapi.util.ThrowableComputable;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.sql.SqlFileType;
 import com.intellij.ui.components.JBTabbedPane;
@@ -76,15 +78,14 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
         mainPanel.setOpaque(true);
         mainPanel.setBackground(UIUtil.getPanelBackground());
         mainPanel.add(tabs, BorderLayout.CENTER);
-
         tabs.setBackground(UIUtil.getPanelBackground());
+
         updateCompiledSql();
     }
 
     public void updateCompiledSql() {
-
         ProgressManager.getInstance().run(new Task.Backgroundable(project, "Dataform: compiling", true) {
-            private List<CompiledQuery> compiledQueries;
+            private List<FormattedCompiledQuery> compiledQueries;
             private List<LineageGraph> lineageGraphs;
 
             @Override
@@ -95,10 +96,15 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
                 CompiledGraph graph = svc.runIfFilesChanged();
                 if (graph != null) {
                     String path = file.getCanonicalPath();
-                    compiledQueries = graph.findCompiledQueryByFileName(path);
+                    List<CompiledQuery> rawQueries = graph.findCompiledQueryByFileName(path);
+                    compiledQueries = WriteCommandAction.runWriteCommandAction(project,
+                            (ThrowableComputable<List<FormattedCompiledQuery>, RuntimeException>) () ->
+                                    rawQueries.stream()
+                                            .map(q -> toFormatted(q, project))
+                                            .toList()
+                    );
                     lineageGraphs = LineageGraphHelper.buildGraph(graph, path);
                 }
-
                 if (graph != null && (graph.getGraphErrors() == null
                         || graph.getGraphErrors().getCompilationErrors().isEmpty())) {
                     project.getService(DataformTableSchemaService.class).refreshAsync(graph, false);
@@ -108,29 +114,28 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
 
             @Override
             public void onSuccess() {
-                ApplicationManager.getApplication().invokeLater(() ->
-                        WriteCommandAction.runWriteCommandAction(project, () -> {
-                            schemaPanel.setContent(lineageGraphs);
-                            queryPanel.setContent(compiledQueries);
-                            lineagePanel.setData(lineageGraphs);
-                        }), ModalityState.nonModal()
-                );
-
-                mainPanel.revalidate();
+                ApplicationManager.getApplication().invokeLater(() -> {
+                    schemaPanel.setContent(lineageGraphs);
+                    queryPanel.setContent(compiledQueries);
+                    lineagePanel.setData(lineageGraphs);
+                    mainPanel.revalidate();
+                }, ModalityState.nonModal());
             }
 
             @Override
             public void onThrowable(@NotNull Throwable error) {
-                ApplicationManager.getApplication().invokeLater(() ->
+                ApplicationManager.getApplication().invokeLater(() -> {
+                    EditorEx editor = queryPanel.getEditor();
+                    if (editor != null) {
                         WriteCommandAction.runWriteCommandAction(project, () ->
-                                queryPanel.getEditor().getDocument().setText(
+                                editor.getDocument().setText(
                                         "-- Compilation error:\n-- " + error.getMessage())
-                        ), ModalityState.nonModal()
-                );
+                        );
+                    }
+                }, ModalityState.nonModal());
             }
         });
     }
-
 
     private FileType resolveFileType(VirtualFile file) {
         if ("js".equals(file.getExtension())) {
@@ -152,30 +157,24 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
 
     @Override
     public @Nullable JComponent getPreferredFocusedComponent() {
-        return queryPanel.getEditor().getComponent();
+        EditorEx editor = queryPanel.getEditor();
+        return editor != null ? editor.getComponent() : null;
     }
 
     @Override
-    public void setState(@NotNull FileEditorState s) {
-    }
+    public void setState(@NotNull FileEditorState s) {}
 
     @Override
-    public boolean isModified() {
-        return false;
-    }
+    public boolean isModified() { return false; }
 
     @Override
-    public boolean isValid() {
-        return true;
-    }
+    public boolean isValid() { return true; }
 
     @Override
-    public void addPropertyChangeListener(@NotNull PropertyChangeListener l) {
-    }
+    public void addPropertyChangeListener(@NotNull PropertyChangeListener l) {}
 
     @Override
-    public void removePropertyChangeListener(@NotNull PropertyChangeListener l) {
-    }
+    public void removePropertyChangeListener(@NotNull PropertyChangeListener l) {}
 
     @Override
     public void dispose() {
@@ -183,13 +182,10 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
     }
 
     @Override
-    public @Nullable <T> T getUserData(@NotNull Key<T> key) {
-        return null;
-    }
+    public @Nullable <T> T getUserData(@NotNull Key<T> key) { return null; }
 
     @Override
-    public <T> void putUserData(@NotNull Key<T> key, @org.jspecify.annotations.Nullable T t) {
-    }
+    public <T> void putUserData(@NotNull Key<T> key, @org.jspecify.annotations.Nullable T t) {}
 
     @Override
     public void selectNotify() {
@@ -200,4 +196,20 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
         }
     }
 
+    private static FormattedCompiledQuery toFormatted(CompiledQuery q, Project project) {
+        List<String> preOps  = q.preOps().stream()
+                .map(s -> TableQuerySection.formatSql(s, project)).toList();
+        List<String> postOps = q.postOps().stream()
+                .map(s -> TableQuerySection.formatSql(s, project)).toList();
+        String query = q.query() != null ? TableQuerySection.formatSql(q.query(), project) : null;
+        String errors = q.compilationErrors() != null && !q.compilationErrors().isEmpty()
+                ? String.join("\n", q.compilationErrors()) : null;
+        return new FormattedCompiledQuery(
+                q.tableName(),
+                preOps.isEmpty() ? null : String.join("\n", preOps),
+                query,
+                postOps.isEmpty() ? null : String.join("\n", postOps),
+                errors
+        );
+    }
 }

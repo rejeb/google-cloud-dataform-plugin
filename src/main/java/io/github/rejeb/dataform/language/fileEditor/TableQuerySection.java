@@ -17,6 +17,7 @@
 package io.github.rejeb.dataform.language.fileEditor;
 
 import com.intellij.icons.AllIcons;
+import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.fileTypes.FileType;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiFile;
@@ -25,11 +26,10 @@ import com.intellij.psi.codeStyle.CodeStyleManager;
 import com.intellij.sql.psi.SqlLanguage;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
-import io.github.rejeb.dataform.language.compilation.model.CompiledQuery;
-import io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService;
 
 import javax.swing.*;
 import java.awt.*;
+import java.util.List;
 
 class TableQuerySection extends JPanel {
 
@@ -41,7 +41,7 @@ class TableQuerySection extends JPanel {
     private boolean expanded = true;
     private final JPanel header;
 
-    TableQuerySection(CompiledQuery compiledQuery, FileType fileType, Project project) {
+    TableQuerySection(FormattedCompiledQuery query, FileType fileType, Project project) {
         super(new BorderLayout());
         setOpaque(false);
         setBorder(JBUI.Borders.emptyBottom(8));
@@ -53,7 +53,7 @@ class TableQuerySection extends JPanel {
         header.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
 
         JLabel toggleIcon = new JLabel(AllIcons.General.ArrowDown);
-        JLabel tableLabel = new JLabel(compiledQuery.tableName() != null ? compiledQuery.tableName() : "Unknown table");
+        JLabel tableLabel = new JLabel(query.tableName() != null ? query.tableName() : "Unknown table");
         tableLabel.setFont(JBUI.Fonts.label(12).asBold());
         tableLabel.setForeground(UIUtil.getLabelForeground());
         tableLabel.setBorder(JBUI.Borders.emptyLeft(6));
@@ -61,10 +61,10 @@ class TableQuerySection extends JPanel {
         header.add(toggleIcon, BorderLayout.WEST);
         header.add(tableLabel, BorderLayout.CENTER);
 
-        preOpsSection = new QuerySection("Pre Operations", fileType, project, false);
-        querySection = new QuerySection("Query", fileType, project, false);
-        postOpsSection = new QuerySection("Post Operations", fileType, project, false);
-        errorsSection = new QuerySection("Compilation Errors", null, project, true);
+        preOpsSection  = new QuerySection("Pre Operations",    fileType, project, false);
+        querySection   = new QuerySection("Query",             fileType, project, false);
+        postOpsSection = new QuerySection("Post Operations",   fileType, project, false);
+        errorsSection  = new QuerySection("Compilation Errors", null,    project, true);
 
         contentPanel = new JPanel();
         contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
@@ -78,36 +78,38 @@ class TableQuerySection extends JPanel {
         add(header, BorderLayout.NORTH);
         add(contentPanel, BorderLayout.CENTER);
 
-        var formattedPreOps = compiledQuery.preOps().stream().map(query -> formatSql(query, project)).toList();
-        var formattedPostOps = compiledQuery.postOps().stream().map(query -> formatSql(query, project)).toList();
-        var formattedQuery = compiledQuery.query() != null ? formatSql(compiledQuery.query(), project) : null;
-        preOpsSection.setContent(
-                !formattedPreOps.isEmpty()
-                        ? String.join("\n", formattedPreOps) : null);
-        DataformTableSchemaService service = project.getService(DataformTableSchemaService.class);
-        querySection.setContent(formattedQuery);
-        postOpsSection.setContent(
-                !formattedPostOps.isEmpty()
-                        ? String.join("\n", formattedPostOps) : null);
-        errorsSection.setContent(
-                compiledQuery.compilationErrors() != null && !compiledQuery.compilationErrors().isEmpty()
-                        ? String.join("\n", compiledQuery.compilationErrors())
-                        : null);
+        preOpsSection.setContent(query.preOps());
+        querySection.setContent(query.query());
+        postOpsSection.setContent(query.postOps());
+        errorsSection.setContent(query.compilationErrors());
 
         header.addMouseListener(new java.awt.event.MouseAdapter() {
             @Override
             public void mouseClicked(java.awt.event.MouseEvent e) {
                 expanded = !expanded;
                 contentPanel.setVisible(expanded);
-                toggleIcon.setIcon(expanded ? AllIcons.General.ArrowDown
-                        : AllIcons.General.ArrowRight);
+                toggleIcon.setIcon(expanded ? AllIcons.General.ArrowDown : AllIcons.General.ArrowRight);
                 JComponent parent = (JComponent) getParent();
                 if (parent != null) parent.revalidate();
                 revalidate();
                 repaint();
             }
         });
+    }
 
+    /**
+     * Formats a SQL string using the project code style.
+     * Must be called inside a WriteCommandAction.
+     */
+    static String formatSql(String sql, Project project) {
+        PsiFileFactory factory = PsiFileFactory.getInstance(project);
+        PsiFile tempFile = factory.createFileFromText(
+                "temp.sql",
+                SqlLanguage.INSTANCE,
+                sql.replaceAll("\n +", "\n")
+        );
+        CodeStyleManager.getInstance(project).reformat(tempFile);
+        return tempFile.getText();
     }
 
     @Override
@@ -115,18 +117,16 @@ class TableQuerySection extends JPanel {
         if (!expanded) {
             Dimension h = header.getPreferredSize();
             Insets ins = getInsets();
-            return new Dimension(super.getPreferredSize().width,
-                    h.height + ins.top + ins.bottom);
+            return new Dimension(super.getPreferredSize().width, h.height + ins.top + ins.bottom);
         }
         return super.getPreferredSize();
     }
 
     @Override
     public Dimension getMaximumSize() {
-        if (!expanded) {
-            return new Dimension(Integer.MAX_VALUE, getPreferredSize().height);
-        }
-        return new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE);
+        return expanded
+                ? new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE)
+                : new Dimension(Integer.MAX_VALUE, getPreferredSize().height);
     }
 
     public QuerySection getQuerySection() {
@@ -138,16 +138,5 @@ class TableQuerySection extends JPanel {
         querySection.dispose();
         postOpsSection.dispose();
         errorsSection.dispose();
-    }
-
-    public String formatSql(String sql, Project project) {
-        PsiFileFactory factory = PsiFileFactory.getInstance(project);
-        PsiFile tempFile = factory.createFileFromText(
-                "temp.sql",
-                SqlLanguage.INSTANCE,
-                sql.replaceAll("\n +", "\n")
-        );
-        CodeStyleManager.getInstance(project).reformat(tempFile);
-        return tempFile.getText();
     }
 }

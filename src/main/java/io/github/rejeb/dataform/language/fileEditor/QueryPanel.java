@@ -53,8 +53,7 @@ public class QueryPanel extends JPanel {
         add(scroll, BorderLayout.CENTER);
     }
 
-    public void setContent(List<CompiledQuery> queries) {
-        // Libère les anciens éditeurs
+    public void setContent(List<FormattedCompiledQuery> queries) {
         sections.forEach(TableQuerySection::dispose);
         sections.clear();
         sectionsPanel.removeAll();
@@ -65,7 +64,7 @@ public class QueryPanel extends JPanel {
             return;
         }
 
-        for (CompiledQuery q : queries) {
+        for (FormattedCompiledQuery q : queries) {
             TableQuerySection section = new TableQuerySection(q, fileType, project);
             sections.add(section);
             sectionsPanel.add(section);
@@ -74,6 +73,7 @@ public class QueryPanel extends JPanel {
         sectionsPanel.revalidate();
         sectionsPanel.repaint();
     }
+
 
     public EditorEx getEditor() {
         if (sections.isEmpty()) return null;
