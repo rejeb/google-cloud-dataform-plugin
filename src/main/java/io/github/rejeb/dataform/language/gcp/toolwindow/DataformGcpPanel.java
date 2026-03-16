@@ -42,6 +42,10 @@ public class DataformGcpPanel extends JPanel {
         refresh();
     }
 
+    public GcpPanelActionDispatcher getDispatcher() {
+        return dispatcher;
+    }
+
     public void refresh() {
         removeAll();
         DataformRepositoryConfig config =
@@ -69,7 +73,7 @@ public class DataformGcpPanel extends JPanel {
 
     private void initConfiguredState(@NotNull DataformRepositoryConfig config) {
         repositorySelectorPanel = new RepositorySelectorPanel(
-                project, this::onRepositorySelected, dispatcher);
+                project, this::onRepositorySelected);
         dispatcher.refreshWorkspaces();
         filesView = new FilesView(project, config, dispatcher);
         CommitView commitView = new CommitView(project, dispatcher);

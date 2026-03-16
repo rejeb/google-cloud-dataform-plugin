@@ -21,7 +21,11 @@ import com.intellij.openapi.wm.ToolWindow;
 import com.intellij.openapi.wm.ToolWindowFactory;
 import com.intellij.ui.content.Content;
 import com.intellij.ui.content.ContentFactory;
+import io.github.rejeb.dataform.language.gcp.toolwindow.action.CreateWorkspaceAction;
 import io.github.rejeb.dataform.language.gcp.toolwindow.action.ManageRepositoriesAction;
+import io.github.rejeb.dataform.language.gcp.toolwindow.action.RefreshAction;
+import io.github.rejeb.dataform.language.gcp.toolwindow.dispatcher.GcpPanelActionDispatcher;
+import io.github.rejeb.dataform.language.gcp.toolwindow.dispatcher.GcpPanelActionDispatcherImpl;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
@@ -31,8 +35,16 @@ public class DataformGcpToolWindowFactory implements ToolWindowFactory {
     @Override
     public void createToolWindowContent(@NotNull Project project, @NotNull ToolWindow toolWindow) {
         DataformGcpPanel panel = new DataformGcpPanel(project);
+
         Content content = ContentFactory.getInstance()
                 .createContent(panel, "", false);
         toolWindow.getContentManager().addContent(content);
+
+        toolWindow.setTitleActions(List.of(
+                new RefreshAction(panel.getDispatcher()),
+                new CreateWorkspaceAction(panel.getDispatcher()),
+                new ManageRepositoriesAction(project, panel::refresh)
+        ));
     }
 }
+

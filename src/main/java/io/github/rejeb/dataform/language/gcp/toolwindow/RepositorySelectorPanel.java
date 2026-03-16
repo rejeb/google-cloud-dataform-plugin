@@ -16,18 +16,13 @@
  */
 package io.github.rejeb.dataform.language.gcp.toolwindow;
 
-import com.intellij.icons.AllIcons;
 import com.intellij.ide.ActivityTracker;
-import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.ComboBox;
 import com.intellij.ui.components.JBLabel;
 import io.github.rejeb.dataform.language.gcp.service.DataformGcpEvent;
 import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
 import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
-import io.github.rejeb.dataform.language.gcp.toolwindow.action.CreateWorkspaceAction;
-import io.github.rejeb.dataform.language.gcp.toolwindow.action.RefreshAction;
-import io.github.rejeb.dataform.language.gcp.toolwindow.dispatcher.GcpPanelActionDispatcher;
 import io.github.rejeb.dataform.language.gcp.workspace.Workspace;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -43,34 +38,25 @@ public class RepositorySelectorPanel extends JPanel {
     private final ComboBox<DataformRepositoryConfig> repoCombo = new ComboBox<>();
     private final ComboBox<WorkspaceItem> workspaceCombo = new ComboBox<>();
     private final Runnable onRepositoryChanged;
-    private final GcpPanelActionDispatcher dispatcher;
     private boolean updatingRepo = false;
     private boolean updatingWorkspace = false;
 
     public RepositorySelectorPanel(
             @NotNull Project project,
-            @NotNull Runnable onRepositoryChanged,
-            @NotNull GcpPanelActionDispatcher dispatcher
+            @NotNull Runnable onRepositoryChanged
     ) {
         super(new GridBagLayout());
         this.project = project;
         this.onRepositoryChanged = onRepositoryChanged;
-        this.dispatcher = dispatcher;
 
         buildRepoCombo();
         buildWorkspaceCombo();
-
-        repoCombo.setMinimumSize(new Dimension(80, repoCombo.getPreferredSize().height));
-        workspaceCombo.setMinimumSize(new Dimension(80, workspaceCombo.getPreferredSize().height));
-
-        ActionToolbar workspaceToolbar = buildToolbar();
-        JButton configureButton = buildConfigureButton();
 
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(2, 4, 2, 4);
         gbc.anchor = GridBagConstraints.WEST;
 
-        // Row 0 — Repository label | repoCombo | configureButton
+        // Row 0 — Repository label | repoCombo
         gbc.gridy = 0;
 
         gbc.gridx = 0;
@@ -83,26 +69,18 @@ public class RepositorySelectorPanel extends JPanel {
         gbc.fill = GridBagConstraints.HORIZONTAL;
         add(repoCombo, gbc);
 
-        gbc.gridx = 2;
-        gbc.weightx = 0;
-        gbc.fill = GridBagConstraints.NONE;
-        add(configureButton, gbc);
-
-        // Row 1 — Workspace label | workspaceCombo | workspaceToolbar
+        // Row 1 — Workspace label | workspaceCombo
         gbc.gridy = 1;
 
         gbc.gridx = 0;
+        gbc.weightx = 0;
+        gbc.fill = GridBagConstraints.NONE;
         add(new JBLabel("Workspace:"), gbc);
 
         gbc.gridx = 1;
         gbc.weightx = 1.0;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         add(workspaceCombo, gbc);
-
-        gbc.gridx = 2;
-        gbc.weightx = 0;
-        gbc.fill = GridBagConstraints.NONE;
-        add(workspaceToolbar.getComponent(), gbc);
 
         project.getMessageBus()
                 .connect()
@@ -115,8 +93,6 @@ public class RepositorySelectorPanel extends JPanel {
 
         refresh();
     }
-
-
 
     public void refresh() {
         updatingRepo = true;
@@ -195,33 +171,10 @@ public class RepositorySelectorPanel extends JPanel {
         });
     }
 
-    private ActionToolbar buildToolbar() {
-        DefaultActionGroup group = new DefaultActionGroup();
-        group.add(new RefreshAction(dispatcher));
-        group.add(new CreateWorkspaceAction(dispatcher));
-        ActionToolbar toolbar = ActionManager.getInstance()
-                .createActionToolbar("DataformRepoSelector", group, true);
-        toolbar.setTargetComponent(this);
-        return toolbar;
-    }
-
-    private JButton buildConfigureButton() {
-        JButton button = new JButton(AllIcons.General.Settings);
-        button.setToolTipText("Manage Repositories");
-        button.setBorderPainted(false);
-        button.setContentAreaFilled(false);
-        button.setFocusPainted(false);
-        button.setPreferredSize(new Dimension(24, 24));
-        button.addActionListener(e -> {
-            new ManageRepositoriesDialog(project).show();
-            refresh();
-            onRepositoryChanged.run();
-        });
-        return button;
-    }
-
     private record WorkspaceItem(@Nullable String workspaceId, @NotNull String label) {
         @Override
-        public String toString() { return label; }
+        public String toString() {
+            return label;
+        }
     }
 }
