@@ -64,4 +64,6 @@ public interface WorkspaceOperations {
     void testConnection(@NotNull DataformRepositoryConfig config);
 
     void pushCode(@NotNull String workspaceId);
+
+    void createRepository(@NotNull DataformRepositoryConfig config);
 }

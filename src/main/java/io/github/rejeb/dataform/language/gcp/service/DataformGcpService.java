@@ -105,4 +105,13 @@ public interface DataformGcpService {
     /** @return {@code true} if a background file refresh is currently running */
     boolean isLoading();
 
+    /**
+     * Creates a new Dataform repository in GCP for the given config.
+     * <p>Must be called off the EDT.
+     *
+     * @throws GcpApiException if creation fails (already exists, permissions, network…)
+     */
+    void createGcpRepository(@NotNull DataformRepositoryConfig config);
+
+
 }

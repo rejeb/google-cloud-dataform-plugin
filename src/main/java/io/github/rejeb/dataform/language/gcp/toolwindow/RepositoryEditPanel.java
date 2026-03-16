@@ -41,27 +41,31 @@ public class RepositoryEditPanel extends JPanel {
     private final JBTextField projectIdField    = new JBTextField(30);
     private final JBTextField repositoryIdField = new JBTextField(30);
     private final JBTextField locationField     = new JBTextField(30);
-    private final JButton     testButton        = new JButton("Test Connection");
-    private final JLabel      testResultLabel   = new JBLabel();
+
+    private final JButton testButton       = new JButton("Test Connection");
+    private final JButton createGcpButton  = new JButton("Create in GCP");
+    private final JLabel  statusLabel      = new JBLabel();
 
     public RepositoryEditPanel(@NotNull Project project) {
         super(new BorderLayout());
         this.project = project;
 
-        testButton.addActionListener(e -> testConnection());
+        testButton.addActionListener(e -> runAction(ActionKind.TEST));
+        createGcpButton.addActionListener(e -> runAction(ActionKind.CREATE_GCP));
 
-        JPanel testRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-        testRow.add(testButton);
-        testRow.add(Box.createHorizontalStrut(8));
-        testRow.add(testResultLabel);
+        JPanel actionRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+        actionRow.add(testButton);
+        actionRow.add(createGcpButton);
+        actionRow.add(Box.createHorizontalStrut(8));
+        actionRow.add(statusLabel);
 
         JPanel form = FormBuilder.createFormBuilder()
                 .addLabeledComponent(new JBLabel("Label:"), labelField, 1, false)
                 .addLabeledComponent(new JBLabel("GCP Project ID:"), projectIdField, 1, false)
-                .addLabeledComponent(new JBLabel("Repository Name:"), repositoryIdField, 1, false)
+                .addLabeledComponent(new JBLabel("Repository ID:"), repositoryIdField, 1, false)
                 .addLabeledComponent(new JBLabel("Location:"), locationField, 1, false)
                 .addComponentFillVertically(new JPanel(), 0)
-                .addComponent(testRow)
+                .addComponent(actionRow)
                 .getPanel();
         form.setBorder(JBUI.Borders.empty(8, 12));
 
@@ -69,46 +73,40 @@ public class RepositoryEditPanel extends JPanel {
         setEnabled(false);
     }
 
-    /**
-     * Loads the given config into the form fields.
-     */
     public void load(@NotNull DataformRepositoryConfig config) {
         labelField.setText(config.label() != null ? config.label() : "");
         projectIdField.setText(config.projectId());
         repositoryIdField.setText(config.repositoryId());
         locationField.setText(config.location());
-        testResultLabel.setText("");
+        statusLabel.setText("");
         setEnabled(true);
     }
 
-    /** Clears all fields and disables the form. */
     public void clear() {
         labelField.setText("");
         projectIdField.setText("");
         repositoryIdField.setText("");
         locationField.setText("");
-        testResultLabel.setText("");
+        statusLabel.setText("");
         setEnabled(false);
     }
 
-    /**
-     * @return a {@link ValidationInfo} if any required field is invalid, otherwise {@code null}
-     */
+    public void focusLabel() {
+        labelField.requestFocusInWindow();
+        labelField.selectAll();
+    }
+
     @Nullable
     public ValidationInfo validationInfo() {
         if (projectIdField.getText().isBlank())
             return new ValidationInfo("GCP Project ID is required.", projectIdField);
         if (repositoryIdField.getText().isBlank())
-            return new ValidationInfo("Repository Name is required.", repositoryIdField);
+            return new ValidationInfo("Repository ID is required.", repositoryIdField);
         if (locationField.getText().isBlank())
             return new ValidationInfo("Location is required.", locationField);
         return null;
     }
 
-    /**
-     * Builds a config from the current field values.
-     * If label is blank, the provided fallback is used.
-     */
     @NotNull
     public DataformRepositoryConfig buildConfig(@NotNull String labelFallback) {
         String label = labelField.getText().trim();
@@ -128,55 +126,69 @@ public class RepositoryEditPanel extends JPanel {
         repositoryIdField.setEnabled(enabled);
         locationField.setEnabled(enabled);
         testButton.setEnabled(enabled);
+        createGcpButton.setEnabled(enabled);
     }
 
-    public void focusLabel() {
-        labelField.requestFocusInWindow();
-        labelField.selectAll();
-    }
+    // -------------------------------------------------------------------------
 
-    private void testConnection() {
+    private enum ActionKind { TEST, CREATE_GCP }
+
+    private void runAction(@NotNull ActionKind kind) {
         ValidationInfo validation = validationInfo();
         if (validation != null) {
-            testResultLabel.setForeground(Color.RED);
-            testResultLabel.setText(validation.message);
+            setStatus(false, validation.message);
             return;
         }
 
-        testButton.setEnabled(false);
-        testResultLabel.setForeground(Color.GRAY);
-        testResultLabel.setText("Testing…");
+        DataformRepositoryConfig config = buildConfig("temp");
+        setButtonsEnabled(false);
 
-        DataformRepositoryConfig config = buildConfig("test");
+        String taskTitle = switch (kind) {
+            case TEST       -> "Testing Dataform connection…";
+            case CREATE_GCP -> "Creating Dataform repository in GCP…";
+        };
 
         ProgressManager.getInstance().run(
-                new Task.Backgroundable(project, "Testing Dataform connection…") {
+                new Task.Backgroundable(project, taskTitle) {
                     private boolean success;
-                    private String errorMessage;
+                    private String message;
 
                     @Override
                     public void run(@NotNull ProgressIndicator indicator) {
                         try {
-                            DataformGcpService.getInstance(project).testConnection(config);
+                            switch (kind) {
+                                case TEST       -> DataformGcpService.getInstance(project)
+                                        .testConnection(config);
+                                case CREATE_GCP -> DataformGcpService.getInstance(project)
+                                        .createGcpRepository(config);
+                            }
                             success = true;
+                            message = switch (kind) {
+                                case TEST       -> "✓ Connection successful";
+                                case CREATE_GCP -> "✓ Repository created in GCP";
+                            };
                         } catch (GcpApiException e) {
                             success = false;
-                            errorMessage = e.getMessage();
+                            message = "✗ " + e.getMessage();
                         }
                     }
 
                     @Override
                     public void onSuccess() {
-                        testButton.setEnabled(true);
-                        if (success) {
-                            testResultLabel.setForeground(new Color(0, 128, 0));
-                            testResultLabel.setText("✓ Connection successful");
-                        } else {
-                            testResultLabel.setForeground(Color.RED);
-                            testResultLabel.setText("✗ " + errorMessage);
-                        }
+                        setButtonsEnabled(true);
+                        setStatus(success, message);
                     }
                 }
         );
+    }
+
+    private void setButtonsEnabled(boolean enabled) {
+        testButton.setEnabled(enabled);
+        createGcpButton.setEnabled(enabled);
+    }
+
+    private void setStatus(boolean success, @NotNull String text) {
+        statusLabel.setForeground(success ? new Color(0, 128, 0) : Color.RED);
+        statusLabel.setText(text);
     }
 }

@@ -113,4 +113,18 @@ public interface WorkspaceRepository {
             @NotNull Set<String> pathsToDelete
     );
 
+    /**
+     * Creates a new Dataform repository in GCP.
+     *
+     * @param projectId    GCP project ID
+     * @param location     GCP location (e.g. "europe-west1")
+     * @param repositoryId ID of the repository to create (must be unique in the project/location)
+     * @throws GcpApiException if the API call fails (e.g. already exists, permission denied)
+     */
+    void createRepository(
+            @NotNull String projectId,
+            @NotNull String location,
+            @NotNull String repositoryId
+    );
+
 }

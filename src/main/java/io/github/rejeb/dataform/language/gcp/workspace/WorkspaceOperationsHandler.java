@@ -148,6 +148,15 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
                 workspaceId, localFiles, toDelete);
     }
 
+    public void createRepository(@NotNull DataformRepositoryConfig config) {
+        workspaceRepository.createRepository(
+                config.projectId(),
+                config.location(),
+                config.repositoryId()
+        );
+    }
+
+
     /**
      * Reads the GCP config under a read action since providers may access PSI.
      *

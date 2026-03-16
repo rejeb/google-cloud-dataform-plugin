@@ -183,6 +183,11 @@ public final class DataformGcpServiceImpl
         return loading.get();
     }
 
+    @Override
+    public void createGcpRepository(@NotNull DataformRepositoryConfig config) {
+        workspaceOperations.createRepository(config);
+    }
+
     /**
      * XML-serializable cache state.
      * {@code files} maps relative path → file content.

@@ -244,6 +244,35 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
         }
     }
 
+    @Override
+    public void createRepository(
+            @NotNull String projectId,
+            @NotNull String location,
+            @NotNull String repositoryId
+    ) {
+        try (DataformClient client = DataformClient.create()) {
+            String parent = LocationName.of(projectId, location).toString();
+
+            Repository repository = Repository.newBuilder()
+                    .build(); // options avancées (gitRemoteSettings, etc.) ajoutables ici
+
+            CreateRepositoryRequest request = CreateRepositoryRequest.newBuilder()
+                    .setParent(parent)
+                    .setRepositoryId(repositoryId)
+                    .setRepository(repository)
+                    .build();
+
+            client.createRepository(request);
+
+        } catch (IOException e) {
+            throw new GcpApiException(
+                    "Failed to create DataformClient — check Application Default Credentials.", e);
+        } catch (Exception e) {
+            throw new GcpApiException(
+                    "Error creating Dataform repository \"" + repositoryId + "\": " + e.getMessage(), e);
+        }
+    }
+
     @NotNull
     private Map<String, String> readAllRepositoryFiles(
             @NotNull DataformClient client,
