@@ -132,14 +132,21 @@ public class CommitView extends JPanel {
     }
 
     private JPanel buildMessagePanel() {
-        JPanel messagePanel = new JPanel(new BorderLayout());
-        messagePanel.add(new JSeparator(), BorderLayout.NORTH);
-        messagePanel.add(new JBScrollPane(commitMessageField), BorderLayout.CENTER);
+        JBLabel messageLabel = new JBLabel("Commit message");
+        messageLabel.setForeground(JBUI.CurrentTheme.Label.disabledForeground());
+        messageLabel.setFont(JBUI.Fonts.label(11));
+        messageLabel.setBorder(JBUI.Borders.empty(4, 6, 2, 6));
 
-        // Placeholder text
-        commitMessageField.putClientProperty("JTextField.placeholderText", "Commit Message");
+        JPanel labelWrapper = new JPanel(new BorderLayout());
+        labelWrapper.add(new JSeparator(), BorderLayout.NORTH);
+        labelWrapper.add(messageLabel, BorderLayout.CENTER);
+
+        JPanel messagePanel = new JPanel(new BorderLayout());
+        messagePanel.add(labelWrapper, BorderLayout.NORTH);
+        messagePanel.add(new JBScrollPane(commitMessageField), BorderLayout.CENTER);
         return messagePanel;
     }
+
 
     // -------------------------------------------------------------------------
     // Public API
