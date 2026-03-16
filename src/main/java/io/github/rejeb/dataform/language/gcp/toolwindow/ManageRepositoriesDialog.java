@@ -20,8 +20,11 @@ import com.intellij.icons.AllIcons;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.openapi.ui.ValidationInfo;
+import com.intellij.ui.JBSplitter;
 import com.intellij.ui.ToolbarDecorator;
 import com.intellij.ui.components.JBList;
+import com.intellij.ui.components.JBScrollPane;
 import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
 import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
 import org.jetbrains.annotations.NotNull;
@@ -37,10 +40,13 @@ public class ManageRepositoriesDialog extends DialogWrapper {
     private final Project project;
     private final DefaultListModel<DataformRepositoryConfig> listModel = new DefaultListModel<>();
     private final JBList<DataformRepositoryConfig> repoList = new JBList<>(listModel);
+    private final RepositoryEditPanel editPanel;
 
     public ManageRepositoriesDialog(@NotNull Project project) {
         super(project, true);
         this.project = project;
+        this.editPanel = new RepositoryEditPanel(project);
+
         setTitle("Manage Dataform Repositories");
 
         GcpRepositorySettings.getInstance(project).getAllConfigs().forEach(listModel::addElement);
@@ -51,70 +57,83 @@ public class ManageRepositoriesDialog extends DialogWrapper {
                     JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
                 super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
                 if (value instanceof DataformRepositoryConfig c) {
-                    setText(c.displayName() + "  [" + c.projectId() + " / " + c.location()+ " / " + c.repositoryId() + "]");
+                    setText(c.displayName());
                     setIcon(AllIcons.Nodes.DataSchema);
                 }
                 return this;
             }
         });
 
+        repoList.addListSelectionListener(e -> {
+            if (e.getValueIsAdjusting()) return;
+            DataformRepositoryConfig selected = repoList.getSelectedValue();
+            if (selected != null) {
+                syncCurrentEdit();
+                editPanel.load(selected);
+            } else {
+                editPanel.clear();
+            }
+        });
+
         init();
+
+        if (!listModel.isEmpty()) {
+            repoList.setSelectedIndex(0);
+        }
     }
 
     @Override
     protected @Nullable JComponent createCenterPanel() {
-        JPanel decorated = ToolbarDecorator.createDecorator(repoList)
+        JPanel listPanel = ToolbarDecorator.createDecorator(repoList)
                 .setAddAction(button -> addRepository())
-                .setEditAction(button -> editSelected())
                 .setRemoveAction(button -> removeSelected())
-                .setEditActionUpdater(e -> !repoList.isSelectionEmpty())
                 .setRemoveActionUpdater(e -> !repoList.isSelectionEmpty())
                 .disableUpDownActions()
                 .createPanel();
-        decorated.setPreferredSize(new Dimension(520, 280));
-        return decorated;
+
+        JBSplitter splitter = new JBSplitter(false, 0.35f);
+        splitter.setFirstComponent(listPanel);
+        splitter.setSecondComponent(new JBScrollPane(editPanel));
+        splitter.setPreferredSize(new Dimension(700, 400));
+        return splitter;
     }
 
-    /**
-     * Exposes only a "Close" button — changes are persisted immediately on each action.
-     */
+    @Override
+    protected @Nullable ValidationInfo doValidate() {
+        if (repoList.getSelectedValue() != null) {
+            return editPanel.validationInfo();
+        }
+        return null;
+    }
+
+    @Override
+    protected void doOKAction() {
+        syncCurrentEdit();
+        persistList();
+        super.doOKAction();
+    }
+
     @Override
     protected @NotNull Action @NotNull [] createActions() {
-        return new Action[]{getOKAction()};
+        return new Action[]{getOKAction(), getCancelAction()};
     }
 
     @Override
     protected void createDefaultActions() {
         super.createDefaultActions();
-        setOKButtonText("Close");
+        setOKButtonText("Save");
     }
 
     private void addRepository() {
-        DataformRepositoryConfigDialog dialog = new DataformRepositoryConfigDialog(project, null);
-        if (dialog.showAndGet()) {
-            DataformRepositoryConfig created = dialog.getResultConfig();
-            if (created != null) {
-                listModel.addElement(created);
-                persistList();
-                if (listModel.size() == 1) {
-                    GcpRepositorySettings.getInstance(project).setActiveRepositoryId(created.repositoryId());
-                }
-            }
-        }
-    }
-
-    private void editSelected() {
-        int idx = repoList.getSelectedIndex();
-        if (idx < 0) return;
-        DataformRepositoryConfig existing = listModel.get(idx);
-        DataformRepositoryConfigDialog dialog = new DataformRepositoryConfigDialog(project, existing);
-        if (dialog.showAndGet()) {
-            DataformRepositoryConfig updated = dialog.getResultConfig();
-            if (updated != null) {
-                listModel.set(idx, updated);
-                persistList();
-            }
-        }
+        syncCurrentEdit();
+        int newIndex = listModel.size();
+        String generatedLabel = "Repository " + (newIndex + 1);
+        DataformRepositoryConfig newConfig = new DataformRepositoryConfig(
+                generatedLabel, "", "", "");
+        listModel.addElement(newConfig);
+        repoList.setSelectedIndex(newIndex);
+        editPanel.load(newConfig);
+        SwingUtilities.invokeLater(() -> editPanel.focusLabel());
     }
 
     private void removeSelected() {
@@ -131,17 +150,37 @@ public class ManageRepositoriesDialog extends DialogWrapper {
         if (confirmed != Messages.YES) return;
 
         listModel.remove(idx);
-        persistList();
-        GcpRepositorySettings settings = GcpRepositorySettings.getInstance(project);
-        if (target.repositoryId().equals(settings.getActiveRepositoryId())) {
-            settings.setActiveRepositoryId(listModel.isEmpty() ? null : listModel.get(0).repositoryId());
+
+        if (!listModel.isEmpty()) {
+            int nextIdx = Math.min(idx, listModel.size() - 1);
+            repoList.setSelectedIndex(nextIdx);
+        } else {
+            editPanel.clear();
         }
     }
 
+    /**
+     * Saves the current edit panel state back into the selected list item.
+     */
+    private void syncCurrentEdit() {
+        int idx = repoList.getSelectedIndex();
+        if (idx < 0) return;
+        String labelFallback = "Repository " + (idx + 1);
+        DataformRepositoryConfig updated = editPanel.buildConfig(labelFallback);
+        listModel.set(idx, updated);
+        repoList.repaint();
+    }
 
     private void persistList() {
         List<DataformRepositoryConfig> all = new ArrayList<>();
         for (int i = 0; i < listModel.size(); i++) all.add(listModel.get(i));
-        GcpRepositorySettings.getInstance(project).saveAllConfigs(all);
+        GcpRepositorySettings settings = GcpRepositorySettings.getInstance(project);
+        settings.saveAllConfigs(all);
+
+        String activeId = settings.getActiveRepositoryId();
+        boolean activeStillExists = all.stream().anyMatch(c -> c.repositoryId().equals(activeId));
+        if (!activeStillExists) {
+            settings.setActiveRepositoryId(all.isEmpty() ? null : all.get(0).repositoryId());
+        }
     }
 }
