@@ -25,8 +25,10 @@ import com.intellij.ui.ScrollPaneFactory;
 import com.intellij.ui.treeStructure.Tree;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.tree.TreeUtil;
+import io.github.rejeb.dataform.language.gcp.common.GcpApiException;
 import io.github.rejeb.dataform.language.gcp.service.DataformGcpFilesLoadedListener;
 import io.github.rejeb.dataform.language.gcp.service.DataformGcpService;
+
 import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
 import io.github.rejeb.dataform.language.gcp.workspace.Workspace;
 import org.jetbrains.annotations.NotNull;
@@ -130,6 +132,55 @@ public class FilesView extends JPanel {
                     @Override
                     public void run(@NotNull ProgressIndicator indicator) {
                         DataformGcpService.getInstance(project).pushCode(workspaceId);
+                    }
+                }
+        );
+    }
+
+    public void createWorkspace(@NotNull String workspaceId) {
+        ProgressManager.getInstance().run(
+                new Task.Backgroundable(project, "Creating workspace '" + workspaceId + "'…") {
+                    private boolean success;
+                    private String errorMessage;
+
+                    @Override
+                    public void run(@NotNull ProgressIndicator indicator) {
+                        try {
+                            DataformGcpService.getInstance(project).createWorkspace(workspaceId);
+                            success = true;
+                        } catch (GcpApiException e) {
+                            success = false;
+                            errorMessage = e.getMessage();
+                        }
+                    }
+
+                    @Override
+                    public void onSuccess() {
+                        if (success) {
+                            // Rafraîchir la liste des workspaces puis sélectionner le nouveau
+                            ProgressManager.getInstance().run(
+                                    new Task.Backgroundable(project, "Loading Dataform workspaces…") {
+                                        @Override
+                                        public void run(@NotNull ProgressIndicator indicator) {
+                                            List<Workspace> workspaces =
+                                                    DataformGcpService.getInstance(project).listWorkspaces();
+                                            ApplicationManager.getApplication().invokeLater(() -> {
+                                                toolbar.setWorkspaces(workspaces);
+                                                toolbar.selectWorkspace(workspaceId);
+                                            });
+                                        }
+                                    }
+                            );
+                        } else {
+                            ApplicationManager.getApplication().invokeLater(() ->
+                                    JOptionPane.showMessageDialog(
+                                            FilesView.this,
+                                            errorMessage,
+                                            "Failed to Create Workspace",
+                                            JOptionPane.ERROR_MESSAGE
+                                    )
+                            );
+                        }
                     }
                 }
         );

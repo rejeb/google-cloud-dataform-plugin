@@ -40,7 +40,7 @@ public interface WorkspaceRepository {
     );
 
     /**
-     * Pushes local Git commits in the workspace to the remote repository.
+     * Commits and pushes local workspace changes to the remote repository.
      *
      * @throws GcpApiException on network or API error
      */
@@ -55,7 +55,6 @@ public interface WorkspaceRepository {
     /**
      * Pulls changes from the remote repository into the workspace.
      *
-     * @param author the Git author identity required by the GCP Dataform API
      * @throws GcpApiException on network or API error
      */
     void pull(
@@ -66,11 +65,10 @@ public interface WorkspaceRepository {
             @NotNull CommitAuthorConfig author
     );
 
-
     /**
      * Reads the content of the given file paths directly from the repository (no workspace).
      *
-     * @return map of relative path → file content (UTF-8); paths absent from the remote are skipped
+     * @return map of relative path → file content (UTF-8); absent paths are skipped
      * @throws GcpApiException if the client cannot be created or a fatal API error occurs
      */
     @NotNull Map<String, String> readFilesFromRepository(
@@ -82,22 +80,20 @@ public interface WorkspaceRepository {
 
     /**
      * Lists and reads all files from the GCP Dataform repository (main branch)
-     * or from a workspace, independently of local project contents.
+     * or from a workspace.
      *
      * @param workspaceId workspace ID, or {@code null} to read from repo main branch
      * @return map of relative path → file content
      * @throws GcpApiException on API error
      */
-    @NotNull
-    Map<String, String> readAllFiles(
+    @NotNull Map<String, String> readAllFiles(
             @NotNull String projectId,
             @NotNull String location,
             @NotNull String repositoryId,
             @Nullable String workspaceId
     );
 
-    @NotNull
-    Set<String> listAllPaths(
+    @NotNull Set<String> listAllPaths(
             @NotNull String projectId,
             @NotNull String location,
             @NotNull String repositoryId,
@@ -116,9 +112,6 @@ public interface WorkspaceRepository {
     /**
      * Creates a new Dataform repository in GCP.
      *
-     * @param projectId    GCP project ID
-     * @param location     GCP location (e.g. "europe-west1")
-     * @param repositoryId ID of the repository to create (must be unique in the project/location)
      * @throws GcpApiException if the API call fails (e.g. already exists, permission denied)
      */
     void createRepository(
@@ -127,4 +120,16 @@ public interface WorkspaceRepository {
             @NotNull String repositoryId
     );
 
+    /**
+     * Creates a new workspace in the given GCP Dataform repository.
+     *
+     * @param workspaceId ID of the workspace to create (must be unique within the repository)
+     * @throws GcpApiException if the API call fails (e.g. already exists, permission denied)
+     */
+    void createWorkspace(
+            @NotNull String projectId,
+            @NotNull String location,
+            @NotNull String repositoryId,
+            @NotNull String workspaceId
+    );
 }

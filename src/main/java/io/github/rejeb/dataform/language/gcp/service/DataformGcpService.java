@@ -27,79 +27,38 @@ import java.util.Map;
 
 public interface DataformGcpService {
 
-    /**
-     * @return the service instance for the given project
-     */
     static DataformGcpService getInstance(@NotNull Project project) {
         return project.getService(DataformGcpService.class);
     }
 
-    /**
-     * Lists all workspaces in the configured GCP Dataform repository.
-     * <p>Must be called off the EDT.
-     *
-     * @return list of workspaces, or empty list if config is missing or the API call fails
-     */
+    /** Lists all workspaces. Must be called off the EDT. */
     @NotNull List<Workspace> listWorkspaces();
-    /**
-     * Pushes local Git commits in the given workspace to the remote repository.
-     * <p>Must be called off the EDT.
-     *
-     * @param workspaceId the target workspace ID
-     */
+
+    /** Commits local workspace changes. Must be called off the EDT. */
     void commitCode(@NotNull String workspaceId);
 
-    /**
-     * Pushes local Git commits in the given workspace to the remote repository.
-     * <p>Must be called off the EDT.
-     *
-     * @param workspaceId the target workspace ID
-     */
+    /** Pushes committed changes to remote. Must be called off the EDT. */
     void pushCode(@NotNull String workspaceId);
 
-    /**
-     * Pulls changes from the remote repository into the given workspace.
-     * <p>Must be called off the EDT.
-     *
-     * @param workspaceId the target workspace ID
-     */
+    /** Fetches files from GCP. Must be called off the EDT. */
     @NotNull Map<String, String> fetchCode(@Nullable String workspaceId);
 
-    /**
-     * Pulls files from the given workspace (or repo main if {@code null})
-     * and writes them to the local project, replacing existing files.
-     * <p>Must be called off the EDT.
-     *
-     * @param workspaceId the target workspace ID, or {@code null} to sync from repo main
-     */
+    /** Pulls files from GCP and writes them locally. Must be called off the EDT. */
     void pullCode(@Nullable String workspaceId);
 
-    /**
-     * Tests the connection to the given Dataform repository config
-     * by listing workspaces. Throws {@link GcpApiException} on failure.
-     */
+    /** Tests connectivity to the given config. Throws {@link GcpApiException} on failure. */
     void testConnection(@NotNull DataformRepositoryConfig config);
 
-    /**
-     * Fetches files from GCP in background and updates the internal cache.
-     * Notifies the given callback on the EDT when done.
-     *
-     * @param workspaceId workspace to fetch from, or {@code null} for repo main
-     * @param onDone      called on EDT with the fetched files (empty map on error)
-     */
+    /** Fetches files asynchronously and notifies {@code onDone} on the EDT. */
     void refreshFilesAsync(
             @Nullable String workspaceId,
             @NotNull java.util.function.Consumer<Map<String, String>> onDone
     );
 
-    /**
-     * @return the last successfully fetched files, or an empty map if cache is empty
-     */
+    /** @return last successfully fetched files, or empty map */
     @NotNull Map<String, String> getCachedFiles();
 
-    /**
-     * Invalidates the file cache.
-     */
+    /** Invalidates the file cache. */
     void invalidateCache();
 
     /** @return {@code true} if a background file refresh is currently running */
@@ -107,11 +66,16 @@ public interface DataformGcpService {
 
     /**
      * Creates a new Dataform repository in GCP for the given config.
-     * <p>Must be called off the EDT.
-     *
-     * @throws GcpApiException if creation fails (already exists, permissions, network…)
+     * Must be called off the EDT.
      */
     void createGcpRepository(@NotNull DataformRepositoryConfig config);
 
-
+    /**
+     * Creates a new workspace in the active GCP Dataform repository.
+     * Must be called off the EDT.
+     *
+     * @param workspaceId the ID of the workspace to create
+     * @throws GcpApiException if creation fails (already exists, permissions, network…)
+     */
+    void createWorkspace(@NotNull String workspaceId);
 }

@@ -21,6 +21,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.ComboBox;
 import com.intellij.ui.components.JBLabel;
 import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
+import io.github.rejeb.dataform.language.gcp.toolwindow.action.CreateWorkspaceAction;
 import io.github.rejeb.dataform.language.gcp.toolwindow.action.PullFromWorkspaceAction;
 import io.github.rejeb.dataform.language.gcp.toolwindow.action.PushToWorkspaceAction;
 import io.github.rejeb.dataform.language.gcp.toolwindow.action.RefreshAction;
@@ -85,6 +86,23 @@ public class FileViewToolbar extends JPanel {
         }
     }
 
+    /**
+     * Selects the workspace with the given ID in the combo box.
+     * Called after successful workspace creation to auto-select the new one.
+     */
+    public void selectWorkspace(@Nullable String workspaceId) {
+        if (workspaceId == null) {
+            workspaceCombo.setSelectedIndex(0);
+            return;
+        }
+        for (int i = 0; i < workspaceCombo.getItemCount(); i++) {
+            WorkspaceItem item = workspaceCombo.getItemAt(i);
+            if (workspaceId.equals(item.workspaceId())) {
+                workspaceCombo.setSelectedIndex(i);
+                return;
+            }
+        }
+    }
 
     /**
      * @return the currently selected workspace ID, or {@code null} if "no workspace" is selected
@@ -102,6 +120,8 @@ public class FileViewToolbar extends JPanel {
         group.addSeparator();
         group.add(new PullFromWorkspaceAction(this::getSelectedWorkspaceId, callback));
         group.add(new PushToWorkspaceAction(this::getSelectedWorkspaceId, callback));
+        group.addSeparator();
+        group.add(new CreateWorkspaceAction(callback));
 
         ActionToolbar toolbar = ActionManager.getInstance()
                 .createActionToolbar("DataformGcpToolbar", group, true);

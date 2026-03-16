@@ -36,6 +36,7 @@ import java.util.*;
 import java.util.function.Function;
 
 public class WorkspaceOperationsHandler implements WorkspaceOperations {
+
     private static final Logger LOG = Logger.getInstance(WorkspaceOperationsHandler.class);
 
     private final WorkspaceRepository workspaceRepository;
@@ -68,7 +69,6 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
     public List<Workspace> listWorkspaces() {
         GcpConfig config = readConfig();
         if (config == null) return List.of();
-
         return workspaceRepository.findAll(config.projectId, config.location, config.repositoryId);
     }
 
@@ -76,9 +76,9 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
     public void commitCode(@NotNull String workspaceId) {
         GcpConfig config = readConfig();
         if (config == null) return;
-
         CommitAuthorConfig author = configProvider.getCommitAuthor();
-        workspaceRepository.commit(config.projectId, config.location, config.repositoryId, workspaceId,author);
+        workspaceRepository.commit(config.projectId, config.location, config.repositoryId,
+                workspaceId, author);
     }
 
     @Override
@@ -86,7 +86,6 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
     public Map<String, String> fetchCode(@Nullable String workspaceId) {
         GcpConfig config = readConfig();
         if (config == null) return Map.of();
-
         return workspaceRepository.readAllFiles(
                 config.projectId, config.location, config.repositoryId, workspaceId);
     }
@@ -95,10 +94,8 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
     public void pullCode(@Nullable String workspaceId) {
         GcpConfig config = readConfig();
         if (config == null) return;
-
         Map<String, String> files = workspaceRepository.readAllFiles(
                 config.projectId, config.location, config.repositoryId, workspaceId);
-
         if (!files.isEmpty()) {
             writeFilesToVfs(files);
         }
@@ -114,7 +111,6 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
         GcpConfig config = readConfig();
         if (config == null) return;
 
-        // 1. Lire les fichiers locaux (paths filtrés + contenu)
         Map<String, String> localFiles = ReadAction.compute(() -> {
             List<String> paths = filesResolver.apply(project);
             VirtualFile[] roots = ProjectRootManager.getInstance(project).getContentRoots();
@@ -156,21 +152,37 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
         );
     }
 
-
     /**
-     * Reads the GCP config under a read action since providers may access PSI.
+     * Creates a new workspace in the active GCP Dataform repository.
      *
-     * @return resolved config, or {@code null} if any field is missing
+     * @param workspaceId the ID of the workspace to create
+     * @throws GcpApiException if creation fails or config is missing
      */
+    public void createWorkspace(@NotNull String workspaceId) {
+        GcpConfig config = readConfig();
+        if (config == null) {
+            throw new GcpApiException(
+                    "No active repository config — configure a repository first.");
+        }
+        workspaceRepository.createWorkspace(
+                config.projectId,
+                config.location,
+                config.repositoryId,
+                workspaceId
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // Private helpers
+    // -------------------------------------------------------------------------
+
     @Nullable
     private GcpConfig readConfig() {
         return ReadAction.compute(() -> {
             String projectId = configProvider.getProjectId();
             String location = configProvider.getLocation();
             String repositoryId = configProvider.getRepositoryId();
-            if (projectId == null || location == null || repositoryId == null) {
-                return null;
-            }
+            if (projectId == null || location == null || repositoryId == null) return null;
             return new GcpConfig(projectId, location, repositoryId);
         });
     }
@@ -212,9 +224,6 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
         file.setBinaryContent(content.getBytes(StandardCharsets.UTF_8));
     }
 
-    /**
-     * Immutable snapshot of the GCP config read under a read action.
-     */
     private record GcpConfig(
             @NotNull String projectId,
             @NotNull String location,

@@ -37,7 +37,6 @@ public class DataformGcpPanel extends JPanel {
         super(new BorderLayout());
         this.project = project;
         refresh();
-
     }
 
     public void refresh() {
@@ -76,7 +75,7 @@ public class DataformGcpPanel extends JPanel {
 
         JPanel sideBar = buildSideBar(contentPanel);
 
-        add(repositorySelectorPanel, BorderLayout.NORTH);   // NEW
+        add(repositorySelectorPanel, BorderLayout.NORTH);
         add(sideBar, BorderLayout.WEST);
         add(contentPanel, BorderLayout.CENTER);
         ((CardLayout) contentPanel.getLayout()).show(contentPanel, "FILES");
@@ -125,7 +124,6 @@ public class DataformGcpPanel extends JPanel {
         return btn;
     }
 
-
     private @NotNull PanelCallback buildPanelCallback() {
         return new PanelCallback() {
             @Override
@@ -151,19 +149,21 @@ public class DataformGcpPanel extends JPanel {
             @Override
             public void onCommit(@NotNull String workspaceId) { /* TODO */ }
 
+            @Override
+            public void onCreateWorkspace(@NotNull String workspaceId) {
+                filesView.createWorkspace(workspaceId);
+            }
         };
     }
 
     public interface PanelCallback {
         void onRefreshWorkspaces();
-
         void onFetch(@Nullable String workspaceId);
-
         void onPull(@Nullable String workspaceId);
-
         void onPush(@NotNull String workspaceId);
-
         void onCommit(@NotNull String workspaceId);
 
+        /** Called when the user requests the creation of a new workspace. */
+        void onCreateWorkspace(@NotNull String workspaceId);
     }
 }

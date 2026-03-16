@@ -26,6 +26,7 @@ import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
 import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
 import io.github.rejeb.dataform.language.gcp.settings.WorkflowSettingsGcpConfigProvider;
 import io.github.rejeb.dataform.language.gcp.workspace.Workspace;
+import io.github.rejeb.dataform.language.gcp.workspace.WorkspaceOperations;
 import io.github.rejeb.dataform.language.gcp.workspace.WorkspaceOperationsHandler;
 import io.github.rejeb.dataform.language.gcp.workspace.repository.GcpDataformWorkspaceRepository;
 import org.jetbrains.annotations.NotNull;
@@ -46,10 +47,9 @@ public final class DataformGcpServiceImpl
 
     private static final Logger LOG = Logger.getInstance(DataformGcpServiceImpl.class);
 
-    private final WorkspaceOperationsHandler workspaceOperations;
+    private final WorkspaceOperations workspaceOperations;
     private final Project project;
     private final AtomicBoolean loading = new AtomicBoolean(false);
-    /** Persistent cache state. */
     private CacheState cacheState = new CacheState();
 
     public DataformGcpServiceImpl(@NotNull Project project) {
@@ -90,9 +90,8 @@ public final class DataformGcpServiceImpl
             @Nullable String workspaceId,
             @NotNull Consumer<Map<String, String>> onDone
     ) {
-        if (!loading.compareAndSet(false, true)) {
-            return;
-        }
+        if (!loading.compareAndSet(false, true)) return;
+
         com.intellij.openapi.progress.ProgressManager.getInstance().run(
                 new com.intellij.openapi.progress.Task.Backgroundable(
                         project, "Loading Dataform repository files…", false) {
@@ -114,6 +113,8 @@ public final class DataformGcpServiceImpl
                             com.intellij.openapi.application.ApplicationManager
                                     .getApplication()
                                     .invokeLater(() -> onDone.accept(Map.of()));
+                        } finally {
+                            loading.set(false);
                         }
                     }
                 }
@@ -136,10 +137,9 @@ public final class DataformGcpServiceImpl
         try {
             workspaceOperations.commitCode(workspaceId);
         } catch (GcpApiException e) {
-            LOG.error("Failed to push code to Dataform workspace: " + workspaceId, e);
+            LOG.error("Failed to commit code to Dataform workspace: " + workspaceId, e);
         }
     }
-
 
     @Override
     public void pushCode(@NotNull String workspaceId) {
@@ -155,10 +155,10 @@ public final class DataformGcpServiceImpl
     public Map<String, String> fetchCode(@Nullable String workspaceId) {
         try {
             Map<String, String> files = workspaceOperations.fetchCode(workspaceId);
-            cacheState.files = new HashMap<>(files);   // mise à jour du cache persistant
+            cacheState.files = new HashMap<>(files);
             return files;
         } catch (GcpApiException e) {
-            LOG.warn("Failed to pull code from Dataform workspace: " + workspaceId, e);
+            LOG.warn("Failed to fetch code from Dataform workspace: " + workspaceId, e);
             return Map.of();
         }
     }
@@ -188,13 +188,13 @@ public final class DataformGcpServiceImpl
         workspaceOperations.createRepository(config);
     }
 
-    /**
-     * XML-serializable cache state.
-     * {@code files} maps relative path → file content.
-     */
+    @Override
+    public void createWorkspace(@NotNull String workspaceId) {
+        workspaceOperations.createWorkspace(workspaceId);
+    }
+
     public static final class CacheState {
         @Nullable
         public Map<String, String> files;
     }
-
 }

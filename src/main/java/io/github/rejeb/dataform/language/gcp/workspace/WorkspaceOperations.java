@@ -32,7 +32,7 @@ public interface WorkspaceOperations {
     @NotNull List<Workspace> listWorkspaces();
 
     /**
-     * Pushes local Git commits in the given workspace to the remote repository.
+     * Commits and pushes local workspace changes to the remote repository.
      *
      * @param workspaceId the target workspace ID
      * @throws GcpApiException on API error
@@ -40,14 +40,10 @@ public interface WorkspaceOperations {
     void commitCode(@NotNull String workspaceId);
 
     /**
-     * Pulls changes from the remote into the given workspace,
-     * or reads file contents directly from the repository if {@code workspaceId} is {@code null}.
-     * <p>When {@code workspaceId} is {@code null}, returns a map of relative path → file content
-     * intended for display only — local files are never modified.
+     * Fetches file contents from the given workspace or from repo main if {@code null}.
      *
      * @param workspaceId the target workspace ID, or {@code null} to read from the repository
-     * @return file contents keyed by relative path when {@code workspaceId} is {@code null},
-     *         empty map otherwise
+     * @return file contents keyed by relative path
      * @throws GcpApiException on API error
      */
     @NotNull Map<String, String> fetchCode(@Nullable String workspaceId);
@@ -61,9 +57,33 @@ public interface WorkspaceOperations {
      */
     void pullCode(@Nullable String workspaceId);
 
+    /**
+     * Tests the connection to the given Dataform repository config.
+     *
+     * @throws GcpApiException on failure
+     */
     void testConnection(@NotNull DataformRepositoryConfig config);
 
+    /**
+     * Pushes local files to the given workspace.
+     *
+     * @param workspaceId the target workspace ID
+     * @throws GcpApiException on API error
+     */
     void pushCode(@NotNull String workspaceId);
 
+    /**
+     * Creates a new Dataform repository in GCP for the given config.
+     *
+     * @throws GcpApiException if creation fails
+     */
     void createRepository(@NotNull DataformRepositoryConfig config);
+
+    /**
+     * Creates a new workspace in the active GCP Dataform repository.
+     *
+     * @param workspaceId the ID of the workspace to create
+     * @throws GcpApiException if creation fails or config is missing
+     */
+    void createWorkspace(@NotNull String workspaceId);
 }
