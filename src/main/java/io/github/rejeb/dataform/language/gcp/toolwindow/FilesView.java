@@ -1,8 +1,23 @@
 /*
- * Licensed to the Apache Software Foundation (ASF) ...
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.github.rejeb.dataform.language.gcp.toolwindow;
 
+import com.intellij.notification.NotificationGroupManager;
+import com.intellij.notification.NotificationType;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
@@ -12,7 +27,6 @@ import com.intellij.ui.ScrollPaneFactory;
 import com.intellij.ui.treeStructure.Tree;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.tree.TreeUtil;
-import io.github.rejeb.dataform.language.gcp.common.GcpApiException;
 import io.github.rejeb.dataform.language.gcp.service.DataformGcpFilesLoadedListener;
 import io.github.rejeb.dataform.language.gcp.service.DataformGcpGitStatusesListener;
 import io.github.rejeb.dataform.language.gcp.service.DataformGcpService;
@@ -31,6 +45,8 @@ import java.util.Map;
 
 public class FilesView extends JPanel {
 
+    private static final String NOTIFICATION_GROUP = "Dataform.Notifications";
+
     private final Project project;
     private final DataformRepoTreeModel treeModel;
     private final FileViewToolbar toolbar;
@@ -44,7 +60,6 @@ public class FilesView extends JPanel {
         this.project = project;
 
         treeModel = new DataformRepoTreeModel(config.repositoryId());
-        // workspaceIdSupplier délégué au RepositorySelectorPanel via GcpRepositorySettings
         toolbar = new FileViewToolbar(
                 project,
                 () -> GcpRepositorySettings.getInstance(project).getSelectedWorkspaceId(),
@@ -83,7 +98,6 @@ public class FilesView extends JPanel {
                             project.getMessageBus()
                                     .syncPublisher(DataformGcpWorkspacesListener.TOPIC)
                                     .onWorkspacesLoaded(workspaces);
-                            // Lire le workspace APRÈS que le combo soit peuplé
                             String workspaceId =
                                     GcpRepositorySettings.getInstance(project).getSelectedWorkspaceId();
                             fetch(workspaceId);
@@ -94,7 +108,6 @@ public class FilesView extends JPanel {
                     }
                 });
     }
-
 
     public void fetch(@Nullable String workspaceId) {
         String title = workspaceId != null
@@ -119,10 +132,9 @@ public class FilesView extends JPanel {
                         List<UncommittedChange> changes =
                                 DataformGcpService.getInstance(project)
                                         .fetchGitStatuses(workspaceId);
-                        // Mise à jour du renderer pour colorier le tree
                         ApplicationManager.getApplication().invokeLater(() ->
                                 treeModel.setGitStatuses(changes));
-                        // Broadcast vers CommitView
+
                         project.getMessageBus()
                                 .syncPublisher(DataformGcpGitStatusesListener.TOPIC)
                                 .onGitStatusesLoaded(changes);
@@ -138,12 +150,16 @@ public class FilesView extends JPanel {
             @Override
             public void run(@NotNull ProgressIndicator indicator) {
                 DataformGcpService.getInstance(project).pullCode(workspaceId);
-                ApplicationManager.getApplication().invokeLater(() ->
-                        JOptionPane.showMessageDialog(
-                                FilesView.this,
-                                "Local files updated successfully.",
-                                "Sync Complete",
-                                JOptionPane.INFORMATION_MESSAGE));
+            }
+
+            @Override
+            public void onSuccess() {
+                notifyUser("Local files updated successfully.", NotificationType.INFORMATION);
+            }
+
+            @Override
+            public void onThrowable(@NotNull Throwable error) {
+                notifyUser("Pull failed: " + error.getMessage(), NotificationType.ERROR);
             }
         });
     }
@@ -156,6 +172,11 @@ public class FilesView extends JPanel {
                     public void run(@NotNull ProgressIndicator indicator) {
                         DataformGcpService.getInstance(project).pushCode(workspaceId);
                     }
+
+                    @Override
+                    public void onThrowable(@NotNull Throwable error) {
+                        notifyUser("Push failed: " + error.getMessage(), NotificationType.ERROR);
+                    }
                 });
     }
 
@@ -166,29 +187,20 @@ public class FilesView extends JPanel {
     ) {
         ProgressManager.getInstance().run(
                 new Task.Backgroundable(project, "Committing changes…") {
-                    private GcpApiException error;
-
                     @Override
                     public void run(@NotNull ProgressIndicator indicator) {
-                        try {
-                            DataformGcpService.getInstance(project)
-                                    .commitWorkspaceChanges(workspaceId, paths, message);
-                        } catch (GcpApiException e) {
-                            error = e;
-                        }
+                        DataformGcpService.getInstance(project)
+                                .commitWorkspaceChanges(workspaceId, paths, message);
                     }
 
                     @Override
                     public void onSuccess() {
-                        if (error != null) {
-                            ApplicationManager.getApplication().invokeLater(() ->
-                                    JOptionPane.showMessageDialog(
-                                            FilesView.this, error.getMessage(),
-                                            "Commit Failed", JOptionPane.ERROR_MESSAGE));
-                        } else {
-                            // Rafraîchir les git statuses après commit
-                            fetchGitStatuses(workspaceId);
-                        }
+                        fetchGitStatuses(workspaceId);
+                    }
+
+                    @Override
+                    public void onThrowable(@NotNull Throwable error) {
+                        notifyUser("Commit failed: " + error.getMessage(), NotificationType.ERROR);
                     }
                 });
     }
@@ -196,25 +208,14 @@ public class FilesView extends JPanel {
     public void pushGitCommits(@NotNull String workspaceId) {
         ProgressManager.getInstance().run(
                 new Task.Backgroundable(project, "Pushing commits…") {
-                    private GcpApiException error;
-
                     @Override
                     public void run(@NotNull ProgressIndicator indicator) {
-                        try {
-                            DataformGcpService.getInstance(project).pushGitCommits(workspaceId);
-                        } catch (GcpApiException e) {
-                            error = e;
-                        }
+                        DataformGcpService.getInstance(project).pushGitCommits(workspaceId);
                     }
 
                     @Override
-                    public void onSuccess() {
-                        if (error != null) {
-                            ApplicationManager.getApplication().invokeLater(() ->
-                                    JOptionPane.showMessageDialog(
-                                            FilesView.this, error.getMessage(),
-                                            "Push Failed", JOptionPane.ERROR_MESSAGE));
-                        }
+                    public void onThrowable(@NotNull Throwable error) {
+                        notifyUser("Push failed: " + error.getMessage(), NotificationType.ERROR);
                     }
                 });
     }
@@ -226,36 +227,27 @@ public class FilesView extends JPanel {
     ) {
         ProgressManager.getInstance().run(
                 new Task.Backgroundable(project, "Committing and pushing changes…") {
-                    private GcpApiException error;
-
                     @Override
                     public void run(@NotNull ProgressIndicator indicator) {
-                        try {
-                            indicator.setText("Committing changes…");
-                            DataformGcpService.getInstance(project)
-                                    .commitWorkspaceChanges(workspaceId, paths, message);
-                            indicator.setText("Pushing commits…");
-                            DataformGcpService.getInstance(project)
-                                    .pushGitCommits(workspaceId);
-                        } catch (GcpApiException e) {
-                            error = e;
-                        }
+                        indicator.setText("Committing changes…");
+                        DataformGcpService.getInstance(project)
+                                .commitWorkspaceChanges(workspaceId, paths, message);
+                        indicator.setText("Pushing commits…");
+                        DataformGcpService.getInstance(project)
+                                .pushGitCommits(workspaceId);
                     }
 
                     @Override
                     public void onSuccess() {
-                        if (error != null) {
-                            ApplicationManager.getApplication().invokeLater(() ->
-                                    JOptionPane.showMessageDialog(
-                                            FilesView.this, error.getMessage(),
-                                            "Commit & Push Failed", JOptionPane.ERROR_MESSAGE));
-                        } else {
-                            fetchGitStatuses(workspaceId);
-                        }
+                        fetchGitStatuses(workspaceId);
+                    }
+
+                    @Override
+                    public void onThrowable(@NotNull Throwable error) {
+                        notifyUser("Commit & Push failed: " + error.getMessage(), NotificationType.ERROR);
                     }
                 });
     }
-
 
     public void createWorkspace(
             @NotNull String workspaceId,
@@ -264,44 +256,30 @@ public class FilesView extends JPanel {
         ProgressManager.getInstance().run(
                 new Task.Backgroundable(project,
                         "Creating workspace '" + workspaceId + "'…") {
-                    private boolean success;
-                    private String errorMessage;
-
                     @Override
                     public void run(@NotNull ProgressIndicator indicator) {
-                        try {
-                            DataformGcpService.getInstance(project).createWorkspace(workspaceId);
-                            success = true;
-                        } catch (GcpApiException e) {
-                            success = false;
-                            errorMessage = e.getMessage();
-                        }
+                        DataformGcpService.getInstance(project).createWorkspace(workspaceId);
                     }
 
                     @Override
                     public void onSuccess() {
-                        if (success) {
-                            ProgressManager.getInstance().run(
-                                    new Task.Backgroundable(project,
-                                            "Loading Dataform workspaces…") {
-                                        @Override
-                                        public void run(@NotNull ProgressIndicator indicator) {
-                                            List<Workspace> workspaces =
-                                                    DataformGcpService.getInstance(project)
-                                                            .listWorkspaces();
-                                            ApplicationManager.getApplication().invokeLater(() -> {
-                                                selectorPanel.setWorkspaces(workspaces);
-                                                selectorPanel.selectWorkspace(workspaceId);
-                                            });
-                                        }
-                                    });
-                        } else {
-                            ApplicationManager.getApplication().invokeLater(() ->
-                                    JOptionPane.showMessageDialog(
-                                            FilesView.this, errorMessage,
-                                            "Failed to Create Workspace",
-                                            JOptionPane.ERROR_MESSAGE));
-                        }
+                        ProgressManager.getInstance().run(
+                                new Task.Backgroundable(project, "Loading Dataform workspaces…") {
+                                    @Override
+                                    public void run(@NotNull ProgressIndicator indicator) {
+                                        List<Workspace> workspaces =
+                                                DataformGcpService.getInstance(project).listWorkspaces();
+                                        ApplicationManager.getApplication().invokeLater(() -> {
+                                            selectorPanel.setWorkspaces(workspaces);
+                                            selectorPanel.selectWorkspace(workspaceId);
+                                        });
+                                    }
+                                });
+                    }
+
+                    @Override
+                    public void onThrowable(@NotNull Throwable error) {
+                        notifyUser("Failed to create workspace: " + error.getMessage(), NotificationType.ERROR);
                     }
                 });
     }
@@ -335,6 +313,13 @@ public class FilesView extends JPanel {
                                 TreeUtil.expandAll(tree);
                             });
         }
+    }
+
+    private void notifyUser(@NotNull String message, @NotNull NotificationType type) {
+        NotificationGroupManager.getInstance()
+                .getNotificationGroup(NOTIFICATION_GROUP)
+                .createNotification(message, type)
+                .notify(project);
     }
 
     static JLabel buildViewTitle(@NotNull String text) {

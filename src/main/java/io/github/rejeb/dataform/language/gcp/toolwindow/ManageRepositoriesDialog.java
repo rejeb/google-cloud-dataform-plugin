@@ -17,10 +17,13 @@
 package io.github.rejeb.dataform.language.gcp.toolwindow;
 
 import com.intellij.icons.AllIcons;
+import com.intellij.openapi.actionSystem.ActionUpdateThread;
+import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.ui.ValidationInfo;
+import com.intellij.ui.AnActionButton;
 import com.intellij.ui.JBSplitter;
 import com.intellij.ui.ToolbarDecorator;
 import com.intellij.ui.components.JBList;
@@ -29,6 +32,7 @@ import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
 import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jspecify.annotations.NonNull;
 
 import javax.swing.*;
 import java.awt.*;
@@ -95,20 +99,11 @@ public class ManageRepositoriesDialog extends DialogWrapper {
 
     @Override
     protected @Nullable JComponent createCenterPanel() {
+        AnAction copyButton = createCopyButton();
         JPanel listPanel = ToolbarDecorator.createDecorator(repoList)
                 .setAddAction(button -> addRepository())
                 .setRemoveAction(button -> removeSelected())
-                .addExtraAction(new com.intellij.ui.AnActionButton(
-                        "Copy", AllIcons.Actions.Copy) {
-                    @Override
-                    public void actionPerformed(@NotNull com.intellij.openapi.actionSystem.AnActionEvent e) {
-                        copySelected();
-                    }
-                    @Override
-                    public boolean isEnabled() {
-                        return !repoList.isSelectionEmpty();
-                    }
-                })
+                .addExtraAction(copyButton)
                 .setRemoveActionUpdater(e -> !repoList.isSelectionEmpty())
                 .disableUpDownActions()
                 .createPanel();
@@ -118,6 +113,26 @@ public class ManageRepositoriesDialog extends DialogWrapper {
         splitter.setSecondComponent(new JBScrollPane(editPanel));
         splitter.setPreferredSize(new Dimension(700, 400));
         return splitter;
+    }
+
+    private @NonNull AnActionButton createCopyButton() {
+        return new AnActionButton(
+                "Copy", AllIcons.Actions.Copy) {
+            @Override
+            public void actionPerformed(@NotNull com.intellij.openapi.actionSystem.AnActionEvent e) {
+                copySelected();
+            }
+
+            @Override
+            public boolean isEnabled() {
+                return !repoList.isSelectionEmpty();
+            }
+
+            @Override
+            public @NotNull ActionUpdateThread getActionUpdateThread() {
+                return ActionUpdateThread.EDT;
+            }
+        };
     }
 
     @Override
@@ -146,15 +161,13 @@ public class ManageRepositoriesDialog extends DialogWrapper {
         setOKButtonText("Save");
     }
 
-    // -------------------------------------------------------------------------
-
     private void addRepository() {
         flushEditedIndex();
         int newIndex = listModel.size();
         DataformRepositoryConfig newConfig = new DataformRepositoryConfig(
                 "Repository " + (newIndex + 1), "", "", "");
         insertAndSelect(newConfig, newIndex);
-        SwingUtilities.invokeLater(() -> editPanel.focusLabel());
+        SwingUtilities.invokeLater(editPanel::focusLabel);
     }
 
     private void copySelected() {
@@ -172,7 +185,7 @@ public class ManageRepositoriesDialog extends DialogWrapper {
         );
         int newIndex = listModel.size();
         insertAndSelect(copy, newIndex);
-        SwingUtilities.invokeLater(() -> editPanel.focusLabel());
+        SwingUtilities.invokeLater(editPanel::focusLabel);
     }
 
     private void removeSelected() {

@@ -21,6 +21,7 @@ import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.ValidationInfo;
+import com.intellij.ui.JBColor;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBTextField;
 import com.intellij.util.ui.FormBuilder;
@@ -37,20 +38,21 @@ import java.awt.*;
 public class RepositoryEditPanel extends JPanel {
 
     private final Project project;
-    private final JBTextField labelField        = new JBTextField(30);
-    private final JBTextField projectIdField    = new JBTextField(30);
+    private final JBTextField labelField = new JBTextField(30);
+    private final JBTextField projectIdField = new JBTextField(30);
     private final JBTextField repositoryIdField = new JBTextField(30);
-    private final JBTextField locationField     = new JBTextField(30);
+    private final JBTextField locationField = new JBTextField(30);
 
-    private final JButton testButton      = new JButton("Test Connection");
+    private final JButton testButton = new JButton("Test Connection");
     private final JButton createGcpButton = new JButton("Create in GCP");
-    private final JLabel  statusLabel     = new JBLabel();
+    private final JLabel statusLabel = new JBLabel();
 
     /**
      * Appelé sur l'EDT après une création GCP réussie.
      * Le dialog parent doit flusher + persister la config.
      */
-    private Runnable onCreateSuccess = () -> {};
+    private Runnable onCreateSuccess = () -> {
+    };
 
     public RepositoryEditPanel(@NotNull Project project) {
         super(new BorderLayout());
@@ -79,7 +81,9 @@ public class RepositoryEditPanel extends JPanel {
         setEnabled(false);
     }
 
-    /** Enregistre le callback appelé après une création GCP réussie. */
+    /**
+     * Enregistre le callback appelé après une création GCP réussie.
+     */
     public void setOnCreateSuccess(@NotNull Runnable callback) {
         this.onCreateSuccess = callback;
     }
@@ -142,7 +146,7 @@ public class RepositoryEditPanel extends JPanel {
 
     // -------------------------------------------------------------------------
 
-    private enum ActionKind { TEST, CREATE_GCP }
+    private enum ActionKind {TEST, CREATE_GCP}
 
     private void runAction(@NotNull ActionKind kind) {
         ValidationInfo validation = validationInfo();
@@ -155,7 +159,7 @@ public class RepositoryEditPanel extends JPanel {
         setButtonsEnabled(false);
 
         String taskTitle = switch (kind) {
-            case TEST       -> "Testing Dataform connection…";
+            case TEST -> "Testing Dataform connection…";
             case CREATE_GCP -> "Creating Dataform repository in GCP…";
         };
 
@@ -168,14 +172,14 @@ public class RepositoryEditPanel extends JPanel {
                     public void run(@NotNull ProgressIndicator indicator) {
                         try {
                             switch (kind) {
-                                case TEST       -> DataformGcpService.getInstance(project)
+                                case TEST -> DataformGcpService.getInstance(project)
                                         .testConnection(config);
                                 case CREATE_GCP -> DataformGcpService.getInstance(project)
                                         .createGcpRepository(config);
                             }
                             success = true;
                             message = switch (kind) {
-                                case TEST       -> "✓ Connection successful";
+                                case TEST -> "✓ Connection successful";
                                 case CREATE_GCP -> "✓ Repository created in GCP";
                             };
                         } catch (GcpApiException e) {
@@ -202,7 +206,7 @@ public class RepositoryEditPanel extends JPanel {
     }
 
     private void setStatus(boolean success, @NotNull String text) {
-        statusLabel.setForeground(success ? new Color(0, 128, 0) : Color.RED);
+        statusLabel.setForeground(success ? JBColor.GREEN : JBColor.RED);
         statusLabel.setText(text);
     }
 }

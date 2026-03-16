@@ -100,8 +100,10 @@ public final class GcpIdentityResolver {
 
         try (InputStream is = conn.getInputStream()) {
             String json = new String(is.readAllBytes(), StandardCharsets.UTF_8);
-            String email = extractJsonField(json, "email");
-            String name = extractJsonField(json, "name");
+            com.google.gson.JsonObject obj =
+                    com.google.gson.JsonParser.parseString(json).getAsJsonObject();
+            String email = obj.has("email") ? obj.get("email").getAsString() : null;
+            String name  = obj.has("name")  ? obj.get("name").getAsString()  : null;
             if (email == null || email.isBlank()) {
                 throw new IOException("email field missing from userinfo response: " + json);
             }
@@ -114,20 +116,4 @@ public final class GcpIdentityResolver {
         }
     }
 
-    /**
-     * Minimal JSON field extractor — avoids pulling in a JSON dependency just for this.
-     * Handles simple flat JSON: {@code {"field":"value"}}.
-     */
-    private static String extractJsonField(@NotNull String json, @NotNull String field) {
-        String key = "\"" + field + "\"";
-        int keyIdx = json.indexOf(key);
-        if (keyIdx < 0) return null;
-        int colonIdx = json.indexOf(':', keyIdx + key.length());
-        if (colonIdx < 0) return null;
-        int startQuote = json.indexOf('"', colonIdx + 1);
-        if (startQuote < 0) return null;
-        int endQuote = json.indexOf('"', startQuote + 1);
-        if (endQuote < 0) return null;
-        return json.substring(startQuote + 1, endQuote);
-    }
 }

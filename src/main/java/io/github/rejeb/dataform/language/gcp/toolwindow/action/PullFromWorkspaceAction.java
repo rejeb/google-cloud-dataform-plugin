@@ -64,7 +64,7 @@ public class PullFromWorkspaceAction extends AnAction {
         e.getPresentation().setText(
                 hasWorkspace
                         ? "Pull workspace '" + workspaceId + "' files to local"
-                        : "Select a workspace to enable push"
+                        : "Select a Workspace to Enable Push"
         );
     }
 

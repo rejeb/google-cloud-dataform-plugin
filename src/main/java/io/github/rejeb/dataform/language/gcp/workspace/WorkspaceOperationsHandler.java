@@ -201,13 +201,11 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
 
     @Nullable
     private GcpConfig readConfig() {
-        return ReadAction.compute(() -> {
-            String projectId = configProvider.getProjectId();
-            String location = configProvider.getLocation();
-            String repositoryId = configProvider.getRepositoryId();
-            if (projectId == null || location == null || repositoryId == null) return null;
-            return new GcpConfig(projectId, location, repositoryId);
-        });
+        String projectId = configProvider.getProjectId();
+        String location = configProvider.getLocation();
+        String repositoryId = configProvider.getRepositoryId();
+        if (projectId == null || location == null || repositoryId == null) return null;
+        return new GcpConfig(projectId, location, repositoryId);
     }
 
     private void writeFilesToVfs(@NotNull Map<String, String> files) {
@@ -251,5 +249,6 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
             @NotNull String projectId,
             @NotNull String location,
             @NotNull String repositoryId
-    ) {}
+    ) {
+    }
 }

@@ -19,6 +19,7 @@ package io.github.rejeb.dataform.language.gcp.workspace.repository;
 import com.google.api.gax.rpc.UnavailableException;
 import com.google.cloud.dataform.v1beta1.*;
 import com.google.protobuf.ByteString;
+import com.intellij.openapi.Disposable;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.util.concurrency.AppExecutorUtil;
 import io.github.rejeb.dataform.language.gcp.common.CommitAuthorConfig;
@@ -35,7 +36,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.function.Function;
 
-public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
+public class GcpDataformWorkspaceRepository implements WorkspaceRepository, Disposable {
 
     private static final Logger LOG = Logger.getInstance(GcpDataformWorkspaceRepository.class);
 
@@ -43,6 +44,22 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
     private static final int PUSH_BATCH_DELAY_MS = 300;
     private static final int PUSH_MAX_RETRIES = 3;
     private static final long PUSH_RETRY_DELAY_MS = 1_000;
+
+    private final DataformClient client;
+
+    public GcpDataformWorkspaceRepository() {
+        try {
+            this.client = DataformClient.create(DataformSettings.newBuilder().build());
+        } catch (IOException e) {
+            throw new GcpApiException(
+                    "Failed to create DataformClient — check Application Default Credentials.", e);
+        }
+    }
+
+    @Override
+    public void dispose() {
+        client.close();
+    }
 
     // -------------------------------------------------------------------------
     // findAll
@@ -56,7 +73,7 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
             @NotNull String repositoryId
     ) {
         List<Workspace> result = new ArrayList<>();
-        try (DataformClient client = createDataformClient()) {
+        try {
             String parent = RepositoryName.of(projectId, location, repositoryId).toString();
             ListWorkspacesRequest request = ListWorkspacesRequest.newBuilder()
                     .setParent(parent)
@@ -64,9 +81,6 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
             for (var w : client.listWorkspaces(request).iterateAll()) {
                 result.add(Workspace.fromResourceName(w.getName()));
             }
-        } catch (IOException e) {
-            throw new GcpApiException(
-                    "Failed to create DataformClient — check Application Default Credentials.", e);
         } catch (Exception e) {
             throw new GcpApiException("Error fetching workspaces from GCP Dataform API.", e);
         }
@@ -74,7 +88,7 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
     }
 
     // -------------------------------------------------------------------------
-    // commit
+    // pushGitCommits
     // -------------------------------------------------------------------------
 
     @Override
@@ -85,17 +99,12 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
             @NotNull String workspaceId,
             @NotNull CommitAuthorConfig author
     ) {
-        try (DataformClient client = createDataformClient()) {
+        try {
             String wsName = workspaceName(projectId, location, repositoryId, workspaceId);
-
             PushGitCommitsRequest pushRequest = PushGitCommitsRequest.newBuilder()
                     .setName(wsName)
                     .build();
             client.pushGitCommits(pushRequest);
-
-        } catch (IOException e) {
-            throw new GcpApiException(
-                    "Failed to create DataformClient — check Application Default Credentials.", e);
         } catch (Exception e) {
             throw new GcpApiException("Error pushing commits to GCP Dataform workspace.", e);
         }
@@ -113,7 +122,7 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
             @NotNull String workspaceId,
             @NotNull CommitAuthorConfig author
     ) {
-        try (DataformClient client = createDataformClient()) {
+        try {
             PullGitCommitsRequest request = PullGitCommitsRequest.newBuilder()
                     .setName(workspaceName(projectId, location, repositoryId, workspaceId))
                     .setAuthor(CommitAuthor.newBuilder()
@@ -122,9 +131,6 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
                             .build())
                     .build();
             client.pullGitCommits(request);
-        } catch (IOException e) {
-            throw new GcpApiException(
-                    "Failed to create DataformClient — check Application Default Credentials.", e);
         } catch (Exception e) {
             throw new GcpApiException("Error pulling commits from GCP Dataform workspace.", e);
         }
@@ -143,17 +149,16 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
             @NotNull Map<String, String> filesToWrite,
             @NotNull Set<String> pathsToDelete
     ) {
-        try (DataformClient client = createDataformClient()) {
+        try {
             String wsName = workspaceName(projectId, location, repositoryId, workspaceId);
-
             List<Map.Entry<String, String>> entries = new ArrayList<>(filesToWrite.entrySet());
             List<List<Map.Entry<String, String>>> batches = partition(entries, PUSH_BATCH_SIZE);
 
-            for (List<Map.Entry<String, String>> batch : batches) {
-                for (Map.Entry<String, String> entry : batch) {
-                    writeFileWithRetry(client, wsName, entry.getKey(), entry.getValue());
+            for (int i = 0; i < batches.size(); i++) {
+                for (Map.Entry<String, String> entry : batches.get(i)) {
+                    writeFileWithRetry(wsName, entry.getKey(), entry.getValue());
                 }
-                if (batches.indexOf(batch) < batches.size() - 1) {
+                if (i < batches.size() - 1) {
                     sleep(PUSH_BATCH_DELAY_MS);
                 }
             }
@@ -165,10 +170,6 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
                         .build();
                 client.removeFile(request);
             }
-
-        } catch (IOException e) {
-            throw new GcpApiException(
-                    "Failed to create DataformClient — check Application Default Credentials.", e);
         } catch (GcpApiException e) {
             throw e;
         } catch (Exception e) {
@@ -188,13 +189,7 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
             @NotNull String repositoryId,
             @NotNull String workspaceId
     ) {
-        try (DataformClient client = createDataformClient()) {
-            return new HashSet<>(listAllWorkspacePaths(
-                    client, projectId, location, repositoryId, workspaceId, ""));
-        } catch (IOException e) {
-            throw new GcpApiException(
-                    "Failed to create DataformClient — check Application Default Credentials.", e);
-        }
+        return new HashSet<>(listAllWorkspacePaths(projectId, location, repositoryId, workspaceId, ""));
     }
 
     // -------------------------------------------------------------------------
@@ -210,23 +205,18 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
             @NotNull List<String> paths
     ) {
         Map<String, String> result = new LinkedHashMap<>();
-        try (DataformClient client = createDataformClient()) {
-            String repoName = RepositoryName.of(projectId, location, repositoryId).toString();
-            for (String path : paths) {
-                try {
-                    ReadRepositoryFileRequest request = ReadRepositoryFileRequest.newBuilder()
-                            .setName(repoName)
-                            .setPath(path)
-                            .build();
-                    ReadRepositoryFileResponse response = client.readRepositoryFile(request);
-                    result.put(path, response.getContents().toStringUtf8());
-                } catch (Exception e) {
-                    LOG.warn("Skipping file not found in repository: " + path, e);
-                }
+        String repoName = RepositoryName.of(projectId, location, repositoryId).toString();
+        for (String path : paths) {
+            try {
+                ReadRepositoryFileRequest request = ReadRepositoryFileRequest.newBuilder()
+                        .setName(repoName)
+                        .setPath(path)
+                        .build();
+                ReadRepositoryFileResponse response = client.readRepositoryFile(request);
+                result.put(path, response.getContents().toStringUtf8());
+            } catch (Exception e) {
+                LOG.warn("Skipping file not found in repository: " + path, e);
             }
-        } catch (IOException e) {
-            throw new GcpApiException(
-                    "Failed to create DataformClient — check Application Default Credentials.", e);
         }
         return result;
     }
@@ -243,15 +233,12 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
             @NotNull String repositoryId,
             @Nullable String workspaceId
     ) {
-        try (DataformClient client = createDataformClient()) {
+        try {
             if (workspaceId != null) {
-                return readAllWorkspaceFiles(client, projectId, location, repositoryId, workspaceId);
+                return readAllWorkspaceFiles(projectId, location, repositoryId, workspaceId);
             } else {
-                return readAllRepositoryFiles(client, projectId, location, repositoryId);
+                return readAllRepositoryFiles(projectId, location, repositoryId);
             }
-        } catch (IOException e) {
-            throw new GcpApiException(
-                    "Failed to create DataformClient — check Application Default Credentials.", e);
         } catch (GcpApiException e) {
             if (isEmptyRepoException(e)) {
                 LOG.info("Repository is empty (no commits yet), returning empty file map.");
@@ -277,7 +264,7 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
             @NotNull String location,
             @NotNull String repositoryId
     ) {
-        try (DataformClient client = createDataformClient()) {
+        try {
             String parent = LocationName.of(projectId, location).toString();
             CreateRepositoryRequest request = CreateRepositoryRequest.newBuilder()
                     .setParent(parent)
@@ -285,9 +272,6 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
                     .setRepository(Repository.newBuilder().build())
                     .build();
             client.createRepository(request);
-        } catch (IOException e) {
-            throw new GcpApiException(
-                    "Failed to create DataformClient — check Application Default Credentials.", e);
         } catch (Exception e) {
             throw new GcpApiException(
                     "Error creating Dataform repository \"" + repositoryId + "\": " + e.getMessage(), e);
@@ -305,7 +289,7 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
             @NotNull String repositoryId,
             @NotNull String workspaceId
     ) {
-        try (DataformClient client = createDataformClient()) {
+        try {
             String parent = RepositoryName.of(projectId, location, repositoryId).toString();
             CreateWorkspaceRequest request = CreateWorkspaceRequest.newBuilder()
                     .setParent(parent)
@@ -313,14 +297,15 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
                     .setWorkspace(com.google.cloud.dataform.v1beta1.Workspace.newBuilder().build())
                     .build();
             client.createWorkspace(request);
-        } catch (IOException e) {
-            throw new GcpApiException(
-                    "Failed to create DataformClient — check Application Default Credentials.", e);
         } catch (Exception e) {
             throw new GcpApiException(
                     "Error creating workspace \"" + workspaceId + "\": " + e.getMessage(), e);
         }
     }
+
+    // -------------------------------------------------------------------------
+    // fetchFileGitStatuses
+    // -------------------------------------------------------------------------
 
     @Override
     @NotNull
@@ -330,7 +315,7 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
             @NotNull String repositoryId,
             @NotNull String workspaceId
     ) {
-        try (DataformClient client = createDataformClient()) {
+        try {
             FetchFileGitStatusesRequest request = FetchFileGitStatusesRequest.newBuilder()
                     .setName(workspaceName(projectId, location, repositoryId, workspaceId))
                     .build();
@@ -338,13 +323,14 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
             return response.getUncommittedFileChangesList().stream()
                     .map(c -> new UncommittedChange(c.getPath(), mapState(c.getState())))
                     .toList();
-        } catch (IOException e) {
-            throw new GcpApiException(
-                    "Failed to create DataformClient — check Application Default Credentials.", e);
         } catch (Exception e) {
             throw new GcpApiException("Error fetching git statuses from workspace.", e);
         }
     }
+
+    // -------------------------------------------------------------------------
+    // commitWorkspaceChanges
+    // -------------------------------------------------------------------------
 
     @Override
     public void commitWorkspaceChanges(
@@ -356,7 +342,7 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
             @NotNull String message,
             @NotNull CommitAuthorConfig author
     ) {
-        try (DataformClient client = createDataformClient()) {
+        try {
             CommitWorkspaceChangesRequest request = CommitWorkspaceChangesRequest.newBuilder()
                     .setName(workspaceName(projectId, location, repositoryId, workspaceId))
                     .setAuthor(CommitAuthor.newBuilder()
@@ -367,34 +353,16 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
                     .addAllPaths(paths)
                     .build();
             client.commitWorkspaceChanges(request);
-        } catch (IOException e) {
-            throw new GcpApiException(
-                    "Failed to create DataformClient — check Application Default Credentials.", e);
         } catch (Exception e) {
             throw new GcpApiException("Error committing workspace changes.", e);
         }
     }
 
-
     // -------------------------------------------------------------------------
     // Private helpers
     // -------------------------------------------------------------------------
 
-    /**
-     * Creates a {@link DataformClient} with an extended total timeout to prevent
-     * DEADLINE_EXCEEDED errors when pushing many files sequentially.
-     */
-    private static DataformClient createDataformClient() throws IOException {
-        DataformSettings settings = DataformSettings.newBuilder()
-                .build();
-        return DataformClient.create(settings);
-    }
-
-    /**
-     * Writes a single file to the workspace with retry on {@link UnavailableException}.
-     */
-    private static void writeFileWithRetry(
-            @NotNull DataformClient client,
+    private void writeFileWithRetry(
             @NotNull String wsName,
             @NotNull String path,
             @NotNull String content
@@ -420,50 +388,27 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
         }
     }
 
-    /**
-     * Splits a list into sub-lists of at most {@code size} elements.
-     */
-    @NotNull
-    private static <T> List<List<T>> partition(@NotNull List<T> list, int size) {
-        List<List<T>> result = new ArrayList<>();
-        for (int i = 0; i < list.size(); i += size) {
-            result.add(list.subList(i, Math.min(i + size, list.size())));
-        }
-        return result;
-    }
-
-    private static void sleep(long millis) {
-        try {
-            Thread.sleep(millis);
-        } catch (InterruptedException ex) {
-            Thread.currentThread().interrupt();
-        }
-    }
-
     @NotNull
     private Map<String, String> readAllRepositoryFiles(
-            @NotNull DataformClient client,
             @NotNull String projectId,
             @NotNull String location,
             @NotNull String repositoryId
     ) {
-        List<String> paths = listAllRepositoryPaths(client, projectId, location, repositoryId, "");
+        List<String> paths = listAllRepositoryPaths(projectId, location, repositoryId, "");
         return readFilesInParallel(paths, path ->
-                readRepositoryFile(client, projectId, location, repositoryId, path));
+                readRepositoryFile(projectId, location, repositoryId, path));
     }
 
     @NotNull
     private Map<String, String> readAllWorkspaceFiles(
-            @NotNull DataformClient client,
             @NotNull String projectId,
             @NotNull String location,
             @NotNull String repositoryId,
             @NotNull String workspaceId
     ) {
-        List<String> paths = listAllWorkspacePaths(
-                client, projectId, location, repositoryId, workspaceId, "");
+        List<String> paths = listAllWorkspacePaths(projectId, location, repositoryId, workspaceId, "");
         return readFilesInParallel(paths, path ->
-                readWorkspaceFile(client, projectId, location, repositoryId, workspaceId, path));
+                readWorkspaceFile(projectId, location, repositoryId, workspaceId, path));
     }
 
     @NotNull
@@ -474,7 +419,6 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
         if (paths.isEmpty()) return Map.of();
 
         ExecutorService executor = AppExecutorUtil.getAppExecutorService();
-
         List<Future<Map.Entry<String, String>>> futures = paths.stream()
                 .map(path -> executor.submit(() -> Map.entry(path, reader.apply(path))))
                 .toList();
@@ -498,7 +442,6 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
 
     @NotNull
     private String readRepositoryFile(
-            @NotNull DataformClient client,
             @NotNull String projectId,
             @NotNull String location,
             @NotNull String repositoryId,
@@ -514,20 +457,17 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
 
     @NotNull
     private List<String> listAllRepositoryPaths(
-            @NotNull DataformClient client,
             @NotNull String projectId,
             @NotNull String location,
             @NotNull String repositoryId,
             @NotNull String directoryPath
     ) {
         List<String> paths = new ArrayList<>();
-
         QueryRepositoryDirectoryContentsRequest request =
                 QueryRepositoryDirectoryContentsRequest.newBuilder()
                         .setName(repositoryName(projectId, location, repositoryId))
                         .setPath(directoryPath)
                         .build();
-
         try {
             for (DirectoryEntry entry : client.queryRepositoryDirectoryContents(request).iterateAll()) {
                 if (entry.hasFile()) {
@@ -539,8 +479,7 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
                     String subDir = directoryPath.isEmpty()
                             ? entry.getDirectory()
                             : directoryPath + "/" + entry.getDirectory();
-                    paths.addAll(listAllRepositoryPaths(
-                            client, projectId, location, repositoryId, subDir));
+                    paths.addAll(listAllRepositoryPaths(projectId, location, repositoryId, subDir));
                 }
             }
         } catch (Exception e) {
@@ -555,7 +494,6 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
 
     @NotNull
     private List<String> listAllWorkspacePaths(
-            @NotNull DataformClient client,
             @NotNull String projectId,
             @NotNull String location,
             @NotNull String repositoryId,
@@ -563,20 +501,16 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
             @NotNull String directoryPath
     ) {
         List<String> paths = new ArrayList<>();
-
         QueryDirectoryContentsRequest request = QueryDirectoryContentsRequest.newBuilder()
                 .setWorkspace(workspaceName(projectId, location, repositoryId, workspaceId))
                 .setPath(directoryPath)
                 .build();
-
         for (DirectoryEntry entry : client.queryDirectoryContents(request).iterateAll()) {
             if (entry.hasFile()) {
                 paths.add(entry.getFile());
             } else if (entry.hasDirectory()) {
                 paths.addAll(listAllWorkspacePaths(
-                        client, projectId, location, repositoryId, workspaceId,
-                        entry.getDirectory()
-                ));
+                        projectId, location, repositoryId, workspaceId, entry.getDirectory()));
             }
         }
         return paths;
@@ -584,7 +518,6 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
 
     @NotNull
     private String readWorkspaceFile(
-            @NotNull DataformClient client,
             @NotNull String projectId,
             @NotNull String location,
             @NotNull String repositoryId,
@@ -608,10 +541,6 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
         return WorkspaceName.of(projectId, location, repositoryId, workspaceId).toString();
     }
 
-    /**
-     * Builds the fully-qualified GCP Dataform repository resource name.
-     * Format: projects/{project}/locations/{location}/repositories/{repository}
-     */
     @NotNull
     private static String repositoryName(
             @NotNull String projectId,
@@ -623,10 +552,6 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
                 + "/repositories/" + repositoryId;
     }
 
-    /**
-     * Returns {@code true} if the exception indicates that the Dataform repository
-     * has no commits yet (i.e. was just created and has never been initialized).
-     */
     private static boolean isEmptyRepoException(@NotNull Throwable t) {
         Throwable current = t;
         while (current != null) {
@@ -648,5 +573,22 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
             case HAS_CONFLICTS -> UncommittedChange.ChangeState.HAS_CONFLICTS;
             default -> UncommittedChange.ChangeState.UNKNOWN;
         };
+    }
+
+    @NotNull
+    private static <T> List<List<T>> partition(@NotNull List<T> list, int size) {
+        List<List<T>> result = new ArrayList<>();
+        for (int i = 0; i < list.size(); i += size) {
+            result.add(list.subList(i, Math.min(i + size, list.size())));
+        }
+        return result;
+    }
+
+    private static void sleep(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+        }
     }
 }

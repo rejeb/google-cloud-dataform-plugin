@@ -73,7 +73,9 @@
         <projectService
                 serviceInterface="io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings"
                 serviceImplementation="io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettingsImpl"/>
-
+        <projectService
+                serviceInterface="io.github.rejeb.dataform.language.gcp.service.DataformGcpFileCache"
+                serviceImplementation="io.github.rejeb.dataform.language.gcp.service.DataformGcpFileCacheImpl"/>
         <projectService
                 serviceInterface="io.github.rejeb.dataform.language.gcp.service.DataformGcpService"
                 serviceImplementation="io.github.rejeb.dataform.language.gcp.service.DataformGcpServiceImpl"/>

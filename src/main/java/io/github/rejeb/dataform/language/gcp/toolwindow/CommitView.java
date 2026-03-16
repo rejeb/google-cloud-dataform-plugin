@@ -111,9 +111,8 @@ public class CommitView extends JPanel {
 
     private void setChanges(@NotNull List<UncommittedChange> changes) {
         listModel.clear();
-        changes.forEach(listModel::addElement);
-        // Auto-sélectionner tous les fichiers
         if (!changes.isEmpty()) {
+            changes.forEach(listModel::addElement);
             changeList.setSelectionInterval(0, changes.size() - 1);
         }
     }
