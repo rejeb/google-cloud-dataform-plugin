@@ -238,11 +238,21 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
             throw new GcpApiException(
                     "Failed to create DataformClient — check Application Default Credentials.", e);
         } catch (GcpApiException e) {
+            // Repo vide (vient d'être créé, aucun commit) → résultat vide, pas d'erreur
+            if (isEmptyRepoException(e)) {
+                LOG.info("Repository is empty (no commits yet), returning empty file map.");
+                return Map.of();
+            }
             throw e;
         } catch (Exception e) {
+            if (isEmptyRepoException(e)) {
+                LOG.info("Repository is empty (no commits yet), returning empty file map.");
+                return Map.of();
+            }
             throw new GcpApiException("Error reading files from GCP Dataform.", e);
         }
     }
+
 
     @Override
     public void createRepository(
@@ -362,22 +372,31 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
                         .setPath(directoryPath)
                         .build();
 
-        for (DirectoryEntry entry : client.queryRepositoryDirectoryContents(request).iterateAll()) {
-            if (entry.hasFile()) {
-                String fullPath = directoryPath.isEmpty()
-                        ? entry.getFile()
-                        : directoryPath + "/" + entry.getFile();
-                paths.add(fullPath);
-            } else if (entry.hasDirectory()) {
-                String subDir = directoryPath.isEmpty()
-                        ? entry.getDirectory()
-                        : directoryPath + "/" + entry.getDirectory();
-                paths.addAll(listAllRepositoryPaths(
-                        client, projectId, location, repositoryId, subDir));
+        try {
+            for (DirectoryEntry entry : client.queryRepositoryDirectoryContents(request).iterateAll()) {
+                if (entry.hasFile()) {
+                    String fullPath = directoryPath.isEmpty()
+                            ? entry.getFile()
+                            : directoryPath + "/" + entry.getFile();
+                    paths.add(fullPath);
+                } else if (entry.hasDirectory()) {
+                    String subDir = directoryPath.isEmpty()
+                            ? entry.getDirectory()
+                            : directoryPath + "/" + entry.getDirectory();
+                    paths.addAll(listAllRepositoryPaths(
+                            client, projectId, location, repositoryId, subDir));
+                }
             }
+        } catch (Exception e) {
+            if (isEmptyRepoException(e)) {
+                LOG.info("Repository \"" + repositoryId + "\" is empty, skipping directory listing.");
+                return List.of();
+            }
+            throw e;
         }
         return paths;
     }
+
 
     @NotNull
     private List<String> listAllWorkspacePaths(
@@ -451,4 +470,23 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
                 + "/locations/" + location
                 + "/repositories/" + repositoryId;
     }
+
+    /**
+     * Returns {@code true} if the exception indicates that the Dataform repository
+     * has no commits yet (i.e. was just created and has never been initialized).
+     * <p>
+     * GCP returns {@code FAILED_PRECONDITION} with message "Reading from empty repo."
+     * in this case.
+     */
+    private static boolean isEmptyRepoException(@NotNull Throwable t) {
+        Throwable current = t;
+        while (current != null) {
+            String msg = current.getMessage();
+            if (msg != null && msg.contains("Reading from empty repo")) return true;
+            if (current instanceof com.google.api.gax.rpc.FailedPreconditionException) return true;
+            current = current.getCause();
+        }
+        return false;
+    }
+
 }

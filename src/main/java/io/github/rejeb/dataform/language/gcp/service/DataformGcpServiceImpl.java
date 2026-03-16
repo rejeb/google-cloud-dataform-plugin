@@ -158,7 +158,7 @@ public final class DataformGcpServiceImpl
             cacheState.files = new HashMap<>(files);   // mise à jour du cache persistant
             return files;
         } catch (GcpApiException e) {
-            LOG.error("Failed to pull code from Dataform workspace: " + workspaceId, e);
+            LOG.warn("Failed to pull code from Dataform workspace: " + workspaceId, e);
             return Map.of();
         }
     }
