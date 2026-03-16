@@ -16,7 +16,6 @@
  */
 package io.github.rejeb.dataform.language.gcp.toolwindow;
 
-import com.intellij.icons.AllIcons;
 import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.ComboBox;
@@ -34,13 +33,13 @@ import java.awt.*;
 import java.awt.event.ItemEvent;
 import java.util.List;
 
-public class DataformGcpToolbar extends JPanel {
+public class FileViewToolbar extends JPanel {
 
     private final ComboBox<WorkspaceItem> workspaceCombo;
     private final Project project;
     private final DataformGcpPanel.PanelCallback callback;
 
-    public DataformGcpToolbar(
+    public FileViewToolbar(
             @NotNull Project project,
             @NotNull DataformGcpPanel.PanelCallback callback
     ) {

@@ -41,7 +41,7 @@ public class FilesView extends JPanel {
 
     private final Project project;
     private final DataformRepoTreeModel treeModel;
-    private final DataformGcpToolbar toolbar;
+    private final FileViewToolbar toolbar;
 
     public FilesView(
             @NotNull Project project,
@@ -52,7 +52,7 @@ public class FilesView extends JPanel {
         this.project = project;
 
         treeModel = new DataformRepoTreeModel(config.repositoryId());
-        toolbar = new DataformGcpToolbar(project, callback);
+        toolbar = new FileViewToolbar(project, callback);
 
         Tree tree = new Tree(treeModel);
         tree.setRootVisible(true);
