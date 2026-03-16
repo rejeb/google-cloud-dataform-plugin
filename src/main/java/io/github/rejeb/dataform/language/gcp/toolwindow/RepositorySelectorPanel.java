@@ -52,7 +52,7 @@ public class RepositorySelectorPanel extends JPanel {
             @NotNull Runnable onRepositoryChanged,
             @NotNull GcpPanelActionDispatcher dispatcher
     ) {
-        super(new FlowLayout(FlowLayout.LEFT, 6, 4));
+        super(new GridBagLayout());
         this.project = project;
         this.onRepositoryChanged = onRepositoryChanged;
         this.dispatcher = dispatcher;
@@ -60,14 +60,50 @@ public class RepositorySelectorPanel extends JPanel {
         buildRepoCombo();
         buildWorkspaceCombo();
 
-        ActionToolbar toolbar = buildToolbar();
+        repoCombo.setMinimumSize(new Dimension(80, repoCombo.getPreferredSize().height));
+        workspaceCombo.setMinimumSize(new Dimension(80, workspaceCombo.getPreferredSize().height));
 
-        add(new JBLabel("Repository:"));
-        add(repoCombo);
-        add(new JBLabel("Workspace:"));
-        add(workspaceCombo);
-        add(toolbar.getComponent());
-        add(buildConfigureButton());
+        ActionToolbar workspaceToolbar = buildToolbar();
+        JButton configureButton = buildConfigureButton();
+
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(2, 4, 2, 4);
+        gbc.anchor = GridBagConstraints.WEST;
+
+        // Row 0 — Repository label | repoCombo | configureButton
+        gbc.gridy = 0;
+
+        gbc.gridx = 0;
+        gbc.weightx = 0;
+        gbc.fill = GridBagConstraints.NONE;
+        add(new JBLabel("Repository:"), gbc);
+
+        gbc.gridx = 1;
+        gbc.weightx = 1.0;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        add(repoCombo, gbc);
+
+        gbc.gridx = 2;
+        gbc.weightx = 0;
+        gbc.fill = GridBagConstraints.NONE;
+        add(configureButton, gbc);
+
+        // Row 1 — Workspace label | workspaceCombo | workspaceToolbar
+        gbc.gridy = 1;
+
+        gbc.gridx = 0;
+        add(new JBLabel("Workspace:"), gbc);
+
+        gbc.gridx = 1;
+        gbc.weightx = 1.0;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        add(workspaceCombo, gbc);
+
+        gbc.gridx = 2;
+        gbc.weightx = 0;
+        gbc.fill = GridBagConstraints.NONE;
+        add(workspaceToolbar.getComponent(), gbc);
+
         project.getMessageBus()
                 .connect()
                 .subscribe(DataformGcpEvent.TOPIC, new DataformGcpEvent() {
@@ -80,9 +116,7 @@ public class RepositorySelectorPanel extends JPanel {
         refresh();
     }
 
-    // -------------------------------------------------------------------------
-    // Public API
-    // -------------------------------------------------------------------------
+
 
     public void refresh() {
         updatingRepo = true;
@@ -126,10 +160,6 @@ public class RepositorySelectorPanel extends JPanel {
             updatingWorkspace = false;
         }
     }
-
-    // -------------------------------------------------------------------------
-    // Private builders
-    // -------------------------------------------------------------------------
 
     private void buildRepoCombo() {
         repoCombo.setRenderer(new DefaultListCellRenderer() {
