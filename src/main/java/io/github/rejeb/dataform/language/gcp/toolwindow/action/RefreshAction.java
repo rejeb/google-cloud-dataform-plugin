@@ -27,25 +27,17 @@ import java.util.function.Supplier;
 
 public class RefreshAction extends AnAction {
 
-    private final Supplier<@Nullable String> workspaceIdSupplier;
     private final DataformGcpPanel.PanelCallback callback;
 
     public RefreshAction(
-            @NotNull Supplier<@Nullable String> workspaceIdSupplier,
             @NotNull DataformGcpPanel.PanelCallback callback
     ) {
         super(() -> "Refresh", AllIcons.Actions.Refresh);
-        this.workspaceIdSupplier = workspaceIdSupplier;
         this.callback = callback;
     }
 
     @Override
     public void actionPerformed(@NotNull AnActionEvent e) {
-        String workspaceId = workspaceIdSupplier.get();
         callback.onRefreshWorkspaces();
-        callback.onFetch(workspaceId);
-        if (workspaceId != null) {
-            callback.onFetchGitStatuses(workspaceId);
-        }
     }
 }

@@ -4,6 +4,7 @@
 package io.github.rejeb.dataform.language.gcp.toolwindow;
 
 import com.intellij.openapi.project.Project;
+import com.intellij.ui.components.JBList;
 import com.intellij.ui.components.JBScrollPane;
 import com.intellij.ui.components.JBTextArea;
 import com.intellij.util.ui.JBUI;
@@ -29,7 +30,7 @@ public class CommitView extends JPanel {
     private final DataformGcpPanel.PanelCallback callback;
 
     private final DefaultListModel<UncommittedChange> listModel = new DefaultListModel<>();
-    private final JList<UncommittedChange> changeList = new JList<>(listModel);
+    private final JBList<UncommittedChange> changeList = new JBList<>(listModel);
     private final JTextArea commitMessageField = new JBTextArea(4, 40);
 
     public CommitView(

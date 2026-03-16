@@ -17,10 +17,13 @@
 package io.github.rejeb.dataform.language.gcp.toolwindow;
 
 import com.intellij.icons.AllIcons;
+import com.intellij.ide.ActivityTracker;
 import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.ComboBox;
 import com.intellij.ui.components.JBLabel;
+import io.github.rejeb.dataform.language.gcp.service.DataformGcpGitStatusesListener;
+import io.github.rejeb.dataform.language.gcp.service.DataformGcpWorkspacesListener;
 import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
 import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
 import io.github.rejeb.dataform.language.gcp.toolwindow.action.CreateWorkspaceAction;
@@ -65,6 +68,10 @@ public class RepositorySelectorPanel extends JPanel {
         add(workspaceCombo);
         add(toolbar.getComponent());
         add(buildConfigureButton());
+        project.getMessageBus()
+                .connect()
+                .subscribe(DataformGcpWorkspacesListener.TOPIC,
+                        (DataformGcpWorkspacesListener) this::setWorkspaces);
 
         refresh();
     }
@@ -168,13 +175,14 @@ public class RepositorySelectorPanel extends JPanel {
                 WorkspaceItem selected = (WorkspaceItem) e.getItem();
                 GcpRepositorySettings.getInstance(project)
                         .setSelectedWorkspaceId(selected.workspaceId());
+                ActivityTracker.getInstance().inc();
             }
         });
     }
 
     private ActionToolbar buildToolbar() {
         DefaultActionGroup group = new DefaultActionGroup();
-        group.add(new RefreshAction(this::getSelectedWorkspaceId, callback));
+        group.add(new RefreshAction(callback));
         group.add(new CreateWorkspaceAction(callback));
         ActionToolbar toolbar = ActionManager.getInstance()
                 .createActionToolbar("DataformRepoSelector", group, true);

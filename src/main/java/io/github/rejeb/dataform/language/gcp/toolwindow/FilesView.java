@@ -79,19 +79,22 @@ public class FilesView extends JPanel {
                     public void run(@NotNull ProgressIndicator indicator) {
                         List<Workspace> workspaces =
                                 DataformGcpService.getInstance(project).listWorkspaces();
-                        ApplicationManager.getApplication().invokeLater(
-                                () -> {
-                                    // Déléguer la mise à jour du combo au RepositorySelectorPanel
-                                    // via le message bus ou callback — ici on notifie DataformGcpPanel
-                                    // qui possède une référence au RepositorySelectorPanel
-                                    project.getMessageBus()
-                                            .syncPublisher(DataformGcpWorkspacesListener.TOPIC)
-                                            .onWorkspacesLoaded(workspaces);
-                                }
-                        );
+                        ApplicationManager.getApplication().invokeLater(() -> {
+                            project.getMessageBus()
+                                    .syncPublisher(DataformGcpWorkspacesListener.TOPIC)
+                                    .onWorkspacesLoaded(workspaces);
+                            // Lire le workspace APRÈS que le combo soit peuplé
+                            String workspaceId =
+                                    GcpRepositorySettings.getInstance(project).getSelectedWorkspaceId();
+                            fetch(workspaceId);
+                            if (workspaceId != null) {
+                                fetchGitStatuses(workspaceId);
+                            }
+                        });
                     }
                 });
     }
+
 
     public void fetch(@Nullable String workspaceId) {
         String title = workspaceId != null
