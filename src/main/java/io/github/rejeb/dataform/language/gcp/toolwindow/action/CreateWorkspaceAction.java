@@ -21,16 +21,16 @@ import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.ui.Messages;
-import io.github.rejeb.dataform.language.gcp.toolwindow.DataformGcpPanel;
+import io.github.rejeb.dataform.language.gcp.toolwindow.dispatcher.GcpPanelActionDispatcher;
 import org.jetbrains.annotations.NotNull;
 
 public class CreateWorkspaceAction extends AnAction {
 
-    private final DataformGcpPanel.PanelCallback callback;
+    private final GcpPanelActionDispatcher dispatcher;
 
-    public CreateWorkspaceAction(@NotNull DataformGcpPanel.PanelCallback callback) {
+    public CreateWorkspaceAction(@NotNull GcpPanelActionDispatcher dispatcher) {
         super(() -> "Create Workspace", AllIcons.Actions.NewFolder);
-        this.callback = callback;
+        this.dispatcher = dispatcher;
     }
 
     @Override
@@ -43,7 +43,7 @@ public class CreateWorkspaceAction extends AnAction {
                 null
         );
         if (workspaceId == null || workspaceId.isBlank()) return;
-        callback.onCreateWorkspace(workspaceId.trim());
+        dispatcher.createWorkspace(workspaceId.trim());
     }
 
     @Override

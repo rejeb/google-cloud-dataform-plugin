@@ -27,12 +27,10 @@ import com.intellij.ui.ScrollPaneFactory;
 import com.intellij.ui.treeStructure.Tree;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.tree.TreeUtil;
-import io.github.rejeb.dataform.language.gcp.service.DataformGcpFilesLoadedListener;
-import io.github.rejeb.dataform.language.gcp.service.DataformGcpGitStatusesListener;
-import io.github.rejeb.dataform.language.gcp.service.DataformGcpService;
-import io.github.rejeb.dataform.language.gcp.service.DataformGcpWorkspacesListener;
+import io.github.rejeb.dataform.language.gcp.service.*;
 import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
 import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
+import io.github.rejeb.dataform.language.gcp.toolwindow.dispatcher.GcpPanelActionDispatcher;
 import io.github.rejeb.dataform.language.gcp.workspace.UncommittedChange;
 import io.github.rejeb.dataform.language.gcp.workspace.Workspace;
 import org.jetbrains.annotations.NotNull;
@@ -45,8 +43,6 @@ import java.util.Map;
 
 public class FilesView extends JPanel {
 
-    private static final String NOTIFICATION_GROUP = "Dataform.Notifications";
-
     private final Project project;
     private final DataformRepoTreeModel treeModel;
     private final FileViewToolbar toolbar;
@@ -54,16 +50,17 @@ public class FilesView extends JPanel {
     public FilesView(
             @NotNull Project project,
             @NotNull DataformRepositoryConfig config,
-            @NotNull DataformGcpPanel.PanelCallback callback
+            @NotNull GcpPanelActionDispatcher dispatcher
     ) {
         super(new BorderLayout());
         this.project = project;
 
         treeModel = new DataformRepoTreeModel(config.repositoryId());
+
         toolbar = new FileViewToolbar(
                 project,
                 () -> GcpRepositorySettings.getInstance(project).getSelectedWorkspaceId(),
-                callback);
+                dispatcher);
 
         Tree tree = new Tree(treeModel);
         tree.setRootVisible(true);
@@ -71,8 +68,29 @@ public class FilesView extends JPanel {
         tree.setCellRenderer(new DataformRepoTreeCellRenderer(treeModel));
         tree.setRowHeight(0);
 
-        initFiles(tree);
-        refreshWorkspaces();
+        project.getMessageBus()
+                .connect()
+                .subscribe(DataformGcpEvent.TOPIC, new DataformGcpEvent() {
+                    @Override
+                    public void onFilesLoaded(@NotNull Map<String, String> files) {
+                        treeModel.setLoading(false);
+                        treeModel.setFiles(files);
+                        TreeUtil.expandAll(tree);
+                    }
+
+                    @Override
+                    public void onGitStatusesLoaded(@NotNull List<UncommittedChange> changes) {
+                        treeModel.setGitStatuses(changes);
+                    }
+
+                    @Override
+                    public void onNotification(@NotNull String message, @NotNull NotificationType type) {
+                        NotificationGroupManager.getInstance()
+                                .getNotificationGroup("Dataform.Notifications")
+                                .createNotification(message, type)
+                                .notify(project);
+                    }
+                });
 
         JLabel titleLabel = buildViewTitle("GCP remote project view");
         JPanel topPanel = new JPanel(new BorderLayout());
@@ -81,246 +99,9 @@ public class FilesView extends JPanel {
 
         add(topPanel, BorderLayout.NORTH);
         add(ScrollPaneFactory.createScrollPane(tree), BorderLayout.CENTER);
+
     }
 
-    // -------------------------------------------------------------------------
-    // Public operations
-    // -------------------------------------------------------------------------
-
-    public void refreshWorkspaces() {
-        ProgressManager.getInstance().run(
-                new Task.Backgroundable(project, "Loading Dataform workspaces…") {
-                    @Override
-                    public void run(@NotNull ProgressIndicator indicator) {
-                        List<Workspace> workspaces =
-                                DataformGcpService.getInstance(project).listWorkspaces();
-                        ApplicationManager.getApplication().invokeLater(() -> {
-                            project.getMessageBus()
-                                    .syncPublisher(DataformGcpWorkspacesListener.TOPIC)
-                                    .onWorkspacesLoaded(workspaces);
-                            String workspaceId =
-                                    GcpRepositorySettings.getInstance(project).getSelectedWorkspaceId();
-                            fetch(workspaceId);
-                            if (workspaceId != null) {
-                                fetchGitStatuses(workspaceId);
-                            }
-                        });
-                    }
-                });
-    }
-
-    public void fetch(@Nullable String workspaceId) {
-        String title = workspaceId != null
-                ? "Fetching from workspace '" + workspaceId + "'…"
-                : "Reading files from repo main branch…";
-        ProgressManager.getInstance().run(new Task.Backgroundable(project, title) {
-            @Override
-            public void run(@NotNull ProgressIndicator indicator) {
-                Map<String, String> files =
-                        DataformGcpService.getInstance(project).fetchCode(workspaceId);
-                ApplicationManager.getApplication().invokeLater(
-                        () -> treeModel.setFiles(files));
-            }
-        });
-    }
-
-    public void fetchGitStatuses(@NotNull String workspaceId) {
-        ProgressManager.getInstance().run(
-                new Task.Backgroundable(project, "Loading git statuses…") {
-                    @Override
-                    public void run(@NotNull ProgressIndicator indicator) {
-                        List<UncommittedChange> changes =
-                                DataformGcpService.getInstance(project)
-                                        .fetchGitStatuses(workspaceId);
-                        ApplicationManager.getApplication().invokeLater(() ->
-                                treeModel.setGitStatuses(changes));
-
-                        project.getMessageBus()
-                                .syncPublisher(DataformGcpGitStatusesListener.TOPIC)
-                                .onGitStatusesLoaded(changes);
-                    }
-                });
-    }
-
-    public void pull(@Nullable String workspaceId) {
-        String title = workspaceId != null
-                ? "Pulling from workspace '" + workspaceId + "'…"
-                : "Pulling from repo main branch…";
-        ProgressManager.getInstance().run(new Task.Backgroundable(project, title) {
-            @Override
-            public void run(@NotNull ProgressIndicator indicator) {
-                DataformGcpService.getInstance(project).pullCode(workspaceId);
-            }
-
-            @Override
-            public void onSuccess() {
-                notifyUser("Local files updated successfully.", NotificationType.INFORMATION);
-            }
-
-            @Override
-            public void onThrowable(@NotNull Throwable error) {
-                notifyUser("Pull failed: " + error.getMessage(), NotificationType.ERROR);
-            }
-        });
-    }
-
-    public void push(@NotNull String workspaceId) {
-        ProgressManager.getInstance().run(
-                new Task.Backgroundable(project,
-                        "Pushing to workspace '" + workspaceId + "'…") {
-                    @Override
-                    public void run(@NotNull ProgressIndicator indicator) {
-                        DataformGcpService.getInstance(project).pushCode(workspaceId);
-                    }
-
-                    @Override
-                    public void onThrowable(@NotNull Throwable error) {
-                        notifyUser("Push failed: " + error.getMessage(), NotificationType.ERROR);
-                    }
-                });
-    }
-
-    public void commitWorkspaceChanges(
-            @NotNull String workspaceId,
-            @NotNull List<String> paths,
-            @NotNull String message
-    ) {
-        ProgressManager.getInstance().run(
-                new Task.Backgroundable(project, "Committing changes…") {
-                    @Override
-                    public void run(@NotNull ProgressIndicator indicator) {
-                        DataformGcpService.getInstance(project)
-                                .commitWorkspaceChanges(workspaceId, paths, message);
-                    }
-
-                    @Override
-                    public void onSuccess() {
-                        fetchGitStatuses(workspaceId);
-                    }
-
-                    @Override
-                    public void onThrowable(@NotNull Throwable error) {
-                        notifyUser("Commit failed: " + error.getMessage(), NotificationType.ERROR);
-                    }
-                });
-    }
-
-    public void pushGitCommits(@NotNull String workspaceId) {
-        ProgressManager.getInstance().run(
-                new Task.Backgroundable(project, "Pushing commits…") {
-                    @Override
-                    public void run(@NotNull ProgressIndicator indicator) {
-                        DataformGcpService.getInstance(project).pushGitCommits(workspaceId);
-                    }
-
-                    @Override
-                    public void onThrowable(@NotNull Throwable error) {
-                        notifyUser("Push failed: " + error.getMessage(), NotificationType.ERROR);
-                    }
-                });
-    }
-
-    public void commitAndPushWorkspaceChanges(
-            @NotNull String workspaceId,
-            @NotNull List<String> paths,
-            @NotNull String message
-    ) {
-        ProgressManager.getInstance().run(
-                new Task.Backgroundable(project, "Committing and pushing changes…") {
-                    @Override
-                    public void run(@NotNull ProgressIndicator indicator) {
-                        indicator.setText("Committing changes…");
-                        DataformGcpService.getInstance(project)
-                                .commitWorkspaceChanges(workspaceId, paths, message);
-                        indicator.setText("Pushing commits…");
-                        DataformGcpService.getInstance(project)
-                                .pushGitCommits(workspaceId);
-                    }
-
-                    @Override
-                    public void onSuccess() {
-                        fetchGitStatuses(workspaceId);
-                    }
-
-                    @Override
-                    public void onThrowable(@NotNull Throwable error) {
-                        notifyUser("Commit & Push failed: " + error.getMessage(), NotificationType.ERROR);
-                    }
-                });
-    }
-
-    public void createWorkspace(
-            @NotNull String workspaceId,
-            @NotNull RepositorySelectorPanel selectorPanel
-    ) {
-        ProgressManager.getInstance().run(
-                new Task.Backgroundable(project,
-                        "Creating workspace '" + workspaceId + "'…") {
-                    @Override
-                    public void run(@NotNull ProgressIndicator indicator) {
-                        DataformGcpService.getInstance(project).createWorkspace(workspaceId);
-                    }
-
-                    @Override
-                    public void onSuccess() {
-                        ProgressManager.getInstance().run(
-                                new Task.Backgroundable(project, "Loading Dataform workspaces…") {
-                                    @Override
-                                    public void run(@NotNull ProgressIndicator indicator) {
-                                        List<Workspace> workspaces =
-                                                DataformGcpService.getInstance(project).listWorkspaces();
-                                        ApplicationManager.getApplication().invokeLater(() -> {
-                                            selectorPanel.setWorkspaces(workspaces);
-                                            selectorPanel.selectWorkspace(workspaceId);
-                                        });
-                                    }
-                                });
-                    }
-
-                    @Override
-                    public void onThrowable(@NotNull Throwable error) {
-                        notifyUser("Failed to create workspace: " + error.getMessage(), NotificationType.ERROR);
-                    }
-                });
-    }
-
-    // -------------------------------------------------------------------------
-    // Private
-    // -------------------------------------------------------------------------
-
-    private void initFiles(@NotNull Tree tree) {
-        DataformGcpService service = DataformGcpService.getInstance(project);
-        Map<String, String> cached = service.getCachedFiles();
-
-        if (!cached.isEmpty()) {
-            treeModel.setFiles(cached);
-            TreeUtil.expandAll(tree);
-        } else if (!service.isLoading()) {
-            treeModel.setLoading(true);
-            service.refreshFilesAsync(null, files -> {
-                treeModel.setLoading(false);
-                treeModel.setFiles(files);
-                TreeUtil.expandAll(tree);
-            });
-        } else {
-            treeModel.setLoading(true);
-            project.getMessageBus()
-                    .connect()
-                    .subscribe(DataformGcpFilesLoadedListener.TOPIC,
-                            (DataformGcpFilesLoadedListener) files -> {
-                                treeModel.setLoading(false);
-                                treeModel.setFiles(files);
-                                TreeUtil.expandAll(tree);
-                            });
-        }
-    }
-
-    private void notifyUser(@NotNull String message, @NotNull NotificationType type) {
-        NotificationGroupManager.getInstance()
-                .getNotificationGroup(NOTIFICATION_GROUP)
-                .createNotification(message, type)
-                .notify(project);
-    }
 
     static JLabel buildViewTitle(@NotNull String text) {
         JLabel label = new JLabel(text);

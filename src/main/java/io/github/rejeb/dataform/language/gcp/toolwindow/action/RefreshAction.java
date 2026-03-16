@@ -20,6 +20,7 @@ import com.intellij.icons.AllIcons;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import io.github.rejeb.dataform.language.gcp.toolwindow.DataformGcpPanel;
+import io.github.rejeb.dataform.language.gcp.toolwindow.dispatcher.GcpPanelActionDispatcher;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -27,10 +28,10 @@ import java.util.function.Supplier;
 
 public class RefreshAction extends AnAction {
 
-    private final DataformGcpPanel.PanelCallback callback;
+    private final GcpPanelActionDispatcher callback;
 
     public RefreshAction(
-            @NotNull DataformGcpPanel.PanelCallback callback
+            @NotNull GcpPanelActionDispatcher callback
     ) {
         super(() -> "Refresh", AllIcons.Actions.Refresh);
         this.callback = callback;
@@ -38,6 +39,6 @@ public class RefreshAction extends AnAction {
 
     @Override
     public void actionPerformed(@NotNull AnActionEvent e) {
-        callback.onRefreshWorkspaces();
+        callback.refreshWorkspaces();
     }
 }

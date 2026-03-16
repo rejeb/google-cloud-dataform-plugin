@@ -67,10 +67,20 @@ public class DataformRepoTreeModel extends DefaultTreeModel {
         @Override public String toString() { return label; }
     }
 
-    /**
-     * Rebuilds the tree from a map of relative path → file content.
-     * Intermediate directory nodes are created automatically.
-     */
+    public void clear() {
+        ((DefaultMutableTreeNode) getRoot()).removeAllChildren();
+        reload();
+    }
+
+    public void setLoading(boolean loading) {
+        DefaultMutableTreeNode root = (DefaultMutableTreeNode) getRoot();
+        root.removeAllChildren();
+        if (loading) {
+            root.add(new DefaultMutableTreeNode("Loading…"));
+        }
+        reload();
+    }
+
     public void setFiles(@NotNull Map<String, String> files) {
         DefaultMutableTreeNode root = (DefaultMutableTreeNode) getRoot();
         root.removeAllChildren();
@@ -87,8 +97,7 @@ public class DataformRepoTreeModel extends DefaultTreeModel {
 
                 String dirPath = currentPath.toString();
                 if (!dirNodes.containsKey(dirPath)) {
-                    DefaultMutableTreeNode dirNode =
-                            new DefaultMutableTreeNode(segments[i]);
+                    DefaultMutableTreeNode dirNode = new DefaultMutableTreeNode(segments[i]);
                     dirNodes.put(dirPath, dirNode);
 
                     String parentPath = dirPath.contains("/")
@@ -116,21 +125,45 @@ public class DataformRepoTreeModel extends DefaultTreeModel {
             else root.add(fileNode);
         }
 
+        sortChildrenRecursively(root);
         reload();
     }
 
-    public void clear() {
-        ((DefaultMutableTreeNode) getRoot()).removeAllChildren();
-        reload();
-    }
+    /**
+     * Sorts the children of each node recursively: directories first, then files,
+     * each group sorted alphabetically (case-insensitive).
+     *
+     * @param node the node whose children to sort recursively
+     */
+    private void sortChildrenRecursively(@NotNull DefaultMutableTreeNode node) {
+        int count = node.getChildCount();
+        if (count == 0) return;
 
-    public void setLoading(boolean loading) {
-        DefaultMutableTreeNode root = (DefaultMutableTreeNode) getRoot();
-        root.removeAllChildren();
-        if (loading) {
-            root.add(new DefaultMutableTreeNode("Loading…"));
+        List<DefaultMutableTreeNode> children = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            children.add((DefaultMutableTreeNode) node.getChildAt(i));
         }
-        reload();
+
+        children.sort(Comparator
+                .comparingInt((DefaultMutableTreeNode n) -> isDirectory(n) ? 0 : 1)
+                .thenComparing(n -> labelOf(n).toLowerCase())
+        );
+
+        node.removeAllChildren();
+        for (DefaultMutableTreeNode child : children) {
+            node.add(child);
+            sortChildrenRecursively(child);
+        }
+    }
+
+    private boolean isDirectory(@NotNull DefaultMutableTreeNode node) {
+        return !(node.getUserObject() instanceof FileEntry);
+    }
+
+    private @NotNull String labelOf(@NotNull DefaultMutableTreeNode node) {
+        Object obj = node.getUserObject();
+        if (obj instanceof FileEntry fe) return fe.displayName();
+        return obj != null ? obj.toString() : "";
     }
 
     /**

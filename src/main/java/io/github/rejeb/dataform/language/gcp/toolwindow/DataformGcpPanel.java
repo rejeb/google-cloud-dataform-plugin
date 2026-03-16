@@ -21,23 +21,24 @@ import com.intellij.openapi.project.Project;
 import com.intellij.ui.components.labels.LinkLabel;
 import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
 import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
-import io.github.rejeb.dataform.language.gcp.workspace.UncommittedChange;
+import io.github.rejeb.dataform.language.gcp.toolwindow.dispatcher.GcpPanelActionDispatcher;
+import io.github.rejeb.dataform.language.gcp.toolwindow.dispatcher.GcpPanelActionDispatcherImpl;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.awt.*;
-import java.util.List;
 
 public class DataformGcpPanel extends JPanel {
 
     private final Project project;
     private FilesView filesView;
     private RepositorySelectorPanel repositorySelectorPanel;
+    private final GcpPanelActionDispatcher dispatcher;
 
     public DataformGcpPanel(@NotNull Project project) {
         super(new BorderLayout());
         this.project = project;
+        this.dispatcher = new GcpPanelActionDispatcherImpl(project);
         refresh();
     }
 
@@ -67,13 +68,11 @@ public class DataformGcpPanel extends JPanel {
     }
 
     private void initConfiguredState(@NotNull DataformRepositoryConfig config) {
-        PanelCallback callback = buildPanelCallback();
-
         repositorySelectorPanel = new RepositorySelectorPanel(
-                project, this::onRepositorySelected, callback);
-
-        filesView = new FilesView(project, config, callback);
-        CommitView commitView = new CommitView(project, callback);
+                project, this::onRepositorySelected, dispatcher);
+        dispatcher.refreshWorkspaces();
+        filesView = new FilesView(project, config, dispatcher);
+        CommitView commitView = new CommitView(project, dispatcher);
 
         JPanel contentPanel = new JPanel(new CardLayout());
         contentPanel.add(filesView, "FILES");
@@ -93,7 +92,7 @@ public class DataformGcpPanel extends JPanel {
                 GcpRepositorySettings.getInstance(project).getActiveConfig();
         if (active != null) {
             initConfiguredState(active);
-            filesView.refreshWorkspaces();
+            dispatcher.refreshWorkspaces();
         } else {
             showUnconfiguredState();
         }
@@ -135,79 +134,4 @@ public class DataformGcpPanel extends JPanel {
         return btn;
     }
 
-    private @NotNull PanelCallback buildPanelCallback() {
-        return new PanelCallback() {
-            @Override
-            public void onRefreshWorkspaces() {
-                filesView.refreshWorkspaces();
-            }
-
-            @Override
-            public void onFetch(@Nullable String workspaceId) {
-                filesView.fetch(workspaceId);
-            }
-
-            @Override
-            public void onPull(@Nullable String workspaceId) {
-                filesView.pull(workspaceId);
-            }
-
-            @Override
-            public void onPush(@NotNull String workspaceId) {
-                filesView.push(workspaceId);
-            }
-
-            @Override
-            public void onCreateWorkspace(@NotNull String workspaceId) {
-                filesView.createWorkspace(workspaceId, repositorySelectorPanel);
-            }
-
-            @Override
-            public void onFetchGitStatuses(@NotNull String workspaceId) {
-                filesView.fetchGitStatuses(workspaceId);
-            }
-
-            @Override
-            public void onCommitWorkspaceChanges(
-                    @NotNull String workspaceId,
-                    @NotNull List<String> paths,
-                    @NotNull String message
-            ) {
-                filesView.commitWorkspaceChanges(workspaceId, paths, message);
-            }
-
-            @Override
-            public void onPushGitCommits(@NotNull String workspaceId) {
-                filesView.pushGitCommits(workspaceId);
-            }
-
-            @Override
-            public void onCommitAndPushWorkspaceChanges(
-                    @NotNull String workspaceId,
-                    @NotNull List<String> paths,
-                    @NotNull String message
-            ) {
-                filesView.commitAndPushWorkspaceChanges(workspaceId, paths, message);
-            }
-        };
-    }
-
-    public interface PanelCallback {
-        void onRefreshWorkspaces();
-        void onFetch(@Nullable String workspaceId);
-        void onPull(@Nullable String workspaceId);
-        void onPush(@NotNull String workspaceId);
-        void onCreateWorkspace(@NotNull String workspaceId);
-        void onFetchGitStatuses(@NotNull String workspaceId);
-        void onCommitAndPushWorkspaceChanges(
-                @NotNull String workspaceId,
-                @NotNull List<String> paths,
-                @NotNull String message);
-
-        void onCommitWorkspaceChanges(
-                @NotNull String workspaceId,
-                @NotNull List<String> paths,
-                @NotNull String message);
-        void onPushGitCommits(@NotNull String workspaceId);
-    }
 }

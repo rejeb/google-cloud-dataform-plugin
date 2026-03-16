@@ -98,7 +98,7 @@ public final class DataformGcpServiceImpl implements DataformGcpService, Disposa
                                     .getApplication()
                                     .invokeLater(() -> onDone.accept(files));
                             project.getMessageBus()
-                                    .syncPublisher(DataformGcpFilesLoadedListener.TOPIC)
+                                    .syncPublisher(DataformGcpEvent.TOPIC)
                                     .onFilesLoaded(files);
                         } catch (GcpApiException e) {
                             LOG.warn("Failed to refresh Dataform files.", e);

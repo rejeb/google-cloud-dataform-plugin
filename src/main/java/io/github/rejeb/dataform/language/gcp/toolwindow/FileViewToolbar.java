@@ -20,6 +20,7 @@ import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.project.Project;
 import io.github.rejeb.dataform.language.gcp.toolwindow.action.PullFromWorkspaceAction;
 import io.github.rejeb.dataform.language.gcp.toolwindow.action.PushToWorkspaceAction;
+import io.github.rejeb.dataform.language.gcp.toolwindow.dispatcher.GcpPanelActionDispatcher;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -32,13 +33,13 @@ public class FileViewToolbar extends JPanel {
     public FileViewToolbar(
             @NotNull Project project,
             @NotNull Supplier<@Nullable String> workspaceIdSupplier,
-            @NotNull DataformGcpPanel.PanelCallback callback
+            @NotNull GcpPanelActionDispatcher dispatcher
     ) {
         super(new BorderLayout());
 
         DefaultActionGroup group = new DefaultActionGroup();
-        group.add(new PullFromWorkspaceAction(workspaceIdSupplier, callback));
-        group.add(new PushToWorkspaceAction(workspaceIdSupplier, callback));
+        group.add(new PullFromWorkspaceAction(workspaceIdSupplier, dispatcher));
+        group.add(new PushToWorkspaceAction(workspaceIdSupplier, dispatcher));
 
         ActionToolbar toolbar = ActionManager.getInstance()
                 .createActionToolbar("DataformFileViewToolbar", group, true);

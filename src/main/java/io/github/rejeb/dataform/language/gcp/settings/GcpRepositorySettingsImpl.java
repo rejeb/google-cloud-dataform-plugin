@@ -47,16 +47,22 @@ public final class GcpRepositorySettingsImpl
                 if (c.isComplete()) result.add(c);
             }
         }
-
         return result;
     }
 
     @Override
     public void saveAllConfigs(@NotNull List<DataformRepositoryConfig> configs) {
-        state.repositories.clear();
+        List<RepoState> updated = new ArrayList<>();
         for (DataformRepositoryConfig c : configs) {
-            state.repositories.add(new RepoState(c.label(), c.projectId(), c.repositoryId(), c.location()));
+            RepoState existing = findRepoState(c.repositoryId());
+            RepoState r = existing != null ? existing : new RepoState();
+            r.label = c.label();
+            r.projectId = c.projectId();
+            r.repositoryId = c.repositoryId();
+            r.location = c.location();
+            updated.add(r);
         }
+        state.repositories = updated;
     }
 
     @Override
@@ -84,12 +90,16 @@ public final class GcpRepositorySettingsImpl
 
     @Override
     public void setSelectedWorkspaceId(@Nullable String workspaceId) {
-        state.selectedWorkspaceId = workspaceId;
+        RepoState r = activeRepoState();
+        if (r != null) {
+            r.selectedWorkspaceId = workspaceId;
+        }
     }
 
     @Override
     public @Nullable String getSelectedWorkspaceId() {
-        return state.selectedWorkspaceId;
+        RepoState r = activeRepoState();
+        return r != null ? r.selectedWorkspaceId : null;
     }
 
     @Override
@@ -102,8 +112,23 @@ public final class GcpRepositorySettingsImpl
         this.state = state;
     }
 
+    @Nullable
+    private RepoState activeRepoState() {
+        if (state.activeRepositoryId == null) {
+            return state.repositories.isEmpty() ? null : state.repositories.get(0);
+        }
+        return findRepoState(state.activeRepositoryId);
+    }
+
+    @Nullable
+    private RepoState findRepoState(@NotNull String repositoryId) {
+        return state.repositories.stream()
+                .filter(r -> repositoryId.equals(r.repositoryId))
+                .findFirst()
+                .orElse(null);
+    }
+
     public static final class State {
-        public @Nullable String selectedWorkspaceId;
         public @Nullable String activeRepositoryId;
         public @NotNull List<RepoState> repositories = new ArrayList<>();
     }
@@ -113,6 +138,7 @@ public final class GcpRepositorySettingsImpl
         public @Nullable String projectId;
         public @Nullable String repositoryId;
         public @Nullable String location;
+        public @Nullable String selectedWorkspaceId;
 
         public RepoState() {
         }

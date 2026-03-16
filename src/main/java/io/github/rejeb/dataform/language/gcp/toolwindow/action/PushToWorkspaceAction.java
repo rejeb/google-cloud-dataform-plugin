@@ -21,7 +21,7 @@ import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.ui.Messages;
-import io.github.rejeb.dataform.language.gcp.toolwindow.DataformGcpPanel;
+import io.github.rejeb.dataform.language.gcp.toolwindow.dispatcher.GcpPanelActionDispatcher;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -30,41 +30,35 @@ import java.util.function.Supplier;
 public class PushToWorkspaceAction extends AnAction {
 
     private final Supplier<@Nullable String> workspaceIdSupplier;
-    private final DataformGcpPanel.PanelCallback callback;
+    private final GcpPanelActionDispatcher dispatcher;
 
     public PushToWorkspaceAction(
             @NotNull Supplier<@Nullable String> workspaceIdSupplier,
-            @NotNull DataformGcpPanel.PanelCallback callback
+            @NotNull GcpPanelActionDispatcher dispatcher
     ) {
         super(() -> "Push Files from Local to Workspace", AllIcons.Actions.Upload);
         this.workspaceIdSupplier = workspaceIdSupplier;
-        this.callback = callback;
+        this.dispatcher = dispatcher;
     }
 
     @Override
     public void actionPerformed(@NotNull AnActionEvent e) {
         String workspaceId = workspaceIdSupplier.get();
         if (workspaceId == null) {
-            Messages.showWarningDialog(
-                    "Please select a workspace before pushing.",
-                    "No Workspace Selected"
-            );
+            Messages.showWarningDialog("Please select a workspace before pushing.", "No Workspace Selected");
             return;
         }
-        callback.onPush(workspaceId);
+        dispatcher.push(workspaceId);
     }
 
     @Override
     public void update(@NotNull AnActionEvent e) {
         String workspaceId = workspaceIdSupplier.get();
         boolean hasWorkspace = workspaceId != null;
-
         e.getPresentation().setEnabled(hasWorkspace);
-        e.getPresentation().setText(
-                hasWorkspace
-                        ? "Push local files to workspace '" + workspaceId + "'"
-                        : "Select a workspace to enable push"
-        );
+        e.getPresentation().setText(hasWorkspace
+                ? "Push local files to workspace '" + workspaceId + "'"
+                : "Select a workspace to enable push");
     }
 
     @Override

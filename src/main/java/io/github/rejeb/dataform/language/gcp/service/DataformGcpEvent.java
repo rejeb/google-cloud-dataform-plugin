@@ -16,17 +16,24 @@
  */
 package io.github.rejeb.dataform.language.gcp.service;
 
+import com.intellij.notification.NotificationType;
 import com.intellij.util.messages.Topic;
+import io.github.rejeb.dataform.language.gcp.workspace.UncommittedChange;
+import io.github.rejeb.dataform.language.gcp.workspace.Workspace;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.List;
 import java.util.Map;
 
-public interface DataformGcpFilesLoadedListener {
+public interface DataformGcpEvent {
 
-    Topic<DataformGcpFilesLoadedListener> TOPIC = Topic.create(
-            "DataformGcpFilesLoaded",
-            DataformGcpFilesLoadedListener.class
-    );
+    Topic<DataformGcpEvent> TOPIC = Topic.create("DataformGcpEvent", DataformGcpEvent.class);
 
-    void onFilesLoaded(@NotNull Map<String, String> files);
+    default void onWorkspacesLoaded(@NotNull List<Workspace> workspaces) {}
+
+    default void onFilesLoaded(@NotNull Map<String, String> files) {}
+
+    default void onGitStatusesLoaded(@NotNull List<UncommittedChange> changes) {}
+
+    default void onNotification(@NotNull String message, @NotNull NotificationType type) {}
 }

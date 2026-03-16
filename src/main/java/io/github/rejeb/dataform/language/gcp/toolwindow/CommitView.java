@@ -8,15 +8,15 @@ import com.intellij.ui.components.JBList;
 import com.intellij.ui.components.JBScrollPane;
 import com.intellij.ui.components.JBTextArea;
 import com.intellij.util.ui.JBUI;
-import io.github.rejeb.dataform.language.gcp.service.DataformGcpGitStatusesListener;
+import io.github.rejeb.dataform.language.gcp.service.DataformGcpEvent;
 import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
+import io.github.rejeb.dataform.language.gcp.toolwindow.dispatcher.GcpPanelActionDispatcher;
 import io.github.rejeb.dataform.language.gcp.workspace.UncommittedChange;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
 import java.awt.*;
-import java.util.ArrayList;
 import java.util.List;
 
 public class CommitView extends JPanel {
@@ -27,7 +27,7 @@ public class CommitView extends JPanel {
     private static final Color COLOR_CONFLICT = new Color(0xBC3F3C);
 
     private final Project project;
-    private final DataformGcpPanel.PanelCallback callback;
+    private final GcpPanelActionDispatcher dispatcher;
 
     private final DefaultListModel<UncommittedChange> listModel = new DefaultListModel<>();
     private final JBList<UncommittedChange> changeList = new JBList<>(listModel);
@@ -35,11 +35,11 @@ public class CommitView extends JPanel {
 
     public CommitView(
             @NotNull Project project,
-            @NotNull DataformGcpPanel.PanelCallback callback
+            @NotNull GcpPanelActionDispatcher dispatcher
     ) {
         super(new BorderLayout());
         this.project = project;
-        this.callback = callback;
+        this.dispatcher = dispatcher;
 
         changeList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         changeList.setCellRenderer(new ChangeListCellRenderer());
@@ -55,8 +55,12 @@ public class CommitView extends JPanel {
         // S'abonner au message bus pour recevoir les git statuses depuis FilesView
         project.getMessageBus()
                 .connect()
-                .subscribe(DataformGcpGitStatusesListener.TOPIC,
-                        (DataformGcpGitStatusesListener) this::setChanges);
+                .subscribe(DataformGcpEvent.TOPIC, new DataformGcpEvent() {
+                    @Override
+                    public void onGitStatusesLoaded(@NotNull List<UncommittedChange> changes) {
+                        setChanges(changes);
+                    }
+                });
     }
 
     // -------------------------------------------------------------------------
@@ -109,7 +113,8 @@ public class CommitView extends JPanel {
         return content;
     }
 
-    private void setChanges(@NotNull List<UncommittedChange> changes) {
+
+    public void setChanges(@NotNull List<UncommittedChange> changes) {
         listModel.clear();
         if (!changes.isEmpty()) {
             changes.forEach(listModel::addElement);
@@ -142,7 +147,7 @@ public class CommitView extends JPanel {
             return;
         }
         List<String> paths = selected.stream().map(UncommittedChange::path).toList();
-        callback.onCommitWorkspaceChanges(workspaceId, paths, message);
+        dispatcher.commitChanges(workspaceId, paths, message);
     }
 
     private void onCommitAndPush() {
@@ -170,7 +175,7 @@ public class CommitView extends JPanel {
             return;
         }
         List<String> paths = selected.stream().map(UncommittedChange::path).toList();
-        callback.onCommitAndPushWorkspaceChanges(workspaceId, paths, message);
+        dispatcher.commitAndPush(workspaceId, paths, message);
     }
 
     private void onPush() {
@@ -182,7 +187,7 @@ public class CommitView extends JPanel {
                     JOptionPane.WARNING_MESSAGE);
             return;
         }
-        callback.onPushGitCommits(workspaceId);
+        dispatcher.pushGitCommits(workspaceId);
     }
 
     // -------------------------------------------------------------------------

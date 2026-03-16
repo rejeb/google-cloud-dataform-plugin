@@ -22,12 +22,12 @@ import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.ComboBox;
 import com.intellij.ui.components.JBLabel;
-import io.github.rejeb.dataform.language.gcp.service.DataformGcpGitStatusesListener;
-import io.github.rejeb.dataform.language.gcp.service.DataformGcpWorkspacesListener;
+import io.github.rejeb.dataform.language.gcp.service.DataformGcpEvent;
 import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
 import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
 import io.github.rejeb.dataform.language.gcp.toolwindow.action.CreateWorkspaceAction;
 import io.github.rejeb.dataform.language.gcp.toolwindow.action.RefreshAction;
+import io.github.rejeb.dataform.language.gcp.toolwindow.dispatcher.GcpPanelActionDispatcher;
 import io.github.rejeb.dataform.language.gcp.workspace.Workspace;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -43,19 +43,19 @@ public class RepositorySelectorPanel extends JPanel {
     private final ComboBox<DataformRepositoryConfig> repoCombo = new ComboBox<>();
     private final ComboBox<WorkspaceItem> workspaceCombo = new ComboBox<>();
     private final Runnable onRepositoryChanged;
-    private final DataformGcpPanel.PanelCallback callback;
+    private final GcpPanelActionDispatcher dispatcher;
     private boolean updatingRepo = false;
     private boolean updatingWorkspace = false;
 
     public RepositorySelectorPanel(
             @NotNull Project project,
             @NotNull Runnable onRepositoryChanged,
-            @NotNull DataformGcpPanel.PanelCallback callback
+            @NotNull GcpPanelActionDispatcher dispatcher
     ) {
         super(new FlowLayout(FlowLayout.LEFT, 6, 4));
         this.project = project;
         this.onRepositoryChanged = onRepositoryChanged;
-        this.callback = callback;
+        this.dispatcher = dispatcher;
 
         buildRepoCombo();
         buildWorkspaceCombo();
@@ -70,8 +70,12 @@ public class RepositorySelectorPanel extends JPanel {
         add(buildConfigureButton());
         project.getMessageBus()
                 .connect()
-                .subscribe(DataformGcpWorkspacesListener.TOPIC,
-                        (DataformGcpWorkspacesListener) this::setWorkspaces);
+                .subscribe(DataformGcpEvent.TOPIC, new DataformGcpEvent() {
+                    @Override
+                    public void onWorkspacesLoaded(@NotNull List<Workspace> workspaces) {
+                        setWorkspaces(workspaces);
+                    }
+                });
 
         refresh();
     }
@@ -123,25 +127,6 @@ public class RepositorySelectorPanel extends JPanel {
         }
     }
 
-    public void selectWorkspace(@Nullable String workspaceId) {
-        if (workspaceId == null) {
-            workspaceCombo.setSelectedIndex(0);
-            return;
-        }
-        for (int i = 0; i < workspaceCombo.getItemCount(); i++) {
-            if (workspaceId.equals(workspaceCombo.getItemAt(i).workspaceId())) {
-                workspaceCombo.setSelectedIndex(i);
-                return;
-            }
-        }
-    }
-
-    @Nullable
-    public String getSelectedWorkspaceId() {
-        WorkspaceItem selected = (WorkspaceItem) workspaceCombo.getSelectedItem();
-        return selected != null ? selected.workspaceId() : null;
-    }
-
     // -------------------------------------------------------------------------
     // Private builders
     // -------------------------------------------------------------------------
@@ -182,8 +167,8 @@ public class RepositorySelectorPanel extends JPanel {
 
     private ActionToolbar buildToolbar() {
         DefaultActionGroup group = new DefaultActionGroup();
-        group.add(new RefreshAction(callback));
-        group.add(new CreateWorkspaceAction(callback));
+        group.add(new RefreshAction(dispatcher));
+        group.add(new CreateWorkspaceAction(dispatcher));
         ActionToolbar toolbar = ActionManager.getInstance()
                 .createActionToolbar("DataformRepoSelector", group, true);
         toolbar.setTargetComponent(this);

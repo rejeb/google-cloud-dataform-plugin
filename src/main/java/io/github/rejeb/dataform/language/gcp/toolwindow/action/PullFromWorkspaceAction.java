@@ -21,7 +21,7 @@ import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.ui.Messages;
-import io.github.rejeb.dataform.language.gcp.toolwindow.DataformGcpPanel;
+import io.github.rejeb.dataform.language.gcp.toolwindow.dispatcher.GcpPanelActionDispatcher;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -30,42 +30,35 @@ import java.util.function.Supplier;
 public class PullFromWorkspaceAction extends AnAction {
 
     private final Supplier<@Nullable String> workspaceIdSupplier;
-    private final DataformGcpPanel.PanelCallback callback;
+    private final GcpPanelActionDispatcher dispatcher;
 
     public PullFromWorkspaceAction(
             @NotNull Supplier<@Nullable String> workspaceIdSupplier,
-            @NotNull DataformGcpPanel.PanelCallback callback
+            @NotNull GcpPanelActionDispatcher dispatcher
     ) {
-        super(()->"Pull Files from Workspace to Local",
-                AllIcons.Actions.Download);
+        super(() -> "Pull Files from Workspace to Local", AllIcons.Actions.Download);
         this.workspaceIdSupplier = workspaceIdSupplier;
-        this.callback = callback;
+        this.dispatcher = dispatcher;
     }
 
     @Override
     public void actionPerformed(@NotNull AnActionEvent e) {
         String workspaceId = workspaceIdSupplier.get();
         if (workspaceId == null) {
-            Messages.showWarningDialog(
-                    "Please select a workspace before pulling.",
-                    "No Workspace Selected"
-            );
+            Messages.showWarningDialog("Please select a workspace before pulling.", "No Workspace Selected");
             return;
         }
-        callback.onPull(workspaceId);
+        dispatcher.pull(workspaceId);
     }
 
     @Override
     public void update(@NotNull AnActionEvent e) {
         String workspaceId = workspaceIdSupplier.get();
         boolean hasWorkspace = workspaceId != null;
-
         e.getPresentation().setEnabled(hasWorkspace);
-        e.getPresentation().setText(
-                hasWorkspace
-                        ? "Pull workspace '" + workspaceId + "' files to local"
-                        : "Select a Workspace to Enable Push"
-        );
+        e.getPresentation().setText(hasWorkspace
+                ? "Pull workspace '" + workspaceId + "' files to local"
+                : "Select a Workspace to Enable Pull");
     }
 
     @Override
@@ -73,3 +66,4 @@ public class PullFromWorkspaceAction extends AnAction {
         return ActionUpdateThread.EDT;
     }
 }
+
