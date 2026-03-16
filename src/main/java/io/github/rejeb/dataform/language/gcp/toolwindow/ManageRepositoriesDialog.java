@@ -39,13 +39,22 @@ public class ManageRepositoriesDialog extends DialogWrapper {
 
     private final Project project;
     private final DefaultListModel<DataformRepositoryConfig> listModel = new DefaultListModel<>();
-    private final JBList<DataformRepositoryConfig> repoList = new JBList<>(listModel);
+    private final JBList<DataformRepositoryConfig> repoList            = new JBList<>(listModel);
     private final RepositoryEditPanel editPanel;
+
+    private int     editedIndex      = -1;
+    private boolean suppressListener = false;
 
     public ManageRepositoriesDialog(@NotNull Project project) {
         super(project, true);
         this.project = project;
         this.editPanel = new RepositoryEditPanel(project);
+
+        // Après Create in GCP réussi : flush + persist immédiat
+        editPanel.setOnCreateSuccess(() -> {
+            flushEditedIndex();
+            persistList();
+        });
 
         setTitle("Manage Dataform Repositories");
 
@@ -65,12 +74,14 @@ public class ManageRepositoriesDialog extends DialogWrapper {
         });
 
         repoList.addListSelectionListener(e -> {
-            if (e.getValueIsAdjusting()) return;
+            if (e.getValueIsAdjusting() || suppressListener) return;
+            flushEditedIndex();
             DataformRepositoryConfig selected = repoList.getSelectedValue();
+            editedIndex = repoList.getSelectedIndex();
             if (selected != null) {
-                syncCurrentEdit();
                 editPanel.load(selected);
             } else {
+                editedIndex = -1;
                 editPanel.clear();
             }
         });
@@ -87,6 +98,17 @@ public class ManageRepositoriesDialog extends DialogWrapper {
         JPanel listPanel = ToolbarDecorator.createDecorator(repoList)
                 .setAddAction(button -> addRepository())
                 .setRemoveAction(button -> removeSelected())
+                .addExtraAction(new com.intellij.ui.AnActionButton(
+                        "Copy", AllIcons.Actions.Copy) {
+                    @Override
+                    public void actionPerformed(@NotNull com.intellij.openapi.actionSystem.AnActionEvent e) {
+                        copySelected();
+                    }
+                    @Override
+                    public boolean isEnabled() {
+                        return !repoList.isSelectionEmpty();
+                    }
+                })
                 .setRemoveActionUpdater(e -> !repoList.isSelectionEmpty())
                 .disableUpDownActions()
                 .createPanel();
@@ -108,7 +130,7 @@ public class ManageRepositoriesDialog extends DialogWrapper {
 
     @Override
     protected void doOKAction() {
-        syncCurrentEdit();
+        flushEditedIndex();
         persistList();
         super.doOKAction();
     }
@@ -124,15 +146,32 @@ public class ManageRepositoriesDialog extends DialogWrapper {
         setOKButtonText("Save");
     }
 
+    // -------------------------------------------------------------------------
+
     private void addRepository() {
-        syncCurrentEdit();
+        flushEditedIndex();
         int newIndex = listModel.size();
-        String generatedLabel = "Repository " + (newIndex + 1);
         DataformRepositoryConfig newConfig = new DataformRepositoryConfig(
-                generatedLabel, "", "", "");
-        listModel.addElement(newConfig);
-        repoList.setSelectedIndex(newIndex);
-        editPanel.load(newConfig);
+                "Repository " + (newIndex + 1), "", "", "");
+        insertAndSelect(newConfig, newIndex);
+        SwingUtilities.invokeLater(() -> editPanel.focusLabel());
+    }
+
+    private void copySelected() {
+        flushEditedIndex();
+        int srcIdx = repoList.getSelectedIndex();
+        if (srcIdx < 0) return;
+
+        DataformRepositoryConfig src = listModel.get(srcIdx);
+        String copyLabel = generateCopyLabel(src.displayName());
+        DataformRepositoryConfig copy = new DataformRepositoryConfig(
+                copyLabel,
+                src.projectId(),
+                src.repositoryId(),
+                src.location()
+        );
+        int newIndex = listModel.size();
+        insertAndSelect(copy, newIndex);
         SwingUtilities.invokeLater(() -> editPanel.focusLabel());
     }
 
@@ -149,25 +188,78 @@ public class ManageRepositoriesDialog extends DialogWrapper {
         );
         if (confirmed != Messages.YES) return;
 
-        listModel.remove(idx);
-
-        if (!listModel.isEmpty()) {
-            int nextIdx = Math.min(idx, listModel.size() - 1);
-            repoList.setSelectedIndex(nextIdx);
-        } else {
-            editPanel.clear();
+        suppressListener = true;
+        try {
+            editedIndex = -1;
+            listModel.remove(idx);
+            if (!listModel.isEmpty()) {
+                int nextIdx = Math.min(idx, listModel.size() - 1);
+                repoList.setSelectedIndex(nextIdx);
+                editedIndex = nextIdx;
+                editPanel.load(listModel.get(nextIdx));
+            } else {
+                editPanel.clear();
+            }
+        } finally {
+            suppressListener = false;
         }
     }
 
+    // -------------------------------------------------------------------------
+
     /**
-     * Saves the current edit panel state back into the selected list item.
+     * Insère {@code config} à {@code index} dans le modèle, sélectionne la ligne
+     * et charge le formulaire — tout en supprimant le listener pour éviter
+     * les flushes parasites.
      */
-    private void syncCurrentEdit() {
-        int idx = repoList.getSelectedIndex();
-        if (idx < 0) return;
-        String labelFallback = "Repository " + (idx + 1);
+    private void insertAndSelect(@NotNull DataformRepositoryConfig config, int index) {
+        suppressListener = true;
+        try {
+            listModel.add(index, config);
+            repoList.setSelectedIndex(index);
+        } finally {
+            suppressListener = false;
+        }
+        editedIndex = index;
+        editPanel.load(config);
+    }
+
+    /**
+     * Génère un label de copie unique de la forme "{base} (Copy)", "{base} (Copy 2)", etc.
+     */
+    @NotNull
+    private String generateCopyLabel(@NotNull String base) {
+        // Retirer un suffixe de copie existant pour repartir du label de base
+        String root = base.replaceAll("\\s*\\(Copy(\\s+\\d+)?\\)$", "").trim();
+
+        String candidate = root + " (Copy)";
+        if (!labelExists(candidate)) return candidate;
+
+        for (int n = 2; ; n++) {
+            candidate = root + " (Copy " + n + ")";
+            if (!labelExists(candidate)) return candidate;
+        }
+    }
+
+    private boolean labelExists(@NotNull String label) {
+        for (int i = 0; i < listModel.size(); i++) {
+            if (label.equals(listModel.get(i).displayName())) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Persiste l'état du formulaire dans {@code listModel[editedIndex]}.
+     * Le label existant sert de fallback si le champ label est vide.
+     */
+    private void flushEditedIndex() {
+        if (editedIndex < 0 || editedIndex >= listModel.size()) return;
+        DataformRepositoryConfig existing = listModel.get(editedIndex);
+        String labelFallback = (existing.label() != null && !existing.label().isBlank())
+                ? existing.label()
+                : "Repository " + (editedIndex + 1);
         DataformRepositoryConfig updated = editPanel.buildConfig(labelFallback);
-        listModel.set(idx, updated);
+        listModel.set(editedIndex, updated);
         repoList.repaint();
     }
 

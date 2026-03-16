@@ -42,9 +42,15 @@ public class RepositoryEditPanel extends JPanel {
     private final JBTextField repositoryIdField = new JBTextField(30);
     private final JBTextField locationField     = new JBTextField(30);
 
-    private final JButton testButton       = new JButton("Test Connection");
-    private final JButton createGcpButton  = new JButton("Create in GCP");
-    private final JLabel  statusLabel      = new JBLabel();
+    private final JButton testButton      = new JButton("Test Connection");
+    private final JButton createGcpButton = new JButton("Create in GCP");
+    private final JLabel  statusLabel     = new JBLabel();
+
+    /**
+     * Appelé sur l'EDT après une création GCP réussie.
+     * Le dialog parent doit flusher + persister la config.
+     */
+    private Runnable onCreateSuccess = () -> {};
 
     public RepositoryEditPanel(@NotNull Project project) {
         super(new BorderLayout());
@@ -71,6 +77,11 @@ public class RepositoryEditPanel extends JPanel {
 
         add(form, BorderLayout.CENTER);
         setEnabled(false);
+    }
+
+    /** Enregistre le callback appelé après une création GCP réussie. */
+    public void setOnCreateSuccess(@NotNull Runnable callback) {
+        this.onCreateSuccess = callback;
     }
 
     public void load(@NotNull DataformRepositoryConfig config) {
@@ -177,6 +188,9 @@ public class RepositoryEditPanel extends JPanel {
                     public void onSuccess() {
                         setButtonsEnabled(true);
                         setStatus(success, message);
+                        if (success && kind == ActionKind.CREATE_GCP) {
+                            onCreateSuccess.run();
+                        }
                     }
                 }
         );
