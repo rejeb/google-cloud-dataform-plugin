@@ -77,6 +77,7 @@ public class CommitView extends JPanel {
                     @Override
                     public void onGitStatusesLoaded(@NotNull List<UncommittedChange> changes) {
                         setChanges(changes);
+                        commitMessageField.setText("");
                     }
                 });
     }
@@ -149,17 +150,18 @@ public class CommitView extends JPanel {
     public void setChanges(@NotNull List<UncommittedChange> changes) {
         rootNode.removeAllChildren();
         rootNode.setUserObject("Changes" + (changes.isEmpty() ? "" : " · " + changes.size() + " files"));
-        rootNode.setChecked(true);
+        rootNode.setChecked(false);
 
         for (UncommittedChange change : changes) {
             CheckedTreeNode node = new CheckedTreeNode(change);
-            node.setChecked(true);
+            node.setChecked(false);
             rootNode.add(node);
         }
 
         ((DefaultTreeModel) changesTree.getModel()).reload();
         changesTree.expandRow(0);
     }
+
 
     // -------------------------------------------------------------------------
     // Private helpers
@@ -235,10 +237,6 @@ public class CommitView extends JPanel {
         dispatcher.pushGitCommits(workspaceId);
     }
 
-    // -------------------------------------------------------------------------
-    // Renderer
-    // -------------------------------------------------------------------------
-
     private static final class ChangeNodeRenderer extends CheckboxTree.CheckboxTreeCellRenderer {
 
         @Override
@@ -267,6 +265,7 @@ public class CommitView extends JPanel {
 
             } else if (userObject instanceof String label) {
                 getTextRenderer().append(label, SimpleTextAttributes.REGULAR_BOLD_ATTRIBUTES);
+                getCheckbox().setVisible(node.getChildCount() > 0);
             }
         }
 

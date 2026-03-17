@@ -18,6 +18,7 @@ package io.github.rejeb.dataform.language.gcp.toolwindow;
 
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.project.Project;
+import com.intellij.ui.components.JBTabbedPane;
 import com.intellij.ui.components.labels.LinkLabel;
 import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
 import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
@@ -75,19 +76,16 @@ public class DataformGcpPanel extends JPanel {
         repositorySelectorPanel = new RepositorySelectorPanel(
                 project, this::onRepositorySelected);
         dispatcher.refreshWorkspaces();
+
         filesView = new FilesView(project, config, dispatcher);
         CommitView commitView = new CommitView(project, dispatcher);
 
-        JPanel contentPanel = new JPanel(new CardLayout());
-        contentPanel.add(filesView, "FILES");
-        contentPanel.add(commitView, "GIT");
-
-        JPanel sideBar = buildSideBar(contentPanel);
+        JBTabbedPane tabs = new JBTabbedPane(JTabbedPane.LEFT);
+        tabs.addTab("", AllIcons.Actions.ProjectDirectory, filesView);
+        tabs.addTab("",   AllIcons.Vcs.Branch,              commitView);
 
         add(repositorySelectorPanel, BorderLayout.NORTH);
-        add(sideBar, BorderLayout.WEST);
-        add(contentPanel, BorderLayout.CENTER);
-        ((CardLayout) contentPanel.getLayout()).show(contentPanel, "FILES");
+        add(tabs, BorderLayout.CENTER);
     }
 
     private void onRepositorySelected() {
@@ -108,34 +106,4 @@ public class DataformGcpPanel extends JPanel {
         new ManageRepositoriesDialog(project).show();
         refresh();
     }
-
-    private JPanel buildSideBar(@NotNull JPanel contentPanel) {
-        JPanel sideBar = new JPanel();
-        sideBar.setLayout(new BoxLayout(sideBar, BoxLayout.Y_AXIS));
-        sideBar.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 1,
-                UIManager.getColor("Separator.separatorColor")));
-        sideBar.add(buildSideBarButton(AllIcons.Actions.ProjectDirectory, "Files",
-                contentPanel, "FILES"));
-        sideBar.add(buildSideBarButton(AllIcons.Vcs.Branch, "Git", contentPanel, "GIT"));
-        sideBar.add(Box.createVerticalGlue());
-        return sideBar;
-    }
-
-    private JButton buildSideBarButton(
-            @NotNull Icon icon, @NotNull String tooltip,
-            @NotNull JPanel contentPanel, @NotNull String cardKey
-    ) {
-        JButton btn = new JButton(icon);
-        btn.setToolTipText(tooltip);
-        btn.setBorderPainted(false);
-        btn.setContentAreaFilled(false);
-        btn.setFocusPainted(false);
-        btn.setAlignmentX(Component.CENTER_ALIGNMENT);
-        btn.setMaximumSize(new Dimension(30, 30));
-        btn.setPreferredSize(new Dimension(30, 30));
-        btn.addActionListener(e ->
-                ((CardLayout) contentPanel.getLayout()).show(contentPanel, cardKey));
-        return btn;
-    }
-
 }
