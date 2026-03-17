@@ -20,6 +20,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.ui.components.JBScrollPane;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
+import io.github.rejeb.dataform.language.fileEditor.lineage.LineageGraph;
 import io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService;
 import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
 

@@ -14,10 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.rejeb.dataform.language.fileEditor;
+package io.github.rejeb.dataform.language.fileEditor.lineage;
 
-import java.util.List;
-
-public record LineageGraph(GraphTarget targetTable, List<GraphTarget> dependencies, List<GraphTarget> dependents) {
-
+public enum LineageNodeType {
+    SOURCE, TARGET, DEPENDENT
 }

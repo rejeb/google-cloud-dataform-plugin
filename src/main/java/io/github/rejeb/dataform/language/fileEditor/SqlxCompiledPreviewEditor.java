@@ -16,7 +16,12 @@
  */
 package io.github.rejeb.dataform.language.fileEditor;
 
+import com.intellij.execution.services.ServiceEventListener;
+import com.intellij.execution.services.ServiceViewManager;
 import com.intellij.icons.AllIcons;
+import com.intellij.notification.Notification;
+import com.intellij.notification.NotificationType;
+import com.intellij.notification.Notifications;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.command.WriteCommandAction;
@@ -40,6 +45,16 @@ import com.intellij.util.ui.UIUtil;
 import icons.DatabaseIcons;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.compilation.model.CompiledQuery;
+import io.github.rejeb.dataform.language.fileEditor.lineage.LineageGraph;
+import io.github.rejeb.dataform.language.fileEditor.lineage.LineageGraphHelper;
+import io.github.rejeb.dataform.language.fileEditor.lineage.LineagePanel;
+import io.github.rejeb.dataform.language.gcp.bigquery.BigQueryExecutionService;
+import io.github.rejeb.dataform.language.gcp.bigquery.BigQueryJobResult;
+import io.github.rejeb.dataform.language.gcp.execution.QueryResultsRegistry;
+import io.github.rejeb.dataform.language.gcp.execution.serviceview.DataformQueryContributor;
+import io.github.rejeb.dataform.language.gcp.execution.serviceview.QueryResultNode;
+import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
+import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
 import io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService;
 import io.github.rejeb.dataform.language.service.DataformCompilationService;
 import org.jetbrains.annotations.NotNull;
@@ -57,7 +72,6 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
     private final SchemaPanel schemaPanel;
     private final LineagePanel lineagePanel;
     private final QueryPanel queryPanel;
-
     private final Project project;
     private final VirtualFile file;
     private long myLastCompiledStamp = -1;
@@ -195,6 +209,62 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
             updateCompiledSql();
         }
     }
+
+    /**
+     * Returns true if the current compiled result contains at least one executable query.
+     */
+    public boolean hasQuery() {
+        return queryPanel.hasQuery();
+    }
+
+    public void executeQuery() {
+        List<FormattedCompiledQuery> queries = queryPanel.getCompiledQueries();
+        if (queries == null || queries.isEmpty()) return;
+
+        DataformRepositoryConfig config = GcpRepositorySettings.getInstance(project).getActiveConfig();
+        if (config == null) {
+            Notifications.Bus.notify(new Notification(
+                    "Dataform.Notifications",
+                    "BigQuery execution",
+                    "No GCP project configured.",
+                    NotificationType.WARNING
+            ), project);
+            return;
+        }
+
+        String projectId = config.projectId();
+        QueryResultsRegistry registry = QueryResultsRegistry.getInstance(project);
+
+        ProgressManager.getInstance().run(
+                new Task.Backgroundable(project, "Dataform: executing queries", true) {
+                    @Override
+                    public void run(@NotNull ProgressIndicator indicator) {
+                        BigQueryExecutionService svc = BigQueryExecutionService.getInstance(project);
+                        for (FormattedCompiledQuery q : queries) {
+                            if (q.query() == null || q.query().isBlank()) continue;
+                            indicator.setText("Executing " + q.tableName() + "...");
+
+                            BigQueryJobResult result = svc.execute(q.query(), projectId, q.tableName());
+                            registry.put(result); // upsert
+                            ServiceEventListener.ServiceEvent resetEvent = ServiceEventListener.ServiceEvent.createResetEvent(
+                                    DataformQueryContributor.class);
+                            project.getMessageBus()
+                                    .syncPublisher(ServiceEventListener.TOPIC)
+                                    .handle(resetEvent);
+
+                            // 2. Sélectionne et active le nœud correspondant
+                            ServiceViewManager.getInstance(project)
+                                    .select(new QueryResultNode(result),
+                                            DataformQueryContributor.class,
+                                            true,   // activate tool window
+                                            true); // focus
+                        }
+                    }
+                }
+        );
+    }
+
+
 
     private static FormattedCompiledQuery toFormatted(CompiledQuery q, Project project) {
         List<String> preOps  = q.preOps().stream()

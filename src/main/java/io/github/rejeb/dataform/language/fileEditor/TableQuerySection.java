@@ -17,7 +17,6 @@
 package io.github.rejeb.dataform.language.fileEditor;
 
 import com.intellij.icons.AllIcons;
-import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.fileTypes.FileType;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiFile;
@@ -29,10 +28,10 @@ import com.intellij.util.ui.UIUtil;
 
 import javax.swing.*;
 import java.awt.*;
-import java.util.List;
 
 class TableQuerySection extends JPanel {
 
+    private final FormattedCompiledQuery query;
     private final QuerySection preOpsSection;
     private final QuerySection querySection;
     private final QuerySection postOpsSection;
@@ -43,6 +42,7 @@ class TableQuerySection extends JPanel {
 
     TableQuerySection(FormattedCompiledQuery query, FileType fileType, Project project) {
         super(new BorderLayout());
+        this.query = query;
         setOpaque(false);
         setBorder(JBUI.Borders.emptyBottom(8));
 
@@ -61,10 +61,10 @@ class TableQuerySection extends JPanel {
         header.add(toggleIcon, BorderLayout.WEST);
         header.add(tableLabel, BorderLayout.CENTER);
 
-        preOpsSection  = new QuerySection("Pre Operations",    fileType, project, false);
-        querySection   = new QuerySection("Query",             fileType, project, false);
-        postOpsSection = new QuerySection("Post Operations",   fileType, project, false);
-        errorsSection  = new QuerySection("Compilation Errors", null,    project, true);
+        preOpsSection = new QuerySection("Pre Operations", fileType, project, false);
+        querySection = new QuerySection("Query", fileType, project, false);
+        postOpsSection = new QuerySection("Post Operations", fileType, project, false);
+        errorsSection = new QuerySection("Compilation Errors", null, project, true);
 
         contentPanel = new JPanel();
         contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
@@ -131,6 +131,10 @@ class TableQuerySection extends JPanel {
 
     public QuerySection getQuerySection() {
         return querySection;
+    }
+
+    public FormattedCompiledQuery getQuery() {
+        return this.query;
     }
 
     public void dispose() {

@@ -22,10 +22,11 @@ import com.intellij.openapi.editor.event.DocumentListener;
 import com.intellij.openapi.fileEditor.TextEditor;
 import com.intellij.openapi.fileEditor.TextEditorWithPreview;
 import com.intellij.util.Alarm;
+import io.github.rejeb.dataform.language.fileEditor.action.ExecuteQueryAction;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
-
 import java.util.List;
 
 import static com.intellij.icons.AllIcons.Actions.SplitHorizontally;
@@ -72,10 +73,25 @@ public class SqlxSplitEditor extends TextEditorWithPreview {
     }
 
     @Override
-    protected @NotNull ActionGroup createViewActionGroup() {
-        return new DefaultActionGroup(List.of(getShowEditorAction(), new ToggleDataformViewAction()));
+    protected @Nullable ActionGroup createLeftToolbarActionGroup() {
+        DefaultActionGroup group = new DefaultActionGroup();
+        group.add(new ExecuteQueryAction(myPreview));
+        return group;
     }
 
+    @Override
+    protected @Nullable ActionGroup createRightToolbarActionGroup() {
+        DefaultActionGroup group = new DefaultActionGroup();
+        group.add(getShowEditorAction());
+        group.add(new ToggleDataformViewAction());
+        return group;
+    }
+
+
+    @Override
+    protected @NotNull ActionGroup createViewActionGroup() {
+        return new DefaultActionGroup(List.of());
+    }
 
     private class ToggleDataformViewAction extends AnAction implements Toggleable {
 
@@ -93,33 +109,25 @@ public class SqlxSplitEditor extends TextEditorWithPreview {
                 boolean splitMode = !SqlxSplitEditor.this.isVerticalSplit();
                 SqlxSplitEditor.this.setVerticalSplit(splitMode);
             }
-
             e.getPresentation().setIcon(getIcon());
-
-            Toggleable.setSelected(e.getPresentation(), SqlxSplitEditor.this.getLayout() == Layout.SHOW_EDITOR_AND_PREVIEW);
+            Toggleable.setSelected(e.getPresentation(),
+                    SqlxSplitEditor.this.getLayout() == Layout.SHOW_EDITOR_AND_PREVIEW);
         }
 
         @Override
         public void update(@NotNull AnActionEvent e) {
             e.getPresentation().setIcon(getIcon());
-            Toggleable.setSelected(
-                    e.getPresentation(),
-                    SqlxSplitEditor.this.getLayout() == Layout.SHOW_EDITOR_AND_PREVIEW
-            );
+            Toggleable.setSelected(e.getPresentation(),
+                    SqlxSplitEditor.this.getLayout() == Layout.SHOW_EDITOR_AND_PREVIEW);
         }
 
         @Override
         public @NotNull ActionUpdateThread getActionUpdateThread() {
-            return super.getActionUpdateThread();
+            return ActionUpdateThread.BGT;
         }
 
         private Icon getIcon() {
-            if (isVerticalSplit()) {
-                return SplitHorizontally;
-            } else {
-                return SplitVertically;
-            }
+            return isVerticalSplit() ? SplitHorizontally : SplitVertically;
         }
     }
-
 }

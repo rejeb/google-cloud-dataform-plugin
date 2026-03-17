@@ -84,4 +84,14 @@ class QuerySection extends JPanel {
         EditorFactory.getInstance().releaseEditor(editor);
     }
 
+    /**
+     * Returns true if this section has non-blank SQL content.
+     */
+    public boolean hasContent() {
+        EditorEx ed = getEditor();
+        if (ed == null) return false;
+        return !ed.getDocument().getText().isBlank();
+    }
+
+
 }

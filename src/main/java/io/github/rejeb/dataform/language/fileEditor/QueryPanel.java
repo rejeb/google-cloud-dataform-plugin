@@ -84,4 +84,21 @@ public class QueryPanel extends JPanel {
         sections.forEach(TableQuerySection::dispose);
         sections.clear();
     }
+
+    /**
+     * Returns true if at least one compiled query with a non-null query body is available.
+     */
+    public boolean hasQuery() {
+        return sections.stream().anyMatch(s -> s.getQuerySection().hasContent());
+    }
+
+    /**
+     * Returns the current list of compiled queries.
+     */
+    public List<FormattedCompiledQuery> getCompiledQueries() {
+        return sections.stream()
+                .map(TableQuerySection::getQuery)
+                .toList();
+    }
+
 }

@@ -14,9 +14,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.rejeb.dataform.language.fileEditor;
+package io.github.rejeb.dataform.language.fileEditor.lineage;
 
 import io.github.rejeb.dataform.language.compilation.model.*;
+import io.github.rejeb.dataform.language.fileEditor.GraphTarget;
 
 import java.util.ArrayList;
 import java.util.List;

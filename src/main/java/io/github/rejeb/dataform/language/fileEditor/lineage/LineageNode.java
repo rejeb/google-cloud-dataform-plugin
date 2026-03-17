@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.rejeb.dataform.language.fileEditor;
+package io.github.rejeb.dataform.language.fileEditor.lineage;
 
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.application.ApplicationManager;
@@ -29,6 +29,7 @@ import com.intellij.ui.SimpleTextAttributes;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.IconUtil;
 import icons.DatabaseIcons;
+import io.github.rejeb.dataform.language.fileEditor.GraphTarget;
 
 import javax.swing.*;
 import java.awt.*;
@@ -55,7 +56,7 @@ public class LineageNode extends JPanel {
 
 
     private final LineageNodeType type;
-    private final GraphTarget     graphTarget;
+    private final GraphTarget graphTarget;
     private boolean               hovered = false;
     private final SimpleColoredComponent label;
     public LineageNode(GraphTarget graphTarget, LineageNodeType type, Project project) {

@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.rejeb.dataform.language.fileEditor;
+package io.github.rejeb.dataform.language.fileEditor.lineage;
 
 import com.intellij.openapi.project.Project;
 import com.intellij.ui.components.JBScrollPane;
