@@ -19,10 +19,14 @@ package io.github.rejeb.dataform.language.gcp.toolwindow;
 import com.intellij.openapi.actionSystem.ActionManager;
 import com.intellij.openapi.actionSystem.ActionToolbar;
 import com.intellij.openapi.actionSystem.DefaultActionGroup;
+import com.intellij.openapi.fileTypes.FileType;
+import com.intellij.openapi.fileTypes.FileTypeManager;
 import com.intellij.openapi.project.Project;
+import com.intellij.ui.CheckboxTree;
+import com.intellij.ui.CheckedTreeNode;
 import com.intellij.ui.JBColor;
+import com.intellij.ui.SimpleTextAttributes;
 import com.intellij.ui.components.JBLabel;
-import com.intellij.ui.components.JBList;
 import com.intellij.ui.components.JBScrollPane;
 import com.intellij.ui.components.JBTextArea;
 import com.intellij.util.ui.JBUI;
@@ -32,36 +36,34 @@ import io.github.rejeb.dataform.language.gcp.toolwindow.action.RefreshAction;
 import io.github.rejeb.dataform.language.gcp.toolwindow.dispatcher.GcpPanelActionDispatcher;
 import io.github.rejeb.dataform.language.gcp.workspace.UncommittedChange;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
+import javax.swing.tree.DefaultTreeModel;
 import java.awt.*;
+import java.util.Arrays;
 import java.util.List;
 
 public class CommitView extends JPanel {
 
-    private static final Color COLOR_ADDED    = JBColor.green;
-    private static final Color COLOR_MODIFIED = JBColor.blue;
-    private static final Color COLOR_DELETED  = JBColor.gray;
-    private static final Color COLOR_CONFLICT = JBColor.red;
-
     private final Project project;
     private final GcpPanelActionDispatcher dispatcher;
 
-    private final DefaultListModel<UncommittedChange> listModel = new DefaultListModel<>();
-    private final JBList<UncommittedChange> changeList = new JBList<>(listModel);
+    private final CheckedTreeNode rootNode   = new CheckedTreeNode("Changes");
+    private final CheckboxTree    changesTree;
     private final JTextArea commitMessageField = new JBTextArea(4, 40);
-    private final JBLabel changesHeader = new JBLabel("Changes");
 
     public CommitView(
             @NotNull Project project,
             @NotNull GcpPanelActionDispatcher dispatcher
     ) {
         super(new BorderLayout());
-        this.project = project;
+        this.project    = project;
         this.dispatcher = dispatcher;
 
-        changeList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
-        changeList.setCellRenderer(new ChangeListCellRenderer());
+        changesTree = new CheckboxTree(new ChangeNodeRenderer(), rootNode);
+        changesTree.setRootVisible(true);
+        changesTree.setShowsRootHandles(true);
 
         commitMessageField.setLineWrap(true);
         commitMessageField.setWrapStyleWord(true);
@@ -86,7 +88,6 @@ public class CommitView extends JPanel {
     private JComponent buildToolbar() {
         DefaultActionGroup group = new DefaultActionGroup();
         group.add(new RefreshAction(dispatcher));
-
         ActionToolbar toolbar = ActionManager.getInstance()
                 .createActionToolbar("DataformCommitView", group, true);
         toolbar.setTargetComponent(this);
@@ -94,10 +95,11 @@ public class CommitView extends JPanel {
     }
 
     private JPanel buildContent() {
-        JPanel filesPanel = buildFilesPanel();
-        JPanel messagePanel = buildMessagePanel();
+        JPanel filesPanel = new JPanel(new BorderLayout());
+        filesPanel.add(new JBScrollPane(changesTree), BorderLayout.CENTER);
 
-        JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, filesPanel, messagePanel);
+        JSplitPane splitPane = new JSplitPane(
+                JSplitPane.VERTICAL_SPLIT, filesPanel, buildMessagePanel());
         splitPane.setResizeWeight(0.6);
         splitPane.setBorder(null);
 
@@ -121,18 +123,8 @@ public class CommitView extends JPanel {
         return content;
     }
 
-    private JPanel buildFilesPanel() {
-        changesHeader.setBorder(JBUI.Borders.empty(4, 6));
-        changesHeader.setForeground(JBUI.CurrentTheme.Label.foreground());
-
-        JPanel filesPanel = new JPanel(new BorderLayout());
-        filesPanel.add(changesHeader, BorderLayout.NORTH);
-        filesPanel.add(new JBScrollPane(changeList), BorderLayout.CENTER);
-        return filesPanel;
-    }
-
     private JPanel buildMessagePanel() {
-        JBLabel messageLabel = new JBLabel("Commit message");
+        JBLabel messageLabel = new JBLabel("Commit Message");
         messageLabel.setForeground(JBUI.CurrentTheme.Label.disabledForeground());
         messageLabel.setFont(JBUI.Fonts.label(11));
         messageLabel.setBorder(JBUI.Borders.empty(4, 6, 2, 6));
@@ -147,29 +139,35 @@ public class CommitView extends JPanel {
         return messagePanel;
     }
 
-
     // -------------------------------------------------------------------------
     // Public API
     // -------------------------------------------------------------------------
 
     /**
-     * Replaces the current list of uncommitted changes and updates the header counter.
+     * Replaces the tree content with the given uncommitted changes and checks all nodes.
      */
     public void setChanges(@NotNull List<UncommittedChange> changes) {
-        listModel.clear();
-        if (!changes.isEmpty()) {
-            changes.forEach(listModel::addElement);
-            changeList.setSelectionInterval(0, changes.size() - 1);
+        rootNode.removeAllChildren();
+        rootNode.setUserObject("Changes" + (changes.isEmpty() ? "" : " · " + changes.size() + " files"));
+        rootNode.setChecked(true);
+
+        for (UncommittedChange change : changes) {
+            CheckedTreeNode node = new CheckedTreeNode(change);
+            node.setChecked(true);
+            rootNode.add(node);
         }
-        updateChangesHeader(changes.size());
+
+        ((DefaultTreeModel) changesTree.getModel()).reload();
+        changesTree.expandRow(0);
     }
 
     // -------------------------------------------------------------------------
     // Private helpers
     // -------------------------------------------------------------------------
 
-    private void updateChangesHeader(int count) {
-        changesHeader.setText("Changes" + (count > 0 ? " · " + count + " files" : ""));
+    private List<UncommittedChange> getCheckedChanges() {
+        UncommittedChange[] checked = changesTree.getCheckedNodes(UncommittedChange.class, null);
+        return Arrays.asList(checked);
     }
 
     private void onCommit() {
@@ -181,8 +179,8 @@ public class CommitView extends JPanel {
             commitMessageField.requestFocus();
             return;
         }
-        List<UncommittedChange> selected = changeList.getSelectedValuesList();
-        if (selected.isEmpty()) {
+        List<UncommittedChange> checked = getCheckedChanges();
+        if (checked.isEmpty()) {
             JOptionPane.showMessageDialog(this,
                     "Please select at least one file to commit.", "No Files Selected",
                     JOptionPane.WARNING_MESSAGE);
@@ -195,8 +193,8 @@ public class CommitView extends JPanel {
                     JOptionPane.WARNING_MESSAGE);
             return;
         }
-        List<String> paths = selected.stream().map(UncommittedChange::path).toList();
-        dispatcher.commitChanges(workspaceId, paths, message);
+        dispatcher.commitChanges(workspaceId,
+                checked.stream().map(UncommittedChange::path).toList(), message);
     }
 
     private void onCommitAndPush() {
@@ -208,8 +206,8 @@ public class CommitView extends JPanel {
             commitMessageField.requestFocus();
             return;
         }
-        List<UncommittedChange> selected = changeList.getSelectedValuesList();
-        if (selected.isEmpty()) {
+        List<UncommittedChange> checked = getCheckedChanges();
+        if (checked.isEmpty()) {
             JOptionPane.showMessageDialog(this,
                     "Please select at least one file to commit.", "No Files Selected",
                     JOptionPane.WARNING_MESSAGE);
@@ -222,8 +220,8 @@ public class CommitView extends JPanel {
                     JOptionPane.WARNING_MESSAGE);
             return;
         }
-        List<String> paths = selected.stream().map(UncommittedChange::path).toList();
-        dispatcher.commitAndPush(workspaceId, paths, message);
+        dispatcher.commitAndPush(workspaceId,
+                checked.stream().map(UncommittedChange::path).toList(), message);
     }
 
     private void onPush() {
@@ -241,31 +239,41 @@ public class CommitView extends JPanel {
     // Renderer
     // -------------------------------------------------------------------------
 
-    private static final class ChangeListCellRenderer extends DefaultListCellRenderer {
+    private static final class ChangeNodeRenderer extends CheckboxTree.CheckboxTreeCellRenderer {
 
         @Override
-        public Component getListCellRendererComponent(
-                JList<?> list, Object value, int index,
-                boolean isSelected, boolean cellHasFocus
+        public void customizeRenderer(
+                JTree tree, Object value, boolean selected,
+                boolean expanded, boolean leaf, int row, boolean hasFocus
         ) {
-            JCheckBox checkBox = new JCheckBox();
-            if (value instanceof UncommittedChange change) {
-                String filename = extractFilename(change.path());
-                String parent   = extractParent(change.path());
+            if (!(value instanceof CheckedTreeNode node)) return;
+            Object userObject = node.getUserObject();
 
-                checkBox.setIcon(iconFor(change.state()));
-                checkBox.setText(filename);
-                checkBox.setForeground(colorFor(change.state()));
-                checkBox.setSelected(list.isSelectedIndex(index));
+            if (userObject instanceof UncommittedChange change) {
+                String filename  = extractFilename(change.path());
+                String parent    = extractParent(change.path());
+                Color  nameColor = colorFor(change.state());
+                Icon   fileIcon  = fileIconFor(filename);
+
+                if (fileIcon != null) getTextRenderer().setIcon(fileIcon);
+
+                getTextRenderer().append(filename,
+                        new SimpleTextAttributes(SimpleTextAttributes.STYLE_PLAIN, nameColor));
 
                 if (parent != null) {
-                    // Append grayed parent folder to the right via HTML
-                    checkBox.setText("<html>" + filename
-                            + " <font color='gray'>" + parent + "</font></html>");
+                    getTextRenderer().append("  " + parent,
+                            SimpleTextAttributes.GRAYED_SMALL_ATTRIBUTES);
                 }
+
+            } else if (userObject instanceof String label) {
+                getTextRenderer().append(label, SimpleTextAttributes.REGULAR_BOLD_ATTRIBUTES);
             }
-            checkBox.setBackground(isSelected ? list.getSelectionBackground() : list.getBackground());
-            return checkBox;
+        }
+
+        @Nullable
+        private static Icon fileIconFor(@NotNull String filename) {
+            FileType fileType = FileTypeManager.getInstance().getFileTypeByFileName(filename);
+            return fileType.getIcon();
         }
 
         private static String extractFilename(@NotNull String path) {
@@ -273,6 +281,7 @@ public class CommitView extends JPanel {
             return idx >= 0 ? path.substring(idx + 1) : path;
         }
 
+        @Nullable
         private static String extractParent(@NotNull String path) {
             int idx = path.lastIndexOf('/');
             if (idx <= 0) return null;
@@ -280,22 +289,12 @@ public class CommitView extends JPanel {
             return prev >= 0 ? path.substring(prev + 1, idx) : path.substring(0, idx);
         }
 
-        private static Icon iconFor(@NotNull UncommittedChange.ChangeState state) {
-            return switch (state) {
-                case ADDED         -> com.intellij.icons.AllIcons.Actions.New;
-                case MODIFIED      -> com.intellij.icons.AllIcons.Actions.Edit;
-                case DELETED       -> com.intellij.icons.AllIcons.Actions.GC;
-                case HAS_CONFLICTS -> com.intellij.icons.AllIcons.General.Error;
-                default            -> com.intellij.icons.AllIcons.FileTypes.Unknown;
-            };
-        }
-
         private static Color colorFor(@NotNull UncommittedChange.ChangeState state) {
             return switch (state) {
-                case ADDED         -> COLOR_ADDED;
-                case MODIFIED      -> COLOR_MODIFIED;
-                case DELETED       -> COLOR_DELETED;
-                case HAS_CONFLICTS -> COLOR_CONFLICT;
+                case ADDED         -> JBColor.green;
+                case MODIFIED      -> JBColor.blue;
+                case DELETED       -> JBColor.GRAY;
+                case HAS_CONFLICTS -> JBColor.RED;
                 default            -> UIManager.getColor("Label.foreground");
             };
         }
