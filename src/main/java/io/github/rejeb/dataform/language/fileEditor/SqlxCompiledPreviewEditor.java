@@ -67,8 +67,9 @@ import java.util.List;
 
 public class SqlxCompiledPreviewEditor implements FileEditor {
 
-    private final JPanel mainPanel = new JPanel(new BorderLayout());
-    private final JTabbedPane tabs;
+    public enum View { LINEAGE, QUERY, SCHEMA }
+
+    private final JPanel mainPanel = new JPanel(new CardLayout());
     private final SchemaPanel schemaPanel;
     private final LineagePanel lineagePanel;
     private final QueryPanel queryPanel;
@@ -79,21 +80,17 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
     public SqlxCompiledPreviewEditor(Project project, VirtualFile file) {
         this.project = project;
         this.file = file;
-        schemaPanel = new SchemaPanel(project);
+        schemaPanel  = new SchemaPanel(project);
         lineagePanel = new LineagePanel(project);
-        queryPanel = new QueryPanel(project, resolveFileType(file));
+        queryPanel   = new QueryPanel(project, resolveFileType(file));
 
-        tabs = new JBTabbedPane();
-        tabs.setOpaque(false);
-        tabs.setBorder(JBUI.Borders.empty());
-        tabs.addTab("Lineage", AllIcons.General.Layout, lineagePanel);
-        tabs.addTab("Query", DatabaseIcons.Sql, queryPanel);
-        tabs.addTab("Schema", AllIcons.Nodes.DataTables, schemaPanel);
         mainPanel.setOpaque(true);
         mainPanel.setBackground(UIUtil.getPanelBackground());
-        mainPanel.add(tabs, BorderLayout.CENTER);
-        tabs.setBackground(UIUtil.getPanelBackground());
+        mainPanel.add(withHeader("Lineage", AllIcons.General.Layout,  lineagePanel), View.LINEAGE.name());
+        mainPanel.add(withHeader("Query",   DatabaseIcons.Sql,        queryPanel),   View.QUERY.name());
+        mainPanel.add(withHeader("Schema",  AllIcons.Nodes.DataTables, schemaPanel), View.SCHEMA.name());
 
+        showPanel(View.LINEAGE);
         updateCompiledSql();
     }
 
@@ -264,6 +261,17 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
         );
     }
 
+    private View activeView = View.LINEAGE; // vue par défaut
+
+    public void showPanel(@NotNull View view) {
+        this.activeView = view;
+        CardLayout cl = (CardLayout) mainPanel.getLayout();
+        cl.show(mainPanel, view.name());
+    }
+
+    public View getActiveView() {
+        return activeView;
+    }
 
 
     private static FormattedCompiledQuery toFormatted(CompiledQuery q, Project project) {
@@ -282,4 +290,26 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
                 errors
         );
     }
+
+    private static JPanel withHeader(@NotNull String title, @NotNull Icon icon, @NotNull JComponent content) {
+        JPanel header = new JPanel(new BorderLayout());
+        header.setOpaque(true);
+        header.setBackground(UIUtil.getPanelBackground());
+        header.setBorder(JBUI.Borders.compound(
+                JBUI.Borders.customLine(UIUtil.getBoundsColor(), 0, 0, 1, 0),
+                JBUI.Borders.empty(4, 8)
+        ));
+
+        JLabel label = new JLabel(title, icon, SwingConstants.LEFT);
+        label.setFont(label.getFont().deriveFont(Font.BOLD));
+        header.add(label, BorderLayout.WEST);
+
+        JPanel wrapper = new JPanel(new BorderLayout());
+        wrapper.setOpaque(true);
+        wrapper.setBackground(UIUtil.getPanelBackground());
+        wrapper.add(header, BorderLayout.NORTH);
+        wrapper.add(content, BorderLayout.CENTER);
+        return wrapper;
+    }
+
 }
