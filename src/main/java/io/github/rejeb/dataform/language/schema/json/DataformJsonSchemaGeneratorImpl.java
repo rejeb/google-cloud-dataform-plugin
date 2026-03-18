@@ -84,7 +84,7 @@ public final class DataformJsonSchemaGeneratorImpl implements DataformJsonSchema
         if (!protoParser.configProtoFileExists()) {
             return Optional.empty();
         } else if (configSchema.isEmpty()) {
-            this.configSchema = Optional.of(buildSqlxConfigSchema());
+            this.configSchema = Optional.ofNullable(buildSqlxConfigSchema());
         }
         return this.configSchema;
     }
@@ -143,32 +143,37 @@ public final class DataformJsonSchemaGeneratorImpl implements DataformJsonSchema
     }
 
     private ObjectNode buildSqlxConfigSchema() {
-        Map<String, ObjectNode> defs = new LinkedHashMap<>();
+        try {
+            Map<String, ObjectNode> defs = new LinkedHashMap<>();
 
-        defs.put(SQLX_COLUMN_DEF_KEY, buildSqlxColumnDescriptorDef());
+            defs.put(SQLX_COLUMN_DEF_KEY, buildSqlxColumnDescriptorDef());
 
-        for (String qualifiedName : SQLX_TYPES.values()) {
-            collectDefs(requireMessage(qualifiedName), defs, new HashSet<>());
+            for (String qualifiedName : SQLX_TYPES.values()) {
+                collectDefs(requireMessage(qualifiedName), defs, new HashSet<>());
+            }
+
+            ObjectNode root = obj();
+            root.put("$schema", "http://json-schema.org/draft-07/schema#");
+            root.put("$id", "https://dataform.co/schemas/sqlx_config.json");
+            root.put("title", "Dataform SQLX Config Block");
+            root.put("description", "Schema for the config{} block in Dataform SQLX files.");
+            root.put("type", "object");
+            root.putArray("required").add("type");
+
+            ArrayNode oneOf = root.putArray("oneOf");
+            for (Map.Entry<String, String> entry : SQLX_TYPES.entrySet()) {
+                oneOf.add(buildActionBranch(entry.getKey(), requireMessage(entry.getValue()), defs));
+            }
+
+            if (!defs.isEmpty()) {
+                ObjectNode defsNode = root.putObject("$defs");
+                defs.forEach(defsNode::set);
+            }
+            return root;
+        } catch (Exception e) {
+            LOGGER.error("Unable to generate SQLX config schema", e);
         }
-
-        ObjectNode root = obj();
-        root.put("$schema", "http://json-schema.org/draft-07/schema#");
-        root.put("$id", "https://dataform.co/schemas/sqlx_config.json");
-        root.put("title", "Dataform SQLX Config Block");
-        root.put("description", "Schema for the config{} block in Dataform SQLX files.");
-        root.put("type", "object");
-        root.putArray("required").add("type");
-
-        ArrayNode oneOf = root.putArray("oneOf");
-        for (Map.Entry<String, String> entry : SQLX_TYPES.entrySet()) {
-            oneOf.add(buildActionBranch(entry.getKey(), requireMessage(entry.getValue()), defs));
-        }
-
-        if (!defs.isEmpty()) {
-            ObjectNode defsNode = root.putObject("$defs");
-            defs.forEach(defsNode::set);
-        }
-        return root;
+        return null;
     }
 
     private ObjectNode buildActionBranch(String sqlxType,

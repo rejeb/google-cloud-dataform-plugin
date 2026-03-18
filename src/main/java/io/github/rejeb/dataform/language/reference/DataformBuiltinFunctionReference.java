@@ -21,7 +21,6 @@ import com.intellij.lang.javascript.psi.JSVariable;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiElement;
-import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiReferenceBase;
 import io.github.rejeb.dataform.language.service.DataformCoreIndexService;
 import org.jetbrains.annotations.NotNull;
@@ -29,7 +28,6 @@ import org.jetbrains.annotations.Nullable;
 import org.jspecify.annotations.NonNull;
 
 import java.util.Collection;
-import java.util.Objects;
 
 public class DataformBuiltinFunctionReference extends PsiReferenceBase<PsiElement> {
 
@@ -64,18 +62,17 @@ public class DataformBuiltinFunctionReference extends PsiReferenceBase<PsiElemen
                 return variable;
             }
         }
-
-        PsiFile psiFile = service.getPsiFile();
-        String text = psiFile.getText();
-        int functionIndex = text.indexOf(jsElementName);
-        if (functionIndex >= 0) {
-            int exportIndex = text.lastIndexOf("export", functionIndex);
-            if (exportIndex >= 0 && exportIndex < functionIndex) {
-                return psiFile;
+        return service.getPsiFile().map(psiFile -> {
+            String text = psiFile.getText();
+            int functionIndex = text.indexOf(jsElementName);
+            if (functionIndex >= 0) {
+                int exportIndex = text.lastIndexOf("export", functionIndex);
+                if (exportIndex >= 0 && exportIndex < functionIndex) {
+                    return psiFile;
+                }
             }
-        }
-
-        return null;
+            return null;
+        }).orElse(null);
     }
 
 

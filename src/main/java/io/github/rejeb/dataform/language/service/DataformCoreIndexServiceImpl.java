@@ -16,6 +16,7 @@
  */
 package io.github.rejeb.dataform.language.service;
 
+import com.intellij.lang.javascript.linter.option.Option;
 import com.intellij.lang.javascript.psi.JSFunction;
 import com.intellij.lang.javascript.psi.JSVariable;
 import com.intellij.lang.javascript.psi.ecma6.TypeScriptModule;
@@ -102,12 +103,12 @@ public final class DataformCoreIndexServiceImpl implements DataformCoreIndexServ
         this.state = state;
     }
 
-    public PsiFile getPsiFile() {
+    public Optional<PsiFile> getPsiFile() {
         if (getState().dataformCoreJsFile().isEmpty()) {
             notifyUserDataformNotInstalled(project);
-            return null;
+            return Optional.empty();
         }
-        return state.dataformCoreJsFile().orElse(null);
+        return state.dataformCoreJsFile();
     }
 
 

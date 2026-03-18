@@ -41,8 +41,6 @@ public class DataformDtsGeneratorImpl implements DataformDtsGenerator {
     }
 
     private final Project project;
-    private final Map<String, ProtoModel.ProtoMessage> messageIndex = new HashMap<>();
-    private final Map<String, ProtoModel.ProtoEnum> enumIndex = new HashMap<>();
 
     public DataformDtsGeneratorImpl(@NotNull Project project) {
         this.project = project;

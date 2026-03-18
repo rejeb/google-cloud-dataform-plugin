@@ -83,6 +83,10 @@
         <projectService
                 serviceInterface="io.github.rejeb.dataform.language.gcp.bigquery.BigQueryExecutionService"
                 serviceImplementation="io.github.rejeb.dataform.language.gcp.bigquery.BigQueryExecutionServiceImpl"/>
+        <applicationService
+                serviceInterface="io.github.rejeb.dataform.settings.DataformToolsSettings"
+                serviceImplementation="io.github.rejeb.dataform.settings.DataformToolsSettingsImpl"/>
+
         <serviceViewContributor
                 implementation="io.github.rejeb.dataform.language.gcp.execution.serviceview.DataformQueryContributor"/>
         <toolWindow
@@ -186,6 +190,12 @@
                            displayType="BALLOON"
                            isLogByDefault="true"
         />
+
+        <applicationConfigurable
+                parentId="tools"
+                instance="io.github.rejeb.dataform.settings.DataformToolsConfigurable"
+                id="io.github.rejeb.dataform.settings.DataformToolsConfigurable"
+                displayName="Dataform"/>
 
     </extensions>
 </idea-plugin>

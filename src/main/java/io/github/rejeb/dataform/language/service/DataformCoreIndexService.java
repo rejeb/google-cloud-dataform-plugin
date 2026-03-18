@@ -24,6 +24,7 @@ import com.intellij.psi.PsiFile;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Collection;
+import java.util.Optional;
 
 public interface DataformCoreIndexService extends PersistentStateComponent<ServiceState> {
 
@@ -31,7 +32,7 @@ public interface DataformCoreIndexService extends PersistentStateComponent<Servi
         return project.getService(DataformCoreIndexService.class);
     }
 
-    PsiFile getPsiFile();
+    Optional<PsiFile> getPsiFile();
 
 
     @NotNull

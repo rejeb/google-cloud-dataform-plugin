@@ -87,7 +87,7 @@ Fichiers de configuration IntelliJ (à toujours considérer si pertinent) :
 - Quand tu proposes du code, utiliser un autre noms de package dédié si nécessaire.
 - Quand tu proposes du code, Séparer les responsabilités de chaque classe
 - Quand tu proposes du code, respecter les exigences du pattern SOLID
-- Quand tu proposes du code, utiliser l'architechture hexagonale sauf si ça induit une complexité inutile.
+- Quand tu proposes du code, utiliser architecture hexagonale sauf si ça induit une complexité inutile.
 - Quand tu proposes du code, utilises un nommage clair pour les classes et les packages. Les noms doivent refléter le point de vue fonctionnel.
 - Quand tu proposes du code, pour les classes qui seront déclarés comme service toujours faire une interface et une implémentation.
 

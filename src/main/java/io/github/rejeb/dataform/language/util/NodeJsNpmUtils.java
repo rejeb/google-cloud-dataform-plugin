@@ -21,21 +21,18 @@ import com.intellij.execution.util.ExecUtil;
 import com.intellij.javascript.nodejs.interpreter.NodeJsInterpreter;
 import com.intellij.javascript.nodejs.interpreter.NodeJsInterpreterManager;
 import com.intellij.javascript.nodejs.npm.NpmManager;
+import com.intellij.javascript.nodejs.settings.NodeSettingsConfigurable;
 import com.intellij.javascript.nodejs.util.NodePackage;
 import com.intellij.notification.*;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.options.ShowSettingsUtil;
-import com.intellij.openapi.progress.ProgressIndicator;
-import com.intellij.openapi.progress.ProgressManager;
-import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.SystemInfo;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.file.Path;
 import java.util.Optional;
@@ -83,60 +80,48 @@ public class NodeJsNpmUtils {
         }
     }
 
-    public static void installNodeJsLib(String libName, Project project, File npmFile, File nodeBinDir, File nodeModulesDir) {
+    public static InstallResult installNodeJsLib(String libName,
+                                                 File npmFile, File nodeBinDir,
+                                                 File nodeInstallDir) {
+        try {
+            LOGGER.info("Installing " + libName + "...");
 
-        ProgressManager.getInstance()
-                .run(new Task.Backgroundable(project,
-                        "Installing " + libName, false) {
-                    @Override
-                    public void run(@NotNull ProgressIndicator indicator) {
-                        try {
-                            indicator.setText("Installing " + libName + " via npm...");
-                            indicator.setIndeterminate(true);
+            ProcessBuilder pb = new ProcessBuilder(
+                    npmFile.getAbsolutePath(),
+                    "install", libName, "-g",
+                    "--prefix", nodeInstallDir.getAbsolutePath()
+            );
+            pb.environment().put("PATH",
+                    nodeBinDir.getAbsolutePath() + File.pathSeparator +
+                            System.getenv("PATH"));
+            pb.redirectErrorStream(true);
 
+            Process process = pb.start();
 
-                            ProcessBuilder pb = new ProcessBuilder(
-                                    npmFile.getAbsolutePath(),
-                                    "install",
-                                    libName,
-                                    "-g",
-                                    "--prefix",
-                                    nodeModulesDir.getAbsolutePath()
-                            );
+            StringBuilder output = new StringBuilder();
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(process.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    LOGGER.debug(line);
+                    output.append(line).append("\n");
+                }
+            }
 
-                            String pathEnv = nodeBinDir.getAbsolutePath() + File.pathSeparator +
-                                    System.getenv("PATH");
-                            pb.environment().put("PATH", pathEnv);
+            int exitCode = process.waitFor();
+            if (exitCode != 0) {
+                return InstallResult.error(
+                        "npm exited with code " + exitCode + ":\n" + output);
+            }
 
-                            pb.redirectErrorStream(true);
-                            Process process = null;
-                            try {
-                                process = pb.start();
-                            } catch (IOException e) {
-                                throw new RuntimeException(e);
-                            }
+            LOGGER.info(libName + " installed successfully.");
+            return InstallResult.ok();
 
-                            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-                            String line;
-                            while ((line = reader.readLine()) != null) {
-                                LOGGER.debug(line);
-                                indicator.setText2(line);
-                            }
-
-                            int exitCode = process.waitFor();
-
-                            if (exitCode != 0) {
-                                process.errorReader().lines().forEach(System.err::println);
-                                showErrorNotification(project, "Failed to install " + libName);
-                            }
-                        } catch (Exception e) {
-                            LOGGER.error("Error installing " + libName + " via npm", e);
-                        }
-                    }
-                });
-
+        } catch (Exception e) {
+            LOGGER.error("Error installing " + libName, e);
+            return InstallResult.error(e.getMessage());
+        }
     }
-
 
     public static Optional<Path> getGlobalNodeModulesPath(Path nodeInstallDir) {
         String nodeModulesDir = SystemInfo.isWindows ? "node_modules" : "lib/node_modules";
@@ -162,7 +147,10 @@ public class NodeJsNpmUtils {
 
 
     private static void openNodeJsSettings(Project project) {
-        ShowSettingsUtil.getInstance().showSettingsDialog(project, "Settings.JavaScript.Node.js");
+        ShowSettingsUtil.getInstance().showSettingsDialog(
+                project,
+                NodeSettingsConfigurable.class
+        );
     }
 
     private static void showErrorNotification(Project project, String message) {
