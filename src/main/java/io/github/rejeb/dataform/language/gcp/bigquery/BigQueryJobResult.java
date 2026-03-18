@@ -30,7 +30,7 @@ import org.jetbrains.annotations.Nullable;
 public record BigQueryJobResult(
         @NotNull String tableName,
         @Nullable BigQueryJobStats stats,
-        @NotNull BigQueryPagedResult pagedResult,
+        @Nullable BigQueryPagedResult pagedResult,
         @Nullable String errorMessage
 ) {
     /** @return true if the execution completed without error */

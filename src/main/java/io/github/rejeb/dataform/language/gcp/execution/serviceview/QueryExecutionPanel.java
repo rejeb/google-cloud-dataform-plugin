@@ -29,6 +29,7 @@ import com.intellij.database.run.ui.grid.GridMainPanel;
 import com.intellij.database.run.ui.grid.editors.*;
 import com.intellij.database.run.ui.grid.renderers.*;
 import com.intellij.database.settings.DatabaseSettings;
+import com.intellij.icons.AllIcons;
 import com.intellij.openapi.actionSystem.ActionGroup;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.project.Project;
@@ -66,13 +67,14 @@ public class QueryExecutionPanel extends JPanel {
         super(new BorderLayout());
         setOpaque(true);
         setBackground(UIUtil.getPanelBackground());
-
+        JComponent resultPanel = result.isSuccess() ? buildResultsPanel(project, result) : buildErrorPanel(result);
+        JComponent jobInfoPanel = buildJobInfoPanel(result);
         JBTabbedPane tabs = new JBTabbedPane();
         tabs.setTabComponentInsets(JBUI.emptyInsets());
-        tabs.addTab("Job Info", buildJobInfoPanel(result));
-        JComponent mainPanel = buildResultsPanel(project, result);
-        tabs.addTab("Results", mainPanel);
+        tabs.addTab("Job Info", jobInfoPanel);
+        tabs.addTab("Results", resultPanel);
         add(tabs, BorderLayout.CENTER);
+        SwingUtilities.invokeLater(() -> tabs.setSelectedIndex(1));
     }
 
     private record InfoRow(String label, String value) {
@@ -132,7 +134,6 @@ public class QueryExecutionPanel extends JPanel {
         table.getTableHeader().setReorderingAllowed(false);
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
 
-        // Colonne label en gras + couleur secondaire
         table.getColumnModel().getColumn(0).setCellRenderer(new DefaultTableCellRenderer() {
             @Override
             public Component getTableCellRendererComponent(
@@ -145,7 +146,6 @@ public class QueryExecutionPanel extends JPanel {
             }
         });
 
-        // Colonne valeur
         table.getColumnModel().getColumn(1).setCellRenderer(new DefaultTableCellRenderer() {
             @Override
             public Component getTableCellRendererComponent(
@@ -161,15 +161,7 @@ public class QueryExecutionPanel extends JPanel {
         return scroll;
     }
 
-    // ── Results ───────────────────────────────────────────────────────────────
-
     private JComponent buildResultsPanel(@NotNull Project project, @NotNull BigQueryJobResult result) {
-        if (!result.isSuccess()) {
-            JLabel error = new JLabel("Execution failed — see Job Info tab.");
-            error.setBorder(JBUI.Borders.empty(16));
-            error.setForeground(UIUtil.getErrorForeground());
-            return error;
-        }
 
         BqDataHookUp hookUp = new BqDataHookUp(project, result.pagedResult());
         TableResultPanel panel = new TableResultPanel(
@@ -209,13 +201,42 @@ public class QueryExecutionPanel extends JPanel {
 
         ApplicationManager.getApplication().invokeLater(() -> {
             hookUp.getLoader().reloadCurrentPage(
-                    new GridRequestSource(new GridRequestSource.RequestPlace() {})
+                    new GridRequestSource(new GridRequestSource.RequestPlace() {
+                    })
             );
         });
 
         GridMainPanel mainPanel = panel.getPanel();
         mainPanel.setBorder(JBUI.Borders.empty());
         return mainPanel;
+    }
+
+    private JComponent buildErrorPanel(@NotNull BigQueryJobResult result) {
+        String message = result.errorMessage() != null ? result.errorMessage() : "Unknown error";
+
+        JLabel titleLabel = new JLabel("Query execution failed", AllIcons.General.Error, SwingConstants.LEFT);
+        titleLabel.setFont(titleLabel.getFont().deriveFont(Font.BOLD, JBUI.scaleFontSize(13f)));
+        titleLabel.setBorder(JBUI.Borders.empty(12, 12, 8, 12));
+
+        JTextArea textArea = new JTextArea(message);
+        textArea.setEditable(false);
+        textArea.setLineWrap(true);
+        textArea.setWrapStyleWord(false);
+        textArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, JBUI.scaleFontSize(12f)));
+        textArea.setForeground(UIUtil.getErrorForeground());
+        textArea.setBackground(UIUtil.getPanelBackground());
+        textArea.setBorder(JBUI.Borders.empty(0, 12, 12, 12));
+        textArea.setCaretPosition(0);
+
+        JBScrollPane scroll = new JBScrollPane(textArea);
+        scroll.setBorder(JBUI.Borders.empty());
+
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setOpaque(true);
+        panel.setBackground(UIUtil.getPanelBackground());
+        panel.add(titleLabel, BorderLayout.NORTH);
+        panel.add(scroll, BorderLayout.CENTER);
+        return panel;
     }
 
 
