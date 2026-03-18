@@ -61,8 +61,8 @@
         <projectService serviceInterface="io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService"
                         serviceImplementation="io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaServiceImpl"
         />
-        <projectService serviceInterface="io.github.rejeb.dataform.language.service.DataformCompilationService"
-                        serviceImplementation="io.github.rejeb.dataform.language.service.DataformCompilationServiceImpl"
+        <projectService serviceInterface="io.github.rejeb.dataform.language.compilation.DataformCompilationService"
+                        serviceImplementation="io.github.rejeb.dataform.language.compilation.DataformCompilationServiceImpl"
         />
         <projectService serviceInterface="io.github.rejeb.dataform.language.service.DataformCoreIndexService"
                         serviceImplementation="io.github.rejeb.dataform.language.service.DataformCoreIndexServiceImpl"

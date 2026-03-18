@@ -26,7 +26,6 @@ import com.intellij.openapi.vfs.VirtualFile;
 import io.github.rejeb.dataform.language.compilation.model.CompilationError;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService;
-import io.github.rejeb.dataform.language.service.DataformCompilationService;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;

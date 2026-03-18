@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.rejeb.dataform.language.service;
+package io.github.rejeb.dataform.language.compilation;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -24,7 +24,6 @@ import com.intellij.execution.process.ProcessOutput;
 import com.intellij.execution.util.ExecUtil;
 import com.intellij.openapi.components.State;
 import com.intellij.openapi.components.Storage;
-import com.intellij.openapi.components.StoragePathMacros;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectUtil;

@@ -27,7 +27,7 @@ import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiManager;
 import com.intellij.psi.PsiReferenceBase;
 import io.github.rejeb.dataform.language.compilation.model.*;
-import io.github.rejeb.dataform.language.service.DataformCompilationService;
+import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

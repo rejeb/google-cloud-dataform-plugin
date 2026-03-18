@@ -42,7 +42,6 @@ import com.intellij.openapi.util.Key;
 import com.intellij.openapi.util.ThrowableComputable;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.sql.SqlFileType;
-import com.intellij.ui.components.JBTabbedPane;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
 import icons.DatabaseIcons;
@@ -59,7 +58,7 @@ import io.github.rejeb.dataform.language.gcp.execution.serviceview.QueryResultNo
 import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
 import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
 import io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService;
-import io.github.rejeb.dataform.language.service.DataformCompilationService;
+import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
