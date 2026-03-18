@@ -22,6 +22,7 @@ import com.intellij.icons.AllIcons;
 import com.intellij.notification.Notification;
 import com.intellij.notification.NotificationType;
 import com.intellij.notification.Notifications;
+import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.command.WriteCommandAction;
@@ -35,6 +36,8 @@ import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.ui.popup.JBPopup;
+import com.intellij.openapi.ui.popup.JBPopupFactory;
 import com.intellij.openapi.util.Key;
 import com.intellij.openapi.util.ThrowableComputable;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -207,17 +210,46 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
         }
     }
 
-    /**
-     * Returns true if the current compiled result contains at least one executable query.
-     */
     public boolean hasQuery() {
         return queryPanel.hasQuery();
     }
 
-    public void executeQuery() {
+    public void executeQuery(@NotNull AnActionEvent e) {
         List<FormattedCompiledQuery> queries = queryPanel.getCompiledQueries();
         if (queries == null || queries.isEmpty()) return;
 
+        if (queries.size() == 1) {
+            // Cas simple : une seule table, on exécute directement
+            runQueries(List.of(queries.get(0)));
+        } else {
+            // Plusieurs tables : popup bulle ancrée sur le bouton
+            List<String> tableNames = queries.stream()
+                    .map(FormattedCompiledQuery::tableName)
+                    .toList();
+
+            JBPopup popup = JBPopupFactory.getInstance()
+                    .<String>createPopupChooserBuilder(tableNames)
+                    .setTitle("Select query to execute")
+                    .setMovable(false)
+                    .setResizable(false)
+                    .setRequestFocus(true)
+                    .setItemChosenCallback(tableName -> {
+                        queries.stream()
+                                .filter(q -> q.tableName().equals(tableName))
+                                .findFirst()
+                                .ifPresent(q -> runQueries(List.of(q)));
+                    })
+                    .createPopup();
+
+            // Ancrage sur le composant source du bouton
+            Component sourceComponent = e.getInputEvent() != null
+                    ? (Component) e.getInputEvent().getSource()
+                    : getComponent();
+            popup.showUnderneathOf(sourceComponent);
+        }
+    }
+
+    private void runQueries(@NotNull List<FormattedCompiledQuery> toExecute) {
         DataformRepositoryConfig config = GcpRepositorySettings.getInstance(project).getActiveConfig();
         if (config == null) {
             Notifications.Bus.notify(new Notification(
@@ -237,31 +269,32 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
                     @Override
                     public void run(@NotNull ProgressIndicator indicator) {
                         BigQueryExecutionService svc = BigQueryExecutionService.getInstance(project);
-                        for (FormattedCompiledQuery q : queries) {
+                        for (FormattedCompiledQuery q : toExecute) {
                             if (q.query() == null || q.query().isBlank()) continue;
                             indicator.setText("Executing " + q.tableName() + "...");
 
                             BigQueryJobResult result = svc.execute(q.query(), projectId, q.tableName());
-                            registry.put(result); // upsert
-                            ServiceEventListener.ServiceEvent resetEvent = ServiceEventListener.ServiceEvent.createResetEvent(
-                                    DataformQueryContributor.class);
+                            registry.put(result);
+                            ServiceEventListener.ServiceEvent resetEvent =
+                                    ServiceEventListener.ServiceEvent.createResetEvent(
+                                            DataformQueryContributor.class);
                             project.getMessageBus()
                                     .syncPublisher(ServiceEventListener.TOPIC)
                                     .handle(resetEvent);
 
-                            // 2. Sélectionne et active le nœud correspondant
                             ServiceViewManager.getInstance(project)
                                     .select(new QueryResultNode(result),
                                             DataformQueryContributor.class,
-                                            true,   // activate tool window
-                                            true); // focus
+                                            true,
+                                            true);
                         }
                     }
                 }
         );
     }
 
-    private View activeView = View.LINEAGE; // vue par défaut
+
+    private View activeView = View.LINEAGE;
 
     public void showPanel(@NotNull View view) {
         this.activeView = view;
@@ -272,7 +305,6 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
     public View getActiveView() {
         return activeView;
     }
-
 
     private static FormattedCompiledQuery toFormatted(CompiledQuery q, Project project) {
         List<String> preOps  = q.preOps().stream()
@@ -311,5 +343,4 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
         wrapper.add(content, BorderLayout.CENTER);
         return wrapper;
     }
-
 }

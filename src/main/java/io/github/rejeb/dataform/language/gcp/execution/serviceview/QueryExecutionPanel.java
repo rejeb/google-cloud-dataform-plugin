@@ -71,10 +71,9 @@ public class QueryExecutionPanel extends JPanel {
         JComponent jobInfoPanel = buildJobInfoPanel(result);
         JBTabbedPane tabs = new JBTabbedPane();
         tabs.setTabComponentInsets(JBUI.emptyInsets());
-        tabs.addTab("Job Info", jobInfoPanel);
         tabs.addTab("Results", resultPanel);
+        tabs.addTab("Job Info", jobInfoPanel);
         add(tabs, BorderLayout.CENTER);
-        SwingUtilities.invokeLater(() -> tabs.setSelectedIndex(1));
     }
 
     private record InfoRow(String label, String value) {

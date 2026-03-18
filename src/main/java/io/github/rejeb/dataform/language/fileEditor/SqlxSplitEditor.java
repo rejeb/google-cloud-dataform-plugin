@@ -87,11 +87,6 @@ public class SqlxSplitEditor extends TextEditorWithPreview {
         group.add(getShowEditorAction());
         group.addSeparator();
         group.add(new ShowViewAction(
-                "Lineage", "Show lineage graph",
-                AllIcons.General.Layout,
-                SqlxCompiledPreviewEditor.View.LINEAGE
-        ));
-        group.add(new ShowViewAction(
                 "Query", "Show compiled SQL query",
                 DatabaseIcons.Sql,
                 SqlxCompiledPreviewEditor.View.QUERY
@@ -100,6 +95,11 @@ public class SqlxSplitEditor extends TextEditorWithPreview {
                 "Schema", "Show table schema",
                 AllIcons.Nodes.DataTables,
                 SqlxCompiledPreviewEditor.View.SCHEMA
+        ));
+        group.add(new ShowViewAction(
+                "Lineage", "Show lineage graph",
+                AllIcons.General.Layout,
+                SqlxCompiledPreviewEditor.View.LINEAGE
         ));
         return group;
     }

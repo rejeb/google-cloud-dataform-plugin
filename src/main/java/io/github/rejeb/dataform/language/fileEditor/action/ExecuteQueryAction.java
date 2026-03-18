@@ -34,7 +34,7 @@ public class ExecuteQueryAction extends AnAction {
 
     @Override
     public void actionPerformed(@NotNull AnActionEvent e) {
-        preview.executeQuery();
+        preview.executeQuery(e); // ← on passe l'event
     }
 
     @Override
