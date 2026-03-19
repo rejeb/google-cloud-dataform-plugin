@@ -59,6 +59,9 @@ public interface DataformGcpService {
     /** @return last successfully fetched files, or empty map */
     @NotNull Map<String, String> getCachedFiles();
 
+    @Nullable
+    String getFileContent(@NotNull String filePath);
+
     /** Invalidates the file cache. */
     void invalidateCache();
 
@@ -98,4 +101,6 @@ public interface DataformGcpService {
             @NotNull List<String> paths,
             @NotNull String message
     );
+
+
 }

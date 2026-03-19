@@ -20,17 +20,15 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.intellij.execution.configurations.GeneralCommandLine;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import io.github.rejeb.dataform.settings.DataformToolsSettings;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.plugins.terminal.settings.TerminalLocalOptions;
 
 import java.io.File;
 import java.nio.file.Path;
-import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 
 import static io.github.rejeb.dataform.setup.DataformInstaller.findDataformLibRootDir;
@@ -59,7 +57,6 @@ public final class DataformInterpreterManagerImpl implements DataformInterpreter
 
     @Override
     public Optional<VirtualFile> dataformCliDir() {
-        // 1. Priorité : settings utilisateur
         String configured = DataformToolsSettings.getInstance().getCliExecutablePath();
         if (!configured.isBlank()) {
             File f = new File(configured);
@@ -67,7 +64,6 @@ public final class DataformInterpreterManagerImpl implements DataformInterpreter
                     LocalFileSystem.getInstance().findFileByIoFile(f.getParentFile())
             );
         }
-        // 2. Fallback : détection automatique
         return findDataformLibRootDir(NodeInterpreterManager.getInstance(project))
                 .map(dir -> dir.resolve("cli"))
                 .map(dir -> LocalFileSystem.getInstance().findFileByIoFile(dir.toFile()));
@@ -90,52 +86,23 @@ public final class DataformInterpreterManagerImpl implements DataformInterpreter
 
     @Override
     public Optional<GeneralCommandLine> buildDataformCompileCommand() {
+
+        String configuredCli = DataformToolsSettings.getInstance().getCliExecutablePath();
+        if (configuredCli.isBlank()) return Optional.empty();
+
         Path nodeBinDir = NodeInterpreterManager.getInstance(project).nodeBinDir();
-        return Optional.ofNullable(nodeBinDir).map(binDir -> {
-            String pathEnv = binDir.toFile().getAbsolutePath()
-                    + File.pathSeparator + System.getenv("PATH");
+        String pathEnv = (nodeBinDir != null
+                ? nodeBinDir.toAbsolutePath() + File.pathSeparator
+                : "") + System.getenv("PATH");
 
-            if (SystemInfo.isWindows) {
-                Optional<Path> gitBash = findGitBash();
-                if (gitBash.isPresent()) {
-                    return buildGitBashCommand(gitBash.get(), binDir, pathEnv);
-                }
-                String exe = binDir.resolve("dataform.cmd").toAbsolutePath().toString();
-                GeneralCommandLine cmd = new GeneralCommandLine(exe, "compile", "--json")
-                        .withWorkDirectory(project.getBasePath());
-                cmd.getEnvironment().put("PATH", pathEnv);
-                return cmd;
-            }
+        String shellPath = TerminalLocalOptions.getInstance().getShellPath();
+        if (shellPath == null || shellPath.isBlank()) shellPath = "/bin/sh";
 
-            String exe = binDir.resolve("dataform").toAbsolutePath().toString();
-            GeneralCommandLine cmd = new GeneralCommandLine(exe, "compile", "--json")
-                    .withWorkDirectory(project.getBasePath());
-            cmd.getEnvironment().put("PATH", pathEnv);
-            return cmd;
-        });
-    }
-
-    private Optional<Path> findGitBash() {
-        return List.of(
-                Path.of("C:\\Program Files\\Git\\bin\\bash.exe"),
-                Path.of("C:\\Program Files (x86)\\Git\\bin\\bash.exe"),
-                Path.of(System.getProperty("user.home"),
-                        "AppData", "Local", "Programs", "Git", "bin", "bash.exe")
-        ).stream().filter(p -> p.toFile().exists()).findFirst();
-    }
-
-    private GeneralCommandLine buildGitBashCommand(Path bashExe, Path nodeBinDir,
-                                                   String winPathEnv) {
-        String posixDir = nodeBinDir.toAbsolutePath().toString()
-                .replace("\\", "/")
-                .replaceFirst("^([A-Za-z]):", "/$1")
-                .toLowerCase(Locale.ROOT);
-        String bashCmd = String.format(
-                "export PATH=\"%s:$PATH\"; dataform compile --json", posixDir);
-        GeneralCommandLine cmd = new GeneralCommandLine(
-                bashExe.toAbsolutePath().toString(), "-c", bashCmd)
+        String shellCmd = String.format("\"%s\" compile --json", configuredCli);
+        GeneralCommandLine cmd = new GeneralCommandLine(shellPath, "-c", shellCmd)
                 .withWorkDirectory(project.getBasePath());
-        cmd.getEnvironment().put("PATH", winPathEnv);
-        return cmd;
+        cmd.getEnvironment().put("PATH", pathEnv);
+
+        return Optional.of(cmd);
     }
 }

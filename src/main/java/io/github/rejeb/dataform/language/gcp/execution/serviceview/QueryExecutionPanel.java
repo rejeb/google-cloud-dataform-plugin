@@ -32,14 +32,13 @@ import com.intellij.database.settings.DatabaseSettings;
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.actionSystem.ActionGroup;
 import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
+import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBScrollPane;
 import com.intellij.ui.components.JBTabbedPane;
 import com.intellij.ui.table.JBTable;
-import com.intellij.util.ui.ColumnInfo;
-import com.intellij.util.ui.JBUI;
-import com.intellij.util.ui.ListTableModel;
-import com.intellij.util.ui.UIUtil;
+import com.intellij.util.ui.*;
 import io.github.rejeb.dataform.language.gcp.bigquery.BigQueryJobResult;
 import io.github.rejeb.dataform.language.gcp.bigquery.BigQueryJobStats;
 import io.github.rejeb.dataform.language.gcp.bigquery.BigQueryPagedResult;
@@ -50,15 +49,20 @@ import org.jetbrains.annotations.Nullable;
 import javax.swing.*;
 import javax.swing.table.DefaultTableCellRenderer;
 import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.net.URI;
 import java.text.DecimalFormat;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import com.intellij.ui.HyperlinkLabel;
 
 public class QueryExecutionPanel extends JPanel {
 
+    private static final Logger LOGGER = Logger.getInstance(QueryExecutionPanel.class);
     private static final DateTimeFormatter DATE_FMT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault());
     private static final DecimalFormat BYTES_FMT = new DecimalFormat("#,###");
@@ -67,101 +71,72 @@ public class QueryExecutionPanel extends JPanel {
         super(new BorderLayout());
         setOpaque(true);
         setBackground(UIUtil.getPanelBackground());
-        JComponent resultPanel = result.isSuccess() ? buildResultsPanel(project, result) : buildErrorPanel(result);
+        JComponent resultPanel  = result.isSuccess() ? buildResultsPanel(project, result) : buildErrorPanel(result);
         JComponent jobInfoPanel = buildJobInfoPanel(result);
         JBTabbedPane tabs = new JBTabbedPane();
         tabs.setTabComponentInsets(JBUI.emptyInsets());
-        tabs.addTab("Results", resultPanel);
+        tabs.addTab("Results",  resultPanel);
         tabs.addTab("Job Info", jobInfoPanel);
         add(tabs, BorderLayout.CENTER);
     }
 
-    private record InfoRow(String label, String value) {
-    }
+    private record InfoRow(String label, String value) {}
+
+    // ── Job Info panel ────────────────────────────────────────────────────
 
     private JComponent buildJobInfoPanel(@NotNull BigQueryJobResult result) {
-        List<InfoRow> rows = new ArrayList<>();
+        FormBuilder builder = FormBuilder.createFormBuilder();
 
         if (!result.isSuccess()) {
-            rows.add(new InfoRow("Status", "FAILED"));
-            rows.add(new InfoRow("Error", result.errorMessage() != null ? result.errorMessage() : "-"));
+            builder.addLabeledComponent("Status:", new JBLabel("FAILED"));
+            builder.addLabeledComponent("Error:",  new JBLabel(
+                    result.errorMessage() != null ? result.errorMessage() : "-"));
         } else {
             BigQueryJobStats s = result.stats();
             if (s != null) {
                 long duration = s.endTime() - s.startTime();
-                rows.add(new InfoRow("Status", "SUCCESS"));
-                rows.add(new InfoRow("Job ID", s.jobId()));
-                rows.add(new InfoRow("Project", s.projectId()));
-                rows.add(new InfoRow("Location", s.location() != null ? s.location() : "-"));
-                rows.add(new InfoRow("Statement type", s.statementType() != null ? s.statementType() : "-"));
-                rows.add(new InfoRow("Cache hit", String.valueOf(s.cacheHit())));
-                rows.add(new InfoRow("Bytes processed", BYTES_FMT.format(s.bytesProcessed()) + " B"));
-                rows.add(new InfoRow("Duration", duration + " ms"));
-                rows.add(new InfoRow("Created at", formatTs(s.creationTime())));
-                rows.add(new InfoRow("Started at", formatTs(s.startTime())));
-                rows.add(new InfoRow("Ended at", formatTs(s.endTime())));
-                rows.add(new InfoRow("Rows (total)", String.valueOf(s.totalRows())));
+                String url = buildJobUrl(s.projectId(), s.location(), s.jobId());
 
+                HyperlinkLabel gcpLink = new HyperlinkLabel(url);
+                gcpLink.setHyperlinkTarget(url);
+
+                builder
+                        .addLabeledComponent("Status:",          new JBLabel("SUCCESS"))
+                        .addLabeledComponent("Job ID:",          new JBLabel(s.jobId()))
+                        .addLabeledComponent("GCP Console:",     gcpLink)
+                        .addLabeledComponent("Project:",         new JBLabel(s.projectId()))
+                        .addLabeledComponent("Location:",        new JBLabel(s.location() != null ? s.location() : "-"))
+                        .addLabeledComponent("Statement type:",  new JBLabel(s.statementType() != null ? s.statementType() : "-"))
+                        .addLabeledComponent("Cache hit:",       new JBLabel(String.valueOf(s.cacheHit())))
+                        .addLabeledComponent("Bytes processed:", new JBLabel(BYTES_FMT.format(s.bytesProcessed()) + " B"))
+                        .addLabeledComponent("Duration:",        new JBLabel(duration + " ms"))
+                        .addLabeledComponent("Created at:",      new JBLabel(formatTs(s.creationTime())))
+                        .addLabeledComponent("Started at:",      new JBLabel(formatTs(s.startTime())))
+                        .addLabeledComponent("Ended at:",        new JBLabel(formatTs(s.endTime())))
+                        .addLabeledComponent("Rows (total):",    new JBLabel(String.valueOf(s.totalRows())));
             }
         }
 
-        ColumnInfo<InfoRow, String> labelCol = new ColumnInfo<>("Property") {
-            @Override
-            public @Nullable String valueOf(InfoRow row) {
-                return row.label();
-            }
+        builder.addComponentFillVertically(new JPanel(), 0);
+        JPanel panel = builder.getPanel();
+        panel.setBorder(JBUI.Borders.empty(8));
 
-            @Override
-            public int getWidth(JTable t) {
-                return JBUI.scale(160);
-            }
-        };
-        ColumnInfo<InfoRow, String> valueCol = new ColumnInfo<>("Value") {
-            @Override
-            public @Nullable String valueOf(InfoRow row) {
-                return row.value();
-            }
-        };
-
-        ListTableModel<InfoRow> model = new ListTableModel<>(
-                new ColumnInfo[]{labelCol, valueCol}, rows);
-
-        JBTable table = new JBTable(model);
-        table.setShowGrid(false);
-        table.setRowHeight(JBUI.scale(24));
-        table.setFocusable(false);
-        table.getTableHeader().setReorderingAllowed(false);
-        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-
-        table.getColumnModel().getColumn(0).setCellRenderer(new DefaultTableCellRenderer() {
-            @Override
-            public Component getTableCellRendererComponent(
-                    JTable t, Object v, boolean sel, boolean focus, int row, int col) {
-                JLabel lbl = (JLabel) super.getTableCellRendererComponent(t, v, sel, focus, row, col);
-                lbl.setFont(lbl.getFont().deriveFont(Font.BOLD));
-                if (!sel) lbl.setForeground(UIUtil.getContextHelpForeground());
-                lbl.setBorder(JBUI.Borders.emptyLeft(8));
-                return lbl;
-            }
-        });
-
-        table.getColumnModel().getColumn(1).setCellRenderer(new DefaultTableCellRenderer() {
-            @Override
-            public Component getTableCellRendererComponent(
-                    JTable t, Object v, boolean sel, boolean focus, int row, int col) {
-                JLabel lbl = (JLabel) super.getTableCellRendererComponent(t, v, sel, focus, row, col);
-                lbl.setBorder(JBUI.Borders.emptyLeft(8));
-                return lbl;
-            }
-        });
-
-        JBScrollPane scroll = new JBScrollPane(table);
+        JBScrollPane scroll = new JBScrollPane(panel);
         scroll.setBorder(JBUI.Borders.empty());
         return scroll;
     }
 
-    private JComponent buildResultsPanel(@NotNull Project project, @NotNull BigQueryJobResult result) {
 
+    private static String buildJobUrl(@NotNull String projectId,
+                                      @Nullable String location,
+                                      @NotNull String jobId) {
+        String loc = location != null ? location : "US";
+        return String.format(
+                "https://console.cloud.google.com/bigquery?project=%s&j=bq:%s:%s&page=queryresults",
+                projectId, loc, jobId);
+    }
+
+    private JComponent buildResultsPanel(@NotNull Project project, @NotNull BigQueryJobResult result) {
         BqDataHookUp hookUp = new BqDataHookUp(project, result.pagedResult());
         TableResultPanel panel = new TableResultPanel(
                 project,
@@ -170,7 +145,6 @@ public class QueryExecutionPanel extends JPanel {
                 (grid, appearance) -> {
                     GridUtil.putSettings(grid, ApplicationManager.getApplication().getService(DatabaseSettings.class));
                     GridHelperImpl helper = new GridHelperImpl();
-
                     helper.setDefaultPageSize(BigQueryPagedResult.DEFAULT_PAGE_SIZE);
                     helper.setLimitDefaultPageSize(true);
                     GridHelper.set(grid, helper);
@@ -198,17 +172,17 @@ public class QueryExecutionPanel extends JPanel {
                 }
         );
 
-        ApplicationManager.getApplication().invokeLater(() -> {
-            hookUp.getLoader().reloadCurrentPage(
-                    new GridRequestSource(new GridRequestSource.RequestPlace() {
-                    })
-            );
-        });
+        ApplicationManager.getApplication().invokeLater(() ->
+                hookUp.getLoader().reloadCurrentPage(
+                        new GridRequestSource(new GridRequestSource.RequestPlace() {}))
+        );
 
         GridMainPanel mainPanel = panel.getPanel();
         mainPanel.setBorder(JBUI.Borders.empty());
         return mainPanel;
     }
+
+    // ── Error panel ───────────────────────────────────────────────────────
 
     private JComponent buildErrorPanel(@NotNull BigQueryJobResult result) {
         String message = result.errorMessage() != null ? result.errorMessage() : "Unknown error";
@@ -234,14 +208,14 @@ public class QueryExecutionPanel extends JPanel {
         panel.setOpaque(true);
         panel.setBackground(UIUtil.getPanelBackground());
         panel.add(titleLabel, BorderLayout.NORTH);
-        panel.add(scroll, BorderLayout.CENTER);
+        panel.add(scroll,     BorderLayout.CENTER);
         return panel;
     }
 
+    // ── Helpers ───────────────────────────────────────────────────────────
 
     private String formatTs(long ts) {
         if (ts == 0) return "-";
         return DATE_FMT.format(Instant.ofEpochMilli(ts));
     }
-
 }

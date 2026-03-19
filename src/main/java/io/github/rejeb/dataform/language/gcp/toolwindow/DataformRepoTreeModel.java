@@ -129,6 +129,38 @@ public class DataformRepoTreeModel extends DefaultTreeModel {
         reload();
     }
 
+    @Nullable
+    public FileEntry getFileEntry(@NotNull Object node) {
+        if (node instanceof DefaultMutableTreeNode dmtn
+                && dmtn.getUserObject() instanceof FileEntry fe) {
+            return fe;
+        }
+        return null;
+    }
+
+    /**
+     * Retourne le chemin relatif complet d'un nœud dossier (ex: "definitions/sources"),
+     * ou null si le nœud est la racine ou un FileEntry.
+     */
+    @Nullable
+    public String getDirectoryPath(@NotNull Object node) {
+        if (!(node instanceof DefaultMutableTreeNode dmtn)) return null;
+        if (dmtn.getUserObject() instanceof FileEntry) return null;
+        if (dmtn.getUserObject() instanceof RootEntry) return null;
+
+        // Remonte les parents pour reconstituer le chemin
+        List<String> segments = new ArrayList<>();
+        DefaultMutableTreeNode current = dmtn;
+        while (current != null) {
+            Object obj = current.getUserObject();
+            if (obj instanceof RootEntry) break; // stop à la racine
+            if (obj instanceof String s) segments.add(0, s);
+            current = (DefaultMutableTreeNode) current.getParent();
+        }
+        return segments.isEmpty() ? null : String.join("/", segments);
+    }
+
+
     /**
      * Sorts the children of each node recursively: directories first, then files,
      * each group sorted alphabetically (case-insensitive).

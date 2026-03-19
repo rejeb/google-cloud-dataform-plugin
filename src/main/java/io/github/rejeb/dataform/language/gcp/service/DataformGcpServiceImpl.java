@@ -73,6 +73,11 @@ public final class DataformGcpServiceImpl implements DataformGcpService, Disposa
     }
 
     @Override
+    public @Nullable String getFileContent(@NotNull String filePath) {
+        return DataformGcpFileCache.getInstance(project).getCachedFiles().get(filePath);
+    }
+
+    @Override
     public void invalidateCache() {
         fileCache.invalidate();
     }

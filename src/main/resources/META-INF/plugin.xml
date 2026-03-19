@@ -36,6 +36,7 @@
     <depends>com.intellij.database</depends>
     <depends>com.intellij.modules.json</depends>
     <depends>org.jetbrains.plugins.yaml</depends>
+    <depends>org.jetbrains.plugins.terminal</depends>
 
     <extensions defaultExtensionNs="JavaScript.JsonSchema">
         <ProviderFactory
@@ -198,4 +199,21 @@
                 displayName="Dataform"/>
 
     </extensions>
+    <actions>
+        <action id="Dataform.CompareFileWithRemote"
+                class="io.github.rejeb.dataform.language.gcp.action.CompareFileWithRemoteAction"
+                text="Compare File with Remote"
+                description="Compare the local file with its remote GCP Dataform version">
+            <add-to-group group-id="CompareActions" anchor="last"/>
+            <!-- Menu clic droit dans l'arbre de fichiers du projet -->
+            <add-to-group group-id="ProjectViewPopupMenu"
+                          anchor="before"
+                          relative-to-action="CompareFileWithEditor"/>
+
+            <!-- Menu clic droit dans l'éditeur (onglets) -->
+            <add-to-group group-id="EditorPopupMenu"
+                          anchor="before"
+                          relative-to-action="CompareClipboardWithSelection"/>
+        </action>
+    </actions>
 </idea-plugin>

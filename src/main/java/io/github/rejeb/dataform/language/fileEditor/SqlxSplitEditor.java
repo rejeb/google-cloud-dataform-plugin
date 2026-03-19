@@ -31,8 +31,6 @@ import org.jetbrains.annotations.Nullable;
 import javax.swing.*;
 import java.util.List;
 
-import static io.github.rejeb.dataform.language.fileEditor.SqlxCompiledPreviewEditor.View.*;
-
 public class SqlxSplitEditor extends TextEditorWithPreview {
 
     private final SqlxCompiledPreviewEditor myPreview;
@@ -105,7 +103,6 @@ public class SqlxSplitEditor extends TextEditorWithPreview {
     }
 
 
-
     @Override
     protected @NotNull ActionGroup createViewActionGroup() {
         return new DefaultActionGroup(List.of());
@@ -127,16 +124,11 @@ public class SqlxSplitEditor extends TextEditorWithPreview {
             Layout current = getLayout();
             boolean isThisViewActive = myPreview.getActiveView() == view;
 
-            if (current == Layout.SHOW_EDITOR || !isThisViewActive) {
+            if (!isThisViewActive) {
                 setLayout(Layout.SHOW_EDITOR_AND_PREVIEW);
-                setVerticalSplit(false);
                 myPreview.showPanel(view);
-
-            } else if (isVerticalSplit()) {
-                setLayout(Layout.SHOW_EDITOR);
-
             } else {
-                setVerticalSplit(true);
+                setLayout(Layout.SHOW_EDITOR);
             }
 
             Toggleable.setSelected(e.getPresentation(), getLayout() != Layout.SHOW_EDITOR);

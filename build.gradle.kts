@@ -33,7 +33,7 @@ dependencies {
         bundledPlugin("com.intellij.database")
         bundledPlugin("org.jetbrains.plugins.yaml")
         bundledPlugin("com.intellij.modules.json")
-
+        bundledPlugin("org.jetbrains.plugins.terminal")
         composeUI()
     }
 
