@@ -16,7 +16,6 @@
  */
 package io.github.rejeb.dataform.language.service;
 
-import com.intellij.lang.javascript.linter.option.Option;
 import com.intellij.lang.javascript.psi.JSFunction;
 import com.intellij.lang.javascript.psi.JSVariable;
 import com.intellij.lang.javascript.psi.ecma6.TypeScriptModule;
@@ -29,7 +28,7 @@ import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiManager;
 import com.intellij.psi.util.PsiTreeUtil;
-import io.github.rejeb.dataform.setup.DataformInterpreterManager;
+import io.github.rejeb.dataform.language.setup.DataformInterpreterManager;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Collection;

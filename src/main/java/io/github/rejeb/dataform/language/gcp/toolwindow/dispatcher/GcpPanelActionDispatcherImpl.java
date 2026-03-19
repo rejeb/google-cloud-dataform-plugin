@@ -31,7 +31,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
-import java.util.Map;
 
 public class GcpPanelActionDispatcherImpl implements GcpPanelActionDispatcher {
 
@@ -67,9 +66,9 @@ public class GcpPanelActionDispatcherImpl implements GcpPanelActionDispatcher {
         ProgressManager.getInstance().run(new Task.Backgroundable(project, title) {
             @Override
             public void run(@NotNull ProgressIndicator indicator) {
-                Map<String, String> files = gcpService().fetchCode(workspaceId);
+                List<String> files = gcpService().listAllPaths(workspaceId);
                 ApplicationManager.getApplication().invokeLater(() ->
-                        publish().onFilesLoaded(files));
+                        publish().onFilesLoaded(List.copyOf(files)));
             }
         });
     }

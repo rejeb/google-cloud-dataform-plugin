@@ -22,16 +22,19 @@ import com.intellij.execution.ExecutionException;
 import com.intellij.execution.configurations.GeneralCommandLine;
 import com.intellij.execution.process.ProcessOutput;
 import com.intellij.execution.util.ExecUtil;
+import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.components.State;
 import com.intellij.openapi.components.Storage;
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectUtil;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.psi.PsiDocumentManager;
 import io.github.rejeb.dataform.language.compilation.model.CompilationError;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.compilation.model.GraphErrors;
-import io.github.rejeb.dataform.setup.DataformInterpreterManager;
+import io.github.rejeb.dataform.language.setup.DataformInterpreterManager;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -80,7 +83,23 @@ public final class DataformCompilationServiceImpl
     }
 
     @Override
-    public CompiledGraph compile() {
+    public CompiledGraph compile(boolean forceRefresh) {
+        if (project.isDisposed()) {
+            return null;
+        }
+        flushFiles();
+        if (compiledGraph != null
+                && currentState.lastCompileTimestamp > 0
+                && !hasSourcesChangedSince(currentState.lastCompileTimestamp)
+                && !forceRefresh) {
+            LOG.info("Sources unchanged, using cached compiled graph");
+            return compiledGraph;
+        }
+        return runCompilation();
+    }
+
+
+    private CompiledGraph runCompilation() {
         try {
             Optional<GeneralCommandLine> cmd = project.getService(DataformInterpreterManager.class)
                     .buildDataformCompileCommand();
@@ -109,20 +128,6 @@ public final class DataformCompilationServiceImpl
     }
 
     @Override
-    public CompiledGraph runIfFilesChanged() {
-        if (project.isDisposed()) {
-            return null;
-        }
-        if (compiledGraph != null
-                && currentState.lastCompileTimestamp > 0
-                && !hasSourcesChangedSince(currentState.lastCompileTimestamp)) {
-            LOG.info("Sources unchanged, using cached compiled graph");
-            return compiledGraph;
-        }
-        return compile();
-    }
-
-    @Override
     public CompiledGraph getCompiledGraph() {
         return compiledGraph;
     }
@@ -130,6 +135,13 @@ public final class DataformCompilationServiceImpl
     @Override
     public void dispose() {
         compiledGraph = null;
+    }
+
+    public void flushFiles() {
+        ApplicationManager.getApplication().invokeAndWait(() -> {
+            PsiDocumentManager.getInstance(project).commitAllDocuments();
+            FileDocumentManager.getInstance().saveAllDocuments();
+        });
     }
 
     private boolean hasSourcesChangedSince(long referenceTime) {

@@ -17,6 +17,7 @@
 package io.github.rejeb.dataform.language.gcp.service;
 
 import com.intellij.openapi.project.Project;
+import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowInvocationProgress;
 import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
 import io.github.rejeb.dataform.language.gcp.workspace.UncommittedChange;
 import io.github.rejeb.dataform.language.gcp.workspace.Workspace;
@@ -25,6 +26,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.Map;
+import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowRunRequest;
 
 public interface DataformGcpService {
 
@@ -53,14 +55,14 @@ public interface DataformGcpService {
     /** Fetches files asynchronously and notifies {@code onDone} on the EDT. */
     void refreshFilesAsync(
             @Nullable String workspaceId,
-            @NotNull java.util.function.Consumer<Map<String, String>> onDone
+            @NotNull java.util.function.Consumer<List<String>> onDone
     );
 
     /** @return last successfully fetched files, or empty map */
-    @NotNull Map<String, String> getCachedFiles();
+    @NotNull List<String> getCachedFiles();
 
-    @Nullable
-    String getFileContent(@NotNull String filePath);
+    @NotNull
+    String getFileContent(@Nullable String workspaceId, @NotNull String filePath);
 
     /** Invalidates the file cache. */
     void invalidateCache();
@@ -102,5 +104,37 @@ public interface DataformGcpService {
             @NotNull String message
     );
 
+
+    /**
+     * Creates a CompilationResult from the workspace and triggers a workflow run.
+     * Must be called off the EDT.
+     *
+     * @return the GCP resource name of the created run
+     */
+    @NotNull String createWorkflowRun(@NotNull WorkflowRunRequest request);
+
+    /**
+     * Returns a progress snapshot for the given workflow run.
+     * Must be called off the EDT.
+     */
+    @NotNull WorkflowInvocationProgress getWorkflowRunProgress(@NotNull String workflowRunName);
+
+    /**
+     * Cancels a running workflow.
+     * Must be called off the EDT.
+     */
+    void cancelWorkflowRun(@NotNull String workflowRunName);
+
+    /**
+     * if workspace is not null,
+     * Return all files and directories of workspace
+     * <p>
+     * if the workspace is null,
+     * Return all files and directories of repository
+     *
+     * @param workspaceId the workspace ID
+     * @return List<String> paths
+     */
+    List<String> listAllPaths(@Nullable String workspaceId);
 
 }

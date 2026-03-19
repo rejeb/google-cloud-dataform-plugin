@@ -31,7 +31,9 @@ public class SqlxSplitEditorProvider implements FileEditorProvider, DumbAware {
     @Override
     public boolean accept(@NotNull Project project, @NotNull VirtualFile file) {
         String normalizedPath = file.getPath().replace('\\', '/');
-        return normalizedPath.contains("/definitions/");
+        return normalizedPath.contains("/definitions/") &&
+                (normalizedPath.endsWith(".sqlx") || normalizedPath.endsWith(".js")) &&
+                file.isWritable();
     }
 
     @Override

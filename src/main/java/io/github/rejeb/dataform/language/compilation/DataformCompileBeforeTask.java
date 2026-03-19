@@ -46,8 +46,8 @@ public final class DataformCompileBeforeTask implements CompileTask {
         boolean hasErrors = false;
         try {
             context.addMessage(CompilerMessageCategory.INFORMATION, "Running dataform compile", null, -1, -1);
-
-            CompiledGraph compiledGraph = compilationService.compile();
+            compilationService.flushFiles();
+            CompiledGraph compiledGraph = compilationService.compile(true);
             hasErrors = compiledGraph == null ||
                     compiledGraph.getGraphErrors() != null &&
                             !compiledGraph.getGraphErrors().getCompilationErrors().isEmpty();

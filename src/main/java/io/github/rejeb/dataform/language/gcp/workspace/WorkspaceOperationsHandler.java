@@ -133,7 +133,7 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
 
         if (localFiles.isEmpty()) return;
 
-        Set<String> remotePaths = workspaceRepository.listAllPaths(
+        List<String> remotePaths = workspaceRepository.listAllPaths(
                 config.projectId, config.location, config.repositoryId, workspaceId);
 
         Set<String> toDelete = new HashSet<>(remotePaths);
@@ -195,9 +195,27 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
                 workspaceId, paths, message, author);
     }
 
-    // -------------------------------------------------------------------------
-    // Private helpers
-    // -------------------------------------------------------------------------
+    @Override
+    public List<String> listAllPaths(@Nullable String workspaceId) {
+        String projectId = configProvider.getProjectId();
+        String location = configProvider.getLocation();
+        String repositoryId = configProvider.getRepositoryId();
+        if (projectId == null || location == null || repositoryId == null) return List.of();
+        return workspaceRepository.listAllPaths(projectId,
+                location,
+                repositoryId,
+                workspaceId);
+    }
+
+    @Override
+    public @NotNull String getFileContent(@Nullable String workspaceId, @NotNull String filePath) {
+        String projectId = configProvider.getProjectId();
+        String location = configProvider.getLocation();
+        String repositoryId = configProvider.getRepositoryId();
+        if (projectId == null || location == null || repositoryId == null) return "";
+        return workspaceRepository.getFileContent(projectId, location, repositoryId, workspaceId, filePath);
+    }
+
 
     @Nullable
     private GcpConfig readConfig() {

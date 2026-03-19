@@ -1,0 +1,43 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ */
+package io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig;
+
+import com.intellij.execution.configurations.ConfigurationFactory;
+import com.intellij.execution.configurations.ConfigurationType;
+import com.intellij.execution.configurations.RunConfiguration;
+import com.intellij.openapi.components.BaseState;
+import com.intellij.openapi.project.Project;
+import org.jetbrains.annotations.NotNull;
+
+public class DataformWorkflowConfigurationFactory extends ConfigurationFactory {
+
+    public DataformWorkflowConfigurationFactory(@NotNull ConfigurationType type) {
+        super(type);
+    }
+
+    @NotNull
+    @Override
+    public String getId() {
+        return DataformWorkflowConfigurationType.ID;
+    }
+
+    @NotNull
+    @Override
+    public RunConfiguration createTemplateConfiguration(@NotNull Project project) {
+        return new DataformWorkflowRunConfiguration(project, this, "Dataform Workflow");
+    }
+
+    @NotNull
+    @Override
+    public Class<? extends BaseState> getOptionsClass() {
+        return DataformWorkflowRunConfigurationOptions.class;
+    }
+}

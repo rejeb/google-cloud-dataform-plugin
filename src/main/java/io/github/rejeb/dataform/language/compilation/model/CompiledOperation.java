@@ -47,6 +47,9 @@ public class CompiledOperation {
         return dependencyTargets != null ? dependencyTargets : Collections.emptyList();
     }
 
+    public List<String> getTags() {
+        return tags != null ? tags : Collections.emptyList();
+    }
 
     public boolean isDisabled() {
         return disabled;

@@ -18,18 +18,21 @@ package io.github.rejeb.dataform.language.compilation;
 
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.components.PersistentStateComponent;
+import com.intellij.openapi.project.Project;
 import com.intellij.util.xmlb.annotations.Tag;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 
 public interface DataformCompilationService extends Disposable, PersistentStateComponent<DataformCompilationService.State> {
 
+    static DataformCompilationService getInstance(Project project) {
+        return project.getService(DataformCompilationService.class);
+    }
 
-    CompiledGraph compile();
-
-
-    CompiledGraph runIfFilesChanged();
+    CompiledGraph compile(boolean forceRefresh);
 
     CompiledGraph getCompiledGraph();
+
+    void flushFiles();
 
     class State {
         @Tag("compiledGraphJson")

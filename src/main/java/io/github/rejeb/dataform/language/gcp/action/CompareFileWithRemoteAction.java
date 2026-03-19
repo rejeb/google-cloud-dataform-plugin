@@ -13,12 +13,12 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import io.github.rejeb.dataform.language.gcp.service.DataformGcpService;
 import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
-import io.github.rejeb.dataform.projectWizard.DataformFacetType;
+import io.github.rejeb.dataform.language.projectWizard.DataformFacetType;
 import com.intellij.facet.FacetManager;
 import com.intellij.openapi.module.ModuleUtilCore;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Map;
+import java.util.List;
 
 public class CompareFileWithRemoteAction extends AnAction {
 
@@ -73,8 +73,8 @@ public class CompareFileWithRemoteAction extends AnAction {
                 .getRelativePath(localFile, baseDir, '/');
         if (relativePath == null) return;
 
-        Map<String, String> cachedFiles = DataformGcpService.getInstance(project).getCachedFiles();
-        String remoteContent = cachedFiles.get(relativePath);
+        List<String> cachedFiles = DataformGcpService.getInstance(project).getCachedFiles();
+        String remoteContent = "";
 
         FileType fileType = FileTypeManager.getInstance()
                 .getFileTypeByFileName(localFile.getName());

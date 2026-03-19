@@ -94,11 +94,11 @@ public interface WorkspaceRepository {
             @Nullable String workspaceId
     );
 
-    @NotNull Set<String> listAllPaths(
+    @NotNull List<String> listAllPaths(
             @NotNull String projectId,
             @NotNull String location,
             @NotNull String repositoryId,
-            @NotNull String workspaceId
+            @Nullable String workspaceId
     );
 
     void push(
@@ -160,4 +160,12 @@ public interface WorkspaceRepository {
             @NotNull String message,
             @NotNull CommitAuthorConfig author
     );
+
+    @NotNull
+    String getFileContent(
+            @NotNull String projectId,
+            @NotNull String location,
+            @NotNull String repositoryId,
+            @Nullable String workspaceId,
+            @NotNull String filePath);
 }

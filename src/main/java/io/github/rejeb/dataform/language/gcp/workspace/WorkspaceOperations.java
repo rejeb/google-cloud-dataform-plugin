@@ -108,4 +108,19 @@ public interface WorkspaceOperations {
             @NotNull String message
     );
 
+    /**
+     * if workspace is not null,
+     * Return all files and directories of workspace
+     * <p>
+     * if the workspace is null,
+     * Return all files and directories of repository
+     *
+     * @param workspaceId the workspace ID
+     * @return List<String> paths
+     */
+    List<String> listAllPaths(@Nullable String workspaceId);
+
+    @NotNull
+    String getFileContent(@Nullable String workspaceId, @NotNull String filePath);
+
 }

@@ -22,7 +22,7 @@ import com.intellij.openapi.components.Storage;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @State(
@@ -46,13 +46,13 @@ public final class DataformGcpFileCacheImpl
 
     @Override
     @NotNull
-    public Map<String, String> getCachedFiles() {
-        return state.files != null ? Map.copyOf(state.files) : Map.of();
+    public List<String> getCachedFiles() {
+        return state.files != null ? List.copyOf(state.files) : List.of();
     }
 
     @Override
-    public void update(@NotNull Map<String, String> files) {
-        state.files = new HashMap<>(files);
+    public void update(@NotNull List<String> files) {
+        state.files = List.copyOf(files);
     }
 
     @Override
@@ -62,6 +62,6 @@ public final class DataformGcpFileCacheImpl
 
     public static final class State {
         @Nullable
-        public Map<String, String> files;
+        public List<String> files;
     }
 }

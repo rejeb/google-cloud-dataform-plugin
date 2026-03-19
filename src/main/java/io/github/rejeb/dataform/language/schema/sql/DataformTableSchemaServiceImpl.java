@@ -23,13 +23,10 @@ import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.components.State;
 import com.intellij.openapi.components.Storage;
-import com.intellij.openapi.components.StoragePathMacros;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.vfs.VfsUtil;
-import com.intellij.openapi.vfs.VirtualFileManager;
 import io.github.rejeb.dataform.language.compilation.model.*;
 import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
 import io.github.rejeb.dataform.language.util.DataformAuthNotifier;
@@ -43,6 +40,7 @@ import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 @State(
@@ -171,39 +169,39 @@ public final class DataformTableSchemaServiceImpl
         List<SortableAction> actionsToRefresh = identifyActionsToRefresh(sorted, forceRefresh);
 
         int total = actionsToRefresh.size();
+        AtomicInteger counter = new AtomicInteger();
         int skipped = sorted.size() - total;
         if (skipped > 0) {
             LOG.info("Skipping " + skipped + " unchanged actions, refreshing " + total);
         }
 
         Map<String, List<ColumnInfo>> resolvedInThisRun = new HashMap<>();
+        ApplicationManager.getApplication().executeOnPooledThread(() -> {
+            actionsToRefresh.parallelStream()
+                    .forEach(action -> {
+                        if (indicator.isCanceled()) {
+                            LOG.debug("Schema extraction cancelled after " + counter.get() + "/" + total);
+                            persistStateFromCache();  // save progress so far
+                            return;
+                        }
+                        String fqn = action.target().getFullName();
+                        indicator.setText("Dataform schema: " + fqn);
+                        indicator.setFraction((double) counter.incrementAndGet() / total);
 
-        for (int i = 0; i < total; i++) {
-            if (indicator.isCanceled()) {
-                LOG.debug("Schema extraction cancelled after " + i + "/" + total);
-                persistStateFromCache();  // save progress so far
-                return;
-            }
-
-            SortableAction action = actionsToRefresh.get(i);
-            String fqn = action.target().getFullName();
-            indicator.setText("Dataform schema: " + fqn);
-            indicator.setFraction((double) i / total);
-
-            if (action.isTable()) {
-                LOG.info("Resolving schema for table: " + fqn);
-                processTable(action.table(), fqn, projectId, location, resolvedInThisRun, extractor);
-            } else if (action.isOperation()) {
-                LOG.info("Resolving schema for operation: " + fqn);
-                processOperation(action.operation(), fqn, projectId, location, resolvedInThisRun, extractor);
-            } else if (action.isDeclaration()) {
-                LOG.info("Resolving schema for declared table: " + fqn);
-                processDeclaration(fqn, projectId, location, extractor);
-            }
-        }
-
+                        if (action.isTable()) {
+                            LOG.info("Resolving schema for table: " + fqn);
+                            processTable(action.table(), fqn, projectId, location, resolvedInThisRun, extractor);
+                        } else if (action.isOperation()) {
+                            LOG.info("Resolving schema for operation: " + fqn);
+                            processOperation(action.operation(), fqn, projectId, location, resolvedInThisRun, extractor);
+                        } else if (action.isDeclaration()) {
+                            LOG.info("Resolving schema for declared table: " + fqn);
+                            processDeclaration(fqn, projectId, location, extractor);
+                        }
+                    });
+        });
         indicator.setFraction(1.0);
-        persistStateFromCache();  // replaces persistentCache.saveToDisk()
+        persistStateFromCache();
 
         LOG.info("Schema extraction complete: " + resolvedInThisRun.size() + "/" + total + " actions resolved");
     }

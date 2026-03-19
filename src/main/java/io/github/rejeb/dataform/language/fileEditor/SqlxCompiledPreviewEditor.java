@@ -50,11 +50,11 @@ import io.github.rejeb.dataform.language.compilation.model.CompiledQuery;
 import io.github.rejeb.dataform.language.fileEditor.lineage.LineageGraph;
 import io.github.rejeb.dataform.language.fileEditor.lineage.LineageGraphHelper;
 import io.github.rejeb.dataform.language.fileEditor.lineage.LineagePanel;
-import io.github.rejeb.dataform.language.gcp.bigquery.BigQueryExecutionService;
-import io.github.rejeb.dataform.language.gcp.bigquery.BigQueryJobResult;
-import io.github.rejeb.dataform.language.gcp.execution.QueryResultsRegistry;
-import io.github.rejeb.dataform.language.gcp.execution.serviceview.DataformQueryContributor;
-import io.github.rejeb.dataform.language.gcp.execution.serviceview.QueryResultNode;
+import io.github.rejeb.dataform.language.gcp.execution.bigquery.BigQueryExecutionService;
+import io.github.rejeb.dataform.language.gcp.execution.bigquery.BigQueryJobResult;
+import io.github.rejeb.dataform.language.gcp.execution.bigquery.QueryResultsRegistry;
+import io.github.rejeb.dataform.language.gcp.execution.bigquery.serviceview.DataformQueryContributor;
+import io.github.rejeb.dataform.language.gcp.execution.bigquery.serviceview.QueryResultNode;
 import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
 import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
 import io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService;
@@ -106,7 +106,7 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
                 indicator.setIndeterminate(true);
                 indicator.setText("Compiling " + file.getName() + "...");
                 DataformCompilationService svc = project.getService(DataformCompilationService.class);
-                CompiledGraph graph = svc.runIfFilesChanged();
+                CompiledGraph graph = svc.compile(false);
                 if (graph != null) {
                     String path = file.getCanonicalPath();
                     List<CompiledQuery> rawQueries = graph.findCompiledQueryByFileName(path);
@@ -219,7 +219,7 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
 
         if (queries.size() == 1) {
             // Cas simple : une seule table, on exécute directement
-            runQueries(List.of(queries.get(0)));
+            runQueries(List.of(queries.getFirst()));
         } else {
             // Plusieurs tables : popup bulle ancrée sur le bouton
             List<String> tableNames = queries.stream()
@@ -227,20 +227,17 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
                     .toList();
 
             JBPopup popup = JBPopupFactory.getInstance()
-                    .<String>createPopupChooserBuilder(tableNames)
-                    .setTitle("Select query to execute")
+                    .createPopupChooserBuilder(tableNames)
+                    .setTitle("Select Query to Execute")
                     .setMovable(false)
                     .setResizable(false)
                     .setRequestFocus(true)
-                    .setItemChosenCallback(tableName -> {
-                        queries.stream()
-                                .filter(q -> q.tableName().equals(tableName))
-                                .findFirst()
-                                .ifPresent(q -> runQueries(List.of(q)));
-                    })
+                    .setItemChosenCallback(tableName -> queries.stream()
+                            .filter(q -> q.tableName().equals(tableName))
+                            .findFirst()
+                            .ifPresent(q -> runQueries(List.of(q))))
                     .createPopup();
 
-            // Ancrage sur le composant source du bouton
             Component sourceComponent = e.getInputEvent() != null
                     ? (Component) e.getInputEvent().getSource()
                     : getComponent();

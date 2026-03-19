@@ -1,5 +1,3 @@
-import org.gradle.kotlin.dsl.implementation
-
 plugins {
     id("org.jetbrains.kotlin.jvm") version "2.3.10"
     id("org.jetbrains.intellij.platform") version "2.12.0"
@@ -17,7 +15,7 @@ repositories {
 }
 
 dependencies {
-    implementation(platform("com.google.cloud:libraries-bom:26.77.0"))
+    implementation(platform("com.google.cloud:libraries-bom:26.78.0"))
     implementation("com.google.cloud:google-cloud-dataform")
     implementation("com.google.cloud:google-cloud-bigquery")
     testImplementation("org.mockito:mockito-core:5.11.0")

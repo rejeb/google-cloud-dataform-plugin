@@ -43,8 +43,8 @@
                 implementation="io.github.rejeb.dataform.language.completion.DataformJsonSchemaProviderFactory"/>
     </extensions>
     <extensions defaultExtensionNs="com.intellij">
-        <projectService serviceInterface="io.github.rejeb.dataform.setup.DataformInterpreterManager"
-                        serviceImplementation="io.github.rejeb.dataform.setup.DataformInterpreterManagerImpl"
+        <projectService serviceInterface="io.github.rejeb.dataform.language.setup.DataformInterpreterManager"
+                        serviceImplementation="io.github.rejeb.dataform.language.setup.DataformInterpreterManagerImpl"
                         testServiceImplementation="io.github.rejeb.dataform.language.setup.DataformInterpreterManagerTestImpl"
         />
         <projectService serviceInterface="io.github.rejeb.dataform.language.schema.json.ProtoParser"
@@ -82,14 +82,14 @@
                 serviceImplementation="io.github.rejeb.dataform.language.gcp.service.DataformGcpServiceImpl"/>
 
         <projectService
-                serviceInterface="io.github.rejeb.dataform.language.gcp.bigquery.BigQueryExecutionService"
-                serviceImplementation="io.github.rejeb.dataform.language.gcp.bigquery.BigQueryExecutionServiceImpl"/>
+                serviceInterface="io.github.rejeb.dataform.language.gcp.execution.bigquery.BigQueryExecutionService"
+                serviceImplementation="io.github.rejeb.dataform.language.gcp.execution.bigquery.BigQueryExecutionServiceImpl"/>
         <applicationService
-                serviceInterface="io.github.rejeb.dataform.settings.DataformToolsSettings"
-                serviceImplementation="io.github.rejeb.dataform.settings.DataformToolsSettingsImpl"/>
+                serviceInterface="io.github.rejeb.dataform.language.settings.DataformToolsSettings"
+                serviceImplementation="io.github.rejeb.dataform.language.settings.DataformToolsSettingsImpl"/>
 
         <serviceViewContributor
-                implementation="io.github.rejeb.dataform.language.gcp.execution.serviceview.DataformQueryContributor"/>
+                implementation="io.github.rejeb.dataform.language.gcp.execution.bigquery.serviceview.DataformQueryContributor"/>
         <toolWindow
                 id="Dataform Tools"
                 anchor="right"
@@ -98,21 +98,21 @@
         <sql.resolveExtension
                 implementation="io.github.rejeb.dataform.language.schema.sql.DataformSqlResolveExtension"/>
         <projectImportProvider
-                implementation="io.github.rejeb.dataform.projectWizard.DataformProjectImportProvider"/>
+                implementation="io.github.rejeb.dataform.language.projectWizard.DataformProjectImportProvider"/>
         <daemon.highlightInfoFilter
                 implementation="io.github.rejeb.dataform.language.highlight.SqlxHighlightInfoFilter"/>
-        <facetType implementation="io.github.rejeb.dataform.projectWizard.DataformFacetType"/>
-        <framework.detector implementation="io.github.rejeb.dataform.projectWizard.DataformFrameworkDetector"/>
+        <facetType implementation="io.github.rejeb.dataform.language.projectWizard.DataformFacetType"/>
+        <framework.detector implementation="io.github.rejeb.dataform.language.projectWizard.DataformFrameworkDetector"/>
         <projectStructureDetector
-                implementation="io.github.rejeb.dataform.projectWizard.DataformProjectStructureDetector"/>
+                implementation="io.github.rejeb.dataform.language.projectWizard.DataformProjectStructureDetector"/>
 
         <compiler.task execute="BEFORE"
                        implementation="io.github.rejeb.dataform.language.compilation.DataformCompileBeforeTask"/>
-        <moduleBuilder builderClass="io.github.rejeb.dataform.projectWizard.DataformModuleBuilder"/>
+        <moduleBuilder builderClass="io.github.rejeb.dataform.language.projectWizard.DataformModuleBuilder"/>
 
         <postStartupActivity
                 order="first"
-                implementation="io.github.rejeb.dataform.setup.DataformInstaller"/>
+                implementation="io.github.rejeb.dataform.language.setup.DataformInstaller"/>
         <backgroundPostStartupActivity
                 implementation="io.github.rejeb.dataform.language.startup.DataformProjectStartup"/>
         <fileEditorProvider implementation="io.github.rejeb.dataform.language.fileEditor.SqlxSplitEditorProvider"/>
@@ -194,9 +194,16 @@
 
         <applicationConfigurable
                 parentId="tools"
-                instance="io.github.rejeb.dataform.settings.DataformToolsConfigurable"
-                id="io.github.rejeb.dataform.settings.DataformToolsConfigurable"
+                instance="io.github.rejeb.dataform.language.settings.DataformToolsConfigurable"
+                id="io.github.rejeb.dataform.language.settings.DataformToolsConfigurable"
                 displayName="Dataform"/>
+
+        <configurationType
+                implementation="io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.DataformWorkflowConfigurationType"/>
+
+        <!-- Program Runner -->
+        <programRunner
+                implementation="io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.DataformWorkflowProgramRunner"/>
 
     </extensions>
     <actions>

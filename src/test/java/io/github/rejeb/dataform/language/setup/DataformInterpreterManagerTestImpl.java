@@ -18,7 +18,6 @@ package io.github.rejeb.dataform.language.setup;
 
 import com.intellij.execution.configurations.GeneralCommandLine;
 import com.intellij.openapi.vfs.VirtualFile;
-import io.github.rejeb.dataform.setup.DataformInterpreterManager;
 
 import java.util.Optional;
 

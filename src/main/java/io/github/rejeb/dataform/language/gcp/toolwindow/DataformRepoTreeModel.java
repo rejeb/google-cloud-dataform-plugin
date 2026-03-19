@@ -81,13 +81,13 @@ public class DataformRepoTreeModel extends DefaultTreeModel {
         reload();
     }
 
-    public void setFiles(@NotNull Map<String, String> files) {
+    public void setFiles(@NotNull List<String> files) {
         DefaultMutableTreeNode root = (DefaultMutableTreeNode) getRoot();
         root.removeAllChildren();
 
         Map<String, DefaultMutableTreeNode> dirNodes = new TreeMap<>();
 
-        for (String path : new TreeSet<>(files.keySet())) {
+        for (String path : new TreeSet<>(files)) {
             String[] segments = path.split("/");
 
             StringBuilder currentPath = new StringBuilder();
@@ -119,7 +119,7 @@ public class DataformRepoTreeModel extends DefaultTreeModel {
                     : root;
 
             DefaultMutableTreeNode fileNode = new DefaultMutableTreeNode(
-                    new FileEntry(path, segments[segments.length - 1], files.get(path))
+                    new FileEntry(path, segments[segments.length - 1])
             );
             if (parentNode != null) parentNode.add(fileNode);
             else root.add(fileNode);
@@ -203,12 +203,10 @@ public class DataformRepoTreeModel extends DefaultTreeModel {
      *
      * @param relativePath full relative path from content root
      * @param displayName  filename only, used for tree label
-     * @param content      file content as UTF-8 string
      */
     public record FileEntry(
             @NotNull String relativePath,
-            @NotNull String displayName,
-            @NotNull String content
+            @NotNull String displayName
     ) {
         @Override
         public String toString() { return displayName; }

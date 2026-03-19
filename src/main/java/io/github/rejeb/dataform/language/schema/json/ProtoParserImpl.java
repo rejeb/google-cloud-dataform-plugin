@@ -18,7 +18,7 @@ package io.github.rejeb.dataform.language.schema.json;
 
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
-import io.github.rejeb.dataform.setup.DataformInterpreterManager;
+import io.github.rejeb.dataform.language.setup.DataformInterpreterManager;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;

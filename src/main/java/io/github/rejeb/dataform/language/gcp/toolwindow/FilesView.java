@@ -25,7 +25,6 @@ import com.intellij.notification.NotificationType;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.fileEditor.FileEditorManager;
-import com.intellij.openapi.fileEditor.OpenFileDescriptor;
 import com.intellij.openapi.fileTypes.FileType;
 import com.intellij.openapi.fileTypes.FileTypeManager;
 import com.intellij.openapi.project.Project;
@@ -44,6 +43,7 @@ import io.github.rejeb.dataform.language.gcp.toolwindow.dispatcher.GcpPanelActio
 import io.github.rejeb.dataform.language.gcp.workspace.UncommittedChange;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jspecify.annotations.NonNull;
 
 import javax.swing.*;
 import javax.swing.tree.TreePath;
@@ -52,6 +52,7 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -59,7 +60,6 @@ public class FilesView extends JPanel {
 
     private final Project project;
     private final DataformRepoTreeModel treeModel;
-    private final FileViewToolbar toolbar;
 
     public FilesView(
             @NotNull Project project,
@@ -71,30 +71,53 @@ public class FilesView extends JPanel {
 
         treeModel = new DataformRepoTreeModel(config.repositoryId());
 
-        toolbar = new FileViewToolbar(
+        FileViewToolbar toolbar = new FileViewToolbar(
                 project,
                 () -> GcpRepositorySettings.getInstance(project).getSelectedWorkspaceId(),
                 dispatcher);
 
+        Tree tree = buildTree();
+
+        project.getMessageBus()
+                .connect()
+                .subscribe(DataformGcpEvent.TOPIC, new DataformGcpEvent() {
+                    @Override
+                    public void onFilesLoaded(@NotNull List<String> files) {
+                        treeModel.setLoading(false);
+                        treeModel.setFiles(files);
+                        TreeUtil.expandAll(tree);
+                    }
+
+                    @Override
+                    public void onGitStatusesLoaded(@NotNull List<UncommittedChange> changes) {
+                        treeModel.setGitStatuses(changes);
+                    }
+
+                    @Override
+                    public void onNotification(@NotNull String message, @NotNull NotificationType type) {
+                        NotificationGroupManager.getInstance()
+                                .getNotificationGroup("Dataform.Notifications")
+                                .createNotification(message, type)
+                                .notify(project);
+                    }
+                });
+
+        JLabel titleLabel = buildViewTitle("GCP remote project view");
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.add(titleLabel, BorderLayout.NORTH);
+        topPanel.add(toolbar, BorderLayout.CENTER);
+
+        add(topPanel, BorderLayout.NORTH);
+        add(ScrollPaneFactory.createScrollPane(tree), BorderLayout.CENTER);
+
+    }
+
+    private @NonNull Tree buildTree() {
         Tree tree = new Tree(treeModel);
         tree.setRootVisible(true);
         tree.setShowsRootHandles(true);
         tree.setCellRenderer(new DataformRepoTreeCellRenderer(treeModel));
         tree.setRowHeight(0);
-        tree.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                if (e.getClickCount() != 2) return;
-                TreePath path = tree.getPathForLocation(e.getX(), e.getY());
-                if (path == null) return;
-
-                DataformRepoTreeModel.FileEntry entry =
-                        treeModel.getFileEntry(path.getLastPathComponent());
-                if (entry == null) return;
-
-                openInEditor(entry);
-            }
-        });
 
         tree.addMouseListener(new MouseAdapter() {
             @Override
@@ -138,39 +161,7 @@ public class FilesView extends JPanel {
             }
 
         });
-
-        project.getMessageBus()
-                .connect()
-                .subscribe(DataformGcpEvent.TOPIC, new DataformGcpEvent() {
-                    @Override
-                    public void onFilesLoaded(@NotNull Map<String, String> files) {
-                        treeModel.setLoading(false);
-                        treeModel.setFiles(files);
-                        TreeUtil.expandAll(tree);
-                    }
-
-                    @Override
-                    public void onGitStatusesLoaded(@NotNull List<UncommittedChange> changes) {
-                        treeModel.setGitStatuses(changes);
-                    }
-
-                    @Override
-                    public void onNotification(@NotNull String message, @NotNull NotificationType type) {
-                        NotificationGroupManager.getInstance()
-                                .getNotificationGroup("Dataform.Notifications")
-                                .createNotification(message, type)
-                                .notify(project);
-                    }
-                });
-
-        JLabel titleLabel = buildViewTitle("GCP remote project view");
-        JPanel topPanel = new JPanel(new BorderLayout());
-        topPanel.add(titleLabel, BorderLayout.NORTH);
-        topPanel.add(toolbar, BorderLayout.CENTER);
-
-        add(topPanel, BorderLayout.NORTH);
-        add(ScrollPaneFactory.createScrollPane(tree), BorderLayout.CENTER);
-
+        return tree;
     }
 
 
@@ -187,13 +178,18 @@ public class FilesView extends JPanel {
     private void openInEditor(@NotNull DataformRepoTreeModel.FileEntry entry) {
         FileType fileType = FileTypeManager.getInstance()
                 .getFileTypeByFileName(entry.displayName());
+        String workspaceId = GcpRepositorySettings.getInstance(project).getSelectedWorkspaceId();
+        String fileContent = DataformGcpService.getInstance(project).getFileContent(workspaceId, entry.relativePath());
+        String fileName = entry.displayName() + "(readonly)";
+        FileEditorManager editorManager = FileEditorManager.getInstance(project);
+        Arrays.stream(editorManager.getOpenFiles())
+                .filter(f -> f.getName().equals(fileName))
+                .forEach(editorManager::closeFile);
 
-        LightVirtualFile virtualFile = new LightVirtualFile(
-                entry.displayName() + " (read only)", fileType, entry.content());
+        LightVirtualFile virtualFile = new LightVirtualFile(fileName, fileType, fileContent);
         virtualFile.setWritable(false);
 
-        OpenFileDescriptor descriptor = new OpenFileDescriptor(project, virtualFile);
-        FileEditorManager.getInstance(project).openTextEditor(descriptor, true);
+        FileEditorManager.getInstance(project).openFile(virtualFile, true);
     }
 
     @Nullable
@@ -214,9 +210,10 @@ public class FilesView extends JPanel {
         } else {
             localContent = DiffContentFactory.getInstance().create("", fileType);
         }
-
+        String workspaceId = GcpRepositorySettings.getInstance(project).getSelectedWorkspaceId();
+        String fileContent = DataformGcpService.getInstance(project).getFileContent(workspaceId, entry.relativePath());
         DiffContent remoteContent = DiffContentFactory.getInstance()
-                .create(entry.content(), fileType);
+                .create(fileContent, fileType);
 
         DiffManager.getInstance().showDiff(
                 project,
@@ -258,7 +255,8 @@ public class FilesView extends JPanel {
     }
 
     private void fetchDirectoryToLocal(@NotNull String dirPath) {
-        Map<String, String> allFiles = DataformGcpService.getInstance(project).getCachedFiles();
+        String workspace = GcpRepositorySettings.getInstance(project).getSelectedWorkspaceId();
+        Map<String, String> allFiles = DataformGcpService.getInstance(project).fetchCode(workspace);
 
         String prefix = dirPath + "/";
         Map<String, String> matching = allFiles.entrySet().stream()
@@ -303,7 +301,9 @@ public class FilesView extends JPanel {
         WriteCommandAction.runWriteCommandAction(project,
                 "Fetch from GCP: " + entry.displayName(), null, () -> {
                     try {
-                        writeLocalFile(entry.relativePath(), entry.content());
+                        String workspace = GcpRepositorySettings.getInstance(project).getSelectedWorkspaceId();
+                        String fileContent = DataformGcpService.getInstance(project).getFileContent(workspace, entry.relativePath());
+                        writeLocalFile(entry.relativePath(), fileContent);
                     } catch (IOException ex) {
                         NotificationGroupManager.getInstance()
                                 .getNotificationGroup("Dataform.Notifications")

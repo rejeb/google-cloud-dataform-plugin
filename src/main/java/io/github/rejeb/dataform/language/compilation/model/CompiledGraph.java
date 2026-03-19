@@ -17,11 +17,9 @@
 package io.github.rejeb.dataform.language.compilation.model;
 
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class CompiledGraph {
     private List<CompiledTable> tables;
@@ -135,5 +133,33 @@ public class CompiledGraph {
                 .or(() -> findOperationByName(refName).map(CompiledOperation::getTarget));
     }
 
+    public Set<String> getTags(){
+        return Stream.of(
+                        getTables().stream()
+                                .flatMap(t -> t.getTags().stream()),
+                        getAssertions().stream()
+                                .flatMap(a -> a.getTags().stream()),
+                        getOperations().stream()
+                                .flatMap(o -> o.getTags().stream())
+                )
+                .flatMap(s -> s)
+                .collect(Collectors.toSet());
+    }
+
+    public  List<String> getAllTargets(){
+        return Stream.of(
+                        getTables().stream()
+                                .map(t -> t.getTarget().getFullName()),
+                        getAssertions().stream()
+                                .map(a -> a.getTarget().getFullName()),
+                        getOperations().stream()
+                                .map(o -> o.getTarget().getFullName())
+                )
+                .flatMap(s -> s)
+                .distinct()
+                .sorted()
+                .toList();
+
+    }
 }
 

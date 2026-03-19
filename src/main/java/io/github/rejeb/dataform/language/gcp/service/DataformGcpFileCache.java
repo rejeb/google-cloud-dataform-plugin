@@ -19,7 +19,7 @@ package io.github.rejeb.dataform.language.gcp.service;
 import com.intellij.openapi.project.Project;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Map;
+import java.util.List;
 
 public interface DataformGcpFileCache {
 
@@ -30,12 +30,12 @@ public interface DataformGcpFileCache {
     /**
      * Returns the last successfully fetched files, or an empty map if the cache is empty.
      */
-    @NotNull Map<String, String> getCachedFiles();
+    @NotNull List<String> getCachedFiles();
 
     /**
      * Replaces the cache content with the given files.
      */
-    void update(@NotNull Map<String, String> files);
+    void update(@NotNull List<String> files);
 
     /**
      * Clears the cache.
