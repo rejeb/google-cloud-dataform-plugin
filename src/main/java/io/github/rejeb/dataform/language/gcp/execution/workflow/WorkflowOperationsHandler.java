@@ -18,6 +18,7 @@ package io.github.rejeb.dataform.language.gcp.execution.workflow;
 
 import io.github.rejeb.dataform.language.gcp.common.GcpApiException;
 import io.github.rejeb.dataform.language.gcp.common.GcpConfigProvider;
+import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowCreationResult;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowInvocationProgress;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowRunRequest;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.repository.WorkflowRepository;
@@ -38,7 +39,7 @@ public final class WorkflowOperationsHandler implements WorkflowOperations {
 
     @Override
     @NotNull
-    public String createWorkflowRun(@NotNull WorkflowRunRequest request) {
+    public WorkflowCreationResult createWorkflowRun(@NotNull WorkflowRunRequest request) {
         GcpConfig config = requireConfig();
         return repository.createWorkflowRun(
                 config.projectId(), config.location(), config.repositoryId(), request);
@@ -46,8 +47,8 @@ public final class WorkflowOperationsHandler implements WorkflowOperations {
 
     @Override
     @NotNull
-    public WorkflowInvocationProgress getWorkflowRunProgress(@NotNull String workflowRunName) {
-        return repository.getWorkflowRunProgress(workflowRunName);
+    public WorkflowInvocationProgress getWorkflowRunProgress(@NotNull WorkflowCreationResult workflowRun) {
+        return repository.getWorkflowRunProgress(workflowRun);
     }
 
     @Override

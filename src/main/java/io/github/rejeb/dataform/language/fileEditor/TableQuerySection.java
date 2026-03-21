@@ -97,21 +97,6 @@ class TableQuerySection extends JPanel {
         });
     }
 
-    /**
-     * Formats a SQL string using the project code style.
-     * Must be called inside a WriteCommandAction.
-     */
-    static String formatSql(String sql, Project project) {
-        PsiFileFactory factory = PsiFileFactory.getInstance(project);
-        PsiFile tempFile = factory.createFileFromText(
-                "temp.sql",
-                SqlLanguage.INSTANCE,
-                sql.replaceAll("\n +", "\n")
-        );
-        CodeStyleManager.getInstance(project).reformat(tempFile);
-        return tempFile.getText();
-    }
-
     @Override
     public Dimension getPreferredSize() {
         if (!expanded) {

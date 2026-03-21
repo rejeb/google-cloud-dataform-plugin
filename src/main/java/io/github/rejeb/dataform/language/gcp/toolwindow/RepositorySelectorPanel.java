@@ -20,6 +20,7 @@ import com.intellij.ide.ActivityTracker;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.ComboBox;
 import com.intellij.ui.components.JBLabel;
+import com.intellij.util.ui.JBUI;
 import io.github.rejeb.dataform.language.gcp.service.DataformGcpEvent;
 import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
 import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
@@ -38,22 +39,25 @@ public class RepositorySelectorPanel extends JPanel {
     private final ComboBox<DataformRepositoryConfig> repoCombo = new ComboBox<>();
     private final ComboBox<WorkspaceItem> workspaceCombo = new ComboBox<>();
     private final Runnable onRepositoryChanged;
+    private final Runnable onWorkspaceChanged;
     private boolean updatingRepo = false;
     private boolean updatingWorkspace = false;
 
     public RepositorySelectorPanel(
             @NotNull Project project,
-            @NotNull Runnable onRepositoryChanged
+            @NotNull Runnable onRepositoryChanged,
+            @NotNull Runnable onWorkspaceChanged
     ) {
         super(new GridBagLayout());
         this.project = project;
         this.onRepositoryChanged = onRepositoryChanged;
+        this.onWorkspaceChanged = onWorkspaceChanged;
 
         buildRepoCombo();
         buildWorkspaceCombo();
 
         GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(2, 4, 2, 4);
+        gbc.insets = JBUI.insets(2, 4);
         gbc.anchor = GridBagConstraints.WEST;
 
         // Row 0 — Repository label | repoCombo
@@ -166,6 +170,7 @@ public class RepositorySelectorPanel extends JPanel {
                 WorkspaceItem selected = (WorkspaceItem) e.getItem();
                 GcpRepositorySettings.getInstance(project)
                         .setSelectedWorkspaceId(selected.workspaceId());
+                onWorkspaceChanged.run();
                 ActivityTracker.getInstance().inc();
             }
         });

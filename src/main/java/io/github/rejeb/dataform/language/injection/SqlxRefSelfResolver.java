@@ -18,9 +18,9 @@ package io.github.rejeb.dataform.language.injection;
 
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiElement;
+import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.compilation.model.Target;
-import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -75,7 +75,7 @@ public final class SqlxRefSelfResolver {
 
     @NotNull
     private static String toBigQueryIdentifier(@NotNull Target target) {
-        return Stream.of("dataform", target.getDatabase(), target.getSchema(), target.getName())
+        return Stream.of("gcdp",target.getDatabase(), target.getSchema(), target.getName())
                 .filter(part -> part != null && !part.isBlank())
                 .map(SqlxRefSelfResolver::quoteIfNeeded)
                 .collect(Collectors.joining("."));

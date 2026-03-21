@@ -22,6 +22,7 @@ import com.google.protobuf.ByteString;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.util.text.StringUtil;
+import com.intellij.util.concurrency.AppExecutorUtil;
 import io.github.rejeb.dataform.language.gcp.common.CommitAuthorConfig;
 import io.github.rejeb.dataform.language.gcp.common.GcpApiException;
 import io.github.rejeb.dataform.language.gcp.workspace.UncommittedChange;
@@ -31,6 +32,8 @@ import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -39,8 +42,6 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository, Disp
 
     private static final Logger LOG = Logger.getInstance(GcpDataformWorkspaceRepository.class);
 
-    private static final int PUSH_BATCH_SIZE = 10;
-    private static final int PUSH_BATCH_DELAY_MS = 300;
     private static final int PUSH_MAX_RETRIES = 3;
     private static final long PUSH_RETRY_DELAY_MS = 1_000;
 
@@ -134,30 +135,96 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository, Disp
     ) {
         try {
             String wsName = workspaceName(projectId, location, repositoryId, workspaceId);
-            List<Map.Entry<String, String>> entries = new ArrayList<>(filesToWrite.entrySet());
-            List<List<Map.Entry<String, String>>> batches = partition(entries, PUSH_BATCH_SIZE);
-
-            for (int i = 0; i < batches.size(); i++) {
-                for (Map.Entry<String, String> entry : batches.get(i)) {
-                    writeFileWithRetry(wsName, entry.getKey(), entry.getValue());
-                }
-                if (i < batches.size() - 1) {
-                    sleep(PUSH_BATCH_DELAY_MS);
-                }
-            }
-
-            for (String path : pathsToDelete) {
-                RemoveFileRequest request = RemoveFileRequest.newBuilder()
-                        .setWorkspace(wsName)
-                        .setPath(path)
-                        .build();
-                client.removeFile(request);
-            }
+            writeAllFiles(wsName, filesToWrite);
+            deleteAllFiles(wsName, pathsToDelete);
         } catch (GcpApiException e) {
             throw e;
         } catch (Exception e) {
             throw new GcpApiException("Error syncing files to GCP Dataform workspace.", e);
         }
+    }
+
+    private void writeAllFiles(@NotNull String wsName,
+                               @NotNull Map<String, String> batch) throws Exception {
+        batch.entrySet().parallelStream().forEach(entry ->
+                writeFileWithRetry(wsName, entry.getKey(), entry.getValue())
+        );
+    }
+
+    private void deleteAllFiles(@NotNull String wsName,
+                                @NotNull Set<String> pathsToDelete) {
+        pathsToDelete.forEach(path -> deleteFile(wsName, path));
+    }
+
+    private void deleteFile(@NotNull String wsName, @NotNull String path) {
+        RemoveFileRequest request = RemoveFileRequest.newBuilder()
+                .setWorkspace(wsName)
+                .setPath(path)
+                .build();
+        client.removeFile(request);
+    }
+
+    private void writeFileWithRetry(@NotNull String wsName,
+                                    @NotNull String path,
+                                    @NotNull String content) {
+        writeWithRetry(wsName, path, content, 0).join();
+    }
+
+    @NotNull
+    private CompletableFuture<Void> writeWithRetry(@NotNull String wsName,
+                                                   @NotNull String path,
+                                                   @NotNull String content,
+                                                   int attempt) {
+        return attemptWrite(wsName, path, content)
+                .exceptionallyCompose(ex -> retryOrFail(wsName, path, content, attempt, ex));
+    }
+
+    @NotNull
+    private CompletableFuture<Void> attemptWrite(@NotNull String wsName,
+                                                 @NotNull String path,
+                                                 @NotNull String content) {
+        return CompletableFuture.runAsync(
+                () -> doWriteFile(wsName, path, content),
+                AppExecutorUtil.getAppExecutorService()
+        );
+    }
+
+    private void doWriteFile(@NotNull String wsName,
+                             @NotNull String path,
+                             @NotNull String content) {
+        WriteFileRequest request = WriteFileRequest.newBuilder()
+                .setWorkspace(wsName)
+                .setPath(path)
+                .setContents(ByteString.copyFromUtf8(content))
+                .build();
+        client.writeFile(request);
+    }
+
+    @NotNull
+    private CompletableFuture<Void> retryOrFail(@NotNull String wsName,
+                                                @NotNull String path,
+                                                @NotNull String content,
+                                                int attempt,
+                                                @NotNull Throwable ex) {
+        Throwable cause = ex instanceof java.util.concurrent.CompletionException ? ex.getCause() : ex;
+        if (!(cause instanceof UnavailableException) || attempt + 1 >= PUSH_MAX_RETRIES) {
+            throw new GcpApiException(
+                    "Failed to write \"" + path + "\" after " + (attempt + 1) + " attempt(s).", cause);
+        }
+        long delayMs = PUSH_RETRY_DELAY_MS * (attempt + 1);
+        LOG.warn("Retrying write for \"" + path + "\" in " + delayMs + "ms (attempt " + (attempt + 1) + ")");
+        CompletableFuture<Void> delayed = new CompletableFuture<>();
+        AppExecutorUtil.getAppScheduledExecutorService()
+                .schedule(
+                        () -> writeWithRetry(wsName, path, content, attempt + 1)
+                                .whenComplete((v, t) -> {
+                                    if (t != null) delayed.completeExceptionally(t);
+                                    else delayed.complete(null);
+                                }),
+                        delayMs,
+                        TimeUnit.MILLISECONDS
+                );
+        return delayed;
     }
 
     @Override
@@ -200,7 +267,6 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository, Disp
         return result;
     }
 
-
     @Override
     @NotNull
     public Map<String, String> readAllFiles(
@@ -230,10 +296,6 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository, Disp
         }
     }
 
-    // -------------------------------------------------------------------------
-    // createRepository
-    // -------------------------------------------------------------------------
-
     @Override
     public void createRepository(
             @NotNull String projectId,
@@ -253,10 +315,6 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository, Disp
                     "Error creating Dataform repository \"" + repositoryId + "\": " + e.getMessage(), e);
         }
     }
-
-    // -------------------------------------------------------------------------
-    // createWorkspace
-    // -------------------------------------------------------------------------
 
     @Override
     public void createWorkspace(
@@ -279,10 +337,6 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository, Disp
         }
     }
 
-    // -------------------------------------------------------------------------
-    // fetchFileGitStatuses
-    // -------------------------------------------------------------------------
-
     @Override
     @NotNull
     public List<UncommittedChange> fetchFileGitStatuses(
@@ -303,10 +357,6 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository, Disp
             throw new GcpApiException("Error fetching git statuses from workspace.", e);
         }
     }
-
-    // -------------------------------------------------------------------------
-    // commitWorkspaceChanges
-    // -------------------------------------------------------------------------
 
     @Override
     public void commitWorkspaceChanges(
@@ -352,32 +402,6 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository, Disp
         }
     }
 
-    private void writeFileWithRetry(
-            @NotNull String wsName,
-            @NotNull String path,
-            @NotNull String content
-    ) {
-        int attempt = 0;
-        while (true) {
-            try {
-                WriteFileRequest request = WriteFileRequest.newBuilder()
-                        .setWorkspace(wsName)
-                        .setPath(path)
-                        .setContents(ByteString.copyFromUtf8(content))
-                        .build();
-                client.writeFile(request);
-                return;
-            } catch (UnavailableException e) {
-                attempt++;
-                if (attempt >= PUSH_MAX_RETRIES) {
-                    throw new GcpApiException(
-                            "Failed to write file \"" + path + "\" after " + attempt + " attempts.", e);
-                }
-                sleep(PUSH_RETRY_DELAY_MS * attempt);
-            }
-        }
-    }
-
     @NotNull
     private Map<String, String> readAllRepositoryFiles(
             @NotNull String projectId,
@@ -417,6 +441,22 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository, Disp
     }
 
     @NotNull
+    private String readWorkspaceFile(
+            @NotNull String projectId,
+            @NotNull String location,
+            @NotNull String repositoryId,
+            @NotNull String workspaceId,
+            @NotNull String path
+    ) {
+        ReadFileRequest request = ReadFileRequest.newBuilder()
+                .setWorkspace(workspaceName(projectId, location, repositoryId, workspaceId))
+                .setPath(path)
+                .build();
+        ReadFileResponse response = client.readFile(request);
+        return response.getFileContents().toStringUtf8();
+    }
+
+    @NotNull
     private Stream<String> listAllRepositoryPaths(
             @NotNull String projectId,
             @NotNull String location,
@@ -429,24 +469,12 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository, Disp
                         .setPath(directoryPath)
                         .build();
         try {
-            DataformClient.QueryRepositoryDirectoryContentsPagedResponse response = client.queryRepositoryDirectoryContents(request);
+            DataformClient.QueryRepositoryDirectoryContentsPagedResponse response =
+                    client.queryRepositoryDirectoryContents(request);
             return StreamSupport.stream(response.iterateAll().spliterator(), false)
                     .parallel()
-                    .flatMap(entry -> {
-                        if (entry.hasFile()) {
-                            String fullPath = directoryPath.isEmpty()
-                                    ? entry.getFile()
-                                    : directoryPath + "/" + entry.getFile();
-                            return Stream.of(fullPath);
-                        } else if (entry.hasDirectory() && !entry.getDirectory().equals("node_modules")) {
-                            String subDir = directoryPath.isEmpty()
-                                    ? entry.getDirectory()
-                                    : directoryPath + "/" + entry.getDirectory();
-                            return listAllRepositoryPaths(projectId, location, repositoryId, subDir);
-                        } else {
-                            return Stream.empty();
-                        }
-                    });
+                    .flatMap(entry -> resolveRepositoryEntry(
+                            entry, projectId, location, repositoryId, directoryPath));
         } catch (Exception e) {
             if (isEmptyRepoException(e)) {
                 LOG.info("Repository \"" + repositoryId + "\" is empty, skipping directory listing.");
@@ -454,6 +482,29 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository, Disp
             }
             throw e;
         }
+    }
+
+    @NotNull
+    private Stream<String> resolveRepositoryEntry(
+            @NotNull DirectoryEntry entry,
+            @NotNull String projectId,
+            @NotNull String location,
+            @NotNull String repositoryId,
+            @NotNull String directoryPath
+    ) {
+        if (entry.hasFile()) {
+            String fullPath = directoryPath.isEmpty()
+                    ? entry.getFile()
+                    : directoryPath + "/" + entry.getFile();
+            return Stream.of(fullPath);
+        }
+        if (entry.hasDirectory() && !entry.getDirectory().equals("node_modules")) {
+            String subDir = directoryPath.isEmpty()
+                    ? entry.getDirectory()
+                    : directoryPath + "/" + entry.getDirectory();
+            return listAllRepositoryPaths(projectId, location, repositoryId, subDir);
+        }
+        return Stream.empty();
     }
 
     @NotNull
@@ -468,35 +519,28 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository, Disp
                 .setWorkspace(workspaceName(projectId, location, repositoryId, workspaceId))
                 .setPath(directoryPath)
                 .build();
-        DataformClient.QueryDirectoryContentsPagedResponse response = client.queryDirectoryContents(request);
+        DataformClient.QueryDirectoryContentsPagedResponse response =
+                client.queryDirectoryContents(request);
         return StreamSupport.stream(response.iterateAll().spliterator(), false)
                 .parallel()
-                .flatMap(entry -> {
-                    if (entry.hasFile()) {
-                        return Stream.of(entry.getFile());
-                    } else if (entry.hasDirectory() && !entry.getDirectory().equals("node_modules")) {
-                        return listAllWorkspacePaths(
-                                projectId, location, repositoryId, workspaceId, entry.getDirectory());
-                    } else {
-                        return Stream.empty();
-                    }
-                });
+                .flatMap(entry -> resolveWorkspaceEntry(
+                        entry, projectId, location, repositoryId, workspaceId));
     }
 
     @NotNull
-    private String readWorkspaceFile(
+    private Stream<String> resolveWorkspaceEntry(
+            @NotNull DirectoryEntry entry,
             @NotNull String projectId,
             @NotNull String location,
             @NotNull String repositoryId,
-            @NotNull String workspaceId,
-            @NotNull String path
+            @NotNull String workspaceId
     ) {
-        ReadFileRequest request = ReadFileRequest.newBuilder()
-                .setWorkspace(workspaceName(projectId, location, repositoryId, workspaceId))
-                .setPath(path)
-                .build();
-        ReadFileResponse response = client.readFile(request);
-        return response.getFileContents().toStringUtf8();
+        if (entry.hasFile()) return Stream.of(entry.getFile());
+        if (entry.hasDirectory() && !entry.getDirectory().equals("node_modules")) {
+            return listAllWorkspacePaths(
+                    projectId, location, repositoryId, workspaceId, entry.getDirectory());
+        }
+        return Stream.empty();
     }
 
     private static String workspaceName(
@@ -549,13 +593,5 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository, Disp
             result.add(list.subList(i, Math.min(i + size, list.size())));
         }
         return result;
-    }
-
-    private static void sleep(long millis) {
-        try {
-            Thread.sleep(millis);
-        } catch (InterruptedException ex) {
-            Thread.currentThread().interrupt();
-        }
     }
 }

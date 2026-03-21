@@ -16,26 +16,11 @@
  */
 package io.github.rejeb.dataform.language.schema.sql;
 
-import com.intellij.openapi.components.PersistentStateComponent;
-import com.intellij.util.xmlb.annotations.Tag;
-import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
-import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
-import java.util.List;
-import java.util.Map;
-
-
-public interface DataformTableSchemaService extends PersistentStateComponent<DataformTableSchemaService.State> {
-    String TABLE_SUFFIX ="_gcdp";
-    void refreshAsync(@NotNull CompiledGraph graph, boolean forceRefresh);
-
-    @NotNull
-    Map<String, List<ColumnInfo>> getAllSchemas();
-
-
-    class State {
-        @Tag("schemaCacheJson")
-        public String schemaCacheJson = null;
-    }
-}
+record ExtractionContext(
+        @NotNull String projectId,
+        @Nullable String location,
+        @NotNull BigQueryDryRunSchemaExtractor extractor
+) {}

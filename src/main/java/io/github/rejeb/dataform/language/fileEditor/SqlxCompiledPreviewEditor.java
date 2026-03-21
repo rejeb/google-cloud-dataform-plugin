@@ -45,6 +45,7 @@ import com.intellij.sql.SqlFileType;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
 import icons.DatabaseIcons;
+import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.compilation.model.CompiledQuery;
 import io.github.rejeb.dataform.language.fileEditor.lineage.LineageGraph;
@@ -58,7 +59,7 @@ import io.github.rejeb.dataform.language.gcp.execution.bigquery.serviceview.Quer
 import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
 import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
 import io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService;
-import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
+import io.github.rejeb.dataform.language.util.CodeStyleFormatUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -69,7 +70,7 @@ import java.util.List;
 
 public class SqlxCompiledPreviewEditor implements FileEditor {
 
-    public enum View { LINEAGE, QUERY, SCHEMA }
+    public enum View {LINEAGE, QUERY, SCHEMA}
 
     private final JPanel mainPanel = new JPanel(new CardLayout());
     private final SchemaPanel schemaPanel;
@@ -82,15 +83,15 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
     public SqlxCompiledPreviewEditor(Project project, VirtualFile file) {
         this.project = project;
         this.file = file;
-        schemaPanel  = new SchemaPanel(project);
+        schemaPanel = new SchemaPanel(project);
         lineagePanel = new LineagePanel(project);
-        queryPanel   = new QueryPanel(project, resolveFileType(file));
+        queryPanel = new QueryPanel(project, resolveFileType(file));
 
         mainPanel.setOpaque(true);
         mainPanel.setBackground(UIUtil.getPanelBackground());
-        mainPanel.add(withHeader("Lineage", AllIcons.General.Layout,  lineagePanel), View.LINEAGE.name());
-        mainPanel.add(withHeader("Query",   DatabaseIcons.Sql,        queryPanel),   View.QUERY.name());
-        mainPanel.add(withHeader("Schema",  AllIcons.Nodes.DataTables, schemaPanel), View.SCHEMA.name());
+        mainPanel.add(withHeader("Lineage", AllIcons.General.Layout, lineagePanel), View.LINEAGE.name());
+        mainPanel.add(withHeader("Query", DatabaseIcons.Sql, queryPanel), View.QUERY.name());
+        mainPanel.add(withHeader("Schema", AllIcons.Nodes.DataTables, schemaPanel), View.SCHEMA.name());
 
         showPanel(View.LINEAGE);
         updateCompiledSql();
@@ -175,19 +176,26 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
     }
 
     @Override
-    public void setState(@NotNull FileEditorState s) {}
+    public void setState(@NotNull FileEditorState s) {
+    }
 
     @Override
-    public boolean isModified() { return false; }
+    public boolean isModified() {
+        return false;
+    }
 
     @Override
-    public boolean isValid() { return true; }
+    public boolean isValid() {
+        return true;
+    }
 
     @Override
-    public void addPropertyChangeListener(@NotNull PropertyChangeListener l) {}
+    public void addPropertyChangeListener(@NotNull PropertyChangeListener l) {
+    }
 
     @Override
-    public void removePropertyChangeListener(@NotNull PropertyChangeListener l) {}
+    public void removePropertyChangeListener(@NotNull PropertyChangeListener l) {
+    }
 
     @Override
     public void dispose() {
@@ -195,10 +203,13 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
     }
 
     @Override
-    public @Nullable <T> T getUserData(@NotNull Key<T> key) { return null; }
+    public @Nullable <T> T getUserData(@NotNull Key<T> key) {
+        return null;
+    }
 
     @Override
-    public <T> void putUserData(@NotNull Key<T> key, @org.jspecify.annotations.Nullable T t) {}
+    public <T> void putUserData(@NotNull Key<T> key, @org.jspecify.annotations.Nullable T t) {
+    }
 
     @Override
     public void selectNotify() {
@@ -303,11 +314,11 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
     }
 
     private static FormattedCompiledQuery toFormatted(CompiledQuery q, Project project) {
-        List<String> preOps  = q.preOps().stream()
-                .map(s -> TableQuerySection.formatSql(s, project)).toList();
+        List<String> preOps = q.preOps().stream()
+                .map(s -> CodeStyleFormatUtils.formatSql(project,s )).toList();
         List<String> postOps = q.postOps().stream()
-                .map(s -> TableQuerySection.formatSql(s, project)).toList();
-        String query = q.query() != null ? TableQuerySection.formatSql(q.query(), project) : null;
+                .map(s -> CodeStyleFormatUtils.formatSql(project,s )).toList();
+        String query = q.query() != null ? CodeStyleFormatUtils.formatSql(project, q.query()) : null;
         String errors = q.compilationErrors() != null && !q.compilationErrors().isEmpty()
                 ? String.join("\n", q.compilationErrors()) : null;
         return new FormattedCompiledQuery(

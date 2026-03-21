@@ -17,6 +17,7 @@
 package io.github.rejeb.dataform.language.gcp.execution.workflow.repository;
 
 import io.github.rejeb.dataform.language.gcp.common.GcpApiException;
+import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowCreationResult;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowInvocationProgress;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowRunRequest;
 import org.jetbrains.annotations.NotNull;
@@ -33,7 +34,7 @@ public interface WorkflowRepository {
      * @return the GCP resource name of the created workflow run
      * @throws GcpApiException on API error
      */
-    @NotNull String createWorkflowRun(
+    @NotNull WorkflowCreationResult createWorkflowRun(
             @NotNull String projectId,
             @NotNull String location,
             @NotNull String repositoryId,
@@ -45,7 +46,7 @@ public interface WorkflowRepository {
      *
      * @throws GcpApiException on API error
      */
-    @NotNull WorkflowInvocationProgress getWorkflowRunProgress(@NotNull String workflowRunName);
+    @NotNull WorkflowInvocationProgress getWorkflowRunProgress(@NotNull WorkflowCreationResult workflowRun);
 
     /**
      * Cancels a running workflow.

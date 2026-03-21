@@ -50,7 +50,7 @@ public class SqlxSplitEditor extends TextEditorWithPreview {
                     public void documentChanged(@NotNull DocumentEvent event) {
                         alarm.cancelAllRequests();
                         if (!alarm.isDisposed()) {
-                            alarm.addRequest(myPreview::updateCompiledSql, 2000);
+                            alarm.addRequest(myPreview::updateCompiledSql, 20000);
                         }
                     }
                 }, this

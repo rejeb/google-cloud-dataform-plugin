@@ -29,7 +29,11 @@ import com.intellij.sql.symbols.DasSymbolUtil;
 import io.github.rejeb.dataform.language.schema.sql.model.*;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import static io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService.TABLE_SUFFIX;
 
 public class DataformSqlResolveExtension implements SqlResolveExtension {
 

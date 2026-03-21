@@ -74,7 +74,7 @@ public class DataformGcpPanel extends JPanel {
 
     private void initConfiguredState(@NotNull DataformRepositoryConfig config) {
         repositorySelectorPanel = new RepositorySelectorPanel(
-                project, this::onRepositorySelected);
+                project, this::onRepositorySelected, this::onWorkspaceSelected);
         dispatcher.refreshWorkspaces();
 
         filesView = new FilesView(project, config, dispatcher);
@@ -82,13 +82,27 @@ public class DataformGcpPanel extends JPanel {
 
         JBTabbedPane tabs = new JBTabbedPane(JTabbedPane.LEFT);
         tabs.addTab("", AllIcons.Actions.ProjectDirectory, filesView);
-        tabs.addTab("",   AllIcons.Vcs.Branch,              commitView);
+        tabs.addTab("", AllIcons.Vcs.Branch, commitView);
 
         add(repositorySelectorPanel, BorderLayout.NORTH);
         add(tabs, BorderLayout.CENTER);
     }
 
     private void onRepositorySelected() {
+        removeAll();
+        DataformRepositoryConfig active =
+                GcpRepositorySettings.getInstance(project).getActiveConfig();
+        if (active != null) {
+            initConfiguredState(active);
+            dispatcher.refreshWorkspaces();
+        } else {
+            showUnconfiguredState();
+        }
+        revalidate();
+        repaint();
+    }
+
+    private void onWorkspaceSelected() {
         removeAll();
         DataformRepositoryConfig active =
                 GcpRepositorySettings.getInstance(project).getActiveConfig();

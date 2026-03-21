@@ -99,7 +99,7 @@ public class GcpPanelActionDispatcherImpl implements GcpPanelActionDispatcher {
     @Override
     public void push(@NotNull String workspaceId) {
         ProgressManager.getInstance().run(
-                new Task.Backgroundable(project, "Pushing to workspace '" + workspaceId + "'…") {
+                new Task.Backgroundable(project, "Uploading files to workspace '" + workspaceId + "'…") {
                     @Override
                     public void run(@NotNull ProgressIndicator indicator) {
                         gcpService().pushCode(workspaceId);

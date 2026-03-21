@@ -18,6 +18,7 @@ package io.github.rejeb.dataform.language.psi;
 
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.AbstractElementManipulator;
+import com.intellij.psi.PsiElement;
 import com.intellij.util.IncorrectOperationException;
 import org.jetbrains.annotations.NotNull;
 
@@ -29,9 +30,10 @@ public class SqlxConfigBlockManipulator extends AbstractElementManipulator<SqlxC
                                                @NotNull String newContent)
             throws IncorrectOperationException {
 
-        return (SqlxConfigBlock) element.replace(
+        PsiElement replace = element.replace(
                 element.getContainingFile().copy()
         );
+        return replace instanceof SqlxConfigBlock ? (SqlxConfigBlock) replace : element;
     }
 
     @Override

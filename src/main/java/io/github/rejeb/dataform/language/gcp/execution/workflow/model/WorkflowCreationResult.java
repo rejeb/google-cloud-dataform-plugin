@@ -11,21 +11,12 @@
 package io.github.rejeb.dataform.language.gcp.execution.workflow.model;
 
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
-
-import java.time.Instant;
 
 /**
- * Represents the execution result of a single Dataform action within an invocation.
+ * Result of a workflow run creation, carrying both the invocation resource name
+ * and the workspace name used for compilation.
  */
-public record InvocationActionResult(
-        @NotNull String target,
-        @NotNull InvocationActionState state,
-        @Nullable String failureReason,
-        @Nullable Instant startTime,
-        @Nullable Instant endTime,
-        @Nullable String jobId,
-        @Nullable String jobProject,   // ← nouveau
-        @Nullable String jobLocation,  // ← nouveau
-        @Nullable String sqlScript
+public record WorkflowCreationResult(
+        @NotNull String invocationName,
+        @NotNull String workspaceFullName
 ) {}

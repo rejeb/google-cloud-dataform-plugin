@@ -17,6 +17,7 @@
 package io.github.rejeb.dataform.language.gcp.execution.workflow.model;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 
@@ -26,7 +27,8 @@ import java.util.List;
 public record WorkflowInvocationProgress(
         @NotNull String invocationName,
         @NotNull WorkflowInvocationState state,
-        @NotNull List<InvocationActionResult> actions
+        @NotNull List<InvocationActionResult> actions,
+        @Nullable InvocationSummary summary
 ) {
     public boolean isTerminal() {
         return state != WorkflowInvocationState.RUNNING;

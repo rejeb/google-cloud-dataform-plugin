@@ -22,8 +22,10 @@ import com.intellij.openapi.diagnostic.Logger;
 import io.github.rejeb.dataform.language.gcp.common.GcpApiException;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.*;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -48,7 +50,7 @@ public final class GcpDataformWorkflowRepository implements WorkflowRepository, 
 
     @Override
     @NotNull
-    public String createWorkflowRun(
+    public WorkflowCreationResult createWorkflowRun(
             @NotNull String projectId,
             @NotNull String location,
             @NotNull String repositoryId,
@@ -98,7 +100,7 @@ public final class GcpDataformWorkflowRepository implements WorkflowRepository, 
                             .build()
             );
 
-            return invocation.getName();
+            return new WorkflowCreationResult(invocation.getName(), wsName);
         } catch (Exception e) {
             throw new GcpApiException("Error creating workflow run.", e);
         }
@@ -106,39 +108,127 @@ public final class GcpDataformWorkflowRepository implements WorkflowRepository, 
 
     @Override
     @NotNull
-    public WorkflowInvocationProgress getWorkflowRunProgress(@NotNull String workflowRunName) {
+    public WorkflowInvocationProgress getWorkflowRunProgress(@NotNull WorkflowCreationResult workflowRun) {
         try {
             WorkflowInvocation inv = client.getWorkflowInvocation(
                     GetWorkflowInvocationRequest.newBuilder()
-                            .setName(workflowRunName)
+                            .setName(workflowRun.invocationName())
                             .build()
             );
 
             List<InvocationActionResult> actions = new ArrayList<>();
-            Iterable<WorkflowInvocationAction> actionsProgress = client.queryWorkflowInvocationActions(
+            for (WorkflowInvocationAction action : client.queryWorkflowInvocationActions(
                     QueryWorkflowInvocationActionsRequest.newBuilder()
-                            .setName(workflowRunName)
+                            .setName(workflowRun.invocationName())
                             .build()
-            ).iterateAll();
-            for (WorkflowInvocationAction action : actionsProgress) {
+            ).iterateAll()) {
                 Target t = action.getTarget();
                 String label = t.getDatabase().isEmpty()
                         ? t.getSchema() + "." + t.getName()
                         : t.getDatabase() + "." + t.getSchema() + "." + t.getName();
 
+                Instant startTime = null;
+                Instant endTime = null;
+                if (action.hasInvocationTiming()) {
+                    com.google.type.Interval timing = action.getInvocationTiming();
+                    if (timing.hasStartTime() && timing.getStartTime().getSeconds() > 0) {
+                        startTime = Instant.ofEpochSecond(
+                                timing.getStartTime().getSeconds(),
+                                timing.getStartTime().getNanos());
+                    }
+                    if (timing.hasEndTime() && timing.getEndTime().getSeconds() > 0) {
+                        endTime = Instant.ofEpochSecond(
+                                timing.getEndTime().getSeconds(),
+                                timing.getEndTime().getNanos());
+                    }
+                }
+
+                String jobId       = null;
+                String jobProject  = null;
+                String sqlScript   = null;
+
+
+                if (action.hasBigqueryAction()) {
+                    String raw = action.getBigqueryAction().getJobId();
+                    jobId = raw.isBlank() ? null : raw;
+                    String sql = action.getBigqueryAction().getSqlScript();
+                    sqlScript = sql.isBlank() ? null : sql;
+                }
+
+                jobProject = !t.getDatabase().isEmpty() ? t.getDatabase(): null;
+
                 actions.add(new InvocationActionResult(
-                        label,
-                        mapActionState(action.getState()),
-                        action.getState() == WorkflowInvocationAction.State.FAILED
-                                ? action.getFailureReason()
-                                : null
+                        label, mapActionState(action.getState()),
+                        action.getState() == WorkflowInvocationAction.State.FAILED ? action.getFailureReason() : null,
+                        startTime, endTime,
+                        jobId, jobProject, null,
+                        sqlScript
                 ));
             }
 
-            return new WorkflowInvocationProgress(workflowRunName, mapRunState(inv.getState()), actions);
+            InvocationSummary summary = buildSummary(inv, workflowRun.workspaceFullName());
+            return new WorkflowInvocationProgress(workflowRun.invocationName(), mapRunState(inv.getState()), actions, summary);
         } catch (Exception e) {
             throw new GcpApiException("Error fetching workflow run progress.", e);
         }
+    }
+
+    private static InvocationSummary buildSummary(
+            @NotNull WorkflowInvocation inv,
+            @Nullable String workspaceFullName
+    ) {
+        String compilationResultName = inv.getCompilationResult();
+
+        String sourceType = (workspaceFullName != null) ? "WORKSPACE" : "COMPILATION_RESULT";
+
+        Instant startTime = Instant.now();
+        Instant endTime = null;
+
+        if (inv.hasInvocationTiming()) {
+            com.google.type.Interval timing = inv.getInvocationTiming();
+            if (timing.hasStartTime()) {
+                startTime = Instant.ofEpochSecond(
+                        timing.getStartTime().getSeconds(),
+                        timing.getStartTime().getNanos()
+                );
+            }
+            if (timing.hasEndTime()) {
+                com.google.protobuf.Timestamp ts = timing.getEndTime();
+                if (ts.getSeconds() > 0) {
+                    endTime = Instant.ofEpochSecond(ts.getSeconds(), ts.getNanos());
+                }
+            }
+        }
+
+        String contents = inv.hasInvocationConfig()
+                ? buildContentsLabel(inv.getInvocationConfig())
+                : "Full workflow";
+
+        return new InvocationSummary(
+                inv.getName(),
+                compilationResultName,
+                sourceType,
+                workspaceFullName,
+                contents,
+                startTime,
+                endTime
+        );
+    }
+
+    private static String buildContentsLabel(@NotNull InvocationConfig cfg) {
+        List<String> parts = new ArrayList<>();
+        if (!cfg.getIncludedTagsList().isEmpty()) {
+            parts.add("tags: " + String.join(", ", cfg.getIncludedTagsList()));
+        }
+        if (!cfg.getIncludedTargetsList().isEmpty()) {
+            parts.add("targets: " + cfg.getIncludedTargetsList().stream()
+                    .map(t -> t.getSchema() + "." + t.getName())
+                    .collect(java.util.stream.Collectors.joining(", ")));
+        }
+        if (cfg.getTransitiveDependenciesIncluded()) parts.add("+deps");
+        if (cfg.getTransitiveDependentsIncluded()) parts.add("+dependents");
+        if (cfg.getFullyRefreshIncrementalTablesEnabled()) parts.add("full refresh");
+        return parts.isEmpty() ? "All Actions" : String.join(" | ", parts);
     }
 
     @Override

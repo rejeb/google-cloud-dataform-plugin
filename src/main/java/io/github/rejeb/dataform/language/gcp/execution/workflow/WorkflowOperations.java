@@ -16,6 +16,7 @@
  */
 package io.github.rejeb.dataform.language.gcp.execution.workflow;
 
+import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowCreationResult;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowInvocationProgress;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowRunRequest;
 import org.jetbrains.annotations.NotNull;
@@ -32,13 +33,13 @@ public interface WorkflowOperations {
      *
      * @return the GCP resource name of the created run
      */
-    @NotNull String createWorkflowRun(@NotNull WorkflowRunRequest request);
+    @NotNull WorkflowCreationResult createWorkflowRun(@NotNull WorkflowRunRequest request);
 
     /**
      * Returns a progress snapshot for the given run.
      * Must be called off the EDT.
      */
-    @NotNull WorkflowInvocationProgress getWorkflowRunProgress(@NotNull String workflowRunName);
+    @NotNull WorkflowInvocationProgress getWorkflowRunProgress(@NotNull WorkflowCreationResult workflowRun);
 
     /**
      * Cancels a running workflow.

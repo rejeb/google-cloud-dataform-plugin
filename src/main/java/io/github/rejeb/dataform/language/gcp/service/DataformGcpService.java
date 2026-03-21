@@ -17,6 +17,8 @@
 package io.github.rejeb.dataform.language.gcp.service;
 
 import com.intellij.openapi.project.Project;
+import io.github.rejeb.dataform.language.gcp.execution.workflow.model.BigQueryJobDetails;
+import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowCreationResult;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowInvocationProgress;
 import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
 import io.github.rejeb.dataform.language.gcp.workspace.UncommittedChange;
@@ -111,13 +113,13 @@ public interface DataformGcpService {
      *
      * @return the GCP resource name of the created run
      */
-    @NotNull String createWorkflowRun(@NotNull WorkflowRunRequest request);
+    @NotNull WorkflowCreationResult createWorkflowRun(@NotNull WorkflowRunRequest request);
 
     /**
      * Returns a progress snapshot for the given workflow run.
      * Must be called off the EDT.
      */
-    @NotNull WorkflowInvocationProgress getWorkflowRunProgress(@NotNull String workflowRunName);
+    @NotNull WorkflowInvocationProgress getWorkflowRunProgress(@NotNull WorkflowCreationResult workflowRun);
 
     /**
      * Cancels a running workflow.
@@ -137,4 +139,14 @@ public interface DataformGcpService {
      */
     List<String> listAllPaths(@Nullable String workspaceId);
 
+    /**
+     * Fetches BigQuery job details for the given action.
+     * Must be called off the EDT.
+     */
+    @Nullable
+    BigQueryJobDetails getJobDetails(
+            @NotNull String jobId,
+            @NotNull String project,
+            @NotNull String location
+    );
 }

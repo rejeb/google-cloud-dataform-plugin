@@ -21,10 +21,15 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Disposer;
 import io.github.rejeb.dataform.language.gcp.common.GcpApiException;
+import io.github.rejeb.dataform.language.gcp.execution.workflow.BigQueryJobOperations;
+import io.github.rejeb.dataform.language.gcp.execution.workflow.BigQueryJobOperationsHandler;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.WorkflowOperations;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.WorkflowOperationsHandler;
+import io.github.rejeb.dataform.language.gcp.execution.workflow.model.BigQueryJobDetails;
+import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowCreationResult;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowInvocationProgress;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowRunRequest;
+import io.github.rejeb.dataform.language.gcp.execution.workflow.repository.GcpBigQueryJobRepository;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.repository.GcpDataformWorkflowRepository;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.repository.WorkflowRepository;
 import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
@@ -52,6 +57,7 @@ public final class DataformGcpServiceImpl implements DataformGcpService, Disposa
     private final AtomicBoolean loading = new AtomicBoolean(false);
     private final DataformGcpFileCache fileCache;
     private final WorkflowOperations workflowOperations;
+    private final BigQueryJobOperations bigQueryJobOperations;
 
     public DataformGcpServiceImpl(@NotNull Project project) {
         this.project = project;
@@ -64,6 +70,7 @@ public final class DataformGcpServiceImpl implements DataformGcpService, Disposa
         this.workspaceOperations = new WorkspaceOperationsHandler(repository, configProvider, project);
         WorkflowRepository workflowRepository = new GcpDataformWorkflowRepository();
         this.workflowOperations = new WorkflowOperationsHandler(workflowRepository, configProvider);
+        this.bigQueryJobOperations = new BigQueryJobOperationsHandler(new GcpBigQueryJobRepository());
     }
 
     @Override
@@ -98,7 +105,7 @@ public final class DataformGcpServiceImpl implements DataformGcpService, Disposa
                     fileCache.update(files);
                     com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater(() -> onDone.accept(files));
                     project.getMessageBus().syncPublisher(DataformGcpEvent.TOPIC).onFilesLoaded(files);
-                } catch (GcpApiException e) {
+                } catch (Exception e) {
                     LOG.warn("Failed to refresh Dataform files.", e);
                     com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater(() -> onDone.accept(List.of()));
                 } finally {
@@ -113,7 +120,7 @@ public final class DataformGcpServiceImpl implements DataformGcpService, Disposa
     public List<Workspace> listWorkspaces() {
         try {
             return workspaceOperations.listWorkspaces();
-        } catch (GcpApiException e) {
+        } catch (Exception e) {
             LOG.error("Failed to list Dataform workspaces", e);
             return List.of();
         }
@@ -196,14 +203,13 @@ public final class DataformGcpServiceImpl implements DataformGcpService, Disposa
     }
 
     @Override
-    public @NotNull String createWorkflowRun(@NotNull WorkflowRunRequest request) {
-        workspaceOperations.pushCode(request.workspaceId());
+    public @NotNull WorkflowCreationResult createWorkflowRun(@NotNull WorkflowRunRequest request) {
         return workflowOperations.createWorkflowRun(request);
     }
 
     @Override
-    public @NotNull WorkflowInvocationProgress getWorkflowRunProgress(@NotNull String workflowRunName) {
-        return workflowOperations.getWorkflowRunProgress(workflowRunName);
+    public @NotNull WorkflowInvocationProgress getWorkflowRunProgress(@NotNull WorkflowCreationResult workflowRun) {
+        return workflowOperations.getWorkflowRunProgress(workflowRun);
     }
 
     @Override
@@ -214,5 +220,15 @@ public final class DataformGcpServiceImpl implements DataformGcpService, Disposa
     @Override
     public List<String> listAllPaths(@Nullable String workspaceId) {
         return workspaceOperations.listAllPaths(workspaceId);
+    }
+
+    @Override
+    @Nullable
+    public BigQueryJobDetails getJobDetails(
+            @NotNull String jobId,
+            @NotNull String project,
+            @NotNull String location
+    ) {
+        return bigQueryJobOperations.getJobDetails(jobId, project, location);
     }
 }
