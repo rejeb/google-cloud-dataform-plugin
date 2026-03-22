@@ -26,14 +26,13 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import org.jetbrains.annotations.NotNull;
 
+import static io.github.rejeb.dataform.language.util.Utils.isActionFile;
+
 public class SqlxSplitEditorProvider implements FileEditorProvider, DumbAware {
 
     @Override
     public boolean accept(@NotNull Project project, @NotNull VirtualFile file) {
-        String normalizedPath = file.getPath().replace('\\', '/');
-        return normalizedPath.contains("/definitions/") &&
-                (normalizedPath.endsWith(".sqlx") || normalizedPath.endsWith(".js")) &&
-                file.isWritable();
+        return isActionFile(file);
     }
 
     @Override

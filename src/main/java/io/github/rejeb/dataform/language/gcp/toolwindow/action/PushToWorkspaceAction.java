@@ -21,6 +21,8 @@ import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.ui.JBColor;
+import com.intellij.util.IconUtil;
 import io.github.rejeb.dataform.language.gcp.toolwindow.dispatcher.GcpPanelActionDispatcher;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -36,7 +38,7 @@ public class PushToWorkspaceAction extends AnAction {
             @NotNull Supplier<@Nullable String> workspaceIdSupplier,
             @NotNull GcpPanelActionDispatcher dispatcher
     ) {
-        super(() -> "Push Files from Local to Workspace", AllIcons.Actions.Upload);
+        super(() -> "Send Local Files to Workspace", IconUtil.colorize(AllIcons.Vcs.Push, JBColor.BLUE));
         this.workspaceIdSupplier = workspaceIdSupplier;
         this.dispatcher = dispatcher;
     }

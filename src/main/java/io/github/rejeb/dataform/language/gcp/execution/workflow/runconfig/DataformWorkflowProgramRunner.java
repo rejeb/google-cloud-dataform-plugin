@@ -30,6 +30,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.concurrency.Promise;
 import org.jetbrains.concurrency.Promises;
 
+import static io.github.rejeb.dataform.language.util.Utils.flushFiles;
+
 public class DataformWorkflowProgramRunner
         extends AsyncProgramRunner<RunnerSettings> {
 
@@ -54,6 +56,7 @@ public class DataformWorkflowProgramRunner
             @NotNull RunProfileState state
     ) {
         try {
+            flushFiles(environment.getProject());
             ExecutionResult result = state.execute(
                     environment.getExecutor(), this);
             if (result == null) {

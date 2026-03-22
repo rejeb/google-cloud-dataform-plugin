@@ -37,10 +37,10 @@ public class SqlxParser implements PsiParser {
 
             if (tokenType == SharedTokenTypes.CONFIG_KEYWORD) {
                 markElement(builder, SharedTokenTypes.CONFIG_KEYWORD);
-                markElement(builder,SqlxElementTypes.CONFIG_BLOCK);
+                parseJsBlock(builder,SqlxElementTypes.CONFIG_BLOCK);
             } else if (tokenType == SharedTokenTypes.JS_KEYWORD) {
                 markElement(builder, SharedTokenTypes.JS_KEYWORD);
-                parseJsBlock(builder);
+                parseJsBlock(builder,SqlxElementTypes.JS_BLOCK);
             } else if (tokenType == SharedTokenTypes.PRE_OPERATIONS_KEYWORD) {
                 markElement(builder, SharedTokenTypes.PRE_OPERATIONS_KEYWORD);
                 parseOperationsBlock(builder, SharedTokenTypes.PRE_OPERATIONS_CONTENT);
@@ -78,7 +78,7 @@ public class SqlxParser implements PsiParser {
     }
 
 
-    private void parseJsBlock(PsiBuilder builder) {
+    private void parseJsBlock(PsiBuilder builder, @NotNull IElementType elementType) {
         PsiBuilder.Marker marker = builder.mark();
         int braceCount = 0;
         while (!builder.eof()) {
@@ -96,7 +96,7 @@ public class SqlxParser implements PsiParser {
             }
         }
 
-        marker.done(SqlxElementTypes.JS_BLOCK);
+        marker.done(elementType);
     }
 
     private void parseSqlBlock(PsiBuilder builder) {

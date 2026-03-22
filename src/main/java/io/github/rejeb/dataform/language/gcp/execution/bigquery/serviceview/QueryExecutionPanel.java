@@ -173,8 +173,7 @@ public class QueryExecutionPanel extends JPanel {
 
         GridUtil.putSettings(grid, ApplicationManager.getApplication().getService(DatabaseSettings.class));
         GridHelperImpl helper = new GridHelperImpl();
-        helper.setDefaultPageSize(BigQueryPagedResult.DEFAULT_PAGE_SIZE);
-        helper.setLimitDefaultPageSize(true);
+
         GridHelper.set(grid, helper);
         GridCellEditorHelper.set(grid, new GridCellEditorHelperImpl());
         GridCellEditorFactoryProvider.set(grid, GridCellEditorFactoryImpl.getInstance());

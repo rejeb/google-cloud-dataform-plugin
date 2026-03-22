@@ -28,7 +28,7 @@ public class ExecuteQueryAction extends AnAction {
     private final SqlxCompiledPreviewEditor preview;
 
     public ExecuteQueryAction(@NotNull SqlxCompiledPreviewEditor preview) {
-        super("Execute Query", "Execute the compiled BigQuery SQL", AllIcons.Actions.Execute);
+        super("Execute Query", "Execute the compiled BigQuery SQL", AllIcons.Nodes.Alias);
         this.preview = preview;
     }
 

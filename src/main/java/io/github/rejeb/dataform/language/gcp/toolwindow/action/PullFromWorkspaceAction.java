@@ -21,6 +21,8 @@ import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.ui.JBColor;
+import com.intellij.util.IconUtil;
 import io.github.rejeb.dataform.language.gcp.toolwindow.dispatcher.GcpPanelActionDispatcher;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -36,7 +38,7 @@ public class PullFromWorkspaceAction extends AnAction {
             @NotNull Supplier<@Nullable String> workspaceIdSupplier,
             @NotNull GcpPanelActionDispatcher dispatcher
     ) {
-        super(() -> "Pull Files from Workspace to Local", AllIcons.Actions.Download);
+        super(() -> "Fetch Files from Workspace to Local", IconUtil.colorize(AllIcons.Actions.CheckOut, JBColor.GREEN));
         this.workspaceIdSupplier = workspaceIdSupplier;
         this.dispatcher = dispatcher;
     }

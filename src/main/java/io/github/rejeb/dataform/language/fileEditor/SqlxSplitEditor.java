@@ -16,15 +16,21 @@
  */
 package io.github.rejeb.dataform.language.fileEditor;
 
+import com.intellij.execution.actions.RunContextAction;
+import com.intellij.execution.actions.RunNewConfigurationContextAction;
+import com.intellij.execution.executors.DefaultRunExecutor;
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.editor.event.DocumentEvent;
 import com.intellij.openapi.editor.event.DocumentListener;
 import com.intellij.openapi.fileEditor.TextEditor;
 import com.intellij.openapi.fileEditor.TextEditorWithPreview;
+import com.intellij.ui.JBColor;
 import com.intellij.util.Alarm;
+import com.intellij.util.IconUtil;
 import icons.DatabaseIcons;
 import io.github.rejeb.dataform.language.fileEditor.action.ExecuteQueryAction;
+import io.github.rejeb.dataform.language.fileEditor.action.RunBuildAction;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -74,7 +80,11 @@ public class SqlxSplitEditor extends TextEditorWithPreview {
     @Override
     protected @Nullable ActionGroup createLeftToolbarActionGroup() {
         DefaultActionGroup group = new DefaultActionGroup();
+        group.add(new RunBuildAction(myPreview.getProject()));
+        group.addSeparator();
         group.add(new ExecuteQueryAction(myPreview));
+        group.addSeparator();
+        group.add(new RunContextAction(new DefaultRunExecutor()));
         return group;
     }
 
@@ -96,7 +106,7 @@ public class SqlxSplitEditor extends TextEditorWithPreview {
         ));
         group.add(new ShowViewAction(
                 "Lineage", "Show lineage graph",
-                AllIcons.General.Layout,
+                IconUtil.colorize(AllIcons.CodeWithMe.CwmShared, JBColor.BLUE),
                 SqlxCompiledPreviewEditor.View.LINEAGE
         ));
         return group;
@@ -121,7 +131,6 @@ public class SqlxSplitEditor extends TextEditorWithPreview {
 
         @Override
         public void actionPerformed(@NotNull AnActionEvent e) {
-            Layout current = getLayout();
             boolean isThisViewActive = myPreview.getActiveView() == view;
 
             if (!isThisViewActive) {

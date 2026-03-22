@@ -24,7 +24,9 @@ import io.github.rejeb.dataform.language.psi.SharedTokenTypes;
 public class SqlxLexerAdapter extends LayeredLexer {
     public SqlxLexerAdapter() {
         super(new SqlxFileLexer());
-
+        registerLayer(
+                new JavaScriptHighlightingLexer(DialectOptionHolder.JS_1_5),
+                SharedTokenTypes.CONFIG_CONTENT);
         registerLayer(
                 new JavaScriptHighlightingLexer(DialectOptionHolder.JS_1_5),
                 SharedTokenTypes.JS_CONTENT

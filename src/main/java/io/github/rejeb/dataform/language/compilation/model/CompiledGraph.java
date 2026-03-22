@@ -133,7 +133,20 @@ public class CompiledGraph {
                 .or(() -> findOperationByName(refName).map(CompiledOperation::getTarget));
     }
 
-    public Set<String> getTags(){
+    public List<String> getTags(String fileName) {
+        return Stream.of(
+                        findTableByFileName(fileName).stream()
+                                .flatMap(t -> t.getTags().stream()),
+                        findAssertionByFileName(fileName).stream()
+                                .flatMap(a -> a.getTags().stream()),
+                        findOperationByFileName(fileName).stream()
+                                .flatMap(o -> o.getTags().stream())
+                ).flatMap(s -> s)
+                .distinct()
+                .collect(Collectors.toList());
+    }
+
+    public Set<String> getTags() {
         return Stream.of(
                         getTables().stream()
                                 .flatMap(t -> t.getTags().stream()),
@@ -146,7 +159,7 @@ public class CompiledGraph {
                 .collect(Collectors.toSet());
     }
 
-    public  List<String> getAllTargets(){
+    public List<String> getAllTargets() {
         return Stream.of(
                         getTables().stream()
                                 .map(t -> t.getTarget().getFullName()),

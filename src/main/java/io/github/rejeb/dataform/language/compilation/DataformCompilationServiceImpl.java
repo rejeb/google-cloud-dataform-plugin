@@ -22,15 +22,12 @@ import com.intellij.execution.ExecutionException;
 import com.intellij.execution.configurations.GeneralCommandLine;
 import com.intellij.execution.process.ProcessOutput;
 import com.intellij.execution.util.ExecUtil;
-import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.components.State;
 import com.intellij.openapi.components.Storage;
 import com.intellij.openapi.diagnostic.Logger;
-import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectUtil;
 import com.intellij.openapi.vfs.VirtualFile;
-import com.intellij.psi.PsiDocumentManager;
 import io.github.rejeb.dataform.language.compilation.model.CompilationError;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.compilation.model.GraphErrors;
@@ -40,6 +37,8 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.Optional;
+
+import static io.github.rejeb.dataform.language.util.Utils.flushFiles;
 
 @State(
         name = "DataformCompilationService",
@@ -87,7 +86,7 @@ public final class DataformCompilationServiceImpl
         if (project.isDisposed()) {
             return null;
         }
-        flushFiles();
+        flushFiles(project);
         if (compiledGraph != null
                 && currentState.lastCompileTimestamp > 0
                 && !hasSourcesChangedSince(currentState.lastCompileTimestamp)
@@ -137,12 +136,6 @@ public final class DataformCompilationServiceImpl
         compiledGraph = null;
     }
 
-    public void flushFiles() {
-        ApplicationManager.getApplication().invokeAndWait(() -> {
-            PsiDocumentManager.getInstance(project).commitAllDocuments();
-            FileDocumentManager.getInstance().saveAllDocuments();
-        });
-    }
 
     private boolean hasSourcesChangedSince(long referenceTime) {
         VirtualFile projectDir = ProjectUtil.guessProjectDir(project);

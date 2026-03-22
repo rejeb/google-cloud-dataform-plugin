@@ -32,8 +32,6 @@ public interface DataformCompilationService extends Disposable, PersistentStateC
 
     CompiledGraph getCompiledGraph();
 
-    void flushFiles();
-
     class State {
         @Tag("compiledGraphJson")
         public String compiledGraphJson = null;

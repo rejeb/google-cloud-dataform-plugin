@@ -47,9 +47,13 @@ intellijPlatform {
 
         changeNotes = """
                 <ul>
-                    <li>Add autocomplete on bigQuery tables created with Dataform code.</li>
-                    <li>Add table schema view tab.</li>
-                    <li>Add indexes caches.</li>
+                    <li>Add managing dataform repository and workspaces panel.</li>
+                    <li>Add Fetch files from repository or workspace to local.</li>
+                    <li>Add Push files from local repository or workspace.</li>
+                    <li>Add dataform repository and workspace files browser.</li>
+                    <li>Add dataform repository commit to workspace and push to main repository branch.</li>
+                    <li>Add run queries and execute actions.</li>
+                    <li>View action execution results</li>
                     <li>Fixing issues.</li>
                 </ul>
         """.trimIndent()

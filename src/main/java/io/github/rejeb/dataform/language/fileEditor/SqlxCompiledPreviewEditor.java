@@ -59,7 +59,7 @@ import io.github.rejeb.dataform.language.gcp.execution.bigquery.serviceview.Quer
 import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
 import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
 import io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService;
-import io.github.rejeb.dataform.language.util.CodeStyleFormatUtils;
+import io.github.rejeb.dataform.language.util.Utils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -80,7 +80,7 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
     private final VirtualFile file;
     private long myLastCompiledStamp = -1;
 
-    public SqlxCompiledPreviewEditor(Project project, VirtualFile file) {
+    public SqlxCompiledPreviewEditor(@NotNull Project project, VirtualFile file) {
         this.project = project;
         this.file = file;
         schemaPanel = new SchemaPanel(project);
@@ -95,6 +95,11 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
 
         showPanel(View.LINEAGE);
         updateCompiledSql();
+    }
+
+    @NotNull
+    public Project getProject() {
+        return project;
     }
 
     public void updateCompiledSql() {
@@ -315,10 +320,10 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
 
     private static FormattedCompiledQuery toFormatted(CompiledQuery q, Project project) {
         List<String> preOps = q.preOps().stream()
-                .map(s -> CodeStyleFormatUtils.formatSql(project,s )).toList();
+                .map(s -> Utils.formatSql(project,s )).toList();
         List<String> postOps = q.postOps().stream()
-                .map(s -> CodeStyleFormatUtils.formatSql(project,s )).toList();
-        String query = q.query() != null ? CodeStyleFormatUtils.formatSql(project, q.query()) : null;
+                .map(s -> Utils.formatSql(project,s )).toList();
+        String query = q.query() != null ? Utils.formatSql(project, q.query()) : null;
         String errors = q.compilationErrors() != null && !q.compilationErrors().isEmpty()
                 ? String.join("\n", q.compilationErrors()) : null;
         return new FormattedCompiledQuery(

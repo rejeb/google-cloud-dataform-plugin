@@ -205,6 +205,11 @@
         <programRunner
                 implementation="io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.DataformWorkflowProgramRunner"/>
 
+        <codeInsight.lineMarkerProvider
+                language="SQLX"
+                implementationClass="io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.SqlxEditorGutterProvider"/>
+        <runConfigurationProducer
+                implementation="io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.DataformSqlxRunConfigurationProducer"/>
     </extensions>
     <actions>
         <action id="Dataform.CompareFileWithRemote"
