@@ -25,8 +25,9 @@ Il s'agit d'un plugin IntelliJ complet (version courante : `0.2.9`) qui fournit 
 - Plateforme : IntelliJ Platform SDK `2025.2.6.1` (sinceBuild `252`).
 - Analyse syntaxique : Lexer et Parser personnalisés (sans JFlex). Les sources générées sont dans `src/main/gen/`.
 - Outil de build : Gradle (Kotlin DSL `build.gradle.kts`), plugin Gradle IntelliJ Platform `2.12.0`.
-- UI : Compose for IntelliJ IDE (`composeUI()` activé dans le build).
-- Dépendances GCP : `com.google.cloud:google-cloud-dataform`, `com.google.cloud:google-cloud-bigquery` (via BOM `26.77.0`).
+- Kotlin : version `2.3.10` (utilisée pour le plugin Compose et le DSL Gradle).
+- UI : Compose for IntelliJ IDE (`composeUI()` activé dans le build, plugin Kotlin Compose `2.3.10`).
+- Dépendances GCP : `com.google.cloud:google-cloud-dataform`, `com.google.cloud:google-cloud-bigquery` (via BOM `26.78.0`).
 - Dépendances Plugin IntelliJ (bundled) :
   - `com.intellij.java`
   - `JavaScript`
@@ -35,7 +36,7 @@ Il s'agit d'un plugin IntelliJ complet (version courante : `0.2.9`) qui fournit 
   - `com.intellij.modules.json`
   - `org.jetbrains.plugins.yaml`
   - `org.jetbrains.plugins.terminal`
-- Tests : JUnit 5 (`junit-jupiter`), JUnit Vintage, Mockito 5, IntelliJ Platform Test Framework (`BasePlatformTestCase`, `LightJavaCodeInsightFixtureTestCase`).
+- Tests : JUnit 5 (`junit-jupiter:5.10.1`), JUnit Vintage (`5.10.0`), Mockito 5 (`5.11.0`), IntelliJ Platform Test Framework (`BasePlatformTestCase`, `LightJavaCodeInsightFixtureTestCase`).
 
 ## 3. Fonctionnalités Principales
 
@@ -49,29 +50,33 @@ Il s'agit d'un plugin IntelliJ complet (version courante : `0.2.9`) qui fournit 
 
 ## 4. Architecture et Structure du Projet
 
-Package racine : `src/main/java/io/github/rejeb/dataform/`
+Package racine : `src/main/java/io/github/rejeb/dataform/language/`
 
-### 4.1 Sous-package `language/`
+> ⚠️ Tous les sous-packages (y compris `projectWizard`, `settings`, `setup`) sont sous `language/`, pas directement sous `dataform/`.
 
-Contient tout le support de langage SQLX et l'intégration GCP.
+### 4.1 Sous-package `language/` (racine)
 
-| Package | Rôle |
+| Fichier / Package | Rôle |
 |---|---|
-| `language/` (racine) | Classes fondamentales : `SqlxLanguage`, `SqlxFileType`, `SqlxFileViewProvider`, `SqlxFileViewProviderFactory`, `DataformIcons` |
-| `language/compilation/` | Modèles de compilation et tâches (ex: `DataformCompileBeforeTask`) |
-| `language/completion/` | Contributeurs pour la complétion de code intelligente |
-| `language/fileEditor/` | Éditeurs de fichiers personnalisés pour l'UI |
-| `language/highlight/` | Coloration syntaxique et annotations sémantiques |
-| `language/index/` | Indexation des fichiers et symboles (file-based indexes) |
-| `language/injection/` | Mécanismes d'injection de langage (SQL, JS, Config) |
-| `language/lexer/` | Lexer pour les fichiers SQLX |
-| `language/parser/` | Parser SQLX |
-| `language/psi/` | Éléments PSI (Program Structure Interface) |
-| `language/reference/` | Résolution des références croisées |
-| `language/schema/` | Validation et complétion basées sur les schémas JSON/YAML |
-| `language/service/` | Services IntelliJ (project-level/application-level) |
-| `language/startup/` | Startup Activities (post-startup init) |
-| `language/util/` | Classes utilitaires |
+| `SqlxLanguage.java` | Définition du langage SQLX |
+| `SqlxFileType.java` | Type de fichier `.sqlx` |
+| `SqlxFileViewProvider.java` | ViewProvider multi-langages pour les fichiers SQLX |
+| `SqlxFileViewProviderFactory.java` | Factory du ViewProvider |
+| `DataformIcons.java` | Icônes du plugin |
+| `compilation/` | Modèles de compilation et tâches (ex: `DataformCompileBeforeTask`) |
+| `completion/` | Contributeurs pour la complétion de code intelligente |
+| `fileEditor/` | Éditeurs de fichiers personnalisés pour l'UI |
+| `highlight/` | Coloration syntaxique et annotations sémantiques |
+| `index/` | Indexation des fichiers et symboles (file-based indexes) |
+| `injection/` | Mécanismes d'injection de langage (SQL, JS, Config) |
+| `lexer/` | Lexer pour les fichiers SQLX |
+| `parser/` | Parser SQLX |
+| `psi/` | Éléments PSI (Program Structure Interface) |
+| `reference/` | Résolution des références croisées |
+| `schema/` | Validation et complétion basées sur les schémas JSON/YAML |
+| `service/` | Services IntelliJ (project-level/application-level) |
+| `startup/` | Startup Activities (post-startup init) |
+| `util/` | Classes utilitaires |
 
 ### 4.2 Sous-package `language/gcp/`
 
@@ -88,13 +93,13 @@ Contient toute l'intégration Google Cloud Platform.
 | `gcp/toolwindow/` | Tool Window Dataform : arbre de workspace, onglet schéma de table |
 | `gcp/workspace/` | Gestion des workspaces Dataform (sync, push, pull fichiers) |
 
-### 4.3 Autres sous-packages
+### 4.3 Autres sous-packages (tous sous `language/`)
 
 | Package | Rôle |
 |---|---|
-| `projectWizard/` | Assistant de création de nouveau projet Dataform |
-| `settings/` | Settings globaux du plugin (hors GCP) |
-| `setup/` | Installation et configuration de l'environnement (CLI Dataform, Node.js) |
+| `language/projectWizard/` | Assistant de création de nouveau projet Dataform |
+| `language/settings/` | Settings globaux du plugin (hors GCP) |
+| `language/setup/` | Installation et configuration de l'environnement (CLI Dataform, Node.js) |
 
 ### 4.4 Fichiers de configuration clés
 
