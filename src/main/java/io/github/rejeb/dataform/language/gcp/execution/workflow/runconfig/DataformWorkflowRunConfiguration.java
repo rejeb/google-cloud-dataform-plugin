@@ -25,6 +25,7 @@ import com.intellij.openapi.project.Project;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.InvocationTarget;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.Mode;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowRunRequest;
+import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -60,6 +61,7 @@ public class DataformWorkflowRunConfiguration
     }
 
     public void setWorkspaceId(String v) {
+        GcpRepositorySettings.getInstance(getProject()).setSelectedWorkspaceId(v);
         getOptions().setWorkspaceId(v);
     }
 
@@ -114,9 +116,9 @@ public class DataformWorkflowRunConfiguration
     @NotNull
     public WorkflowRunRequest toWorkflowRunRequest() {
         List<InvocationTarget> targets = getSelectedMode().equals(Mode.ACTIONS) ? getIncludedTargets().stream()
-                .filter(s -> s != null && !s.isBlank())
-                .map(DataformWorkflowRunConfiguration::parseTarget)
-                .collect(Collectors.toList())
+                                                                                  .filter(s -> s != null && !s.isBlank())
+                                                                                  .map(DataformWorkflowRunConfiguration::parseTarget)
+                                                                                  .collect(Collectors.toList())
                 : List.of();
         List<String> tags = getSelectedMode().equals(Mode.TAGS) ? List.copyOf(getIncludedTags()) : List.of();
         return new WorkflowRunRequest(

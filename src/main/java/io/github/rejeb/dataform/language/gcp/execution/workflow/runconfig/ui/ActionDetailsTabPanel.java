@@ -36,6 +36,7 @@ import io.github.rejeb.dataform.language.gcp.execution.workflow.model.Invocation
 import io.github.rejeb.dataform.language.gcp.service.DataformGcpService;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jspecify.annotations.NonNull;
 
 import javax.swing.*;
 import javax.swing.table.*;
@@ -49,6 +50,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
+import static io.github.rejeb.dataform.language.util.Utils.formatBytes;
 import static io.github.rejeb.dataform.language.util.Utils.formatSql;
 
 public class ActionDetailsTabPanel extends JPanel implements Disposable {
@@ -93,6 +95,7 @@ public class ActionDetailsTabPanel extends JPanel implements Disposable {
 
         cardLayout.show(cards, CARD_EMPTY);
         add(cards, BorderLayout.CENTER);
+
     }
 
     @Override
@@ -275,7 +278,6 @@ public class ActionDetailsTabPanel extends JPanel implements Disposable {
         table.setGridColor(UIUtil.getTableGridColor());
         table.setIntercellSpacing(new Dimension(1, 1));
         table.setRowHeight(MIN_ROW_HEIGHT);
-        table.setAutoResizeMode(JTable.AUTO_RESIZE_LAST_COLUMN);
         table.getTableHeader().setReorderingAllowed(false);
         table.setFillsViewportHeight(false);
         table.setStriped(false);
@@ -299,19 +301,47 @@ public class ActionDetailsTabPanel extends JPanel implements Disposable {
             }
         });
 
+        table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+
         sizeFixedColumns(table, columns.length, 3);
 
-        table.addHierarchyListener(e -> {
-            if ((e.getChangeFlags() & HierarchyEvent.SHOWING_CHANGED) != 0
-                    && table.isShowing()) {
+        JPanel wrapper = new JPanel(new BorderLayout());
+        wrapper.setAlignmentX(Component.LEFT_ALIGNMENT);
+        wrapper.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
+        wrapper.add(table.getTableHeader(), BorderLayout.NORTH);
+        wrapper.add(table, BorderLayout.CENTER);
+
+        wrapper.addComponentListener(new java.awt.event.ComponentAdapter() {
+            @Override
+            public void componentResized(java.awt.event.ComponentEvent e) {
+                int totalWidth = wrapper.getWidth();
+                if (totalWidth <= 0) return;
+                int fixedWidth = 0;
+                for (int col = 0; col < table.getColumnCount(); col++) {
+                    if (col != 3) fixedWidth += table.getColumnModel().getColumn(col).getWidth();
+                }
+                int sqlWidth = totalWidth - fixedWidth - table.getIntercellSpacing().width * (table.getColumnCount() - 1);
+                if (sqlWidth > 0) {
+                    TableColumn sqlCol = table.getColumnModel().getColumn(3);
+                    sqlCol.setPreferredWidth(sqlWidth);
+                    sqlCol.setWidth(sqlWidth);
+                }
                 SwingUtilities.invokeLater(() -> computeRowHeights(table, rowEditors));
             }
         });
 
+        // Supprime le HierarchyListener existant (remplacé par componentResized ci-dessus)
+        return wrapper;
+    }
+
+    private static @NonNull JPanel getJPanel(JBTable table) {
+        JBScrollPane scrollPane = new JBScrollPane(table);
+        scrollPane.setAlignmentX(Component.LEFT_ALIGNMENT);
+        scrollPane.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_NEVER);
+        scrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
         JPanel wrapper = new JPanel(new BorderLayout());
         wrapper.setAlignmentX(Component.LEFT_ALIGNMENT);
-        wrapper.add(table.getTableHeader(), BorderLayout.NORTH);
-        wrapper.add(table, BorderLayout.CENTER);
+        wrapper.add(scrollPane, BorderLayout.CENTER);
         return wrapper;
     }
 
@@ -324,14 +354,17 @@ public class ActionDetailsTabPanel extends JPanel implements Disposable {
         int colWidth = table.getColumnModel().getColumn(3).getWidth();
         if (colWidth <= 0) return;
         for (int row = 0; row < editors.size(); row++) {
-            String sql = editors.get(row).getDocument().getText();
+            EditorEx editor = editors.get(row);
+            String sql = editor.getDocument().getText();
+            Font editorFont = editor.getColorsScheme()
+                    .getFont(com.intellij.openapi.editor.colors.EditorFontType.PLAIN);
             JTextArea probe = new JTextArea(sql);
-            probe.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+            probe.setFont(editorFont);
             probe.setLineWrap(true);
             probe.setWrapStyleWord(true);
             probe.setSize(colWidth - JBUI.scale(8), Integer.MAX_VALUE);
             int natural = probe.getPreferredSize().height + JBUI.scale(8);
-            table.setRowHeight(row, Math.max(MIN_ROW_HEIGHT, Math.min(natural, MAX_SQL_HEIGHT)));
+            table.setRowHeight(row, Math.clamp(natural, MIN_ROW_HEIGHT, MAX_SQL_HEIGHT));
         }
     }
 
@@ -432,7 +465,7 @@ public class ActionDetailsTabPanel extends JPanel implements Disposable {
             int rowHeight = table.getRowHeight(targetRow);
             int colWidth = table.getColumnModel().getColumn(3).getWidth();
             boolean needsScroll = needsVerticalScroll(
-                    editor.getDocument().getText(), colWidth, rowHeight);
+                    editor.getDocument().getText(), editor, colWidth, rowHeight);
 
             JBScrollPane sp = new JBScrollPane(editor.getComponent());
             sp.setBorder(JBUI.Borders.empty());
@@ -444,9 +477,12 @@ public class ActionDetailsTabPanel extends JPanel implements Disposable {
         }
 
         private static boolean needsVerticalScroll(@NotNull String sql,
+                                                   @NotNull EditorEx editor,
                                                    int colWidth, int rowHeight) {
+            Font editorFont = editor.getColorsScheme()
+                    .getFont(com.intellij.openapi.editor.colors.EditorFontType.PLAIN);
             JTextArea probe = new JTextArea(sql);
-            probe.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+            probe.setFont(editorFont);
             probe.setLineWrap(true);
             probe.setWrapStyleWord(true);
             probe.setSize(colWidth > 0 ? colWidth : 400, Integer.MAX_VALUE);
@@ -467,8 +503,10 @@ public class ActionDetailsTabPanel extends JPanel implements Disposable {
         s.setIndentGuidesShown(false);
         s.setVirtualSpace(false);
         s.setUseSoftWraps(true);
+        s.setRightMarginShown(false);
         editor.setHorizontalScrollbarVisible(false);
         editor.setVerticalScrollbarVisible(false);
+        editor.setBorder(JBUI.Borders.empty());
         return editor;
     }
 
@@ -481,14 +519,7 @@ public class ActionDetailsTabPanel extends JPanel implements Disposable {
                 + "&page=queryresults";
     }
 
-    @NotNull
-    private static String formatBytes(@Nullable Long bytes) {
-        if (bytes == null || bytes < 0) return "—";
-        if (bytes < 1_024) return bytes + " B";
-        if (bytes < 1_048_576) return String.format("%.1f KB", bytes / 1_024.0);
-        if (bytes < 1_073_741_824) return String.format("%.1f MB", bytes / 1_048_576.0);
-        return String.format("%.2f GB", bytes / 1_073_741_824.0);
-    }
+
 
     @NotNull
     private static String formatDuration(@Nullable java.time.Instant start,

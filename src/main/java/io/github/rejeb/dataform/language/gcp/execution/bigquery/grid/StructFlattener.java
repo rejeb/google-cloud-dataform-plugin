@@ -19,6 +19,9 @@ package io.github.rejeb.dataform.language.gcp.execution.bigquery.grid;
 import com.google.cloud.bigquery.*;
 import org.jetbrains.annotations.NotNull;
 
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -28,8 +31,14 @@ import java.util.List;
  * so that per-row value extraction requires no schema traversal.
  */
 public final class StructFlattener {
+    private static final DateTimeFormatter TIMESTAMP_FMT =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSS z")
+                    .withZone(ZoneId.systemDefault());
 
-    private StructFlattener() {}
+    private static final DateTimeFormatter DATETIME_FMT =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSS");
+    private StructFlattener() {
+    }
 
     /**
      * Recursively flattens a list of BigQuery Fields into a flat list of (dotted-name, Field) pairs.
@@ -63,12 +72,12 @@ public final class StructFlattener {
             @NotNull List<RowExtractor> out
     ) {
         for (int i = 0; i < fields.size(); i++) {
-            Field field   = fields.get(i);
-            int[] path    = append(parentPath, i);
+            Field field = fields.get(i);
+            int[] path = append(parentPath, i);
             if (isStruct(field) && hasSubFields(field)) {
                 buildExtractors(field.getSubFields(), path, out);
             } else {
-                out.add(new RowExtractor(path));
+                out.add(new RowExtractor(path,field));
             }
         }
     }
@@ -88,12 +97,27 @@ public final class StructFlattener {
         return field.getSubFields() != null && !field.getSubFields().isEmpty();
     }
 
-    private static Object toDisplayValue(@NotNull FieldValue fv) {
+    private static Object toDisplayValue(@NotNull FieldValue fv, @NotNull Field field) {
         return switch (fv.getAttribute()) {
-            case RECORD    -> serializeRecord(fv.getRecordValue());
-            case REPEATED  -> serializeRepeated(fv.getRepeatedValue());
-            case RANGE     -> serializeRange(fv.getRangeValue());
-            case PRIMITIVE -> fv.getValue();
+            case RECORD   -> serializeRecord(fv.getRecordValue());
+            case REPEATED -> serializeRepeated(fv.getRepeatedValue());
+            case RANGE    -> serializeRange(fv.getRangeValue());
+            case PRIMITIVE -> {
+                StandardSQLTypeName type = field.getType().getStandardType();
+                String raw = (String) fv.getValue();
+                yield switch (type) {
+                    case TIMESTAMP -> {
+                        // BigQuery retourne des microsecondes depuis l'epoch
+                        long micros = new java.math.BigDecimal(raw)
+                                .multiply(java.math.BigDecimal.valueOf(1_000_000))
+                                .longValue();
+                        Instant instant = Instant.ofEpochSecond(
+                                micros / 1_000_000, (micros % 1_000_000) * 1_000);
+                        yield TIMESTAMP_FMT.format(instant);
+                    }
+                    default -> raw;
+                };
+            }
         };
     }
 
@@ -123,9 +147,9 @@ public final class StructFlattener {
 
     private static String toJsonValue(@NotNull FieldValue fv) {
         return switch (fv.getAttribute()) {
-            case RECORD    -> serializeRecord(fv.getRecordValue());
-            case REPEATED  -> serializeRepeated(fv.getRepeatedValue());
-            case RANGE     -> "\"" + serializeRange(fv.getRangeValue()) + "\"";
+            case RECORD -> serializeRecord(fv.getRecordValue());
+            case REPEATED -> serializeRepeated(fv.getRepeatedValue());
+            case RANGE -> "\"" + serializeRange(fv.getRangeValue()) + "\"";
             case PRIMITIVE -> {
                 Object v = fv.getValue();
                 yield v instanceof String ? "\"" + v + "\"" : String.valueOf(v);
@@ -136,7 +160,7 @@ public final class StructFlattener {
     private static String serializeRange(@NotNull Range range) {
         String start = range.getStart() != null && !range.getStart().isNull()
                 ? String.valueOf(range.getStart().getValue()) : "UNBOUNDED";
-        String end   = range.getEnd() != null && !range.getEnd().isNull()
+        String end = range.getEnd() != null && !range.getEnd().isNull()
                 ? String.valueOf(range.getEnd().getValue()) : "UNBOUNDED";
         return "[" + start + ", " + end + ")";
     }
@@ -144,7 +168,8 @@ public final class StructFlattener {
     /**
      * Holds a flattened field with its dot-notation display name and the original BigQuery Field.
      */
-    public record FlatField(@NotNull String qualifiedName, @NotNull Field field) {}
+    public record FlatField(@NotNull String qualifiedName, @NotNull Field field) {
+    }
 
     /**
      * Pre-compiled accessor for a single leaf value in a (potentially nested) FieldValueList.
@@ -154,9 +179,11 @@ public final class StructFlattener {
     public static final class RowExtractor {
 
         private final int[] path;
+        private final Field field;
 
-        RowExtractor(int[] path) {
+        RowExtractor(int[] path, Field field) {
             this.path = path;
+            this.field = field;
         }
 
         /**
@@ -168,7 +195,7 @@ public final class StructFlattener {
                 if (current.isNull()) return null;
                 current = current.getRecordValue().get(path[depth]);
             }
-            return current.isNull() ? null : toDisplayValue(current);
+            return current.isNull() ? null : toDisplayValue(current, field);
         }
     }
 }

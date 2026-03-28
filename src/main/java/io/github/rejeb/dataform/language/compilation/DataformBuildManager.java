@@ -4,7 +4,7 @@
  * this work for additional information regarding copyright ownership.
  * The ASF licenses this file to You under the Apache License, Version 2.0
  * (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
+ * the License.  You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -20,8 +20,12 @@ import com.intellij.build.BuildContentManager;
 import com.intellij.build.BuildViewManager;
 import com.intellij.build.DefaultBuildDescriptor;
 import com.intellij.build.FilePosition;
+import com.intellij.build.events.FileMessageEvent;
+import com.intellij.build.events.FinishBuildEvent;
 import com.intellij.build.events.MessageEvent;
-import com.intellij.build.events.impl.*;
+import com.intellij.build.events.StartBuildEvent;
+import com.intellij.build.events.impl.FailureResultImpl;
+import com.intellij.build.events.impl.SuccessResultImpl;
 import com.intellij.icons.AllIcons;
 import com.intellij.ide.nls.NlsMessages;
 import com.intellij.notification.NotificationGroupManager;
@@ -75,8 +79,9 @@ public final class DataformBuildManager {
             DefaultBuildDescriptor descriptor = new DefaultBuildDescriptor(
                     buildId, TASK_NAME, workDir, startTime
             ).withRestartAction(rebuildAction);
+
             buildViewManager.onEvent(buildId,
-                    new StartBuildEventImpl(descriptor, "Running dataform compile..."));
+                    StartBuildEvent.builder("Running dataform compile...", descriptor).build());
 
             try {
                 DataformCompilationService service = DataformCompilationService.getInstance(project);
@@ -85,8 +90,9 @@ public final class DataformBuildManager {
                 if (compiledGraph == null) {
                     context.errors.incrementAndGet();
                     buildViewManager.onEvent(buildId,
-                            new MessageEventImpl(buildId, MessageEvent.Kind.ERROR,
-                                    TASK_NAME, "dataform compile returned no output — check stderr", null));
+                            MessageEvent.builder("dataform compile returned no output — check stderr", MessageEvent.Kind.ERROR)
+                                    .withParentId(buildId)
+                                    .withGroup(TASK_NAME).build());
                     finishBuild(buildViewManager, buildId, context, false, "Dataform compile failed");
                     showNotification(project, "Dataform compile failed", null, NotificationType.ERROR);
                     return;
@@ -103,14 +109,16 @@ public final class DataformBuildManager {
                         FilePosition filePosition = resolveFilePosition(project, error);
 
                         if (filePosition != null) {
-                            // Erreur cliquable avec lien vers le fichier
                             buildViewManager.onEvent(buildId,
-                                    new FileMessageEventImpl(buildId, MessageEvent.Kind.ERROR,
-                                            TASK_NAME, detail, detail, filePosition));
+                                    FileMessageEvent.builder(detail, MessageEvent.Kind.ERROR, filePosition)
+                                            .withParentId(buildId)
+                                            .withGroup(TASK_NAME).build()
+                            );
                         } else {
                             buildViewManager.onEvent(buildId,
-                                    new MessageEventImpl(buildId, MessageEvent.Kind.ERROR,
-                                            TASK_NAME, detail, detail));
+                                    MessageEvent.builder(detail, MessageEvent.Kind.ERROR)
+                                            .withParentId(buildId)
+                                            .withGroup(TASK_NAME).build());
                         }
                     }
                     finishBuild(buildViewManager, buildId, context, false,
@@ -132,9 +140,10 @@ public final class DataformBuildManager {
             } catch (Exception e) {
                 LOG.error("Unexpected error during dataform compile", e);
                 context.errors.incrementAndGet();
-                buildViewManager.onEvent(buildId,
-                        new MessageEventImpl(buildId, MessageEvent.Kind.ERROR,
-                                TASK_NAME, e.getMessage(), e.getMessage()));
+                buildViewManager.onEvent(buildId, MessageEvent.builder(e.getMessage(), MessageEvent.Kind.ERROR)
+                        .withParentId(buildId)
+                        .withGroup(
+                                TASK_NAME).build());
                 finishBuild(buildViewManager, buildId, context, false,
                         "Dataform compile error: " + e.getMessage());
                 showNotification(project, "Dataform compile error", e.getMessage(), NotificationType.ERROR);
@@ -151,8 +160,11 @@ public final class DataformBuildManager {
                                     String message) {
         context.finished(success, message);
         buildViewManager.onEvent(buildId,
-                new FinishBuildEventImpl(buildId, null, System.currentTimeMillis(), message,
-                        success ? new SuccessResultImpl() : new FailureResultImpl()));
+                FinishBuildEvent.builder(buildId, message,
+                                success ? new SuccessResultImpl() : new FailureResultImpl())
+                        .withParentId(buildId)
+                        .withTime(System.currentTimeMillis())
+                        .build());
     }
 
     /**

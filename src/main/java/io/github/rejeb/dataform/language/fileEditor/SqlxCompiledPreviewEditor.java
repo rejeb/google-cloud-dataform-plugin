@@ -42,6 +42,8 @@ import com.intellij.openapi.util.Key;
 import com.intellij.openapi.util.ThrowableComputable;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.sql.SqlFileType;
+import com.intellij.ui.JBColor;
+import com.intellij.util.IconUtil;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
 import icons.DatabaseIcons;
@@ -89,7 +91,8 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
 
         mainPanel.setOpaque(true);
         mainPanel.setBackground(UIUtil.getPanelBackground());
-        mainPanel.add(withHeader("Lineage", AllIcons.General.Layout, lineagePanel), View.LINEAGE.name());
+        mainPanel.add(withHeader("Lineage", IconUtil.colorize(AllIcons.CodeWithMe.CwmShared, JBColor.BLUE),
+                lineagePanel), View.LINEAGE.name());
         mainPanel.add(withHeader("Query", DatabaseIcons.Sql, queryPanel), View.QUERY.name());
         mainPanel.add(withHeader("Schema", AllIcons.Nodes.DataTables, schemaPanel), View.SCHEMA.name());
 
@@ -320,9 +323,9 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
 
     private static FormattedCompiledQuery toFormatted(CompiledQuery q, Project project) {
         List<String> preOps = q.preOps().stream()
-                .map(s -> Utils.formatSql(project,s )).toList();
+                .map(s -> Utils.formatSql(project, s)).toList();
         List<String> postOps = q.postOps().stream()
-                .map(s -> Utils.formatSql(project,s )).toList();
+                .map(s -> Utils.formatSql(project, s)).toList();
         String query = q.query() != null ? Utils.formatSql(project, q.query()) : null;
         String errors = q.compilationErrors() != null && !q.compilationErrors().isEmpty()
                 ? String.join("\n", q.compilationErrors()) : null;

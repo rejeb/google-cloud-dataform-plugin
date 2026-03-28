@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "io.github.rejeb"
-version = "0.2.10"
+version = "0.2.11"
 
 repositories {
     mavenCentral()
@@ -23,7 +23,7 @@ dependencies {
 
     testImplementation("org.junit.vintage:junit-vintage-engine:5.10.0")
     intellijPlatform {
-        intellijIdea("2025.2.6.1")
+        intellijIdea("2026.1")
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
         bundledPlugin("JavaScript")
         bundledPlugin("NodeJS")
@@ -41,13 +41,13 @@ dependencies {
 intellijPlatform {
     pluginConfiguration {
         ideaVersion {
-            sinceBuild = "252"
+            sinceBuild = "261"
         }
 
         changeNotes = """
                 <ul>
                     <li>Add intelliJ native build support and remove java plugin dependency.</li>
-                    <li>Fixing issues.</li>
+                    <li>Fix compilation on windows and 2026.1 commpatibility issues.</li>
                 </ul>
         """.trimIndent()
     }

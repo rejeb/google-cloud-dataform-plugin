@@ -52,6 +52,8 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
+import static io.github.rejeb.dataform.language.util.Utils.formatBytes;
+
 public class QueryExecutionPanel extends JPanel {
 
     private static final DateTimeFormatter DATE_FMT =
@@ -96,7 +98,7 @@ public class QueryExecutionPanel extends JPanel {
                         .addLabeledComponent("Location:", new JBLabel(s.location() != null ? s.location() : "-"))
                         .addLabeledComponent("Statement type:", new JBLabel(s.statementType() != null ? s.statementType() : "-"))
                         .addLabeledComponent("Cache hit:", new JBLabel(String.valueOf(s.cacheHit())))
-                        .addLabeledComponent("Bytes processed:", new JBLabel(BYTES_FMT.format(s.bytesProcessed()) + " B"))
+                        .addLabeledComponent("Bytes processed:", new JBLabel(formatBytes(s.bytesProcessed())))
                         .addLabeledComponent("Duration:", new JBLabel(duration + " ms"))
                         .addLabeledComponent("Created at:", new JBLabel(formatTs(s.creationTime())))
                         .addLabeledComponent("Started at:", new JBLabel(formatTs(s.startTime())))

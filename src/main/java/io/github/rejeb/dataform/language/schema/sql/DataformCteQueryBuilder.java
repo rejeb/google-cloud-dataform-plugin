@@ -43,7 +43,7 @@ public final class DataformCteQueryBuilder {
                                           @NotNull Project project) {
         if (knownSchemas.isEmpty()) return originalQuery;
 
-        List<TextRange> excluded = ReadAction.compute(
+        List<TextRange> excluded = ReadAction.computeBlocking(
                 () -> collectExcludedRanges(originalQuery, project));
 
         Map<String, String> fqnToAlias = new LinkedHashMap<>();

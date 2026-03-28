@@ -22,10 +22,7 @@ import com.intellij.openapi.actionSystem.DefaultActionGroup;
 import com.intellij.openapi.fileTypes.FileType;
 import com.intellij.openapi.fileTypes.FileTypeManager;
 import com.intellij.openapi.project.Project;
-import com.intellij.ui.CheckboxTree;
-import com.intellij.ui.CheckedTreeNode;
-import com.intellij.ui.JBColor;
-import com.intellij.ui.SimpleTextAttributes;
+import com.intellij.ui.*;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBScrollPane;
 import com.intellij.ui.components.JBTextArea;
@@ -49,8 +46,8 @@ public class CommitView extends JPanel {
     private final Project project;
     private final GcpPanelActionDispatcher dispatcher;
 
-    private final CheckedTreeNode rootNode   = new CheckedTreeNode("Changes");
-    private final CheckboxTree    changesTree;
+    private final CheckedTreeNode rootNode = new CheckedTreeNode("Changes");
+    private final CheckboxTree changesTree;
     private final JTextArea commitMessageField = new JBTextArea(4, 40);
 
     public CommitView(
@@ -58,10 +55,19 @@ public class CommitView extends JPanel {
             @NotNull GcpPanelActionDispatcher dispatcher
     ) {
         super(new BorderLayout());
-        this.project    = project;
+        this.project = project;
         this.dispatcher = dispatcher;
 
-        changesTree = new CheckboxTree(new ChangeNodeRenderer(), rootNode);
+        changesTree = new CheckboxTree(
+                new ChangeNodeRenderer(),
+                rootNode,
+                new CheckboxTreeBase.CheckPolicy(
+                        true,
+                        true,
+                        true,
+                        true
+                )
+        );
         changesTree.setRootVisible(true);
         changesTree.setShowsRootHandles(true);
 
@@ -104,8 +110,8 @@ public class CommitView extends JPanel {
         splitPane.setResizeWeight(0.6);
         splitPane.setBorder(null);
 
-        JButton commitBtn     = new JButton("Commit");
-        JButton pushBtn       = new JButton("Push");
+        JButton commitBtn = new JButton("Commit");
+        JButton pushBtn = new JButton("Push");
         JButton commitPushBtn = new JButton("Commit and Push...");
 
         commitBtn.addActionListener(e -> onCommit());
@@ -125,7 +131,7 @@ public class CommitView extends JPanel {
     }
 
     private JPanel buildMessagePanel() {
-        JBLabel messageLabel = new JBLabel("Commit Message");
+        JBLabel messageLabel = new JBLabel("Commit message");
         messageLabel.setForeground(JBUI.CurrentTheme.Label.disabledForeground());
         messageLabel.setFont(JBUI.Fonts.label(11));
         messageLabel.setBorder(JBUI.Borders.empty(4, 6, 2, 6));
@@ -174,56 +180,49 @@ public class CommitView extends JPanel {
 
     private void onCommit() {
         String message = commitMessageField.getText().trim();
-        if (message.isBlank()) {
-            JOptionPane.showMessageDialog(this,
-                    "Please enter a commit message.", "Commit Message Required",
-                    JOptionPane.WARNING_MESSAGE);
-            commitMessageField.requestFocus();
-            return;
-        }
         List<UncommittedChange> checked = getCheckedChanges();
-        if (checked.isEmpty()) {
-            JOptionPane.showMessageDialog(this,
-                    "Please select at least one file to commit.", "No Files Selected",
-                    JOptionPane.WARNING_MESSAGE);
-            return;
-        }
         String workspaceId = GcpRepositorySettings.getInstance(project).getSelectedWorkspaceId();
-        if (workspaceId == null) {
-            JOptionPane.showMessageDialog(this,
-                    "Please select a workspace first.", "No Workspace Selected",
-                    JOptionPane.WARNING_MESSAGE);
-            return;
+        if (valid()) {
+            dispatcher.commitChanges(workspaceId,
+                    checked.stream().map(UncommittedChange::path).toList(), message);
         }
-        dispatcher.commitChanges(workspaceId,
-                checked.stream().map(UncommittedChange::path).toList(), message);
     }
 
     private void onCommitAndPush() {
+        String message = commitMessageField.getText().trim();
+        List<UncommittedChange> checked = getCheckedChanges();
+        String workspaceId = GcpRepositorySettings.getInstance(project).getSelectedWorkspaceId();
+        if (valid()) {
+            dispatcher.commitAndPush(workspaceId,
+                    checked.stream().map(UncommittedChange::path).toList(), message);
+        }
+
+    }
+
+    public boolean valid() {
         String message = commitMessageField.getText().trim();
         if (message.isBlank()) {
             JOptionPane.showMessageDialog(this,
                     "Please enter a commit message.", "Commit Message Required",
                     JOptionPane.WARNING_MESSAGE);
             commitMessageField.requestFocus();
-            return;
+            return false;
         }
         List<UncommittedChange> checked = getCheckedChanges();
         if (checked.isEmpty()) {
             JOptionPane.showMessageDialog(this,
                     "Please select at least one file to commit.", "No Files Selected",
                     JOptionPane.WARNING_MESSAGE);
-            return;
+            return false;
         }
         String workspaceId = GcpRepositorySettings.getInstance(project).getSelectedWorkspaceId();
         if (workspaceId == null) {
             JOptionPane.showMessageDialog(this,
                     "Please select a workspace first.", "No Workspace Selected",
                     JOptionPane.WARNING_MESSAGE);
-            return;
+            return false;
         }
-        dispatcher.commitAndPush(workspaceId,
-                checked.stream().map(UncommittedChange::path).toList(), message);
+        return true;
     }
 
     private void onPush() {
@@ -248,10 +247,10 @@ public class CommitView extends JPanel {
             Object userObject = node.getUserObject();
 
             if (userObject instanceof UncommittedChange change) {
-                String filename  = extractFilename(change.path());
-                String parent    = extractParent(change.path());
-                Color  nameColor = colorFor(change.state());
-                Icon   fileIcon  = fileIconFor(filename);
+                String filename = extractFilename(change.path());
+                String parent = extractParent(change.path());
+                Color nameColor = colorFor(change.state());
+                Icon fileIcon = fileIconFor(filename);
 
                 if (fileIcon != null) getTextRenderer().setIcon(fileIcon);
 
@@ -265,7 +264,7 @@ public class CommitView extends JPanel {
 
             } else if (userObject instanceof String label) {
                 getTextRenderer().append(label, SimpleTextAttributes.REGULAR_BOLD_ATTRIBUTES);
-                getCheckbox().setVisible(node.getChildCount() > 0);
+                getThreeStateCheckBox().setVisible(node.getChildCount() > 0);
             }
         }
 
@@ -290,11 +289,11 @@ public class CommitView extends JPanel {
 
         private static Color colorFor(@NotNull UncommittedChange.ChangeState state) {
             return switch (state) {
-                case ADDED         -> JBColor.green;
-                case MODIFIED      -> JBColor.blue;
-                case DELETED       -> JBColor.GRAY;
+                case ADDED -> JBColor.green;
+                case MODIFIED -> JBColor.blue;
+                case DELETED -> JBColor.GRAY;
                 case HAS_CONFLICTS -> JBColor.RED;
-                default            -> UIManager.getColor("Label.foreground");
+                default -> UIManager.getColor("Label.foreground");
             };
         }
     }

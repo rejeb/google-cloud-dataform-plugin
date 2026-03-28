@@ -19,6 +19,7 @@ package io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.ui;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Disposer;
 import com.intellij.ui.components.JBTabbedPane;
+import com.intellij.util.ui.JBUI;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.InvocationActionResult;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowInvocationProgress;
 import org.jetbrains.annotations.NotNull;
@@ -37,6 +38,8 @@ public class ActionDetailPanel extends JPanel {
         detailsPanel = new ActionDetailsTabPanel(project);
         Disposer.register(project, detailsPanel);
         JBTabbedPane tabs = new JBTabbedPane();
+        tabs.setBorder(JBUI.Borders.empty());
+        tabs.setTabComponentInsets(JBUI.emptyInsets());
         tabs.addTab("Summary", summaryPanel);
         tabs.addTab("Details", detailsPanel);
         add(tabs, BorderLayout.CENTER);

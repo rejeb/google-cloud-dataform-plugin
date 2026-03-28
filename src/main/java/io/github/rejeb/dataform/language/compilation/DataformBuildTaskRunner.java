@@ -4,7 +4,7 @@
  * this work for additional information regarding copyright ownership.
  * The ASF licenses this file to You under the Apache License, Version 2.0
  * (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
+ * the License.  You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -17,7 +17,10 @@
 package io.github.rejeb.dataform.language.compilation;
 
 import com.intellij.openapi.project.Project;
-import com.intellij.task.*;
+import com.intellij.task.ModuleBuildTask;
+import com.intellij.task.ProjectTask;
+import com.intellij.task.ProjectTaskContext;
+import com.intellij.task.ProjectTaskRunner;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.concurrency.AsyncPromise;
 import org.jetbrains.concurrency.Promise;
@@ -26,6 +29,9 @@ import org.jetbrains.concurrency.Promises;
 import java.util.concurrent.Future;
 
 public final class DataformBuildTaskRunner extends ProjectTaskRunner {
+    private static final TaskResult SUCCESS = new TaskResult(false, false);
+    private static final TaskResult FAILURE = new TaskResult(false, true);
+    private static final TaskResult ABORTED = new TaskResult(true, false);
 
     @Override
     public @NotNull Promise<Result> run(@NotNull Project project,
@@ -42,14 +48,14 @@ public final class DataformBuildTaskRunner extends ProjectTaskRunner {
             DataformBuildResult buildResult = future.get();
 
             if (buildResult.canceled) {
-                promise.setResult(TaskRunnerResults.ABORTED);
+                promise.setResult(ABORTED);
             } else if (buildResult.succeeded) {
-                promise.setResult(TaskRunnerResults.SUCCESS);
+                promise.setResult(SUCCESS);
             } else {
-                promise.setResult(TaskRunnerResults.FAILURE);
+                promise.setResult(FAILURE);
             }
         } catch (Exception e) {
-            promise.setResult(TaskRunnerResults.FAILURE);
+            promise.setResult(FAILURE);
         }
 
         return promise;
@@ -58,5 +64,17 @@ public final class DataformBuildTaskRunner extends ProjectTaskRunner {
     @Override
     public boolean canRun(@NotNull ProjectTask projectTask) {
         return projectTask instanceof ModuleBuildTask;
+    }
+
+    private record TaskResult(boolean myAborted, boolean myErrors) implements Result {
+        @Override
+        public boolean isAborted() {
+            return myAborted;
+        }
+
+        @Override
+        public boolean hasErrors() {
+            return myErrors;
+        }
     }
 }

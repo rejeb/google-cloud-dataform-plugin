@@ -27,16 +27,19 @@ import com.intellij.psi.PsiFileFactory;
 import com.intellij.psi.codeStyle.CodeStyleManager;
 import com.intellij.sql.dialects.bigquery.BigQueryDialect;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 public class Utils {
 
     public static String formatSql(@NotNull Project project, @NotNull String sql) {
+        return ApplicationManager.getApplication().runWriteIntentReadAction(() -> doFormat(project, sql));
+    }
+
+    private static String doFormat(@NotNull Project project, @NotNull String sql) {
         PsiFile file = PsiFileFactory.getInstance(project)
                 .createFileFromText("temp.sql", BigQueryDialect.INSTANCE, sql);
-        Runnable format = () ->
-                CodeStyleManager.getInstance(project).reformat(file);
-        WriteCommandAction.runWriteCommandAction(project, format);
-
+        Runnable r = () -> CodeStyleManager.getInstance(project).reformat(file);
+        WriteCommandAction.runWriteCommandAction(project, r);
         return file.getText();
     }
 
@@ -52,5 +55,14 @@ public class Utils {
         return normalizedPath.contains("/definitions/") &&
                 (normalizedPath.endsWith(".sqlx") || normalizedPath.endsWith(".js")) &&
                 file.isWritable();
+    }
+
+    @NotNull
+    public static String formatBytes(@Nullable Long bytes) {
+        if (bytes == null || bytes < 0) return "—";
+        if (bytes < 1_024) return bytes + " B";
+        if (bytes < 1_048_576) return String.format("%.1f KB", bytes / 1_024.0);
+        if (bytes < 1_073_741_824) return String.format("%.1f MB", bytes / 1_048_576.0);
+        return String.format("%.2f GB", bytes / 1_073_741_824.0);
     }
 }

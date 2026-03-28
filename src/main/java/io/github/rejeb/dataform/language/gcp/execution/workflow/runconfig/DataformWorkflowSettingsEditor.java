@@ -59,6 +59,7 @@ public class DataformWorkflowSettingsEditor
     private Mode selectedMode = Mode.ACTIONS;
 
     public DataformWorkflowSettingsEditor(@NotNull Project project) {
+        workspaceCombo.addItem("");
         DataformGcpService.getInstance(project)
                 .listWorkspaces()
                 .forEach(ws -> workspaceCombo.addItem(ws.workspaceId()));
@@ -66,9 +67,6 @@ public class DataformWorkflowSettingsEditor
         this.graph = DataformCompilationService.getInstance(project).getCompiledGraph();
         tagsField.setItems(graph != null ? graph.getTags() : Set.of());
         targetsField.setItems(graph != null ? graph.getAllTargets() : List.of());
-
-        transitiveDeps.addActionListener(e -> transitiveDeps.setSelected(transitiveDeps.isSelected()));
-        transitiveDependents.addActionListener(e -> transitiveDependents.setSelected(transitiveDependents.isSelected()));
 
         cardPanel.add(buildActionsView(), Mode.ACTIONS.name());
         cardPanel.add(buildTagsView(), Mode.TAGS.name());

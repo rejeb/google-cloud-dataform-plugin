@@ -56,20 +56,23 @@ public class DataformSqlxRunConfigurationProducer
 
         VirtualFile file = getFile(context);
         if (file == null) return false;
-        GcpRepositorySettings settings = GcpRepositorySettings.getInstance(context.getProject());
-        config.setWorkspaceId(settings.getSelectedWorkspaceId());
-        CompiledGraph compiledGraph = DataformCompilationService.getInstance(context.getProject()).getCompiledGraph();
-        String canonicalPath = file.getCanonicalPath();
         config.setIncludedTargets(
-                compiledGraph
-                        .findCompiledQueryByFileName(canonicalPath)
-                        .stream()
-                        .flatMap(q -> Optional.ofNullable(q.tableName()).stream())
-                        .toList());
+                configTargets(config, context, file));
 
         config.setName(file.getNameWithoutExtension());
         config.setSelectedMode(Mode.ACTIONS);
         return true;
+    }
+
+    private List<String> configTargets(@NotNull DataformWorkflowRunConfiguration config, @NotNull ConfigurationContext context, VirtualFile file) {
+        GcpRepositorySettings settings = GcpRepositorySettings.getInstance(context.getProject());
+        config.setWorkspaceId(config.getWorkspaceId() != null ? config.getWorkspaceId() : settings.getSelectedWorkspaceId());
+        CompiledGraph compiledGraph = DataformCompilationService.getInstance(context.getProject()).getCompiledGraph();
+        return Optional.ofNullable(compiledGraph).stream()
+                .flatMap(graph ->
+                        graph.findCompiledQueryByFileName(file.getCanonicalPath()).stream()
+                )
+                .flatMap(q -> Optional.ofNullable(q.tableName()).stream()).toList();
     }
 
     @Override
@@ -80,13 +83,7 @@ public class DataformSqlxRunConfigurationProducer
         VirtualFile file = getFile(context);
         if (file == null) return false;
         String actionName = file.getNameWithoutExtension();
-        GcpRepositorySettings settings = GcpRepositorySettings.getInstance(context.getProject());
-        config.setWorkspaceId(settings.getSelectedWorkspaceId());
-        CompiledGraph compiledGraph = DataformCompilationService.getInstance(context.getProject()).getCompiledGraph();
-        List<String> includedTargets = compiledGraph
-                .findCompiledQueryByFileName(file.getCanonicalPath())
-                .stream()
-                .flatMap(q -> Optional.ofNullable(q.tableName()).stream()).toList();
+        List<String> includedTargets = configTargets(config, context, file);
 
         return actionName.equals(config.getName()) && config.getIncludedTargets().contains(includedTargets);
     }
@@ -108,7 +105,7 @@ public class DataformSqlxRunConfigurationProducer
         DataformWorkflowRunConfiguration config =
                 (DataformWorkflowRunConfiguration) configFromContext.getConfiguration();
 
-        SqlxRunOptionsPopup.show(context.getProject(), (deps, dependants, fullRefresh) -> {
+        SqlxRunOptionsPopup.show(context.getProject(), null, (deps, dependants, fullRefresh) -> {
             config.setTransitiveDependenciesIncluded(deps);
             config.setTransitiveDependentsIncluded(dependants);
             config.setFullyRefreshIncrementalTables(fullRefresh);

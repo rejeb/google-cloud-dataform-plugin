@@ -20,6 +20,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.intellij.execution.configurations.GeneralCommandLine;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -29,6 +30,7 @@ import org.jetbrains.plugins.terminal.settings.TerminalLocalOptions;
 
 import java.io.File;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Optional;
 
 import static io.github.rejeb.dataform.language.setup.DataformInstaller.findDataformLibRootDir;
@@ -87,8 +89,8 @@ public final class DataformInterpreterManagerImpl implements DataformInterpreter
     @Override
     public Optional<GeneralCommandLine> buildDataformCompileCommand() {
 
-        String configuredCli = DataformToolsSettings.getInstance().getCliExecutablePath();
-        if (configuredCli.isBlank()) return Optional.empty();
+        String configuredCliCmd = DataformToolsSettings.getInstance().getCliExecutablePath().replace("\\", "/");
+        if (configuredCliCmd.isBlank()) return Optional.empty();
 
         Path nodeBinDir = NodeInterpreterManager.getInstance(project).nodeBinDir();
         String pathEnv = (nodeBinDir != null
@@ -96,13 +98,55 @@ public final class DataformInterpreterManagerImpl implements DataformInterpreter
                 : "") + System.getenv("PATH");
 
         String shellPath = TerminalLocalOptions.getInstance().getShellPath();
-        if (shellPath == null || shellPath.isBlank()) shellPath = "/bin/sh";
+        if ((shellPath == null || shellPath.isBlank()) && SystemInfo.isWindows) {
+            shellPath = findGitBash().orElse(null);
+        }
+        if (shellPath == null || shellPath.isBlank()) {
+            GeneralCommandLine cmd = new GeneralCommandLine(configuredCliCmd, "compile", "--json")
+                    .withWorkDirectory(project.getBasePath());
+            cmd.getEnvironment().put("PATH", pathEnv);
 
-        String shellCmd = String.format("\"%s\" compile --json", configuredCli);
+            return Optional.of(cmd);
+        }
+
+        shellPath = shellPath.replace("\"", "").replace("\\", "/");
+
+        if (SystemInfo.isWindows) {
+            GeneralCommandLine cmd = buildWindowsCommand(shellPath, configuredCliCmd);
+            cmd.getEnvironment().put("PATH", pathEnv);
+            return Optional.of(cmd);
+        } else {
+            GeneralCommandLine cmd = buildUnixCommand(shellPath, configuredCliCmd);
+            cmd.getEnvironment().put("PATH", pathEnv);
+            return Optional.of(cmd);
+        }
+
+    }
+
+    private GeneralCommandLine buildWindowsCommand(String shellPath, String configuredCliCmd) {
+        String shellCmd = String.format("\"%s\" compile --json", configuredCliCmd);
+
         GeneralCommandLine cmd = new GeneralCommandLine(shellPath, "-c", shellCmd)
                 .withWorkDirectory(project.getBasePath());
-        cmd.getEnvironment().put("PATH", pathEnv);
 
-        return Optional.of(cmd);
+        return cmd;
+    }
+
+    private GeneralCommandLine buildUnixCommand(String shellPath, String configuredCliCmd) {
+        return new GeneralCommandLine(shellPath, "-c", configuredCliCmd, "compile", "--json")
+                .withWorkDirectory(project.getBasePath());
+    }
+
+    private Optional<String> findGitBash() {
+        List<Path> candidates = List.of(
+                Path.of("C:\\Program Files\\Git\\bin\\bash.exe"),
+                Path.of("C:\\Program Files (x86)\\Git\\bin\\bash.exe"),
+                Path.of(System.getProperty("user.home"), "AppData", "Local", "Programs", "Git", "bin", "bash.exe")
+        );
+
+        return candidates.stream()
+                .filter(p -> p.toFile().exists())
+                .findFirst()
+                .map(p -> p.toFile().getAbsolutePath());
     }
 }

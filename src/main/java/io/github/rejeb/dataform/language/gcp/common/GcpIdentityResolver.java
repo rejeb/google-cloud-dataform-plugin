@@ -26,6 +26,7 @@ import org.jetbrains.annotations.NotNull;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
+import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 
@@ -62,19 +63,22 @@ public final class GcpIdentityResolver {
                     .createScoped("https://www.googleapis.com/auth/cloud-platform");
             credentials.refreshIfExpired();
 
-            if (credentials instanceof ServiceAccountCredentials sa) {
-                String email = sa.getClientEmail();
-                String name = sa.getClientId() != null ? sa.getClientId() : email;
-                return new CommitAuthorConfig(name, email);
-            }
+            switch (credentials) {
+                case ServiceAccountCredentials sa -> {
+                    String email = sa.getClientEmail();
+                    String name = sa.getClientId() != null ? sa.getClientId() : email;
+                    return new CommitAuthorConfig(name, email);
+                }
+                case ComputeEngineCredentials ce -> {
+                    String email = ce.getAccount(); // service account email on GCE
 
-            if (credentials instanceof ComputeEngineCredentials ce) {
-                String email = ce.getAccount(); // service account email on GCE
-                return new CommitAuthorConfig(email, email);
-            }
-
-            if (credentials instanceof UserCredentials) {
-                return resolveFromUserInfo(credentials);
+                    return new CommitAuthorConfig(email, email);
+                }
+                case UserCredentials userCredentials -> {
+                    return resolveFromUserInfo(credentials);
+                }
+                default -> {
+                }
             }
 
             LOG.warn("Unknown ADC credential type: " + credentials.getClass().getName()
@@ -91,7 +95,7 @@ public final class GcpIdentityResolver {
     ) throws IOException {
         String accessToken = credentials.getAccessToken().getTokenValue();
 
-        URL url = new URL(USERINFO_URL);
+        URL url = URI.create(USERINFO_URL).toURL();
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setRequestMethod("GET");
         conn.setRequestProperty("Authorization", "Bearer " + accessToken);

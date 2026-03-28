@@ -17,13 +17,14 @@
 package io.github.rejeb.dataform.language.gcp.toolwindow.action;
 
 import com.intellij.icons.AllIcons;
+import com.intellij.openapi.actionSystem.ActionUpdateThreadAware;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.project.Project;
 import io.github.rejeb.dataform.language.gcp.toolwindow.ManageRepositoriesDialog;
 import org.jetbrains.annotations.NotNull;
 
-public class ManageRepositoriesAction extends AnAction {
+public class ManageRepositoriesAction extends AnAction implements ActionUpdateThreadAware.Recursive {
 
     private final Project project;
     private final Runnable onRepositoryChanged;

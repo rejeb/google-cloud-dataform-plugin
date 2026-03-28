@@ -219,7 +219,7 @@ public final class DataformTableSchemaServiceImpl implements DataformTableSchema
     private Optional<List<ColumnInfo>> extractTableSchema(@NotNull CompiledTable table,
                                                           @NotNull ExtractionContext ctx,
                                                           @NotNull Map<String, List<ColumnInfo>> resolvedInThisRun) {
-        String query = ReadAction.compute(() ->
+        String query = ReadAction.computeBlocking(() ->
                 DataformCteQueryBuilder.buildDryRunQuery(table.getQuery(), resolvedInThisRun, project)
         );
         return runDryRun(ctx, query);

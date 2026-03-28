@@ -51,7 +51,7 @@ public final class DataformToolsSettingsPanel {
 
         cliExecutableField.addBrowseFolderListener(
                 null,
-                FileChooserDescriptorFactory.createSingleFileDescriptor()
+                FileChooserDescriptorFactory.singleFile()
                         .withTitle("Select Dataform CLI Executable")
                         .withDescription("Choose the path to the Dataform CLI executable")
         );

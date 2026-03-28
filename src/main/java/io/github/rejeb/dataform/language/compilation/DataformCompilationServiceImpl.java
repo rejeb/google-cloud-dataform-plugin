@@ -74,7 +74,7 @@ public final class DataformCompilationServiceImpl
                 LOG.info("Restored compiled graph from persistent state");
             } catch (Exception e) {
                 LOG.warn("Failed to deserialize compiled graph from state: " + e.getMessage());
-                this.compiledGraph = null;
+                this.compiledGraph = buildEmptyCompiledGraph(e);
                 this.currentState = new State(); // reset corrupted state
             }
         }
@@ -121,8 +121,10 @@ public final class DataformCompilationServiceImpl
             }
         } catch (Exception e) {
             LOG.warn("Error during compilation", e);
+            return buildEmptyCompiledGraph(e);
         }
-        return null;
+
+        return buildEmptyCompiledGraph(null);
     }
 
     @Override
@@ -165,5 +167,15 @@ public final class DataformCompilationServiceImpl
             }
         }
         return false;
+    }
+
+    private static CompiledGraph buildEmptyCompiledGraph(@Nullable Throwable t) {
+        CompiledGraph compiledGraph = new CompiledGraph();
+        String stack = t != null ? t.getMessage()  : "Compilation failed";
+        CompilationError compilationError = new CompilationError(stack);
+        GraphErrors graphErrors = new GraphErrors();
+        graphErrors.setCompilationErrors(List.of(compilationError));
+        compiledGraph.setGraphErrors(graphErrors);
+        return compiledGraph;
     }
 }

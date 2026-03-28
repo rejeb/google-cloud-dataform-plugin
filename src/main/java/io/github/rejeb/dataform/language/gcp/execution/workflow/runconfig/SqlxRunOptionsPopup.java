@@ -40,12 +40,14 @@ public class SqlxRunOptionsPopup {
     }
 
     public static void show(@Nullable Project project,
+                            @Nullable java.awt.event.MouseEvent mouseEvent,
                             @NotNull RunOptionsCallback callback) {
         JBPopup[] popupRef = buildPopup(callback);
-
-        if (project != null) {
-            popupRef[0].show(new RelativePoint(MouseInfo.getPointerInfo().getLocation()));
-
+        Point screenPos = LastMousePositionService.getInstance().getLastScreenPosition();
+        Window activeWindow = KeyboardFocusManager
+                .getCurrentKeyboardFocusManager().getActiveWindow();
+        if (activeWindow != null) {
+            popupRef[0].showInScreenCoordinates(activeWindow, screenPos);
         } else {
             popupRef[0].showInFocusCenter();
         }

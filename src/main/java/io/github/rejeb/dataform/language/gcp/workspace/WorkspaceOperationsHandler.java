@@ -111,7 +111,7 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
         GcpConfig config = readConfig();
         if (config == null) return;
 
-        Map<String, String> localFiles = ReadAction.compute(() -> {
+        Map<String, String> localFiles = ReadAction.computeBlocking(() -> {
             List<String> paths = filesResolver.apply(project);
             VirtualFile[] roots = ProjectRootManager.getInstance(project).getContentRoots();
             if (roots.length == 0 || paths.isEmpty()) return Map.of();
