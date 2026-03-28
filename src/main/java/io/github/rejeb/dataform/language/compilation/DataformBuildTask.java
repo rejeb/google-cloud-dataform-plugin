@@ -4,7 +4,7 @@
  * this work for additional information regarding copyright ownership.
  * The ASF licenses this file to You under the Apache License, Version 2.0
  * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
+ * the License. You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -14,22 +14,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.rejeb.dataform.language.projectWizard;
+package io.github.rejeb.dataform.language.compilation;
 
-import com.intellij.ide.util.projectWizard.importSources.DetectedSourceRoot;
-import org.jetbrains.annotations.Nls;
+import com.intellij.execution.BeforeRunTask;
+import com.intellij.openapi.util.Key;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
-import java.io.File;
+public final class DataformBuildTask extends BeforeRunTask<DataformBuildTask> {
 
-public class DataformDetectedSourceRoot extends DetectedSourceRoot {
-    public DataformDetectedSourceRoot(File directory, @Nullable String packagePrefix) {
-        super(directory, packagePrefix);
-    }
-
-    @Override
-    public @NotNull @Nls(capitalization = Nls.Capitalization.Sentence) String getRootTypeName() {
-        return DataformModuleType.ID;
+    public DataformBuildTask(@NotNull Key<DataformBuildTask> providerId) {
+        super(providerId);
+        setEnabled(true);
     }
 }

@@ -15,7 +15,7 @@ repositories {
 }
 
 dependencies {
-    implementation(platform("com.google.cloud:libraries-bom:26.78.0"))
+    implementation(platform("com.google.cloud:libraries-bom:26.79.0"))
     implementation("com.google.cloud:google-cloud-dataform")
     implementation("com.google.cloud:google-cloud-bigquery")
     testImplementation("org.mockito:mockito-core:5.11.0")
@@ -25,7 +25,6 @@ dependencies {
     intellijPlatform {
         intellijIdea("2025.2.6.1")
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
-        bundledPlugin("com.intellij.java")
         bundledPlugin("JavaScript")
         bundledPlugin("NodeJS")
         bundledPlugin("com.intellij.database")
@@ -47,13 +46,7 @@ intellijPlatform {
 
         changeNotes = """
                 <ul>
-                    <li>Add managing dataform repository and workspaces panel.</li>
-                    <li>Add Fetch files from repository or workspace to local.</li>
-                    <li>Add Push files from local repository or workspace.</li>
-                    <li>Add dataform repository and workspace files browser.</li>
-                    <li>Add dataform repository commit to workspace and push to main repository branch.</li>
-                    <li>Add run queries and execute actions.</li>
-                    <li>View action execution results</li>
+                    <li>Add intelliJ native build support and remove java plugin dependency.</li>
                     <li>Fixing issues.</li>
                 </ul>
         """.trimIndent()

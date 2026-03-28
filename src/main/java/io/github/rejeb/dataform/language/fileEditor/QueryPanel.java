@@ -22,7 +22,6 @@ import com.intellij.openapi.project.Project;
 import com.intellij.ui.components.JBScrollPane;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
-import io.github.rejeb.dataform.language.compilation.model.CompiledQuery;
 
 import javax.swing.*;
 import java.awt.*;

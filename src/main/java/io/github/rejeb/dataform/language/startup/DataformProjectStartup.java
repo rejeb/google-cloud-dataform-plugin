@@ -27,6 +27,7 @@ import com.intellij.openapi.project.ProjectUtil;
 import com.intellij.openapi.roots.ProjectRootManager;
 import com.intellij.openapi.startup.ProjectActivity;
 import com.intellij.openapi.vfs.VirtualFile;
+import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.gcp.service.DataformGcpService;
 import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
 import io.github.rejeb.dataform.language.schema.dts.DataformDtsGenerator;
@@ -59,6 +60,21 @@ public class DataformProjectStartup implements ProjectActivity {
 
         if (!isDataformProject) return null;
 
+        if (GcpRepositorySettings.getInstance(project).getConfig() != null) {
+            List<String> cached = DataformGcpService.getInstance(project).getCachedFiles();
+            if (cached.isEmpty()) {
+                DataformGcpService.getInstance(project).refreshFilesAsync(null, files ->
+                        LOG.info("Dataform GCP file cache loaded: " + files.size() + " files.")
+                );
+            } else {
+                LOG.info("Dataform GCP file cache restored from disk: " + cached.size() + " files.");
+            }
+
+        }
+        if(DataformCompilationService.getInstance(project).getCompiledGraph() == null){
+            DataformCompilationService.getInstance(project).compile(true);
+        }
+
         WriteAction.runAndWait(() -> {
             project.getService(DataformDtsGenerator.class).generateDts();
             ModuleManager moduleManager = ModuleManager.getInstance(project);
@@ -85,21 +101,6 @@ public class DataformProjectStartup implements ProjectActivity {
             } catch (IOException e) {
             }
         });
-
-        if (GcpRepositorySettings.getInstance(project).getConfig() == null) {
-            return null;
-        }
-        if (GcpRepositorySettings.getInstance(project).getConfig() != null) {
-            List<String> cached = DataformGcpService.getInstance(project).getCachedFiles();
-            if (cached.isEmpty()) {
-                DataformGcpService.getInstance(project).refreshFilesAsync(null, files ->
-                        LOG.info("Dataform GCP file cache loaded: " + files.size() + " files.")
-                );
-            } else {
-                LOG.info("Dataform GCP file cache restored from disk: " + cached.size() + " files.");
-            }
-
-        }
 
         return null;
     }

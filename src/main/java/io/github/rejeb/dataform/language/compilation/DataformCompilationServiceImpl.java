@@ -18,7 +18,6 @@ package io.github.rejeb.dataform.language.compilation;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.intellij.execution.ExecutionException;
 import com.intellij.execution.configurations.GeneralCommandLine;
 import com.intellij.execution.process.ProcessOutput;
 import com.intellij.execution.util.ExecUtil;
@@ -120,8 +119,8 @@ public final class DataformCompilationServiceImpl
 
                 return this.compiledGraph;
             }
-        } catch (ExecutionException e) {
-            LOG.error("Error during compilation", e);
+        } catch (Exception e) {
+            LOG.warn("Error during compilation", e);
         }
         return null;
     }

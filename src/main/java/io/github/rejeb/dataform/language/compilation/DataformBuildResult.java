@@ -4,7 +4,7 @@
  * this work for additional information regarding copyright ownership.
  * The ASF licenses this file to You under the Apache License, Version 2.0
  * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
+ * the License. You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -14,26 +14,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.rejeb.dataform.language.projectWizard;
+package io.github.rejeb.dataform.language.compilation;
 
-import com.intellij.ide.util.projectWizard.importSources.DetectedProjectRoot;
-import org.jetbrains.annotations.NotNull;
+public final class DataformBuildResult {
+    public final boolean succeeded;
+    public final boolean canceled;
+    public final long started;
+    public final long duration;
+    public final int errors;
+    public final String message;
 
-import java.io.File;
-
-public class DataformProjectRoot extends DetectedProjectRoot {
-
-    public DataformProjectRoot(@NotNull File directory) {
-        super(directory);
-    }
-
-    @Override
-    public @NotNull String getRootTypeName() {
-        return "Dataform";
-    }
-
-    @Override
-    public boolean canContainRoot(@NotNull DetectedProjectRoot root) {
-        return root instanceof DataformProjectRoot;
+    public DataformBuildResult(boolean succeeded, boolean canceled, long started,
+                               long duration, int errors, String message) {
+        this.succeeded = succeeded;
+        this.canceled = canceled;
+        this.started = started;
+        this.duration = duration;
+        this.errors = errors;
+        this.message = message;
     }
 }

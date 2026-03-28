@@ -29,7 +29,6 @@
 
 
     <depends>com.intellij.modules.platform</depends>
-    <depends>com.intellij.modules.java</depends>
     <depends>JavaScript</depends>
     <depends>NodeJS</depends>
     <depends>com.intellij.modules.sql</depends>
@@ -97,23 +96,23 @@
                 icon="/icons/dataform-panel.png"/>
         <sql.resolveExtension
                 implementation="io.github.rejeb.dataform.language.schema.sql.DataformSqlResolveExtension"/>
-        <projectImportProvider
-                implementation="io.github.rejeb.dataform.language.projectWizard.DataformProjectImportProvider"/>
+
         <daemon.highlightInfoFilter
                 implementation="io.github.rejeb.dataform.language.highlight.SqlxHighlightInfoFilter"/>
         <facetType implementation="io.github.rejeb.dataform.language.projectWizard.DataformFacetType"/>
         <framework.detector implementation="io.github.rejeb.dataform.language.projectWizard.DataformFrameworkDetector"/>
-        <projectStructureDetector
-                implementation="io.github.rejeb.dataform.language.projectWizard.DataformProjectStructureDetector"/>
-
-        <compiler.task execute="BEFORE"
-                       implementation="io.github.rejeb.dataform.language.compilation.DataformCompileBeforeTask"/>
+        <projectTaskRunner
+                implementation="io.github.rejeb.dataform.language.compilation.DataformBuildTaskRunner"/>
+        <stepsBeforeRunProvider implementation="io.github.rejeb.dataform.language.compilation.DataformBuildTaskProvider"/>
+        <directoryProjectGenerator
+                implementation="io.github.rejeb.dataform.language.projectWizard.DataformDirectoryProjectGenerator"/>
         <moduleBuilder builderClass="io.github.rejeb.dataform.language.projectWizard.DataformModuleBuilder"/>
-
+        <projectOpenProcessor
+                implementation="io.github.rejeb.dataform.language.projectWizard.DataformProjectOpenProcessor"/>
         <postStartupActivity
                 order="first"
                 implementation="io.github.rejeb.dataform.language.setup.DataformInstaller"/>
-        <backgroundPostStartupActivity
+        <postStartupActivity
                 implementation="io.github.rejeb.dataform.language.startup.DataformProjectStartup"/>
         <fileEditorProvider implementation="io.github.rejeb.dataform.language.fileEditor.SqlxSplitEditorProvider"/>
         <fileType name="SQLX"
@@ -227,5 +226,6 @@
                           anchor="before"
                           relative-to-action="CompareClipboardWithSelection"/>
         </action>
+
     </actions>
 </idea-plugin>

@@ -17,7 +17,6 @@
 package io.github.rejeb.dataform.language.fileEditor;
 
 import com.intellij.execution.actions.RunContextAction;
-import com.intellij.execution.actions.RunNewConfigurationContextAction;
 import com.intellij.execution.executors.DefaultRunExecutor;
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.actionSystem.*;
@@ -29,8 +28,8 @@ import com.intellij.ui.JBColor;
 import com.intellij.util.Alarm;
 import com.intellij.util.IconUtil;
 import icons.DatabaseIcons;
+import io.github.rejeb.dataform.language.compilation.DataformBuildAction;
 import io.github.rejeb.dataform.language.fileEditor.action.ExecuteQueryAction;
-import io.github.rejeb.dataform.language.fileEditor.action.RunBuildAction;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -80,7 +79,7 @@ public class SqlxSplitEditor extends TextEditorWithPreview {
     @Override
     protected @Nullable ActionGroup createLeftToolbarActionGroup() {
         DefaultActionGroup group = new DefaultActionGroup();
-        group.add(new RunBuildAction(myPreview.getProject()));
+        group.add(new DataformBuildAction(myPreview.getProject(), "Compile", "Compile", AllIcons.Actions.Compile));
         group.addSeparator();
         group.add(new ExecuteQueryAction(myPreview));
         group.addSeparator();
@@ -133,7 +132,7 @@ public class SqlxSplitEditor extends TextEditorWithPreview {
         public void actionPerformed(@NotNull AnActionEvent e) {
             boolean isThisViewActive = myPreview.getActiveView() == view;
 
-            if (!isThisViewActive) {
+            if (!isThisViewActive || getLayout() == Layout.SHOW_EDITOR) {
                 setLayout(Layout.SHOW_EDITOR_AND_PREVIEW);
                 myPreview.showPanel(view);
             } else {

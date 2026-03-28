@@ -18,7 +18,6 @@ package io.github.rejeb.dataform.language.compilation.model;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Stream;
 
 public class CompiledOperation {
     private Target target;
