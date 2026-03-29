@@ -20,8 +20,10 @@ import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.Computable;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiDocumentManager;
+import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiFileFactory;
 import com.intellij.psi.codeStyle.CodeStyleManager;
@@ -39,7 +41,7 @@ public class Utils {
         PsiFile file = PsiFileFactory.getInstance(project)
                 .createFileFromText("temp.sql", BigQueryDialect.INSTANCE, sql);
         Runnable r = () -> CodeStyleManager.getInstance(project).reformat(file);
-        WriteCommandAction.runWriteCommandAction(project, r);
+        WriteCommandAction.runWriteCommandAction(project,null,null, r);
         return file.getText();
     }
 

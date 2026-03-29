@@ -26,12 +26,15 @@ public interface SharedTokenTypes {
     IElementType JS_KEYWORD = new IElementType("JS_KEYWORD", SqlxLanguage.INSTANCE);
     IElementType SQL_CONTENT = new IElementType("SQL_CONTENT", SqlxLanguage.INSTANCE);
     IElementType TEMPLATE_EXPRESSION = new IElementType("TEMPLATE_EXPRESSION", SqlxLanguage.INSTANCE);
-    IElementType JS_LITERAL = new IElementType("JS_LITERAL", SqlxLanguage.INSTANCE);
     IElementType PRE_OPERATIONS_KEYWORD = new IElementType("PRE_OPERATIONS_KEYWORD", SqlxLanguage.INSTANCE);
     IElementType PRE_OPERATIONS_CONTENT = new IElementType("PRE_OPERATIONS_CONTENT", SqlxLanguage.INSTANCE);
     IElementType POST_OPERATIONS_KEYWORD = new IElementType("POST_OPERATIONS_KEYWORD", SqlxLanguage.INSTANCE);
     IElementType POST_OPERATIONS_CONTENT = new IElementType("POST_OPERATIONS_CONTENT", SqlxLanguage.INSTANCE);
-    IElementType COMMENT = new IElementType("COMMENT", SqlxLanguage.INSTANCE);
     IElementType LBRACE = new IElementType("LBRACE", SqlxLanguage.INSTANCE);
     IElementType RBRACE = new IElementType("RBRACE", SqlxLanguage.INSTANCE);
+    IElementType CONFIG_BLOCK = new IElementType("CONFIG_BLOCK", SqlxLanguage.INSTANCE);
+    IElementType JS_BLOCK = new IElementType("JS_BLOCK", SqlxLanguage.INSTANCE);
+    IElementType SQL_BLOCK = new IElementType("SQL_BLOCK", SqlxLanguage.INSTANCE);
+    IElementType PRE_OPERATIONS_BLOCK = new IElementType("PRE_OPERATIONS_BLOCK", SqlxLanguage.INSTANCE);
+    IElementType POST_OPERATIONS_BLOCK = new IElementType("POST_OPERATIONS_BLOCK", SqlxLanguage.INSTANCE);
 }

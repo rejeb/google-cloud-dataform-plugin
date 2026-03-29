@@ -103,7 +103,8 @@
         <framework.detector implementation="io.github.rejeb.dataform.language.projectWizard.DataformFrameworkDetector"/>
         <projectTaskRunner
                 implementation="io.github.rejeb.dataform.language.compilation.DataformBuildTaskRunner"/>
-        <stepsBeforeRunProvider implementation="io.github.rejeb.dataform.language.compilation.DataformBuildTaskProvider"/>
+        <stepsBeforeRunProvider
+                implementation="io.github.rejeb.dataform.language.compilation.DataformBuildTaskProvider"/>
         <directoryProjectGenerator
                 implementation="io.github.rejeb.dataform.language.projectWizard.DataformDirectoryProjectGenerator"/>
         <moduleBuilder builderClass="io.github.rejeb.dataform.language.projectWizard.DataformModuleBuilder"/>
@@ -129,7 +130,12 @@
                 language="SQLX"
                 implementationClass="io.github.rejeb.dataform.language.parser.SqlxParserDefinition"/>
 
-        <multiHostInjector implementation="io.github.rejeb.dataform.language.injection.SqlxSqlInjector"/>
+        <lang.formatter
+                language="SQLX"
+                implementationClass="io.github.rejeb.dataform.language.formatting.SqlxFormattingModelBuilder"/>
+        <formattingService implementation="io.github.rejeb.dataform.language.formatting.SqlxFormattingService"/>
+
+        <multiHostInjector implementation="io.github.rejeb.dataform.language.injection.SqlxSqlBlockInjector"/>
 
         <multiHostInjector
                 implementation="io.github.rejeb.dataform.language.injection.SqlxConfigInjector"/>
@@ -139,9 +145,6 @@
 
         <multiHostInjector
                 implementation="io.github.rejeb.dataform.language.injection.SqlxTemplateInjector"/>
-
-        <multiHostInjector
-                implementation="io.github.rejeb.dataform.language.injection.SqlxOperationsInjector"/>
 
         <completion.contributor
                 language="JavaScript"
@@ -174,7 +177,6 @@
         <psi.referenceContributor
                 language="JavaScript"
                 implementation="io.github.rejeb.dataform.language.reference.DataformJsReferenceContributor"/>
-
         <lang.elementManipulator
                 forClass="io.github.rejeb.dataform.language.psi.SqlxSqlBlock"
                 implementationClass="io.github.rejeb.dataform.language.psi.SqlxSqlBlockManipulator"/>
@@ -216,16 +218,12 @@
                 text="Compare File with Remote"
                 description="Compare the local file with its remote GCP Dataform version">
             <add-to-group group-id="CompareActions" anchor="last"/>
-            <!-- Menu clic droit dans l'arbre de fichiers du projet -->
             <add-to-group group-id="ProjectViewPopupMenu"
                           anchor="before"
                           relative-to-action="CompareFileWithEditor"/>
-
-            <!-- Menu clic droit dans l'éditeur (onglets) -->
             <add-to-group group-id="EditorPopupMenu"
                           anchor="before"
                           relative-to-action="CompareClipboardWithSelection"/>
         </action>
-
     </actions>
 </idea-plugin>

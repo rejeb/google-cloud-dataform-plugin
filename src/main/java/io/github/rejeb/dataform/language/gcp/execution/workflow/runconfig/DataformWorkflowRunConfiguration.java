@@ -61,7 +61,6 @@ public class DataformWorkflowRunConfiguration
     }
 
     public void setWorkspaceId(String v) {
-        GcpRepositorySettings.getInstance(getProject()).setSelectedWorkspaceId(v);
         getOptions().setWorkspaceId(v);
     }
 

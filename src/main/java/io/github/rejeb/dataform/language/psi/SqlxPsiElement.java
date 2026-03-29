@@ -18,6 +18,7 @@ package io.github.rejeb.dataform.language.psi;
 
 import com.intellij.extapi.psi.ASTWrapperPsiElement;
 import com.intellij.lang.ASTNode;
+import com.intellij.psi.ElementManipulators;
 import com.intellij.psi.LiteralTextEscaper;
 import com.intellij.psi.PsiLanguageInjectionHost;
 import org.jetbrains.annotations.NotNull;
@@ -36,36 +37,12 @@ public class SqlxPsiElement  extends ASTWrapperPsiElement
 
     @Override
     public SqlxPsiElement updateText(@NotNull String text) {
-        return this;
+        return ElementManipulators.handleContentChange(this, text);
     }
 
     @NotNull
     @Override
     public LiteralTextEscaper<? extends PsiLanguageInjectionHost> createLiteralTextEscaper() {
-        return new LiteralTextEscaper<SqlxPsiElement>(this) {
-            @Override
-            public boolean decode(@NotNull com.intellij.openapi.util.TextRange rangeInsideHost,
-                                  @NotNull StringBuilder outChars) {
-                outChars.append(myHost.getText());
-                return true;
-            }
-
-            @Override
-            public int getOffsetInHost(int offsetInDecoded,
-                                       @NotNull com.intellij.openapi.util.TextRange rangeInsideHost) {
-                return rangeInsideHost.getStartOffset() + offsetInDecoded;
-            }
-
-            @NotNull
-            @Override
-            public com.intellij.openapi.util.TextRange getRelevantTextRange() {
-                return com.intellij.openapi.util.TextRange.from(0, myHost.getTextLength());
-            }
-
-            @Override
-            public boolean isOneLine() {
-                return false;
-            }
-        };
+        return LiteralTextEscaper.createSimple(this);
     }
 }

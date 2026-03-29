@@ -45,5 +45,8 @@ bin/
 .intellijPlatform/
 /.run/
 gradle/
-
+.claude/
+CLAUDE.md
 jflex-1.9.2.jar
+.remember
+docs

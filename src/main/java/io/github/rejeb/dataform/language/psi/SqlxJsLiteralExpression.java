@@ -16,79 +16,13 @@
  */
 package io.github.rejeb.dataform.language.psi;
 
-import com.intellij.extapi.psi.ASTWrapperPsiElement;
 import com.intellij.lang.ASTNode;
-import com.intellij.openapi.util.TextRange;
-import com.intellij.psi.ElementManipulators;
-import com.intellij.psi.LiteralTextEscaper;
-import com.intellij.psi.PsiLanguageInjectionHost;
 import org.jetbrains.annotations.NotNull;
 
-public class SqlxJsLiteralExpression extends ASTWrapperPsiElement implements PsiLanguageInjectionHost {
+public class SqlxJsLiteralExpression extends SqlxPsiElement {
 
     public SqlxJsLiteralExpression(@NotNull ASTNode node) {
         super(node);
-    }
-
-    @Override
-    public boolean isValidHost() {
-        return true;
-    }
-
-    @Override
-    public PsiLanguageInjectionHost updateText(@NotNull String text) {
-        return ElementManipulators.handleContentChange(this,text);
-    }
-
-    @NotNull
-    @Override
-    public LiteralTextEscaper<? extends PsiLanguageInjectionHost> createLiteralTextEscaper() {
-        return new LiteralTextEscaper<>(this) {
-
-            @Override
-            public boolean decode(@NotNull TextRange rangeInsideHost, @NotNull StringBuilder outChars) {
-                String text = myHost.getText();
-
-                if (rangeInsideHost.getStartOffset() < 0 || rangeInsideHost.getEndOffset() > text.length()) {
-                    System.err.println("Invalid range for decode: " + rangeInsideHost + " for text length: " + text.length());
-                    return false;
-                }
-
-                String substring = rangeInsideHost.substring(text);
-                outChars.append(substring);
-
-                return true;
-            }
-
-            @Override
-            public int getOffsetInHost(int offsetInDecoded, @NotNull TextRange rangeInsideHost) {
-                int result = offsetInDecoded + rangeInsideHost.getStartOffset();
-
-                if (result < 0 || result > myHost.getTextLength()) {
-                    System.err.println("Invalid offset calculation: " + result + " for text length: " + myHost.getTextLength());
-                    return rangeInsideHost.getStartOffset();
-                }
-
-                return result;
-            }
-
-            @NotNull
-            @Override
-            public TextRange getRelevantTextRange() {
-                String text = myHost.getText();
-
-                if (text.startsWith("${") && text.endsWith("}") && text.length() > 3) {
-                    return new TextRange(2, text.length() - 1);
-                }
-
-                return new TextRange(0, text.length());
-            }
-
-            @Override
-            public boolean isOneLine() {
-                return true;
-            }
-        };
     }
 
 }

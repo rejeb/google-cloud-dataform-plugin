@@ -41,7 +41,7 @@ public class SqlxConfigInjector implements MultiHostInjector {
         }
         String ifaceName = "DataformConfig";
         registrar.startInjecting(JavascriptLanguage.INSTANCE);
-        registrar.addPlace("(/** @type {" + ifaceName + "} */(", "))",  configBlock, new TextRange(0, text.length()));
+        registrar.addPlace("(/** @type {" + ifaceName + "} */({", "}))",  configBlock, new TextRange(0, text.length()));
         registrar.doneInjecting();
     }
 

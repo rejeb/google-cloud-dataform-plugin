@@ -46,8 +46,8 @@ intellijPlatform {
 
         changeNotes = """
                 <ul>
-                    <li>Add intelliJ native build support and remove java plugin dependency.</li>
-                    <li>Fix compilation on windows and 2026.1 commpatibility issues.</li>
+                    <li>Add formatting sqlx files.</li>
+                    <li>Fix issues.</li>
                 </ul>
         """.trimIndent()
     }

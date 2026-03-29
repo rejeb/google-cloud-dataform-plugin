@@ -42,5 +42,23 @@ public interface DataformToolsSettings {
      * Updates all settings at once.
      */
     void update(@NotNull String cliExecutablePath,
-                @NotNull String coreInstallPath);
+                @NotNull String coreInstallPath,
+                @NotNull String sqlfluffExecutablePath,
+                @NotNull String sqlfluffConfigPath,
+                @NotNull String sqlfluffExtraArgs);
+
+    /**
+     * Returns the configured path to the SQLFluff executable.
+     */
+    @NotNull String getSqlfluffExecutablePath();
+
+    /**
+     * Returns the configured path to the SQLFluff config file.
+     */
+    @NotNull String getSqlfluffConfigPath();
+
+    /**
+     * Returns additional SQLFluff CLI arguments.
+     */
+    @NotNull String getSqlfluffExtraArgs();
 }

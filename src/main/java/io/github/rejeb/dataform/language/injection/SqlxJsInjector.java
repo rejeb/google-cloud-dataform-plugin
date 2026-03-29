@@ -21,11 +21,9 @@ import com.intellij.lang.injection.MultiHostRegistrar;
 import com.intellij.lang.javascript.JavascriptLanguage;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiElement;
-import io.github.rejeb.dataform.language.psi.SqlxConfigBlock;
 import io.github.rejeb.dataform.language.psi.SqlxJsBlock;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Arrays;
 import java.util.List;
 
 public class SqlxJsInjector implements MultiHostInjector {
@@ -43,18 +41,12 @@ public class SqlxJsInjector implements MultiHostInjector {
             return;
         }
 
-        int startIndex = text.indexOf("{");
-        int endIndex = text.lastIndexOf("}");
-
-        if (startIndex == -1 || endIndex == -1 || startIndex >= endIndex) {
-            return;
-        }
         registrar.startInjecting(JavascriptLanguage.INSTANCE)
                 .addPlace(
-                        null,
-                        null,
+                        "function my_function() {",
+                        "}",
                         jsBlock,
-                        new TextRange(startIndex, endIndex)
+                        new TextRange(0, text.length())
                 )
                 .doneInjecting();
 

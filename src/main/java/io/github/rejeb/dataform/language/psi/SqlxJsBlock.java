@@ -16,70 +16,13 @@
  */
 package io.github.rejeb.dataform.language.psi;
 
-import com.intellij.extapi.psi.ASTWrapperPsiElement;
 import com.intellij.lang.ASTNode;
-import com.intellij.psi.LiteralTextEscaper;
-import com.intellij.psi.PsiLanguageInjectionHost;
 import org.jetbrains.annotations.NotNull;
 
-public class SqlxJsBlock extends ASTWrapperPsiElement implements PsiLanguageInjectionHost {
+public class SqlxJsBlock extends SqlxPsiElement {
 
     public SqlxJsBlock(@NotNull ASTNode node) {
         super(node);
-    }
-
-    @Override
-    public boolean isValidHost() {
-        return true;
-    }
-
-    @Override
-    public SqlxJsBlock updateText(@NotNull String text) {
-        return this;
-    }
-
-    @NotNull
-    @Override
-    public LiteralTextEscaper<? extends PsiLanguageInjectionHost> createLiteralTextEscaper() {
-        return new LiteralTextEscaper<>(this) {
-            @Override
-            public boolean decode(@NotNull com.intellij.openapi.util.TextRange rangeInsideHost, @NotNull StringBuilder outChars) {
-                String text = myHost.getText();
-                int startBrace = text.indexOf('{');
-                int endBrace = text.lastIndexOf('}');
-
-                if (startBrace >= 0 && endBrace > startBrace) {
-                    outChars.append(text, startBrace + 1, endBrace);
-                    return true;
-                }
-                return false;
-            }
-
-            @Override
-            public int getOffsetInHost(int offsetInDecoded, @NotNull com.intellij.openapi.util.TextRange rangeInsideHost) {
-                String text = myHost.getText();
-                int startBrace = text.indexOf('{');
-                return startBrace + 1 + offsetInDecoded;
-            }
-
-            @NotNull
-            @Override
-            public com.intellij.openapi.util.TextRange getRelevantTextRange() {
-                String text = myHost.getText();
-                int startBrace = text.indexOf('{');
-                int endBrace = text.lastIndexOf('}');
-
-                if (startBrace >= 0 && endBrace > startBrace) {
-                    return com.intellij.openapi.util.TextRange.create(startBrace + 1, endBrace);
-                }
-                return com.intellij.openapi.util.TextRange.from(0, myHost.getTextLength());
-            }
-
-            @Override
-            public boolean isOneLine() {
-                return false;
-            }
-        };
     }
 
 }

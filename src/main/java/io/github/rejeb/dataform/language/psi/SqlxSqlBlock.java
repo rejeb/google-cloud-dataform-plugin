@@ -16,57 +16,12 @@
  */
 package io.github.rejeb.dataform.language.psi;
 
-import com.intellij.extapi.psi.ASTWrapperPsiElement;
 import com.intellij.lang.ASTNode;
-import com.intellij.psi.ElementManipulators;
-import com.intellij.psi.LiteralTextEscaper;
-import com.intellij.psi.PsiLanguageInjectionHost;
 import org.jetbrains.annotations.NotNull;
 
 public class SqlxSqlBlock extends SqlxPsiElement {
 
     public SqlxSqlBlock(@NotNull ASTNode node) {
         super(node);
-    }
-
-    @Override
-    public boolean isValidHost() {
-        return true;
-    }
-
-    @Override
-    public SqlxSqlBlock updateText(@NotNull String text) {
-        ElementManipulators.handleContentChange(this, text);
-        return this;
-    }
-
-    @NotNull
-    @Override
-    public LiteralTextEscaper<? extends PsiLanguageInjectionHost> createLiteralTextEscaper() {
-        return new LiteralTextEscaper<>(this) {
-            @Override
-            public boolean decode(@NotNull com.intellij.openapi.util.TextRange rangeInsideHost,
-                                  @NotNull StringBuilder outChars) {
-                outChars.append(rangeInsideHost.substring(myHost.getText()));
-                return true;
-            }
-
-            @Override
-            public int getOffsetInHost(int offsetInDecoded,
-                                       @NotNull com.intellij.openapi.util.TextRange rangeInsideHost) {
-                return rangeInsideHost.getStartOffset() + offsetInDecoded;
-            }
-
-            @NotNull
-            @Override
-            public com.intellij.openapi.util.TextRange getRelevantTextRange() {
-                return com.intellij.openapi.util.TextRange.from(0, myHost.getTextLength());
-            }
-
-            @Override
-            public boolean isOneLine() {
-                return false;
-            }
-        };
     }
 }

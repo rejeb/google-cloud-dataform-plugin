@@ -35,20 +35,9 @@ public class SqlxTemplateInjector implements MultiHostInjector {
 
 
         String text = context.getText();
-        int startOffset = 0;
-        int endOffset = text.length();
-
-        if (text.startsWith("${") && text.endsWith("}")) {
-            startOffset = 2;
-            endOffset = text.length() - 1;
-        }
-
-        if (endOffset > startOffset) {
-            TextRange injectionRange = new TextRange(startOffset, endOffset);
-            registrar.startInjecting(JavascriptLanguage.INSTANCE);
-            registrar.addPlace(null,  null, (PsiLanguageInjectionHost) context, injectionRange);
-            registrar.doneInjecting();
-        }
+        registrar.startInjecting(JavascriptLanguage.INSTANCE);
+        registrar.addPlace("{(`", "`)}", (PsiLanguageInjectionHost) context, new TextRange(0, text.length()));
+        registrar.doneInjecting();
     }
 
     @NotNull

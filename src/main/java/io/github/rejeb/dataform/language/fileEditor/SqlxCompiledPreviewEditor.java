@@ -115,7 +115,7 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
                 indicator.setIndeterminate(true);
                 indicator.setText("Compiling " + file.getName() + "...");
                 DataformCompilationService svc = project.getService(DataformCompilationService.class);
-                CompiledGraph graph = svc.compile(false);
+                CompiledGraph graph = svc.getCompiledGraph();
                 if (graph != null) {
                     String path = file.getCanonicalPath();
                     List<CompiledQuery> rawQueries = graph.findCompiledQueryByFileName(path);

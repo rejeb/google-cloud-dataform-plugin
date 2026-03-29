@@ -52,10 +52,8 @@ public final class DataformBuildTaskProvider extends BeforeRunTaskProvider<Dataf
 
     @Override
     public @Nullable DataformBuildTask createTask(@NotNull RunConfiguration runConfiguration) {
-        // Comme RsBuildTaskProvider : ne créer une tâche que pour les run configs Dataform
-        return runConfiguration instanceof DataformWorkflowRunConfiguration
-                ? new DataformBuildTask(ID)
-                : null;
+        if (!(runConfiguration instanceof DataformWorkflowRunConfiguration)) return null;
+        return new DataformBuildTask(ID);
     }
 
     @Override

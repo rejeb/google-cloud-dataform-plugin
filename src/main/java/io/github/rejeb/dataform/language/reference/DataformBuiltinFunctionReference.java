@@ -23,6 +23,7 @@ import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiReferenceBase;
 import io.github.rejeb.dataform.language.service.DataformCoreIndexService;
+import io.github.rejeb.dataform.language.service.WorkflowSettingsService;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jspecify.annotations.NonNull;
@@ -47,6 +48,7 @@ public class DataformBuiltinFunctionReference extends PsiReferenceBase<PsiElemen
 
     @Nullable
     private PsiElement findFunction(Project project) {
+        WorkflowSettingsService wfService = WorkflowSettingsService.getInstance(project);
         DataformCoreIndexService service = DataformCoreIndexService.getInstance(project);
         Collection<JSFunction> functions = service.getCachedDataformFunctionsRef();
         for (JSFunction function : functions) {
@@ -58,10 +60,11 @@ public class DataformBuiltinFunctionReference extends PsiReferenceBase<PsiElemen
         Collection<JSVariable> variables = service.getCachedDataformVariablesRef();
         for (JSVariable variable : variables) {
             String name = variable.getName();
-            if (jsElementName.equals(name)) {
+            if (jsElementName.equals(name) && !wfService.isWorkflowSettingProperty(name)) {
                 return variable;
             }
         }
+
         return service.getPsiFile().map(psiFile -> {
             String text = psiFile.getText();
             int functionIndex = text.indexOf(jsElementName);

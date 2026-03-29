@@ -42,6 +42,9 @@ public final class DataformToolsSettingsPanel {
 
     private final TextFieldWithBrowseButton cliExecutableField  = new TextFieldWithBrowseButton();
     private final TextFieldWithBrowseButton coreInstallField    = new TextFieldWithBrowseButton();
+    private final TextFieldWithBrowseButton sqlfluffExecutableField = new TextFieldWithBrowseButton();
+    private final TextFieldWithBrowseButton sqlfluffConfigField = new TextFieldWithBrowseButton();
+    private final JTextField sqlfluffArgsField = new JTextField();
     private final JButton    installButton    = new JButton("Install Dataform CLI & Core");
     private final JTextPane  statusPane       = buildStatusPane();
     private final JScrollPane statusScrollPane = buildStatusScrollPane();
@@ -65,6 +68,20 @@ public final class DataformToolsSettingsPanel {
 
         installButton.addActionListener(e -> onInstall());
 
+        sqlfluffExecutableField.addBrowseFolderListener(
+                null,
+                FileChooserDescriptorFactory.singleFile()
+                        .withTitle("Select SQLFluff Executable")
+                        .withDescription("Choose the path to the sqlfluff executable")
+        );
+
+        sqlfluffConfigField.addBrowseFolderListener(
+                null,
+                FileChooserDescriptorFactory.singleFile()
+                        .withTitle("Select SQLFluff Config")
+                        .withDescription("Choose a .sqlfluff config file (optional)")
+        );
+
         JPanel buttonRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         buttonRow.add(installButton);
 
@@ -75,6 +92,15 @@ public final class DataformToolsSettingsPanel {
                 .addVerticalGap(10)
                 .addLabeledComponent(new JBLabel("Dataform Core directory"), new JSeparator())
                 .addComponent(coreInstallField, 10)
+                .addVerticalGap(10)
+                .addLabeledComponent(new JBLabel("SQLFluff executable"), new JSeparator())
+                .addComponent(sqlfluffExecutableField, 10)
+                .addVerticalGap(10)
+                .addLabeledComponent(new JBLabel("SQLFluff config file (optional)"), new JSeparator())
+                .addComponent(sqlfluffConfigField, 10)
+                .addVerticalGap(10)
+                .addLabeledComponent(new JBLabel("SQLFluff extra args"), new JSeparator())
+                .addComponent(sqlfluffArgsField, 10)
                 .addVerticalGap(10)
                 .addComponent(buttonRow)
                 .addVerticalGap(5)
@@ -244,4 +270,10 @@ public final class DataformToolsSettingsPanel {
     public String  getCoreInstallPath()   { return coreInstallField.getText().trim(); }
     public void    setCliExecutablePath(String path) { cliExecutableField.setText(path); }
     public void    setCoreInstallPath(String path)   { coreInstallField.setText(path); }
+    public String  getSqlfluffExecutablePath() { return sqlfluffExecutableField.getText().trim(); }
+    public String  getSqlfluffConfigPath() { return sqlfluffConfigField.getText().trim(); }
+    public String  getSqlfluffExtraArgs() { return sqlfluffArgsField.getText().trim(); }
+    public void    setSqlfluffExecutablePath(String path) { sqlfluffExecutableField.setText(path); }
+    public void    setSqlfluffConfigPath(String path) { sqlfluffConfigField.setText(path); }
+    public void    setSqlfluffExtraArgs(String args) { sqlfluffArgsField.setText(args); }
 }

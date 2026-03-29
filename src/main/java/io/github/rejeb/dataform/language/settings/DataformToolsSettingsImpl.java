@@ -52,9 +52,30 @@ public final class DataformToolsSettingsImpl
     }
 
     @Override
+    public @NotNull String getSqlfluffExecutablePath() {
+        return state.sqlfluffExecutablePath;
+    }
+
+    @Override
+    public @NotNull String getSqlfluffConfigPath() {
+        return state.sqlfluffConfigPath;
+    }
+
+    @Override
+    public @NotNull String getSqlfluffExtraArgs() {
+        return state.sqlfluffExtraArgs;
+    }
+
+    @Override
     public void update(@NotNull String cliExecutablePath,
-                       @NotNull String coreInstallPath) {
+                       @NotNull String coreInstallPath,
+                       @NotNull String sqlfluffExecutablePath,
+                       @NotNull String sqlfluffConfigPath,
+                       @NotNull String sqlfluffExtraArgs) {
         state.cliExecutablePath = cliExecutablePath;
         state.coreInstallPath = coreInstallPath;
+        state.sqlfluffExecutablePath = sqlfluffExecutablePath;
+        state.sqlfluffConfigPath = sqlfluffConfigPath;
+        state.sqlfluffExtraArgs = sqlfluffExtraArgs;
     }
 }

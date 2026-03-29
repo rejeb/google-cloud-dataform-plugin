@@ -31,9 +31,10 @@ import com.intellij.openapi.startup.ProjectActivity;
 import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.wm.IdeFrame;
 import com.intellij.util.messages.MessageBusConnection;
-import io.github.rejeb.dataform.language.util.NodeJsNpmUtils;
+
 import io.github.rejeb.dataform.language.settings.DataformToolsConfigurable;
 import io.github.rejeb.dataform.language.settings.DataformToolsSettings;
+import io.github.rejeb.dataform.language.util.NodeJsNpmUtils;
 import kotlin.Unit;
 import kotlin.coroutines.Continuation;
 import org.jetbrains.annotations.NotNull;
@@ -44,7 +45,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 
-public class DataformInstaller implements ProjectActivity, Disposable {
+public class DataformInstaller implements ProjectActivity {
 
     private static final Logger LOG = Logger.getInstance(DataformInstaller.class);
     private static final AtomicBoolean dataformNotificationShown = new AtomicBoolean(false);
@@ -56,10 +57,9 @@ public class DataformInstaller implements ProjectActivity, Disposable {
 
         ApplicationManager.getApplication().invokeLater(() -> {
             checkAndSetup(project);
-
             MessageBusConnection connection = ApplicationManager.getApplication()
                     .getMessageBus()
-                    .connect(this);
+                    .connect();
 
             connection.subscribe(ApplicationActivationListener.TOPIC,
                     new ApplicationActivationListener() {
@@ -68,11 +68,12 @@ public class DataformInstaller implements ProjectActivity, Disposable {
                             DataformToolsSettings settings = DataformToolsSettings.getInstance();
                             if (!settings.getCliExecutablePath().isBlank()
                                     && !settings.getCoreInstallPath().isBlank()) {
-                                // Tout est configuré → plus besoin d'écouter
                                 connection.disconnect();
                                 return;
                             }
                             checkAndSetup(project);
+                            connection.disconnect();
+                            connection.dispose();
                         }
                     });
         });
@@ -86,7 +87,7 @@ public class DataformInstaller implements ProjectActivity, Disposable {
         NodeInterpreterManager nim = NodeInterpreterManager.getInstance(project);
         if (nim.npmExecutable() == null) {
             LOG.info("Node.js not configured — notifying user.");
-            settings.update("", "");
+            settings.update("", "", "", "", "");
             if (nodeJsNotificationShown.compareAndSet(false, true)) {
                 NodeJsNpmUtils.showNpmConfigurationDialog(project);
             }
@@ -108,7 +109,7 @@ public class DataformInstaller implements ProjectActivity, Disposable {
             Path root = dataformRootDir.get();
             String core = root.resolve("core").toAbsolutePath().toString();
             String cli = resolveCli(nim.nodeBinDir());
-            settings.update(cli, core);
+            settings.update(cli, core, "", "", "");
             LOG.info("Dataform paths persisted — core: " + core + ", cli: " + cli);
         }
     }
@@ -149,8 +150,4 @@ public class DataformInstaller implements ProjectActivity, Disposable {
                 .notify(project);
     }
 
-    @Override
-    public void dispose() {
-
-    }
 }

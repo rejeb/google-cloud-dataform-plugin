@@ -23,25 +23,10 @@ import com.intellij.psi.LiteralTextEscaper;
 import com.intellij.psi.PsiLanguageInjectionHost;
 import org.jetbrains.annotations.NotNull;
 
-public class SqlxConfigBlock extends ASTWrapperPsiElement implements PsiLanguageInjectionHost {
+public class SqlxConfigBlock extends SqlxPsiElement {
 
     public SqlxConfigBlock(@NotNull ASTNode node) {
         super(node);
     }
 
-    @Override
-    public boolean isValidHost() {
-        return true;
-    }
-
-    @Override
-    public PsiLanguageInjectionHost updateText(@NotNull String text) {
-        return ElementManipulators.handleContentChange(this, text);
-    }
-
-    @NotNull
-    @Override
-    public LiteralTextEscaper<? extends PsiLanguageInjectionHost> createLiteralTextEscaper() {
-        return LiteralTextEscaper.createSimple(this);
-    }
 }

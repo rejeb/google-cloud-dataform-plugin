@@ -29,12 +29,11 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Collections;
 
 import static io.github.rejeb.dataform.language.injection.InjectionHelper.collectJsElements;
 import static io.github.rejeb.dataform.language.injection.InjectionHelper.hasOverlappingRanges;
 
-public class SqlxSqlInjector implements MultiHostInjector {
+public class SqlxSqlBlockInjector implements MultiHostInjector {
 
     @Override
     public void getLanguagesToInject(@NotNull MultiHostRegistrar registrar,
@@ -93,7 +92,8 @@ public class SqlxSqlInjector implements MultiHostInjector {
             String placeholder = (jsElement != null)
                     ? SqlxRefSelfResolver.resolveToSqlIdentifier(jsElement, currentFileName)
                     : null;
-            if (placeholder == null) placeholder = "NULL";
+            if (placeholder == null)
+                placeholder = (jsElement != null) ? InjectionHelper.sqlCoteJsElement(jsElement) : "NULL";
 
             registrar.addPlace(
                     placeholder,

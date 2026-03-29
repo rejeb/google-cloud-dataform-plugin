@@ -39,14 +39,20 @@ public class DataformToolsConfigurable implements Configurable {
     public boolean isModified() {
         DataformToolsSettings service = DataformToolsSettings.getInstance();
         return !panel.getCliExecutablePath().equals(service.getCliExecutablePath())
-                || !panel.getCoreInstallPath().equals(service.getCoreInstallPath());
+                || !panel.getCoreInstallPath().equals(service.getCoreInstallPath())
+                || !panel.getSqlfluffExecutablePath().equals(service.getSqlfluffExecutablePath())
+                || !panel.getSqlfluffConfigPath().equals(service.getSqlfluffConfigPath())
+                || !panel.getSqlfluffExtraArgs().equals(service.getSqlfluffExtraArgs());
     }
 
     @Override
     public void apply() {
         DataformToolsSettings.getInstance().update(
                 panel.getCliExecutablePath(),
-                panel.getCoreInstallPath()
+                panel.getCoreInstallPath(),
+                panel.getSqlfluffExecutablePath(),
+                panel.getSqlfluffConfigPath(),
+                panel.getSqlfluffExtraArgs()
         );
     }
 
@@ -55,5 +61,8 @@ public class DataformToolsConfigurable implements Configurable {
         DataformToolsSettings service = DataformToolsSettings.getInstance();
         panel.setCliExecutablePath(service.getCliExecutablePath());
         panel.setCoreInstallPath(service.getCoreInstallPath());
+        panel.setSqlfluffExecutablePath(service.getSqlfluffExecutablePath());
+        panel.setSqlfluffConfigPath(service.getSqlfluffConfigPath());
+        panel.setSqlfluffExtraArgs(service.getSqlfluffExtraArgs());
     }
 }

@@ -61,7 +61,7 @@ public class DataformProjectStartup implements ProjectActivity {
 
         if (!isDataformProject) return null;
         LastMousePositionService.getInstance();
-        if (GcpRepositorySettings.getInstance(project).getConfig() != null) {
+        if (GcpRepositorySettings.getInstance(project).getActiveConfig() != null) {
             List<String> cached = DataformGcpService.getInstance(project).getCachedFiles();
             if (cached.isEmpty()) {
                 DataformGcpService.getInstance(project).refreshFilesAsync(null, files ->
@@ -100,6 +100,7 @@ public class DataformProjectStartup implements ProjectActivity {
                 VirtualFile contentRoot = roots[0];
                 ensureGitignoreContainsDataform(contentRoot);
             } catch (IOException e) {
+                LOG.debug("Failed to ensure .gitignore contains .dataform/", e);
             }
         });
 

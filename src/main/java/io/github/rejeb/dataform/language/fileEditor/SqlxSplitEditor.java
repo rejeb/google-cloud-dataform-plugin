@@ -20,12 +20,9 @@ import com.intellij.execution.actions.RunContextAction;
 import com.intellij.execution.executors.DefaultRunExecutor;
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.actionSystem.*;
-import com.intellij.openapi.editor.event.DocumentEvent;
-import com.intellij.openapi.editor.event.DocumentListener;
 import com.intellij.openapi.fileEditor.TextEditor;
 import com.intellij.openapi.fileEditor.TextEditorWithPreview;
 import com.intellij.ui.JBColor;
-import com.intellij.util.Alarm;
 import com.intellij.util.IconUtil;
 import icons.DatabaseIcons;
 import io.github.rejeb.dataform.language.compilation.DataformBuildAction;
@@ -39,7 +36,6 @@ import java.util.List;
 public class SqlxSplitEditor extends TextEditorWithPreview {
 
     private final SqlxCompiledPreviewEditor myPreview;
-    private final Alarm alarm;
 
     public SqlxSplitEditor(@NotNull TextEditor textEditor,
                            @NotNull SqlxCompiledPreviewEditor previewEditor) {
@@ -47,19 +43,6 @@ public class SqlxSplitEditor extends TextEditorWithPreview {
                 Layout.SHOW_EDITOR,
                 false);
         this.myPreview = previewEditor;
-        this.alarm = new Alarm(Alarm.ThreadToUse.POOLED_THREAD, this);
-
-        textEditor.getEditor().getDocument().addDocumentListener(
-                new DocumentListener() {
-                    @Override
-                    public void documentChanged(@NotNull DocumentEvent event) {
-                        alarm.cancelAllRequests();
-                        if (!alarm.isDisposed()) {
-                            alarm.addRequest(myPreview::updateCompiledSql, 20000);
-                        }
-                    }
-                }, this
-        );
     }
 
     @Override

@@ -40,5 +40,7 @@ public interface WorkflowSettingsService {
     WorkflowSettingsYamlFileWrapper findWorkflowSettingsFile();
 
     @Nullable
-    public WorkflowSettingsProperty getProperty(@Nullable String prop);
+    WorkflowSettingsProperty getProperty(@Nullable String prop);
+
+    boolean isWorkflowSettingProperty(@NotNull String property);
 }

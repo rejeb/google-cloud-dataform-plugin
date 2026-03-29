@@ -19,7 +19,6 @@ package io.github.rejeb.dataform.language.schema.dts;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import io.github.rejeb.dataform.language.schema.json.DataformJsonSchemaGenerator;
@@ -29,16 +28,6 @@ import org.jetbrains.annotations.NotNull;
 import java.util.*;
 
 public class DataformDtsGeneratorImpl implements DataformDtsGenerator {
-    private static final Map<String, String> SQLX_TYPES = new LinkedHashMap<>();
-
-    static {
-        SQLX_TYPES.put("table", "ActionConfig.TableConfig");
-        SQLX_TYPES.put("view", "ActionConfig.ViewConfig");
-        SQLX_TYPES.put("incremental", "ActionConfig.IncrementalTableConfig");
-        SQLX_TYPES.put("assertion", "ActionConfig.AssertionConfig");
-        SQLX_TYPES.put("operations", "ActionConfig.OperationConfig");
-        SQLX_TYPES.put("declaration", "ActionConfig.DeclarationConfig");
-    }
 
     private final Project project;
 
@@ -63,12 +52,12 @@ public class DataformDtsGeneratorImpl implements DataformDtsGenerator {
         ObjectNode defs = (ObjectNode) root.get("$defs");
         Map<String, String> defNames = new LinkedHashMap<>(); // defKey → TS interface name
         if (defs != null) {
-            defs.fields().forEachRemaining(entry -> {
+            defs.properties().forEach(entry -> {
                 String ifaceName = "I_" + entry.getKey(); // ex: I_ActionConfig_BigQueryOptions
                 defNames.put(entry.getKey(), ifaceName);
             });
             // Second pass: generate interfaces
-            defs.fields().forEachRemaining(entry -> {
+            defs.properties().forEach(entry -> {
                 sb.append("interface ").append(defNames.get(entry.getKey())).append(" ");
                 appendObjectType(sb, (ObjectNode) entry.getValue(), defNames, "");
                 sb.append("\n\n");
@@ -110,7 +99,7 @@ public class DataformDtsGeneratorImpl implements DataformDtsGenerator {
         String inner = indent + "  ";
         ObjectNode props = (ObjectNode) schema.get("properties");
         if (props != null) {
-            props.fields().forEachRemaining(entry -> {
+            props.properties().forEach(entry -> {
                 String propName = entry.getKey();
                 ObjectNode propSchema = (ObjectNode) entry.getValue();
                 String desc = propSchema.path("description").asText("");

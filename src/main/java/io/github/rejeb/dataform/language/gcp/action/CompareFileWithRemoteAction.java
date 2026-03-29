@@ -59,21 +59,18 @@ public class CompareFileWithRemoteAction extends AnAction {
             return;
         }
 
-        // Visible uniquement dans un projet Dataform (facet détecté)
         boolean isDataformProject = isDataformProject(project, file);
         e.getPresentation().setVisible(isDataformProject);
         if (!isDataformProject) return;
 
-        // Grisé si aucun repository configuré
         GcpRepositorySettings settings = GcpRepositorySettings.getInstance(project);
-        boolean hasConfig = settings.getConfig() != null
-                && settings.getConfig().repositoryId() != null
-                && !settings.getConfig().repositoryId().isBlank();
+        boolean hasConfig = settings.getActiveConfig() != null
+                && !settings.getActiveConfig().repositoryId().isBlank();
         e.getPresentation().setEnabled(hasConfig);
 
         e.getPresentation().setText(hasConfig
                 ? "Compare File with Remote"
-                : "Compare File with Remote (no repository configured)");
+                : "Compare File with Remote (No Repository Configured)");
     }
 
     @Override

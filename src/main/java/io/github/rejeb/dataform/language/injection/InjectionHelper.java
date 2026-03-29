@@ -20,25 +20,20 @@ import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.tree.IElementType;
 import com.intellij.psi.util.PsiTreeUtil;
-import io.github.rejeb.dataform.language.psi.SqlxElementTypes;
+import io.github.rejeb.dataform.language.psi.SharedTokenTypes;
+import org.jetbrains.annotations.NotNull;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Set;
 
 public class InjectionHelper {
-    private static final Set<IElementType> JS_ELEMENT_TYPES = Set.of(
-            SqlxElementTypes.TEMPLATE_EXPRESSION_ELEMENT,
-            SqlxElementTypes.JS_LITERAL_ELEMENT
-    );
 
     public static LinkedHashMap<TextRange, PsiElement> collectJsElements(
             PsiElement sqlBlock, int blockStartOffset) {
         LinkedHashMap<TextRange, PsiElement> result = new LinkedHashMap<>();
         PsiTreeUtil.processElements(sqlBlock, element -> {
             IElementType type = element.getNode().getElementType();
-            if (JS_ELEMENT_TYPES.contains(type)) {
+            if (SharedTokenTypes.TEMPLATE_EXPRESSION.equals(type)) {
                 TextRange abs = element.getTextRange();
                 TextRange rel = new TextRange(
                         abs.getStartOffset() - blockStartOffset,
@@ -60,5 +55,16 @@ public class InjectionHelper {
             }
         }
         return false;
+    }
+
+    @NotNull
+    public static String sqlCoteJsElement(@NotNull PsiElement element) {
+        String text = element.getText();
+        if (text == null || text.isBlank()) return "NULL";
+        if (text.contains("\n") || text.contains("\r")) {
+            return ("\"\"\"" + text.substring(3, text.length() - 3) + "\"\"\"").replace("$", "a");
+        } else {
+            return ("'" + text.substring(1, text.length() - 1) + "'").replace("$", "a");
+        }
     }
 }

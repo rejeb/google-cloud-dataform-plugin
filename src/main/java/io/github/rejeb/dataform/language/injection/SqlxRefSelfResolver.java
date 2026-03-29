@@ -50,7 +50,7 @@ public final class SqlxRefSelfResolver {
 
         Project project = element.getProject();
         DataformCompilationService compilationService =
-                project.getService(DataformCompilationService.class);
+                DataformCompilationService.getInstance(project);
         if (compilationService == null) return null;
 
         CompiledGraph graph = compilationService.getCompiledGraph();

@@ -39,17 +39,15 @@ import java.util.function.Function;
 public class SqlxParserDefinition implements ParserDefinition {
 
     private static final TokenSet WHITE_SPACES = TokenSet.create(TokenType.WHITE_SPACE);
-    private static final TokenSet COMMENTS = TokenSet.create(SharedTokenTypes.COMMENT);
 
     private static final IFileElementType FILE = new IFileElementType(SqlxLanguage.INSTANCE);
     private static final Map<IElementType, Function<ASTNode, PsiElement>> PSI_FACTORY = Map.of(
-            SqlxElementTypes.SQL_BLOCK, SqlxSqlBlock::new,
-            SqlxElementTypes.CONFIG_BLOCK, SqlxConfigBlock::new,
-            SqlxElementTypes.JS_BLOCK, SqlxJsBlock::new,
-            SqlxElementTypes.JS_LITERAL_ELEMENT, SqlxJsLiteralExpression::new,
-            SqlxElementTypes.TEMPLATE_EXPRESSION_ELEMENT, SqlxJsLiteralExpression::new,
-            SharedTokenTypes.PRE_OPERATIONS_CONTENT, SqlxPreOperationsBlock::new,
-            SharedTokenTypes.POST_OPERATIONS_CONTENT, SqlxPostOperationsBlock::new
+            SharedTokenTypes.SQL_CONTENT, SqlxSqlBlock::new,
+            SharedTokenTypes.CONFIG_CONTENT, SqlxConfigBlock::new,
+            SharedTokenTypes.JS_CONTENT, SqlxJsBlock::new,
+            SharedTokenTypes.TEMPLATE_EXPRESSION, SqlxJsLiteralExpression::new,
+            SharedTokenTypes.PRE_OPERATIONS_CONTENT, SqlxSqlBlock::new,
+            SharedTokenTypes.POST_OPERATIONS_CONTENT, SqlxSqlBlock::new
     );
 
     @NotNull
@@ -77,7 +75,7 @@ public class SqlxParserDefinition implements ParserDefinition {
     @NotNull
     @Override
     public TokenSet getCommentTokens() {
-        return COMMENTS;
+        return TokenSet.EMPTY;
     }
 
     @NotNull

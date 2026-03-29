@@ -92,7 +92,6 @@ public class DataformJsSymbolCompletionContributorProvider extends CompletionPro
 
     private List<LookupElement> handleJsBlockContent(PsiFile file) {
         List<PsiFile> jsBlocks = findJsBlock(file);
-
         Collection<LookupElement> variables = jsBlocks
                 .stream()
                 .flatMap(psiFile -> PsiTreeUtil.findChildrenOfType(psiFile, JSVariable.class).stream())
@@ -142,9 +141,11 @@ public class DataformJsSymbolCompletionContributorProvider extends CompletionPro
     }
 
     private List<LookupElement> handleBuiltinVariables(Project project) {
+        WorkflowSettingsService wfService = WorkflowSettingsService.getInstance(project);
         return DataformCoreIndexService.getInstance(project)
                 .getCachedDataformVariablesRef()
                 .stream()
+                .filter(variable -> variable.getName() != null && !wfService.isWorkflowSettingProperty(variable.getName()))
                 .map(this::buildJsVarElemLookup).toList();
     }
 

@@ -19,4 +19,7 @@ package io.github.rejeb.dataform.language.settings;
 public final class DataformToolsSettingsState {
     public String cliExecutablePath = "";
     public String coreInstallPath = "";
+    public String sqlfluffExecutablePath = "";
+    public String sqlfluffConfigPath = "";
+    public String sqlfluffExtraArgs = "";
 }

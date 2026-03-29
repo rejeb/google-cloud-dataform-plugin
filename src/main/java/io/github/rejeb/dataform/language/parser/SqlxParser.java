@@ -19,10 +19,8 @@ package io.github.rejeb.dataform.language.parser;
 import com.intellij.lang.ASTNode;
 import com.intellij.lang.PsiBuilder;
 import com.intellij.lang.PsiParser;
-import com.intellij.lang.javascript.JSTokenTypes;
 import com.intellij.psi.tree.IElementType;
 import io.github.rejeb.dataform.language.psi.SharedTokenTypes;
-import io.github.rejeb.dataform.language.psi.SqlxElementTypes;
 import org.jetbrains.annotations.NotNull;
 
 public class SqlxParser implements PsiParser {
@@ -36,17 +34,29 @@ public class SqlxParser implements PsiParser {
             IElementType tokenType = builder.getTokenType();
 
             if (tokenType == SharedTokenTypes.CONFIG_KEYWORD) {
+                PsiBuilder.Marker blockMarker = builder.mark();
                 markElement(builder, SharedTokenTypes.CONFIG_KEYWORD);
-                parseJsBlock(builder,SqlxElementTypes.CONFIG_BLOCK);
+                markOptionalElement(builder, SharedTokenTypes.LBRACE);
+                markOptionalElement(builder, SharedTokenTypes.CONFIG_CONTENT);
+                markOptionalElement(builder, SharedTokenTypes.RBRACE);
+                blockMarker.done(SharedTokenTypes.CONFIG_BLOCK);
             } else if (tokenType == SharedTokenTypes.JS_KEYWORD) {
+                PsiBuilder.Marker blockMarker = builder.mark();
                 markElement(builder, SharedTokenTypes.JS_KEYWORD);
-                parseJsBlock(builder,SqlxElementTypes.JS_BLOCK);
+                markOptionalElement(builder, SharedTokenTypes.LBRACE);
+                markOptionalElement(builder, SharedTokenTypes.JS_CONTENT);
+                markOptionalElement(builder, SharedTokenTypes.RBRACE);
+                blockMarker.done(SharedTokenTypes.JS_BLOCK);
             } else if (tokenType == SharedTokenTypes.PRE_OPERATIONS_KEYWORD) {
+                PsiBuilder.Marker blockMarker = builder.mark();
                 markElement(builder, SharedTokenTypes.PRE_OPERATIONS_KEYWORD);
                 parseOperationsBlock(builder, SharedTokenTypes.PRE_OPERATIONS_CONTENT);
+                blockMarker.done(SharedTokenTypes.PRE_OPERATIONS_BLOCK);
             } else if (tokenType == SharedTokenTypes.POST_OPERATIONS_KEYWORD) {
+                PsiBuilder.Marker blockMarker = builder.mark();
                 markElement(builder, SharedTokenTypes.POST_OPERATIONS_KEYWORD);
                 parseOperationsBlock(builder, SharedTokenTypes.POST_OPERATIONS_CONTENT);
+                blockMarker.done(SharedTokenTypes.POST_OPERATIONS_BLOCK);
             } else {
                 parseSqlBlock(builder);
             }
@@ -57,46 +67,22 @@ public class SqlxParser implements PsiParser {
     }
 
     private void parseOperationsBlock(PsiBuilder builder, IElementType operationType) {
-        PsiBuilder.Marker sqlMarker = builder.mark();
+        markOptionalElement(builder, SharedTokenTypes.LBRACE);
 
+        PsiBuilder.Marker sqlMarker = builder.mark();
         while (!builder.eof()) {
             IElementType tokenType = builder.getTokenType();
-            if (tokenType == SharedTokenTypes.LBRACE) {
-                markElement(builder, SharedTokenTypes.LBRACE);
-            } else if (tokenType == SharedTokenTypes.RBRACE) {
-                markElement(builder, SharedTokenTypes.RBRACE);
-            } else if (tokenType == SharedTokenTypes.TEMPLATE_EXPRESSION) {
-                markElement(builder, SqlxElementTypes.TEMPLATE_EXPRESSION_ELEMENT);
+            if (tokenType == SharedTokenTypes.TEMPLATE_EXPRESSION) {
+                markElement(builder, SharedTokenTypes.TEMPLATE_EXPRESSION);
             } else if (tokenType != operationType) {
                 break;
             } else {
                 builder.advanceLexer();
             }
         }
-
         sqlMarker.done(operationType);
-    }
 
-
-    private void parseJsBlock(PsiBuilder builder, @NotNull IElementType elementType) {
-        PsiBuilder.Marker marker = builder.mark();
-        int braceCount = 0;
-        while (!builder.eof()) {
-            IElementType tokenType = builder.getTokenType();
-            if (tokenType == JSTokenTypes.LBRACE) {
-                braceCount++;
-            }
-
-            if (tokenType == JSTokenTypes.RBRACE) {
-                braceCount--;
-            }
-            builder.advanceLexer();
-            if (braceCount == 0) {
-                break;
-            }
-        }
-
-        marker.done(elementType);
+        markOptionalElement(builder, SharedTokenTypes.RBRACE);
     }
 
     private void parseSqlBlock(PsiBuilder builder) {
@@ -112,13 +98,13 @@ public class SqlxParser implements PsiParser {
                 break;
             }
             if (tokenType == SharedTokenTypes.TEMPLATE_EXPRESSION) {
-                markElement(builder, SqlxElementTypes.TEMPLATE_EXPRESSION_ELEMENT);
+                markElement(builder, SharedTokenTypes.TEMPLATE_EXPRESSION);
             } else {
                 builder.advanceLexer();
             }
         }
 
-        sqlMarker.done(SqlxElementTypes.SQL_BLOCK);
+        sqlMarker.done(SharedTokenTypes.SQL_CONTENT);
     }
 
 
@@ -126,5 +112,11 @@ public class SqlxParser implements PsiParser {
         PsiBuilder.Marker templateMarker = builder.mark();
         builder.advanceLexer();
         templateMarker.done(elementType);
+    }
+
+    private void markOptionalElement(PsiBuilder builder, IElementType elementType) {
+        if (builder.getTokenType() == elementType) {
+            markElement(builder, elementType);
+        }
     }
 }

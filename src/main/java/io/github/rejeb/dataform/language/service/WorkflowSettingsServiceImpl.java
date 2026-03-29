@@ -108,6 +108,25 @@ public final class WorkflowSettingsServiceImpl implements WorkflowSettingsServic
 
     }
 
+    @Override
+    public boolean isWorkflowSettingProperty(@NotNull String property) {
+        return isWorkflowSettingProperty(property,getWorkflowProperties().get(DATAFORM_KEY));
+    }
+
+    private boolean isWorkflowSettingProperty(@NotNull String propertyToFind, @NotNull WorkflowSettingsProperty property) {
+            if(propertyToFind.equals(property.name())){
+                return true;
+            }else if(property.hasChildren()){
+                for (WorkflowSettingsProperty child : property.children().values()) {
+                    if(isWorkflowSettingProperty(propertyToFind, child)){
+                        return true;
+                    }
+                }
+            }
+
+        return false;
+    }
+
     @Nullable
     public WorkflowSettingsYamlFileWrapper findWorkflowSettingsFile() {
         if (DumbService.isDumb(project)) {

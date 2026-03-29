@@ -25,7 +25,7 @@ import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.IncorrectOperationException;
 import org.jetbrains.annotations.NotNull;
 
-public class SqlxJsLiteralExpressionManipulator extends AbstractElementManipulator<SqlxJsLiteralExpression> {
+public class SqlxJsBlockManipulator extends AbstractElementManipulator<SqlxJsLiteralExpression> {
 
     @Override
     public SqlxJsLiteralExpression handleContentChange(@NotNull SqlxJsLiteralExpression element,
@@ -37,10 +37,8 @@ public class SqlxJsLiteralExpressionManipulator extends AbstractElementManipulat
                 + newContent
                 + oldText.substring(range.getEndOffset());
 
-        String fakeFile = "{(`" + newText + "`)}";
-
         PsiFile fileFromText = PsiFileFactory.getInstance(element.getProject())
-                .createFileFromText("js_template_expr.js", JavascriptLanguage.INSTANCE, fakeFile);
+                .createFileFromText("js_block.js", JavascriptLanguage.INSTANCE, newText);
 
         SqlxJsLiteralExpression newElement =
                 PsiTreeUtil.findChildOfType(fileFromText, SqlxJsLiteralExpression.class);

@@ -17,6 +17,8 @@
 package io.github.rejeb.dataform.language.compilation;
 
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.project.ProjectUtil;
+import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.task.ModuleBuildTask;
 import com.intellij.task.ProjectTask;
 import com.intellij.task.ProjectTaskContext;
@@ -63,7 +65,19 @@ public final class DataformBuildTaskRunner extends ProjectTaskRunner {
 
     @Override
     public boolean canRun(@NotNull ProjectTask projectTask) {
-        return projectTask instanceof ModuleBuildTask;
+        if (projectTask instanceof ModuleBuildTask moduleBuildTask) {
+            return isDataformProject(moduleBuildTask.getModule().getProject());
+        }
+        return false;
+    }
+
+    private boolean isDataformProject(@NotNull Project project) {
+        VirtualFile baseDir = ProjectUtil.guessProjectDir(project);
+        if (baseDir == null) {
+            return false;
+        }
+        return baseDir.findChild("dataform.json") != null
+                || baseDir.findChild("workflow_settings.yaml") != null;
     }
 
     private record TaskResult(boolean myAborted, boolean myErrors) implements Result {

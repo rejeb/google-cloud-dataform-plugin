@@ -26,6 +26,7 @@ import org.jetbrains.yaml.psi.YAMLKeyValue;
 import org.jetbrains.yaml.psi.impl.YAMLFileImpl;
 
 import java.util.Collection;
+import java.util.Objects;
 
 public class WorkflowSettingsYamlFileWrapper extends YAMLFileImpl {
     public static final String DATAFORM_KEY = "dataform";
@@ -55,16 +56,12 @@ public class WorkflowSettingsYamlFileWrapper extends YAMLFileImpl {
             }
         }
 
-        return element;
+        return originalFile;
     }
 
     public YAMLKeyValue getWrappedKeyValue(YAMLKeyValue keyValue) {
         YAMLKeyValue original = findOriginalElement(keyValue);
-        if (original == null) {
-            return new YAMLKeyValueWrapper(keyValue, null);
-        } else {
-            return original;
-        }
+        return Objects.requireNonNullElseGet(original, () -> new YAMLKeyValueWrapper(keyValue, originalFile));
     }
 
     public YAMLKeyValue findOriginalElement(YAMLKeyValue modifiedKey) {
@@ -79,7 +76,7 @@ public class WorkflowSettingsYamlFileWrapper extends YAMLFileImpl {
             }
         }
 
-        return null;
+        return modifiedKey;
     }
 
 
@@ -87,7 +84,7 @@ public class WorkflowSettingsYamlFileWrapper extends YAMLFileImpl {
         String modifiedText = wrapWithParents(originalFile.getText());
 
         YAMLFile modifiedFile = (YAMLFile) PsiFileFactory.getInstance(project)
-                .createFileFromText("temp.yaml", YAMLLanguage.INSTANCE, modifiedText);
+                .createFileFromText("worflow_settings_copy.yaml", YAMLLanguage.INSTANCE, modifiedText);
 
         return new WorkflowSettingsYamlFileWrapper(modifiedFile, originalFile);
     }
