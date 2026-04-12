@@ -21,6 +21,7 @@ import com.google.cloud.bigquery.*;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.BigQueryJobDetails;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.BigQueryJobDetails.BigQueryChildJob;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.InvocationActionState;
+import io.github.rejeb.dataform.language.util.GcpClientsUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -37,10 +38,7 @@ public final class GcpBigQueryJobRepository implements BigQueryJobRepository {
             @NotNull String project,
             @Nullable String location
     ) {
-        BigQuery bq = BigQueryOptions.newBuilder()
-                .setProjectId(project)
-                .build()
-                .getService();
+        BigQuery bq = GcpClientsUtils.bigQuery(project);
 
         Job job = bq.getJob(JobId.newBuilder()
                 .setProject(project)

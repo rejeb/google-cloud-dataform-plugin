@@ -16,19 +16,18 @@
  */
 package io.github.rejeb.dataform.language.gcp.execution.bigquery;
 
-import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.bigquery.*;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
+import io.github.rejeb.dataform.language.util.GcpClientsUtils;
 import org.jetbrains.annotations.NotNull;
-
-import java.io.IOException;
 
 public final class BigQueryExecutionServiceImpl implements BigQueryExecutionService {
 
     private static final Logger LOG = Logger.getInstance(BigQueryExecutionServiceImpl.class);
 
-    public BigQueryExecutionServiceImpl(@NotNull Project project) {}
+    public BigQueryExecutionServiceImpl(@NotNull Project project) {
+    }
 
     @Override
     public @NotNull BigQueryJobResult execute(
@@ -37,7 +36,7 @@ public final class BigQueryExecutionServiceImpl implements BigQueryExecutionServ
             @NotNull String tableName
     ) {
         try {
-            BigQuery bigQuery = buildClient(projectId);
+            BigQuery bigQuery = GcpClientsUtils.bigQuery(projectId);
             QueryJobConfiguration config = QueryJobConfiguration.newBuilder(sql)
                     .setUseLegacySql(false)
                     .build();
@@ -53,7 +52,7 @@ public final class BigQueryExecutionServiceImpl implements BigQueryExecutionServ
             }
 
             TableResult tableResult = job.getQueryResults();
-            Schema      schema      = tableResult.getSchema();
+            Schema schema = tableResult.getSchema();
 
             BigQueryPagedResult pagedResult = new BigQueryPagedResult(
                     job,
@@ -67,24 +66,13 @@ public final class BigQueryExecutionServiceImpl implements BigQueryExecutionServ
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return failure(tableName, "Query execution interrupted");
-        } catch (IOException e) {
+        } catch (RuntimeException e) {
             LOG.warn("Failed to build BigQuery client", e);
             return failure(tableName, "Authentication error: " + e.getMessage());
         } catch (Exception e) {
             LOG.warn("BigQuery execution failed", e);
             return failure(tableName, e.getMessage());
         }
-    }
-
-    private BigQuery buildClient(@NotNull String projectId) throws IOException {
-        GoogleCredentials credentials = GoogleCredentials
-                .getApplicationDefault()
-                .createScoped("https://www.googleapis.com/auth/bigquery");
-        return BigQueryOptions.newBuilder()
-                .setProjectId(projectId)
-                .setCredentials(credentials)
-                .build()
-                .getService();
     }
 
     private BigQueryJobStats extractStats(@NotNull Job job, @NotNull String projectId, long totalRows) {
@@ -100,7 +88,7 @@ public final class BigQueryExecutionServiceImpl implements BigQueryExecutionServ
         boolean cacheHit = queryStats != null && Boolean.TRUE.equals(queryStats.getCacheHit());
         String stmtType = queryStats != null && queryStats.getStatementType() != null
                 ? queryStats.getStatementType().name() : null;
-        return new BigQueryJobStats(jobId, projectId, location, creation, start, end, bytes, cacheHit, stmtType,totalRows);
+        return new BigQueryJobStats(jobId, projectId, location, creation, start, end, bytes, cacheHit, stmtType, totalRows);
     }
 
     private BigQueryJobResult failure(@NotNull String tableName, @NotNull String message) {

@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "io.github.rejeb"
-version = "0.2.11"
+version = "0.2.12"
 
 repositories {
     mavenCentral()
@@ -46,7 +46,6 @@ intellijPlatform {
 
         changeNotes = """
                 <ul>
-                    <li>Add formatting sqlx files.</li>
                     <li>Fix issues.</li>
                 </ul>
         """.trimIndent()

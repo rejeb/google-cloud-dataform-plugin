@@ -74,23 +74,7 @@ public final class DataformProjectStructureBuilder {
         VirtualFile readme = baseDir.createChildData(project, "README.md");
         String readmeContent = String.format(
                 "# %s%n%n" +
-                        "Dataform project for BigQuery data transformation.%n%n" +
-                        "## Setup%n%n" +
-                        "1. Install dependencies:%n" +
-                        "   ```bash%n" +
-                        "   npm install%n" +
-                        "   ```%n%n" +
-                        "2. Configure your GCP credentials%n%n" +
-                        "3. Run dataform:%n" +
-                        "   ```bash%n" +
-                        "   dataform compile%n" +
-                        "   dataform run%n" +
-                        "   ```%n%n" +
-                        "## Project Structure%n%n" +
-                        "- `definitions/` - SQL and SQLX files defining your data transformations%n" +
-                        "- `includes/` - JavaScript functions and constants%n" +
-                        "- `workflow_settings.yaml` - Workflow execution settings",
-                project.getName()
+                        "Dataform project for BigQuery data transformation."
         );
         readme.setBinaryContent(readmeContent.getBytes());
     }

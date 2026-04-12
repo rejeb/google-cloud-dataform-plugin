@@ -29,11 +29,6 @@ public interface DataformToolsSettings {
     }
 
     /**
-     * Returns the configured path to the Dataform CLI executable.
-     */
-    @NotNull String getCliExecutablePath();
-
-    /**
      * Returns the configured path to the Dataform Core install directory.
      */
     @NotNull String getCoreInstallPath();
@@ -41,11 +36,11 @@ public interface DataformToolsSettings {
     /**
      * Updates all settings at once.
      */
-    void update(@NotNull String cliExecutablePath,
-                @NotNull String coreInstallPath,
-                @NotNull String sqlfluffExecutablePath,
-                @NotNull String sqlfluffConfigPath,
-                @NotNull String sqlfluffExtraArgs);
+    void update(
+            @NotNull String coreInstallPath,
+            @NotNull String sqlfluffExecutablePath,
+            @NotNull String sqlfluffConfigPath,
+            @NotNull String sqlfluffExtraArgs);
 
     /**
      * Returns the configured path to the SQLFluff executable.

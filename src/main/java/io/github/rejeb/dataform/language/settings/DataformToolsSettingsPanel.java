@@ -24,6 +24,7 @@ import com.intellij.openapi.project.ProjectManager;
 import com.intellij.openapi.ui.TextFieldWithBrowseButton;
 import com.intellij.openapi.util.SystemInfo;
 import com.intellij.ui.components.JBLabel;
+import com.intellij.ui.components.JBScrollPane;
 import com.intellij.util.ui.FormBuilder;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
@@ -40,7 +41,6 @@ import java.util.Optional;
 
 public final class DataformToolsSettingsPanel {
 
-    private final TextFieldWithBrowseButton cliExecutableField  = new TextFieldWithBrowseButton();
     private final TextFieldWithBrowseButton coreInstallField    = new TextFieldWithBrowseButton();
     private final TextFieldWithBrowseButton sqlfluffExecutableField = new TextFieldWithBrowseButton();
     private final TextFieldWithBrowseButton sqlfluffConfigField = new TextFieldWithBrowseButton();
@@ -52,14 +52,7 @@ public final class DataformToolsSettingsPanel {
 
     public DataformToolsSettingsPanel() {
 
-        cliExecutableField.addBrowseFolderListener(
-                null,
-                FileChooserDescriptorFactory.singleFile()
-                        .withTitle("Select Dataform CLI Executable")
-                        .withDescription("Choose the path to the Dataform CLI executable")
-        );
-
-        coreInstallField.addBrowseFolderListener(
+       coreInstallField.addBrowseFolderListener(
                 null,
                 FileChooserDescriptorFactory.createSingleFolderDescriptor()
                         .withTitle("Select Dataform Core Install Directory")
@@ -86,9 +79,6 @@ public final class DataformToolsSettingsPanel {
         buttonRow.add(installButton);
 
         panel = FormBuilder.createFormBuilder()
-                .addVerticalGap(10)
-                .addLabeledComponent(new JBLabel("Dataform CLI executable"), new JSeparator())
-                .addComponent(cliExecutableField, 10)
                 .addVerticalGap(10)
                 .addLabeledComponent(new JBLabel("Dataform Core directory"), new JSeparator())
                 .addComponent(coreInstallField, 10)
@@ -123,7 +113,7 @@ public final class DataformToolsSettingsPanel {
     }
 
     private JScrollPane buildStatusScrollPane() {
-        JScrollPane scroll = new JScrollPane(statusPane);
+        JScrollPane scroll = new JBScrollPane(statusPane);
         scroll.setBorder(null);
         scroll.setOpaque(false);
         scroll.getViewport().setOpaque(false);
@@ -249,11 +239,6 @@ public final class DataformToolsSettingsPanel {
                 NodeInterpreterManager nimRefreshed = NodeInterpreterManager.getInstance(project);
                 Optional<Path> dataformRoot = DataformInstaller.findDataformLibRootDir(nimRefreshed);
                 dataformRoot.ifPresent(root -> {
-                    if (nimRefreshed.nodeBinDir() != null) {
-                        String exe = SystemInfo.isWindows ? "dataform.cmd" : "dataform";
-                        cliExecutableField.setText(
-                                nimRefreshed.nodeBinDir().resolve(exe).toAbsolutePath().toString());
-                    }
                     coreInstallField.setText(root.resolve("core").toAbsolutePath().toString());
                 });
 
@@ -266,9 +251,7 @@ public final class DataformToolsSettingsPanel {
     // ── Accesseurs ────────────────────────────────────────────────────────
 
     public JPanel  getPanel()             { return panel; }
-    public String  getCliExecutablePath() { return cliExecutableField.getText().trim(); }
     public String  getCoreInstallPath()   { return coreInstallField.getText().trim(); }
-    public void    setCliExecutablePath(String path) { cliExecutableField.setText(path); }
     public void    setCoreInstallPath(String path)   { coreInstallField.setText(path); }
     public String  getSqlfluffExecutablePath() { return sqlfluffExecutableField.getText().trim(); }
     public String  getSqlfluffConfigPath() { return sqlfluffConfigField.getText().trim(); }

@@ -88,6 +88,11 @@ public class DataformSqlxRunConfigurationProducer
         return actionName.equals(config.getName()) && config.getIncludedTargets().contains(includedTargets);
     }
 
+    @Override
+    public boolean shouldReplace(@NotNull ConfigurationFromContext self, @NotNull ConfigurationFromContext other) {
+        return true;
+    }
+
     /**
      * Intercepte le lancement pour afficher la popup d'options avant d'exécuter.
      */

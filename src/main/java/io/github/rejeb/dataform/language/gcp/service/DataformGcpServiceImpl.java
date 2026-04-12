@@ -121,7 +121,7 @@ public final class DataformGcpServiceImpl implements DataformGcpService, Disposa
         try {
             return workspaceOperations.listWorkspaces();
         } catch (Exception e) {
-            LOG.error("Failed to list Dataform workspaces", e);
+            LOG.warn("Failed to list Dataform workspaces", e);
             return List.of();
         }
     }
@@ -131,7 +131,7 @@ public final class DataformGcpServiceImpl implements DataformGcpService, Disposa
         try {
             workspaceOperations.pushGitCommits(workspaceId);
         } catch (GcpApiException e) {
-            LOG.error("Failed to commit code to Dataform workspace: " + workspaceId, e);
+            LOG.warn("Failed to commit code to Dataform workspace: " + workspaceId, e);
         }
     }
 
@@ -140,7 +140,7 @@ public final class DataformGcpServiceImpl implements DataformGcpService, Disposa
         try {
             workspaceOperations.pushCode(workspaceId);
         } catch (GcpApiException e) {
-            LOG.error("Failed to push code to Dataform workspace: " + workspaceId, e);
+            LOG.warn("Failed to push code to Dataform workspace: " + workspaceId, e);
         }
     }
 
@@ -162,7 +162,7 @@ public final class DataformGcpServiceImpl implements DataformGcpService, Disposa
             workspaceOperations.pullCode(workspaceId);
             fileCache.invalidate();
         } catch (GcpApiException e) {
-            LOG.error("Failed to sync code from Dataform: " + workspaceId, e);
+            LOG.warn("Failed to sync code from Dataform: " + workspaceId, e);
         }
     }
 
@@ -192,7 +192,7 @@ public final class DataformGcpServiceImpl implements DataformGcpService, Disposa
         try {
             return workspaceOperations.fetchGitStatuses(workspaceId);
         } catch (GcpApiException e) {
-            LOG.error("Failed to fetch git statuses for workspace: " + workspaceId, e);
+            LOG.warn("Failed to fetch git statuses for workspace: " + workspaceId, e);
             return List.of();
         }
     }

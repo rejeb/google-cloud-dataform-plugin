@@ -76,7 +76,7 @@ public class DataformDasColumn implements DasColumn {
 
     @Override
     public @Nullable DasTable getTable() {
-        return null;
+        return myParent;
     }
 }
 

@@ -42,65 +42,70 @@ public final class GcpRepositorySettingsImpl
     @Override
     public @NotNull List<DataformRepositoryConfig> getAllConfigs() {
         List<DataformRepositoryConfig> result = new ArrayList<>();
-        for (RepoState r : state.repositories) {
-            if (r.projectId != null && r.repositoryId != null && r.location != null) {
-                DataformRepositoryConfig c = new DataformRepositoryConfig(r.label, r.projectId, r.repositoryId, r.location);
-                if (c.isComplete()) result.add(c);
+        for (RepositoryConfigState r : state.getRepositories()) {
+            DataformRepositoryConfig c = null;
+            if (r.getRepositoryConfigId() != null && r.getLabel() != null && r.getProjectId() != null && r.getRepositoryId() != null && r.getLocation() != null) {
+                c = new DataformRepositoryConfig(r.getRepositoryConfigId(),
+                        r.getLabel(),
+                        r.getProjectId(),
+                        r.getRepositoryId(),
+                        r.getLocation());
             }
+            result.add(c);
         }
         return result;
     }
 
     @Override
     public void saveAllConfigs(@NotNull List<DataformRepositoryConfig> configs) {
-        List<RepoState> updated = new ArrayList<>();
+        List<RepositoryConfigState> updated = new ArrayList<>();
         for (DataformRepositoryConfig c : configs) {
-            RepoState existing = findRepoState(c.repositoryId());
-            RepoState r = existing != null ? existing : new RepoState();
-            r.label = c.label();
-            r.projectId = c.projectId();
-            r.repositoryId = c.repositoryId();
-            r.location = c.location();
+            RepositoryConfigState existing = findRepoState(c.repositoryConfigId());
+            RepositoryConfigState r = existing != null ? existing : new RepositoryConfigState(c.repositoryConfigId(),
+                    c.label(),
+                    c.projectId(),
+                    c.repositoryId(),
+                    c.location());
             updated.add(r);
         }
-        state.repositories = updated;
+        state.setRepositories(updated);
     }
 
     @Override
     public @Nullable DataformRepositoryConfig getActiveConfig() {
         List<DataformRepositoryConfig> all = getAllConfigs();
         if (all.isEmpty()) return null;
-        if (state.activeRepositoryId != null) {
+        if (state.getSelectedConfigId() != null) {
             return all.stream()
-                    .filter(c -> c.repositoryId().equals(state.activeRepositoryId))
+                    .filter(c -> c.repositoryConfigId().equals(state.getSelectedConfigId()))
                     .findFirst()
-                    .orElse(all.get(0));
+                    .orElse(all.getFirst());
         }
-        return all.get(0);
+        return all.getFirst();
     }
 
     @Override
-    public void setActiveRepositoryId(@Nullable String repositoryId) {
-        state.activeRepositoryId = repositoryId;
+    public void setActiveRepositoryId(@Nullable String selectedConfigId) {
+        state.setSelectedConfigId(selectedConfigId);
     }
 
     @Override
     public @Nullable String getActiveRepositoryId() {
-        return state.activeRepositoryId;
+        return state.getSelectedConfigId();
     }
 
     @Override
     public void setSelectedWorkspaceId(@Nullable String workspaceId) {
-        RepoState r = activeRepoState();
+        RepositoryConfigState r = activeRepoState();
         if (r != null) {
-            r.selectedWorkspaceId = workspaceId;
+            r.setSelectedWorkspaceId(workspaceId);
         }
     }
 
     @Override
     public @Nullable String getSelectedWorkspaceId() {
-        RepoState r = activeRepoState();
-        return r != null && StringUtil.isNotEmpty(r.selectedWorkspaceId) ? r.selectedWorkspaceId : null;
+        RepositoryConfigState r = activeRepoState();
+        return r != null && StringUtil.isNotEmpty(r.getSelectedWorkspaceId()) ? r.getSelectedWorkspaceId() : null;
     }
 
     @Override
@@ -114,42 +119,18 @@ public final class GcpRepositorySettingsImpl
     }
 
     @Nullable
-    private RepoState activeRepoState() {
-        if (state.activeRepositoryId == null) {
-            return state.repositories.isEmpty() ? null : state.repositories.get(0);
+    private RepositoryConfigState activeRepoState() {
+        if (state.getSelectedConfigId() == null) {
+            return state.getRepositories().isEmpty() ? null : state.getRepositories().getFirst();
         }
-        return findRepoState(state.activeRepositoryId);
+        return findRepoState(state.getSelectedConfigId());
     }
 
     @Nullable
-    private RepoState findRepoState(@NotNull String repositoryId) {
-        return state.repositories.stream()
-                .filter(r -> repositoryId.equals(r.repositoryId))
+    private RepositoryConfigState findRepoState(@NotNull String repositoryConfigId) {
+        return state.getRepositories().stream()
+                .filter(r -> repositoryConfigId.equals(r.getRepositoryConfigId()))
                 .findFirst()
                 .orElse(null);
-    }
-
-    public static final class State {
-        public @Nullable String activeRepositoryId;
-        public @NotNull List<RepoState> repositories = new ArrayList<>();
-    }
-
-    public static final class RepoState {
-        public @Nullable String label;
-        public @Nullable String projectId;
-        public @Nullable String repositoryId;
-        public @Nullable String location;
-        public @Nullable String selectedWorkspaceId;
-
-        public RepoState() {
-        }
-
-        public RepoState(@Nullable String label, @NotNull String projectId,
-                         @NotNull String repositoryId, @NotNull String location) {
-            this.label = label;
-            this.projectId = projectId;
-            this.repositoryId = repositoryId;
-            this.location = location;
-        }
     }
 }

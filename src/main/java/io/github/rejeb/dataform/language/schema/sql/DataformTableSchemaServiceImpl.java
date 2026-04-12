@@ -30,6 +30,7 @@ import com.intellij.openapi.project.Project;
 import io.github.rejeb.dataform.language.compilation.model.*;
 import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
 import io.github.rejeb.dataform.language.util.DataformAuthNotifier;
+import io.github.rejeb.dataform.language.util.GcpClientsUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -438,7 +439,7 @@ public final class DataformTableSchemaServiceImpl implements DataformTableSchema
 
     private boolean hasValidCredentials() {
         try {
-            com.google.auth.oauth2.GoogleCredentials.getApplicationDefault();
+            GcpClientsUtils.getCredentials().refresh();
             return true;
         } catch (Exception e) {
             LOG.warn("Google credentials not available: " + e.getMessage());

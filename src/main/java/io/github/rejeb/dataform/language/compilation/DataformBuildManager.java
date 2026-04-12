@@ -138,7 +138,7 @@ public final class DataformBuildManager {
                         "Completed in " + durationMsg, NotificationType.INFORMATION);
 
             } catch (Exception e) {
-                LOG.error("Unexpected error during dataform compile", e);
+                LOG.warn("Unexpected error during dataform compile", e);
                 context.errors.incrementAndGet();
                 buildViewManager.onEvent(buildId, MessageEvent.builder(e.getMessage(), MessageEvent.Kind.ERROR)
                         .withParentId(buildId)

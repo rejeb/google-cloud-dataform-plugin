@@ -38,6 +38,7 @@ public final class SqlxRefSelfResolver {
     private static final Pattern SELF_PATTERN = Pattern.compile(
             "\\$\\{\\s*self\\s*\\(\\s*\\)\\s*\\}"
     );
+    public static final String DATAFORM_SCHEMA_PREFIX = "gcdp_";
 
     private SqlxRefSelfResolver() {
     }
@@ -75,7 +76,7 @@ public final class SqlxRefSelfResolver {
 
     @NotNull
     private static String toBigQueryIdentifier(@NotNull Target target) {
-        return Stream.of("gcdp",target.getDatabase(), target.getSchema(), target.getName())
+        return Stream.of(target.getDatabase(), DATAFORM_SCHEMA_PREFIX + target.getSchema(), target.getName())
                 .filter(part -> part != null && !part.isBlank())
                 .map(SqlxRefSelfResolver::quoteIfNeeded)
                 .collect(Collectors.joining("."));

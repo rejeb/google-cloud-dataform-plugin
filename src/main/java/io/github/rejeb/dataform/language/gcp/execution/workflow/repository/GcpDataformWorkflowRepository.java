@@ -16,15 +16,15 @@
  */
 package io.github.rejeb.dataform.language.gcp.execution.workflow.repository;
 
-import com.google.cloud.dataform.v1beta1.*;
+import com.google.cloud.dataform.v1.*;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.diagnostic.Logger;
 import io.github.rejeb.dataform.language.gcp.common.GcpApiException;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.*;
+import io.github.rejeb.dataform.language.util.GcpClientsUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -32,20 +32,9 @@ import java.util.List;
 public final class GcpDataformWorkflowRepository implements WorkflowRepository, Disposable {
     private static final Logger LOG = Logger.getInstance(GcpDataformWorkflowRepository.class);
 
-    private final DataformClient client;
-
-    public GcpDataformWorkflowRepository() {
-        try {
-            this.client = DataformClient.create(DataformSettings.newBuilder().build());
-        } catch (IOException e) {
-            throw new GcpApiException(
-                    "Failed to create DataformClient — check Application Default Credentials.", e);
-        }
-    }
 
     @Override
     public void dispose() {
-        client.close();
     }
 
     @Override
@@ -56,10 +45,10 @@ public final class GcpDataformWorkflowRepository implements WorkflowRepository, 
             @NotNull String repositoryId,
             @NotNull WorkflowRunRequest request
     ) {
-        try {
+        try (DataformClient client = GcpClientsUtils.dataformClient()) {
             String repoName = RepositoryName.of(projectId, location, repositoryId).toString();
             String wsName = WorkspaceName.of(projectId, location, repositoryId, request.workspaceId()).toString();
-            ensureNpmPackagesInstalled(wsName);
+            ensureNpmPackagesInstalled(wsName, client);
             CompilationResult compilation = client.createCompilationResult(
                     CreateCompilationResultRequest.newBuilder()
                             .setParent(repoName)
@@ -109,7 +98,7 @@ public final class GcpDataformWorkflowRepository implements WorkflowRepository, 
     @Override
     @NotNull
     public WorkflowInvocationProgress getWorkflowRunProgress(@NotNull WorkflowCreationResult workflowRun) {
-        try {
+        try (DataformClient client = GcpClientsUtils.dataformClient()) {
             WorkflowInvocation inv = client.getWorkflowInvocation(
                     GetWorkflowInvocationRequest.newBuilder()
                             .setName(workflowRun.invocationName())
@@ -143,9 +132,9 @@ public final class GcpDataformWorkflowRepository implements WorkflowRepository, 
                     }
                 }
 
-                String jobId       = null;
-                String jobProject  = null;
-                String sqlScript   = null;
+                String jobId = null;
+                String jobProject = null;
+                String sqlScript = null;
 
 
                 if (action.hasBigqueryAction()) {
@@ -155,7 +144,7 @@ public final class GcpDataformWorkflowRepository implements WorkflowRepository, 
                     sqlScript = sql.isBlank() ? null : sql;
                 }
 
-                jobProject = !t.getDatabase().isEmpty() ? t.getDatabase(): null;
+                jobProject = !t.getDatabase().isEmpty() ? t.getDatabase() : null;
 
                 actions.add(new InvocationActionResult(
                         label, mapActionState(action.getState()),
@@ -233,7 +222,7 @@ public final class GcpDataformWorkflowRepository implements WorkflowRepository, 
 
     @Override
     public void cancelWorkflowRun(@NotNull String workflowRunName) {
-        try {
+        try (DataformClient client = GcpClientsUtils.dataformClient()) {
             client.cancelWorkflowInvocation(
                     CancelWorkflowInvocationRequest.newBuilder()
                             .setName(workflowRunName)
@@ -272,7 +261,7 @@ public final class GcpDataformWorkflowRepository implements WorkflowRepository, 
      * If not, triggers installNpmPackages and waits for completion.
      */
     private void ensureNpmPackagesInstalled(
-            @NotNull String workspaceName
+            @NotNull String workspaceName, DataformClient client
     ) {
         if (!isDataformCoreInstalled(workspaceName)) {
             LOG.info("@dataform/core not found in workspace, running installNpmPackages: " + workspaceName);
@@ -291,7 +280,7 @@ public final class GcpDataformWorkflowRepository implements WorkflowRepository, 
      * all of node_modules (potentially thousands of entries).
      */
     private boolean isDataformCoreInstalled(@NotNull String workspaceName) {
-        try {
+        try (DataformClient client = GcpClientsUtils.dataformClient()) {
             QueryDirectoryContentsRequest request = QueryDirectoryContentsRequest.newBuilder()
                     .setWorkspace(workspaceName)
                     .setPath("node_modules/@dataform")

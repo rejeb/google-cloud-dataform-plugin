@@ -17,7 +17,8 @@
 package io.github.rejeb.dataform.language.gcp.settings;
 
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+
+import java.util.UUID;
 
 /**
  * Immutable snapshot of the Dataform GCP repository configuration.
@@ -28,25 +29,18 @@ import org.jetbrains.annotations.Nullable;
  * @param location     GCP location (e.g. "europe-west1")
  */
 public record DataformRepositoryConfig(
-        @Nullable String label,
+        @NotNull String repositoryConfigId,
+        @NotNull String label,
         @NotNull String projectId,
         @NotNull String repositoryId,
         @NotNull String location
 ) {
-    /** @return {@code true} if all required fields are non-blank */
-    public boolean isComplete() {
-        return !projectId.isBlank() && !repositoryId.isBlank() && !location.isBlank();
-    }
 
-    /** @return {@code null} if any required field is blank, otherwise {@code this} */
-    @Nullable
-    public DataformRepositoryConfig orNull() {
-        return isComplete() ? this : null;
-    }
-
-    /** @return the label if set and non-blank, otherwise the repositoryId */
+    /**
+     * @return the label if set and non-blank, otherwise the repositoryId
+     */
     @NotNull
     public String displayName() {
-        return (label != null && !label.isBlank()) ? label : repositoryId;
+        return !label.isBlank() ? label : repositoryId;
     }
 }

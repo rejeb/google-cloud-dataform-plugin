@@ -16,6 +16,7 @@
  */
 package io.github.rejeb.dataform.language.formatting;
 
+import com.intellij.execution.ExecutionException;
 import com.intellij.execution.configurations.GeneralCommandLine;
 import com.intellij.execution.process.CapturingProcessHandler;
 import com.intellij.execution.process.ProcessOutput;
@@ -36,7 +37,7 @@ import io.github.rejeb.dataform.language.psi.SqlxFile;
 import io.github.rejeb.dataform.language.psi.SqlxSqlBlock;
 import io.github.rejeb.dataform.language.settings.DataformToolsSettings;
 import io.github.rejeb.dataform.language.util.Utils;
-import org.jspecify.annotations.NonNull;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -50,7 +51,7 @@ public class SqlxSqlfluffFormatter {
     private static final String PLACEHOLDER_SUFFIX = "__";
     private static final int SQLFLUFF_TIMEOUT_MS = 10_000;
 
-    public static List<CompletableFuture<BlockChange>> processText(@NonNull PsiFile file, @NonNull TextRange rangeToReformat) {
+    public static List<CompletableFuture<BlockChange>> processText(@NotNull PsiFile file, @NotNull TextRange rangeToReformat) {
         PsiFile hostFile = resolveHostFile(file);
         if (!(hostFile instanceof SqlxFile)) {
             return List.of();
@@ -93,7 +94,7 @@ public class SqlxSqlfluffFormatter {
     /**
      * Resolves the effective host SqlxFile from either the file itself or an injected fragment.
      */
-    private static PsiFile resolveHostFile(@NonNull PsiFile file) {
+    private static PsiFile resolveHostFile(@NotNull PsiFile file) {
         if (file.getContext() != null) {
             return file.getContext().getContainingFile();
         }
@@ -211,32 +212,7 @@ public class SqlxSqlfluffFormatter {
 
     private static String runSqlfluff(String sql, DataformToolsSettings settings) {
         try {
-            GeneralCommandLine cmd = new GeneralCommandLine();
-            cmd.setExePath(settings.getSqlfluffExecutablePath());
-            cmd.addParameter("fix");
-            cmd.addParameter("--dialect");
-            cmd.addParameter("bigquery");
-            cmd.addParameter("-f");
-            cmd.addParameter("-");
-
-            String configPath = settings.getSqlfluffConfigPath();
-            if (!configPath.isEmpty()) {
-                cmd.addParameter("--config");
-                cmd.addParameter(configPath);
-            }
-
-            String extraArgs = settings.getSqlfluffExtraArgs();
-            if (!extraArgs.isEmpty()) {
-                for (String arg : extraArgs.split("\\s+")) {
-                    if (!arg.isEmpty()) {
-                        cmd.addParameter(arg);
-                    }
-                }
-            }
-
-            cmd.setCharset(StandardCharsets.UTF_8);
-
-            CapturingProcessHandler handler = new CapturingProcessHandler(cmd);
+            CapturingProcessHandler handler = getCapturingProcessHandler(settings);
             handler.getProcessInput().write(sql.getBytes(StandardCharsets.UTF_8));
             handler.getProcessInput().close();
 
@@ -254,5 +230,34 @@ public class SqlxSqlfluffFormatter {
             LOG.warn("Failed to run sqlfluff", e);
             return null;
         }
+    }
+
+    private static @NotNull CapturingProcessHandler getCapturingProcessHandler(DataformToolsSettings settings) throws ExecutionException {
+        GeneralCommandLine cmd = new GeneralCommandLine();
+        cmd.setExePath(settings.getSqlfluffExecutablePath());
+        cmd.addParameter("fix");
+        cmd.addParameter("--dialect");
+        cmd.addParameter("bigquery");
+        cmd.addParameter("-f");
+        cmd.addParameter("-");
+
+        String configPath = settings.getSqlfluffConfigPath();
+        if (!configPath.isEmpty()) {
+            cmd.addParameter("--config");
+            cmd.addParameter(configPath);
+        }
+
+        String extraArgs = settings.getSqlfluffExtraArgs();
+        if (!extraArgs.isEmpty()) {
+            for (String arg : extraArgs.split("\\s+")) {
+                if (!arg.isEmpty()) {
+                    cmd.addParameter(arg);
+                }
+            }
+        }
+
+        cmd.setCharset(StandardCharsets.UTF_8);
+
+        return new CapturingProcessHandler(cmd);
     }
 }

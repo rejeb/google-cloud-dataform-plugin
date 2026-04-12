@@ -20,7 +20,10 @@ import com.intellij.codeInsight.daemon.LineMarkerInfo;
 import com.intellij.codeInsight.daemon.LineMarkerProvider;
 import com.intellij.icons.AllIcons;
 import com.intellij.lang.injection.InjectedLanguageManager;
+import com.intellij.lang.javascript.psi.JSProperty;
 import com.intellij.openapi.editor.markup.GutterIconRenderer;
+import com.intellij.openapi.util.Pair;
+import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.util.PsiTreeUtil;
@@ -28,35 +31,47 @@ import io.github.rejeb.dataform.language.psi.SqlxConfigBlock;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.List;
+import java.util.Optional;
+
 import static io.github.rejeb.dataform.language.util.Utils.isActionFile;
 
 public class SqlxEditorGutterProvider implements LineMarkerProvider {
 
     @Override
     public @Nullable LineMarkerInfo<?> getLineMarkerInfo(@NotNull PsiElement element) {
-        if (!isActionFile(element.getContainingFile().getVirtualFile())) return null;
-        if (PsiTreeUtil.getParentOfType(element, SqlxConfigBlock.class) == null) return null;
-        if (!element.getText().equals("tags")) return null;
+        if (!(element instanceof SqlxConfigBlock configBlock)) return null;
+        PsiFile sqlxFile = element.getContainingFile();
+        if (sqlxFile == null || sqlxFile.getVirtualFile() == null) return null;
+        if (!isActionFile(sqlxFile.getVirtualFile())) return null;
+        Optional<JSProperty> tagProperty = findTagsProperty(configBlock);
+        if (tagProperty.isEmpty()) return null;
 
-        PsiFile containingFile = InjectedLanguageManager.getInstance(element.getProject())
-                .getTopLevelFile(element);
-        if (!isActionFile(containingFile.getVirtualFile())) return null;
-
+        PsiElement anchor = tagProperty.get();
         return new LineMarkerInfo<>(
-                element,
-                element.getTextRange(),
+                anchor,
+                anchor.getTextRange(),
                 AllIcons.Actions.Execute,
-                e -> "Run " + containingFile.getVirtualFile().getNameWithoutExtension(),
+                e -> "Run " + sqlxFile.getVirtualFile().getNameWithoutExtension(),
                 (mouseEvent, psiElement) -> {
-                    if (containingFile.getVirtualFile() == null) return;
+                    if (sqlxFile.getVirtualFile() == null) return;
                     SqlxRunOptionsPopup.RunOptionsCallback callback = (deps, dependants, fullRefresh) ->
-                            RunSqlxHelper.launchFromTags(containingFile.getProject(), containingFile.getVirtualFile(),
+                            RunSqlxHelper.launchFromTags(sqlxFile.getProject(), sqlxFile.getVirtualFile(),
                                     deps, dependants, fullRefresh);
-                    SqlxRunOptionsPopup.show(containingFile.getProject(),mouseEvent, callback
-                    );
+                    SqlxRunOptionsPopup.show(sqlxFile.getProject(), mouseEvent, callback);
                 },
                 GutterIconRenderer.Alignment.LEFT,
-                () -> "Run " + containingFile.getName()
+                () -> "Run " + sqlxFile.getName()
         );
+    }
+
+    private static Optional<JSProperty> findTagsProperty(@NotNull SqlxConfigBlock configBlock) {
+        InjectedLanguageManager manager = InjectedLanguageManager.getInstance(configBlock.getProject());
+        List<Pair<PsiElement, TextRange>> injected = manager.getInjectedPsiFiles(configBlock);
+        if (injected == null) return Optional.empty();
+        return injected.parallelStream()
+                .flatMap(injectedPsi ->
+                        PsiTreeUtil.findChildrenOfType(injectedPsi.getFirst(), JSProperty.class).stream())
+                .filter(p -> "tags".equals(p.getName())).findFirst();
     }
 }

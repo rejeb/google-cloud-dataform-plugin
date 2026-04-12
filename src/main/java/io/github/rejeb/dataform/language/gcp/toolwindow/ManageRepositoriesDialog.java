@@ -36,17 +36,18 @@ import org.jspecify.annotations.NonNull;
 
 import javax.swing.*;
 import java.awt.*;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
+import java.util.stream.IntStream;
 
 public class ManageRepositoriesDialog extends DialogWrapper {
 
     private final Project project;
     private final DefaultListModel<DataformRepositoryConfig> listModel = new DefaultListModel<>();
-    private final JBList<DataformRepositoryConfig> repoList            = new JBList<>(listModel);
+    private final JBList<DataformRepositoryConfig> repoList = new JBList<>(listModel);
     private final RepositoryEditPanel editPanel;
 
-    private int     editedIndex      = -1;
+    private int editedIndex = -1;
     private boolean suppressListener = false;
 
     public ManageRepositoriesDialog(@NotNull Project project) {
@@ -164,7 +165,7 @@ public class ManageRepositoriesDialog extends DialogWrapper {
     private void addRepository() {
         flushEditedIndex();
         int newIndex = listModel.size();
-        DataformRepositoryConfig newConfig = new DataformRepositoryConfig(
+        DataformRepositoryConfig newConfig = new DataformRepositoryConfig(UUID.randomUUID().toString(),
                 "Repository " + (newIndex + 1), "", "", "");
         insertAndSelect(newConfig, newIndex);
         SwingUtilities.invokeLater(editPanel::focusLabel);
@@ -178,6 +179,7 @@ public class ManageRepositoriesDialog extends DialogWrapper {
         DataformRepositoryConfig src = listModel.get(srcIdx);
         String copyLabel = generateCopyLabel(src.displayName());
         DataformRepositoryConfig copy = new DataformRepositoryConfig(
+                UUID.randomUUID().toString(),
                 copyLabel,
                 src.projectId(),
                 src.repositoryId(),
@@ -277,15 +279,18 @@ public class ManageRepositoriesDialog extends DialogWrapper {
     }
 
     private void persistList() {
-        List<DataformRepositoryConfig> all = new ArrayList<>();
-        for (int i = 0; i < listModel.size(); i++) all.add(listModel.get(i));
+        List<DataformRepositoryConfig> all = IntStream
+                .range(0, listModel.size())
+                .mapToObj(listModel::get)
+                .toList();
+
         GcpRepositorySettings settings = GcpRepositorySettings.getInstance(project);
         settings.saveAllConfigs(all);
 
         String activeId = settings.getActiveRepositoryId();
-        boolean activeStillExists = all.stream().anyMatch(c -> c.repositoryId().equals(activeId));
+        boolean activeStillExists = activeId != null && all.stream().anyMatch(c -> c.repositoryConfigId().equals(activeId));
         if (!activeStillExists) {
-            settings.setActiveRepositoryId(all.isEmpty() ? null : all.get(0).repositoryId());
+            settings.setActiveRepositoryId(all.isEmpty() ? null : all.getFirst().repositoryConfigId());
         }
     }
 }

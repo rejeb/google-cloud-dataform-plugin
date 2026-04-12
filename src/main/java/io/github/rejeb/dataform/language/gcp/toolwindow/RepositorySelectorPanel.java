@@ -27,11 +27,13 @@ import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
 import io.github.rejeb.dataform.language.gcp.workspace.Workspace;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jspecify.annotations.NonNull;
 
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ItemEvent;
 import java.util.List;
+import java.util.UUID;
 
 public class RepositorySelectorPanel extends JPanel {
 
@@ -108,7 +110,7 @@ public class RepositorySelectorPanel extends JPanel {
             DataformRepositoryConfig toSelect = null;
             for (DataformRepositoryConfig c : all) {
                 repoCombo.addItem(c);
-                if (c.repositoryId().equals(activeId)) toSelect = c;
+                if (c.repositoryConfigId().equals(activeId)) toSelect = c;
             }
             if (toSelect != null) repoCombo.setSelectedItem(toSelect);
         } finally {
@@ -156,7 +158,7 @@ public class RepositorySelectorPanel extends JPanel {
             if (updatingRepo) return;
             if (e.getStateChange() == ItemEvent.SELECTED
                     && e.getItem() instanceof DataformRepositoryConfig c) {
-                GcpRepositorySettings.getInstance(project).setActiveRepositoryId(c.repositoryId());
+                GcpRepositorySettings.getInstance(project).setActiveRepositoryId(c.repositoryConfigId());
                 onRepositoryChanged.run();
             }
         });
@@ -178,7 +180,7 @@ public class RepositorySelectorPanel extends JPanel {
 
     private record WorkspaceItem(@Nullable String workspaceId, @NotNull String label) {
         @Override
-        public String toString() {
+        public @NonNull String toString() {
             return label;
         }
     }

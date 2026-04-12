@@ -17,9 +17,9 @@
 package io.github.rejeb.dataform.language.schema.sql;
 
 import com.google.cloud.bigquery.*;
-import com.intellij.openapi.components.Service;
 import com.intellij.openapi.diagnostic.Logger;
 import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
+import io.github.rejeb.dataform.language.util.GcpClientsUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -72,6 +72,7 @@ public final class BigQueryDryRunSchemaExtractorImpl implements BigQueryDryRunSc
     @NotNull
     private static BigQuery buildBigQueryClient(@NotNull String projectId) {
         return BigQueryOptions.newBuilder()
+                .setCredentials(GcpClientsUtils.getCredentials())
                 .setProjectId(projectId)
                 .build()
                 .getService();

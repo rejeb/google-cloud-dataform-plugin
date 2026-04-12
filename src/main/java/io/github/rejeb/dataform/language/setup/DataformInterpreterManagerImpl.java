@@ -19,6 +19,7 @@ package io.github.rejeb.dataform.language.setup;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.intellij.execution.configurations.GeneralCommandLine;
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.vfs.LocalFileSystem;
@@ -26,7 +27,6 @@ import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import io.github.rejeb.dataform.language.settings.DataformToolsSettings;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.plugins.terminal.settings.TerminalLocalOptions;
 
 import java.io.File;
 import java.nio.file.Path;
@@ -36,7 +36,7 @@ import java.util.Optional;
 import static io.github.rejeb.dataform.language.setup.DataformInstaller.findDataformLibRootDir;
 
 public final class DataformInterpreterManagerImpl implements DataformInterpreterManager {
-
+    private static final Logger LOGGER = Logger.getInstance(DataformInterpreterManagerImpl.class);
     private final Project project;
 
     public DataformInterpreterManagerImpl(@NotNull Project project) {
@@ -58,20 +58,6 @@ public final class DataformInterpreterManagerImpl implements DataformInterpreter
     }
 
     @Override
-    public Optional<VirtualFile> dataformCliDir() {
-        String configured = DataformToolsSettings.getInstance().getCliExecutablePath();
-        if (!configured.isBlank()) {
-            File f = new File(configured);
-            return Optional.ofNullable(
-                    LocalFileSystem.getInstance().findFileByIoFile(f.getParentFile())
-            );
-        }
-        return findDataformLibRootDir(NodeInterpreterManager.getInstance(project))
-                .map(dir -> dir.resolve("cli"))
-                .map(dir -> LocalFileSystem.getInstance().findFileByIoFile(dir.toFile()));
-    }
-
-    @Override
     public String currentDataformCoreVersion() {
         return dataformCorePath().map(coreDir -> {
             VirtualFile packageJson = coreDir.findChild("package.json");
@@ -88,52 +74,37 @@ public final class DataformInterpreterManagerImpl implements DataformInterpreter
 
     @Override
     public Optional<GeneralCommandLine> buildDataformCompileCommand() {
-
-        String configuredCliCmd = DataformToolsSettings.getInstance().getCliExecutablePath().replace("\\", "/");
-        if (configuredCliCmd.isBlank()) return Optional.empty();
-
         Path nodeBinDir = NodeInterpreterManager.getInstance(project).nodeBinDir();
-        String pathEnv = (nodeBinDir != null
-                ? nodeBinDir.toAbsolutePath() + File.pathSeparator
-                : "") + System.getenv("PATH");
+        if (nodeBinDir == null) return Optional.empty();
 
-        String shellPath = TerminalLocalOptions.getInstance().getShellPath();
-        if ((shellPath == null || shellPath.isBlank()) && SystemInfo.isWindows) {
-            shellPath = findGitBash().orElse(null);
-        }
-        if (shellPath == null || shellPath.isBlank()) {
-            GeneralCommandLine cmd = new GeneralCommandLine(configuredCliCmd, "compile", "--json")
-                    .withWorkDirectory(project.getBasePath());
-            cmd.getEnvironment().put("PATH", pathEnv);
-
-            return Optional.of(cmd);
-        }
-
-        shellPath = shellPath.replace("\"", "").replace("\\", "/");
+        String pathEnv = nodeBinDir.toAbsolutePath() +
+                File.pathSeparator +
+                System.getenv("PATH");
 
         if (SystemInfo.isWindows) {
-            GeneralCommandLine cmd = buildWindowsCommand(shellPath, configuredCliCmd);
-            cmd.getEnvironment().put("PATH", pathEnv);
-            return Optional.of(cmd);
+            Optional<String> gitBashPath = findGitBash();
+            if (gitBashPath.isPresent()) {
+                GeneralCommandLine value = buildGitBashCommand(Path.of(gitBashPath.get()), pathEnv);
+                LOGGER.info("Run compile using gitbash : " + value.getCommandLineString());
+                return Optional.of(value);
+            } else {
+                GeneralCommandLine cmd = buildDefaultCommand("dataform.cmd");
+                cmd.getEnvironment().put("PATH", pathEnv);
+                LOGGER.info("Run compile using cmd : " + cmd.getCommandLineString());
+                return Optional.of(cmd);
+            }
         } else {
-            GeneralCommandLine cmd = buildUnixCommand(shellPath, configuredCliCmd);
+            GeneralCommandLine cmd = buildDefaultCommand("dataform");
             cmd.getEnvironment().put("PATH", pathEnv);
             return Optional.of(cmd);
         }
 
     }
 
-    private GeneralCommandLine buildWindowsCommand(String shellPath, String configuredCliCmd) {
-        String shellCmd = String.format("\"%s\" compile --json", configuredCliCmd);
-
-        GeneralCommandLine cmd = new GeneralCommandLine(shellPath, "-c", shellCmd)
-                .withWorkDirectory(project.getBasePath());
-
-        return cmd;
-    }
-
-    private GeneralCommandLine buildUnixCommand(String shellPath, String configuredCliCmd) {
-        return new GeneralCommandLine(shellPath, "-c", configuredCliCmd, "compile", "--json")
+    private GeneralCommandLine buildDefaultCommand(String configuredCliCmd) {
+        return new GeneralCommandLine()
+                .withExePath(configuredCliCmd)
+                .withParameters("compile", "--json")
                 .withWorkDirectory(project.getBasePath());
     }
 
@@ -148,5 +119,21 @@ public final class DataformInterpreterManagerImpl implements DataformInterpreter
                 .filter(p -> p.toFile().exists())
                 .findFirst()
                 .map(p -> p.toFile().getAbsolutePath());
+    }
+
+    private GeneralCommandLine buildGitBashCommand(@NotNull Path bashExe,
+                                                   @NotNull String pathEnv) {
+        String posixPathEnv = pathEnv
+                .replace("\\", "/")
+                .replaceAll("^([A-Za-z]):", "/$1")
+                .toLowerCase(java.util.Locale.ROOT);
+
+        GeneralCommandLine generalCommandLine = new GeneralCommandLine(
+                bashExe.toAbsolutePath().toString(),
+                "-c",
+                "dataform compile --json"
+        ).withWorkDirectory(project.getBasePath());
+        generalCommandLine.getEnvironment().put("PATH", posixPathEnv);
+        return generalCommandLine;
     }
 }

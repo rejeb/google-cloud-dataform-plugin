@@ -19,8 +19,11 @@ package io.github.rejeb.dataform.language.gcp.settings;
 import com.intellij.openapi.project.Project;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jspecify.annotations.NonNull;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 public interface GcpRepositorySettings {
 
@@ -28,26 +31,38 @@ public interface GcpRepositorySettings {
         return project.getService(GcpRepositorySettings.class);
     }
 
-    /** @return all configured repositories, never null */
+    /**
+     * @return all configured repositories, never null
+     */
     @NotNull List<DataformRepositoryConfig> getAllConfigs();
 
-    /** Replaces the full list of configured repositories. */
+    /**
+     * Replaces the full list of configured repositories.
+     */
     void saveAllConfigs(@NotNull List<DataformRepositoryConfig> configs);
 
-    /** @return the currently active repository config, or {@code null} if none configured */
+    /**
+     * @return the currently active repository config, or {@code null} if none configured
+     */
     @Nullable DataformRepositoryConfig getActiveConfig();
 
-    /** Sets the active repository by its repositoryId. */
+    /**
+     * Sets the active repository by its repositoryId.
+     */
     void setActiveRepositoryId(@Nullable String repositoryId);
 
-    /** @return the active repositoryId, or {@code null} */
+    /**
+     * @return the active repositoryId, or {@code null}
+     */
     @Nullable String getActiveRepositoryId();
 
     void setSelectedWorkspaceId(@Nullable String workspaceId);
 
     @Nullable String getSelectedWorkspaceId();
 
-    /** @deprecated use {@link #getActiveConfig()} */
+    /**
+     * @deprecated use {@link #getActiveConfig()}
+     */
     @Deprecated
     default @Nullable DataformRepositoryConfig getConfig() {
         return getActiveConfig();
@@ -66,5 +81,31 @@ public interface GcpRepositorySettings {
     default @Nullable String getLocation() {
         DataformRepositoryConfig c = getActiveConfig();
         return c != null ? c.location() : null;
+    }
+
+
+    final class State {
+
+        private @Nullable String selectedConfigId;
+        private @NotNull List<RepositoryConfigState> repositories = new ArrayList<>();
+
+        public State() {
+        }
+
+        public void setSelectedConfigId(@Nullable String selectedConfigId) {
+            this.selectedConfigId = selectedConfigId;
+        }
+
+        public void setRepositories(List<RepositoryConfigState> repositories) {
+            this.repositories = new ArrayList<>(repositories);
+        }
+
+        public @Nullable String getSelectedConfigId() {
+            return this.selectedConfigId;
+        }
+
+        public @NonNull List<RepositoryConfigState> getRepositories() {
+            return repositories;
+        }
     }
 }

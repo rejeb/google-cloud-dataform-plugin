@@ -34,6 +34,7 @@ import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.awt.*;
+import java.util.UUID;
 
 public class RepositoryEditPanel extends JPanel {
 
@@ -89,7 +90,7 @@ public class RepositoryEditPanel extends JPanel {
     }
 
     public void load(@NotNull DataformRepositoryConfig config) {
-        labelField.setText(config.label() != null ? config.label() : "");
+        labelField.setText(config.label() );
         projectIdField.setText(config.projectId());
         repositoryIdField.setText(config.repositoryId());
         locationField.setText(config.location());
@@ -113,6 +114,8 @@ public class RepositoryEditPanel extends JPanel {
 
     @Nullable
     public ValidationInfo validationInfo() {
+        if (labelField.getText().isBlank())
+            return new ValidationInfo("Label is required.", labelField);
         if (projectIdField.getText().isBlank())
             return new ValidationInfo("GCP Project ID is required.", projectIdField);
         if (repositoryIdField.getText().isBlank())
@@ -126,6 +129,7 @@ public class RepositoryEditPanel extends JPanel {
     public DataformRepositoryConfig buildConfig(@NotNull String labelFallback) {
         String label = labelField.getText().trim();
         return new DataformRepositoryConfig(
+                UUID.randomUUID().toString(),
                 label.isEmpty() ? labelFallback : label,
                 projectIdField.getText().trim(),
                 repositoryIdField.getText().trim(),

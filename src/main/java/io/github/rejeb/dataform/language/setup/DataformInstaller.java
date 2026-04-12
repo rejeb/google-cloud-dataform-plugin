@@ -20,7 +20,6 @@ import com.intellij.notification.Notification;
 import com.intellij.notification.NotificationAction;
 import com.intellij.notification.NotificationGroupManager;
 import com.intellij.notification.NotificationType;
-import com.intellij.openapi.Disposable;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.application.ApplicationActivationListener;
 import com.intellij.openapi.application.ApplicationManager;
@@ -31,7 +30,6 @@ import com.intellij.openapi.startup.ProjectActivity;
 import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.wm.IdeFrame;
 import com.intellij.util.messages.MessageBusConnection;
-
 import io.github.rejeb.dataform.language.settings.DataformToolsConfigurable;
 import io.github.rejeb.dataform.language.settings.DataformToolsSettings;
 import io.github.rejeb.dataform.language.util.NodeJsNpmUtils;
@@ -66,8 +64,7 @@ public class DataformInstaller implements ProjectActivity {
                         @Override
                         public void applicationActivated(@NotNull IdeFrame ideFrame) {
                             DataformToolsSettings settings = DataformToolsSettings.getInstance();
-                            if (!settings.getCliExecutablePath().isBlank()
-                                    && !settings.getCoreInstallPath().isBlank()) {
+                            if (!settings.getCoreInstallPath().isBlank()) {
                                 connection.disconnect();
                                 return;
                             }
@@ -87,7 +84,7 @@ public class DataformInstaller implements ProjectActivity {
         NodeInterpreterManager nim = NodeInterpreterManager.getInstance(project);
         if (nim.npmExecutable() == null) {
             LOG.info("Node.js not configured — notifying user.");
-            settings.update("", "", "", "", "");
+            settings.update("", "", "", "");
             if (nodeJsNotificationShown.compareAndSet(false, true)) {
                 NodeJsNpmUtils.showNpmConfigurationDialog(project);
             }
@@ -104,12 +101,11 @@ public class DataformInstaller implements ProjectActivity {
         }
 
 
-        if (settings.getCoreInstallPath().isBlank()
-                || settings.getCliExecutablePath().isBlank()) {
+        if (settings.getCoreInstallPath().isBlank()) {
             Path root = dataformRootDir.get();
             String core = root.resolve("core").toAbsolutePath().toString();
             String cli = resolveCli(nim.nodeBinDir());
-            settings.update(cli, core, "", "", "");
+            settings.update(cli, core, "", "");
             LOG.info("Dataform paths persisted — core: " + core + ", cli: " + cli);
         }
     }
