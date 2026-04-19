@@ -1,3 +1,19 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package io.github.rejeb.dataform.language.formatting;
 
 import com.intellij.formatting.*;
@@ -26,13 +42,17 @@ public class SqlxFormattingBlock extends AbstractBlock {
     );
     private static final Map<IElementType, Indent> INDENT_MAP = Map.of(
             SharedTokenTypes.JS_CONTENT, NORMAL_IDENT,
-            SharedTokenTypes.CONFIG_CONTENT, NONE_INDENT,
-            SharedTokenTypes.PRE_OPERATIONS_CONTENT, NONE_INDENT,
-            SharedTokenTypes.POST_OPERATIONS_CONTENT, NONE_INDENT,
+            SharedTokenTypes.CONFIG_CONTENT, NORMAL_IDENT,
+            SharedTokenTypes.SQL_CONTENT, NONE_INDENT,
+            SharedTokenTypes.TEMPLATE_EXPRESSION, NORMAL_IDENT
+    );
+    private static final Map<IElementType, Indent> CHILD_INDENT_MAP = Map.of(
+            SharedTokenTypes.JS_CONTENT, NORMAL_IDENT,
+            SharedTokenTypes.CONFIG_CONTENT, NORMAL_IDENT,
             SharedTokenTypes.SQL_CONTENT, NONE_INDENT,
             SharedTokenTypes.TEMPLATE_EXPRESSION, NORMAL_IDENT,
-            SharedTokenTypes.CONFIG_BLOCK, NONE_INDENT,
-            SharedTokenTypes.JS_BLOCK, NONE_INDENT
+            SharedTokenTypes.CONFIG_BLOCK, NORMAL_IDENT,
+            SharedTokenTypes.JS_BLOCK, NORMAL_IDENT
     );
 
     private final SpacingBuilder spacingBuilder;
@@ -90,6 +110,12 @@ public class SqlxFormattingBlock extends AbstractBlock {
         return myNode.getFirstChildNode() == null;
     }
 
+    @Override
+    public @NotNull ChildAttributes getChildAttributes(int newChildIndex) {
+        IElementType type = myNode.getElementType();
+        Indent childIndent = CHILD_INDENT_MAP.getOrDefault(type, NONE_INDENT);
+        return new ChildAttributes(childIndent, null);
+    }
 
     @Override
     public @Nullable Indent getIndent() {

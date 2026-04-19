@@ -129,7 +129,7 @@ public final class DataformBuildManager {
                 }
 
                 // Succès
-                project.getService(DataformTableSchemaService.class)
+                DataformTableSchemaService.getInstance(project)
                         .refreshAsync(compiledGraph, true);
 
                 String durationMsg = NlsMessages.formatDuration(context.getDuration());

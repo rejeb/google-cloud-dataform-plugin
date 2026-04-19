@@ -34,7 +34,6 @@ public interface SharedTokenTypes {
     IElementType RBRACE = new IElementType("RBRACE", SqlxLanguage.INSTANCE);
     IElementType CONFIG_BLOCK = new IElementType("CONFIG_BLOCK", SqlxLanguage.INSTANCE);
     IElementType JS_BLOCK = new IElementType("JS_BLOCK", SqlxLanguage.INSTANCE);
-    IElementType SQL_BLOCK = new IElementType("SQL_BLOCK", SqlxLanguage.INSTANCE);
     IElementType PRE_OPERATIONS_BLOCK = new IElementType("PRE_OPERATIONS_BLOCK", SqlxLanguage.INSTANCE);
     IElementType POST_OPERATIONS_BLOCK = new IElementType("POST_OPERATIONS_BLOCK", SqlxLanguage.INSTANCE);
 }

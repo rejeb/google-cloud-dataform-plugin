@@ -44,7 +44,7 @@ public class SqlxEditorGutterProvider implements LineMarkerProvider {
         PsiFile sqlxFile = element.getContainingFile();
         if (sqlxFile == null || sqlxFile.getVirtualFile() == null) return null;
         if (!isActionFile(sqlxFile.getVirtualFile())) return null;
-        Optional<JSProperty> tagProperty = findTagsProperty(configBlock);
+        Optional<PsiElement> tagProperty = findTagsProperty(configBlock);
         if (tagProperty.isEmpty()) return null;
 
         PsiElement anchor = tagProperty.get();
@@ -65,13 +65,15 @@ public class SqlxEditorGutterProvider implements LineMarkerProvider {
         );
     }
 
-    private static Optional<JSProperty> findTagsProperty(@NotNull SqlxConfigBlock configBlock) {
+    private static Optional<PsiElement> findTagsProperty(@NotNull SqlxConfigBlock configBlock) {
         InjectedLanguageManager manager = InjectedLanguageManager.getInstance(configBlock.getProject());
         List<Pair<PsiElement, TextRange>> injected = manager.getInjectedPsiFiles(configBlock);
         if (injected == null) return Optional.empty();
         return injected.parallelStream()
                 .flatMap(injectedPsi ->
                         PsiTreeUtil.findChildrenOfType(injectedPsi.getFirst(), JSProperty.class).stream())
-                .filter(p -> "tags".equals(p.getName())).findFirst();
+                .filter(p -> "tags".equals(p.getName()))
+                .findFirst()
+                .map(PsiElement::getFirstChild);
     }
 }

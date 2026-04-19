@@ -31,9 +31,9 @@ import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.LastMousePositionService;
 import io.github.rejeb.dataform.language.gcp.service.DataformGcpService;
 import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
-import io.github.rejeb.dataform.language.schema.dts.DataformDtsGenerator;
 import io.github.rejeb.dataform.language.projectWizard.DataformFacet;
 import io.github.rejeb.dataform.language.projectWizard.DataformFacetType;
+import io.github.rejeb.dataform.language.schema.dts.DataformDtsGenerator;
 import kotlin.Unit;
 import kotlin.coroutines.Continuation;
 import org.jetbrains.annotations.NotNull;
@@ -46,6 +46,12 @@ import java.util.List;
 public class DataformProjectStartup implements ProjectActivity {
 
     private static final Logger LOG = Logger.getInstance(DataformProjectStartup.class);
+    private static final List<String> DATAFORM_FILES = List.of("definitions",
+            "includes",
+            "dataform.json",
+            "workflow_settings.yaml",
+            ".gitignore",
+            ".gcloudignore");
 
     @Nullable
     @Override
@@ -72,7 +78,7 @@ public class DataformProjectStartup implements ProjectActivity {
             }
 
         }
-        if(DataformCompilationService.getInstance(project).getCompiledGraph() == null){
+        if (DataformCompilationService.getInstance(project).getCompiledGraph() == null) {
             DataformCompilationService.getInstance(project).compile(true);
         }
 
@@ -99,6 +105,7 @@ public class DataformProjectStartup implements ProjectActivity {
                 if (roots.length == 0) return;
                 VirtualFile contentRoot = roots[0];
                 ensureGitignoreContainsDataform(contentRoot);
+                ensureGcloudIgnoreExists(contentRoot);
             } catch (IOException e) {
                 LOG.debug("Failed to ensure .gitignore contains .dataform/", e);
             }
@@ -119,7 +126,6 @@ public class DataformProjectStartup implements ProjectActivity {
         }
 
         String content = new String(gitignore.contentsToByteArray(), StandardCharsets.UTF_8);
-        // Vérifier si .dataform/ est déjà présent (avec ou sans slash)
         boolean alreadyPresent = java.util.Arrays.stream(content.split("\\R"))
                 .map(String::trim)
                 .anyMatch(line -> line.equals(".dataform/") || line.equals(".dataform"));
@@ -129,6 +135,22 @@ public class DataformProjectStartup implements ProjectActivity {
                     ? content + ".dataform/\n"
                     : content + "\n.dataform/\n";
             gitignore.setBinaryContent(updated.getBytes(StandardCharsets.UTF_8));
+        }
+    }
+
+    private static void ensureGcloudIgnoreExists(
+            @NotNull VirtualFile contentRoot
+    ) throws IOException {
+        if (contentRoot.findChild(".gcloudignore") == null) {
+            VirtualFile gcloudignore = contentRoot.createChildData(null, ".gcloudignore");
+            StringBuilder content = new StringBuilder();
+            for (VirtualFile file : contentRoot.getChildren()) {
+                if (!DATAFORM_FILES.contains(file.getName())) {
+                    String suffix = file.isDirectory() ? "/\n" : "\n";
+                    content.append(file.getName()).append(suffix);
+                }
+            }
+            gcloudignore.setBinaryContent(content.toString().getBytes(StandardCharsets.UTF_8));
         }
     }
 }

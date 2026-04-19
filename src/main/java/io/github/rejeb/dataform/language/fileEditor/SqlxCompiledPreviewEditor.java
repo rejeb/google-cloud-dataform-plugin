@@ -114,7 +114,7 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
             public void run(@NotNull ProgressIndicator indicator) {
                 indicator.setIndeterminate(true);
                 indicator.setText("Compiling " + file.getName() + "...");
-                DataformCompilationService svc = project.getService(DataformCompilationService.class);
+                DataformCompilationService svc = DataformCompilationService.getInstance(project);
                 CompiledGraph graph = svc.getCompiledGraph();
                 if (graph != null) {
                     String path = file.getCanonicalPath();
@@ -129,7 +129,7 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
                 }
                 if (graph != null && (graph.getGraphErrors() == null
                         || graph.getGraphErrors().getCompilationErrors().isEmpty())) {
-                    project.getService(DataformTableSchemaService.class).refreshAsync(graph, false);
+                    DataformTableSchemaService.getInstance(project).refreshAsync(graph, false);
                 }
                 indicator.checkCanceled();
             }

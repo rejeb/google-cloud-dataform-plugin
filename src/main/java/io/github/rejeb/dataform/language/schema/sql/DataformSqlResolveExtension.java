@@ -50,8 +50,8 @@ public class DataformSqlResolveExtension implements SqlResolveExtension {
         if (!processor.mayAccept(ObjectKind.TABLE)
                 && !processor.mayAccept(ObjectKind.COLUMN)) return true;
 
-        DataformTableSchemaService svc = place.getProject()
-                .getService(DataformTableSchemaService.class);
+        DataformTableSchemaService svc = DataformTableSchemaService
+                .getInstance(place.getProject());
         Map<String, List<ColumnInfo>> cache = svc.getAllSchemas();
         if (cache.isEmpty()) return true;
 

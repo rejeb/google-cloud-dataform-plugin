@@ -14,9 +14,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.rejeb.dataform.language.formatting;
+package io.github.rejeb.dataform.language.gcp.service;
 
-import com.intellij.openapi.util.TextRange;
+import com.google.cloud.bigquery.BigQuery;
+import com.google.cloud.dataform.v1.DataformClient;
 
-public record BlockChange(TextRange range, String text) {
+public interface GcpClientService {
+    BigQuery bigQuery(String projectId);
+
+    DataformClient dataformClient();
 }

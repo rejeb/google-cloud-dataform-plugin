@@ -43,15 +43,15 @@ public final class GcpRepositorySettingsImpl
     public @NotNull List<DataformRepositoryConfig> getAllConfigs() {
         List<DataformRepositoryConfig> result = new ArrayList<>();
         for (RepositoryConfigState r : state.getRepositories()) {
-            DataformRepositoryConfig c = null;
             if (r.getRepositoryConfigId() != null && r.getLabel() != null && r.getProjectId() != null && r.getRepositoryId() != null && r.getLocation() != null) {
-                c = new DataformRepositoryConfig(r.getRepositoryConfigId(),
+                DataformRepositoryConfig c = new DataformRepositoryConfig(r.getRepositoryConfigId(),
                         r.getLabel(),
                         r.getProjectId(),
                         r.getRepositoryId(),
                         r.getLocation());
+                result.add(c);
             }
-            result.add(c);
+
         }
         return result;
     }

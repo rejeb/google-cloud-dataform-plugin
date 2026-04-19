@@ -63,7 +63,7 @@ public class SchemaPanel extends JPanel {
             return;
         }
 
-        DataformTableSchemaService schemaService = project.getService(DataformTableSchemaService.class);
+        DataformTableSchemaService schemaService = DataformTableSchemaService.getInstance(project);
         Map<String, List<ColumnInfo>> allSchemas = schemaService.getAllSchemas();
 
         for (LineageGraph q : tables) {

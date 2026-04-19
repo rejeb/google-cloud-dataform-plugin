@@ -44,7 +44,7 @@ public class SqlxKeywordCompletionProvider extends CompletionProvider<Completion
         PsiElement position = parameters.getPosition();
         PsiFile file = position.getContainingFile();
         PsiFile topLevelFile = InjectedLanguageManager.getInstance(position.getProject()).getTopLevelFile(position);
-        if (!(topLevelFile instanceof SqlxFile) && !(file instanceof SqlFile)) {
+        if (!(topLevelFile instanceof SqlxFile) || !(file instanceof SqlFile)) {
             return;
         }
 
@@ -57,7 +57,7 @@ public class SqlxKeywordCompletionProvider extends CompletionProvider<Completion
                     .withTypeText("SQLX keyword")
                     .withBoldness(true)
                     .withInsertHandler((ctx, item) -> {
-                        ctx.getDocument().insertString(ctx.getTailOffset(), " {");
+                        ctx.getDocument().insertString(ctx.getTailOffset(), " { \n }");
                         ctx.getEditor().getCaretModel().moveToOffset(ctx.getTailOffset());
                     });
 

@@ -19,17 +19,8 @@ package io.github.rejeb.dataform.language.completion;
 import com.intellij.codeInsight.completion.CompletionContributor;
 import com.intellij.codeInsight.completion.CompletionType;
 import com.intellij.patterns.PlatformPatterns;
-import com.intellij.psi.PsiElement;
 
 public class SqlxKeywordCompletionContributor extends CompletionContributor {
-
-    private static final String[] SQLX_KEYWORDS = {
-            "config",
-            "js",
-            "pre_operations",
-            "post_operations"
-    };
-
     public SqlxKeywordCompletionContributor() {
         extend(CompletionType.BASIC,
                 PlatformPatterns.psiElement(),

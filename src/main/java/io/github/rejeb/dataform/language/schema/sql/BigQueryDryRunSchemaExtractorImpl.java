@@ -36,7 +36,7 @@ public final class BigQueryDryRunSchemaExtractorImpl implements BigQueryDryRunSc
                                           @Nullable String location,
                                           @NotNull String dryRunQuery) {
         try {
-            BigQuery bigQuery = buildBigQueryClient(projectId);
+            BigQuery bigQuery = GcpClientsUtils.bigQuery(projectId);
 
             QueryJobConfiguration config = QueryJobConfiguration.newBuilder(dryRunQuery)
                     .setDryRun(true)
@@ -69,15 +69,6 @@ public final class BigQueryDryRunSchemaExtractorImpl implements BigQueryDryRunSc
     }
 
 
-    @NotNull
-    private static BigQuery buildBigQueryClient(@NotNull String projectId) {
-        return BigQueryOptions.newBuilder()
-                .setCredentials(GcpClientsUtils.getCredentials())
-                .setProjectId(projectId)
-                .build()
-                .getService();
-    }
-
     @Nullable
     private static Schema extractSchemaFromJob(@NotNull Job job) {
         JobStatistics statistics = job.getStatistics();
@@ -103,6 +94,6 @@ public final class BigQueryDryRunSchemaExtractorImpl implements BigQueryDryRunSc
                     .toList();
         }
 
-        return new ColumnInfo(field.getName(), type, mode,description, subFields);
+        return new ColumnInfo(field.getName(), type, mode, description, subFields);
     }
 }

@@ -17,6 +17,7 @@
 package io.github.rejeb.dataform.language.schema.sql;
 
 import com.intellij.openapi.components.PersistentStateComponent;
+import com.intellij.openapi.project.Project;
 import com.intellij.util.xmlb.annotations.Tag;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
@@ -27,7 +28,11 @@ import java.util.Map;
 
 
 public interface DataformTableSchemaService extends PersistentStateComponent<DataformTableSchemaService.State> {
-    String TABLE_SUFFIX ="_gcdp";
+    static DataformTableSchemaService getInstance(Project project) {
+        return project.getService(DataformTableSchemaService.class);
+
+    }
+
     void refreshAsync(@NotNull CompiledGraph graph, boolean forceRefresh);
 
     @NotNull

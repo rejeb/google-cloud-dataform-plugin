@@ -19,7 +19,6 @@ package io.github.rejeb.dataform.language.schema.sql;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
-import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.components.State;
 import com.intellij.openapi.components.Storage;
@@ -105,6 +104,7 @@ public final class DataformTableSchemaServiceImpl implements DataformTableSchema
             @Override
             public void run(@NotNull ProgressIndicator indicator) {
                 try {
+                    indicator.setIndeterminate(false);
                     runExtraction(graph, indicator, forceRefresh);
                 } catch (Exception e) {
                     LOG.warn("Schema extraction failed: " + e);
@@ -134,10 +134,10 @@ public final class DataformTableSchemaServiceImpl implements DataformTableSchema
         List<SortableAction> sorted = DataformTopologicalSorter.sort(graph);
         List<SortableAction> toRefresh = identifyActionsToRefresh(sorted, forceRefresh);
         logSkipped(sorted.size(), toRefresh.size());
-
-        List<List<SortableAction>> waves = computeWaves(toRefresh);
-        ApplicationManager.getApplication().executeOnPooledThread(() ->
-                processAllWaves(waves, ctx, indicator));
+        if (!toRefresh.isEmpty()) {
+            List<List<SortableAction>> waves = computeWaves(toRefresh);
+            processAllWaves(waves, ctx, indicator);
+        }
     }
 
     @Nullable
@@ -174,7 +174,7 @@ public final class DataformTableSchemaServiceImpl implements DataformTableSchema
             }
             waveExtraction(ctx, indicator, resolvedInThisRun, wave, processed, total);
         }
-        indicator.setFraction(1);
+        indicator.setFraction(1d);
         persistStateFromCache();
         LOG.warn("Schema extraction complete: " + resolvedInThisRun.size() + "/" + processed.get() + " actions resolved");
     }
@@ -267,7 +267,7 @@ public final class DataformTableSchemaServiceImpl implements DataformTableSchema
         actions.forEach(a -> waves.get(levelByFqn.getOrDefault(a.target().getFullName(), 0)).add(a));
 
         LOG.info("Computed " + (maxLevel + 1) + " wave(s) for " + actions.size() + " actions");
-        return waves;
+        return waves.stream().filter(l -> !l.isEmpty()).collect(Collectors.toList());
     }
 
     @NotNull
@@ -300,10 +300,6 @@ public final class DataformTableSchemaServiceImpl implements DataformTableSchema
         visiting.remove(fqn);
         return level;
     }
-
-    // -------------------------------------------------------------------------
-    // Actions to refresh (change detection)
-    // -------------------------------------------------------------------------
 
     @NotNull
     private List<SortableAction> identifyActionsToRefresh(@NotNull List<SortableAction> allActions,
@@ -373,10 +369,6 @@ public final class DataformTableSchemaServiceImpl implements DataformTableSchema
         return reverse;
     }
 
-    // -------------------------------------------------------------------------
-    // State persistence
-    // -------------------------------------------------------------------------
-
     private void restoreCacheFromState(@NotNull State state) {
         if (state.schemaCacheJson == null || state.schemaCacheJson.isBlank()) return;
         try {
@@ -402,10 +394,6 @@ public final class DataformTableSchemaServiceImpl implements DataformTableSchema
         currentState.schemaCacheJson = GSON.toJson(toSerialize);
         LOG.info("Persisted " + toSerialize.size() + " schemas to state");
     }
-
-    // -------------------------------------------------------------------------
-    // Utilities
-    // -------------------------------------------------------------------------
 
     @Nullable
     private Long getCachedModTime(@NotNull String fqn) {

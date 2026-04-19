@@ -26,6 +26,7 @@ import com.intellij.openapi.ui.ValidationInfo;
 import com.intellij.ui.AnActionButton;
 import com.intellij.ui.JBSplitter;
 import com.intellij.ui.ToolbarDecorator;
+import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBList;
 import com.intellij.ui.components.JBScrollPane;
 import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
@@ -49,6 +50,11 @@ public class ManageRepositoriesDialog extends DialogWrapper {
 
     private int editedIndex = -1;
     private boolean suppressListener = false;
+
+    private static final String CARD_EMPTY = "empty";
+    private static final String CARD_EDIT = "edit";
+    private final CardLayout rightCardLayout = new CardLayout();
+    private final JPanel rightPanel = new JPanel(rightCardLayout);
 
     public ManageRepositoriesDialog(@NotNull Project project) {
         super(project, true);
@@ -91,11 +97,25 @@ public class ManageRepositoriesDialog extends DialogWrapper {
             }
         });
 
+        rightPanel.add(new JBScrollPane(editPanel), CARD_EDIT);
+        rightPanel.add(noRepositoryMessage(), CARD_EMPTY);
+
+        listModel.addListDataListener(new javax.swing.event.ListDataListener() {
+            @Override public void intervalAdded(javax.swing.event.ListDataEvent e) { updateRightPanel(); }
+            @Override public void intervalRemoved(javax.swing.event.ListDataEvent e) { updateRightPanel(); }
+            @Override public void contentsChanged(javax.swing.event.ListDataEvent e) { updateRightPanel(); }
+        });
+
         init();
 
         if (!listModel.isEmpty()) {
             repoList.setSelectedIndex(0);
         }
+        updateRightPanel();
+    }
+
+    private void updateRightPanel() {
+        rightCardLayout.show(rightPanel, listModel.isEmpty() ? CARD_EMPTY : CARD_EDIT);
     }
 
     @Override
@@ -111,7 +131,7 @@ public class ManageRepositoriesDialog extends DialogWrapper {
 
         JBSplitter splitter = new JBSplitter(false, 0.35f);
         splitter.setFirstComponent(listPanel);
-        splitter.setSecondComponent(new JBScrollPane(editPanel));
+        splitter.setSecondComponent(rightPanel);
         splitter.setPreferredSize(new Dimension(700, 400));
         return splitter;
     }
@@ -134,6 +154,13 @@ public class ManageRepositoriesDialog extends DialogWrapper {
                 return ActionUpdateThread.EDT;
             }
         };
+    }
+
+    private JBLabel noRepositoryMessage() {
+        JBLabel noRepositoryMessage = new JBLabel("Click (+) to add a new repository");
+        noRepositoryMessage.setHorizontalAlignment(SwingConstants.CENTER);
+        noRepositoryMessage.setVerticalAlignment(SwingConstants.CENTER);
+        return noRepositoryMessage;
     }
 
     @Override

@@ -101,4 +101,8 @@ public class WorkflowSettingsYamlFileWrapper extends YAMLFileImpl {
 
         return result.toString();
     }
+
+    public long getModificationStamp() {
+        return originalFile.getModificationStamp();
+    }
 }
