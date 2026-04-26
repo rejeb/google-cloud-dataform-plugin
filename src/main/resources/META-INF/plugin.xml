@@ -103,8 +103,6 @@
         <framework.detector implementation="io.github.rejeb.dataform.language.projectWizard.DataformFrameworkDetector"/>
         <projectTaskRunner
                 implementation="io.github.rejeb.dataform.language.compilation.DataformBuildTaskRunner"/>
-        <stepsBeforeRunProvider
-                implementation="io.github.rejeb.dataform.language.compilation.DataformBuildTaskProvider"/>
         <directoryProjectGenerator
                 implementation="io.github.rejeb.dataform.language.projectWizard.DataformDirectoryProjectGenerator"/>
         <moduleBuilder builderClass="io.github.rejeb.dataform.language.projectWizard.DataformModuleBuilder"/>

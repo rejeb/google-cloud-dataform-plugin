@@ -17,6 +17,8 @@
 package io.github.rejeb.dataform.language.compilation.model;
 
 
+import org.jetbrains.annotations.Nullable;
+
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -172,7 +174,39 @@ public class CompiledGraph {
                 .distinct()
                 .sorted()
                 .toList();
+    }
 
+    @Nullable
+    public String actionFileName(String actionName) {
+        return findContainingFileInTable(actionName)
+                .or(() -> findContainingFileInAssertion(actionName))
+                .or(() -> findContainingFileInOperation(actionName))
+                .orElse(null);
+    }
+
+
+    public Optional<String> findContainingFileInTable(String actionName) {
+        return this.getTables()
+                .stream()
+                .filter(t -> t.getTarget().getFullName().equals(actionName))
+                .findFirst()
+                .map(CompiledTable::getFileName);
+    }
+
+    public Optional<String> findContainingFileInAssertion(String actionName) {
+        return this.getAssertions()
+                .stream()
+                .filter(t -> t.getTarget().getFullName().equals(actionName))
+                .findFirst()
+                .map(CompiledAssertion::getFileName);
+    }
+
+    public Optional<String> findContainingFileInOperation(String actionName) {
+        return this.getOperations()
+                .stream()
+                .filter(t -> t.getTarget().getFullName().equals(actionName))
+                .findFirst()
+                .map(CompiledOperation::getFileName);
     }
 }
 

@@ -46,13 +46,13 @@ public class InvocationSummaryPanel extends JPanel {
     private final JPanel cards = new JPanel(cardLayout);
 
     private final JLabel urlLabel = new JBLabel();
-    private final JLabel startTimeLabel = new JBLabel();
-    private final JLabel statusLabel = new JBLabel();
-    private final JLabel durationLabel = new JBLabel("—");
-    private final JLabel compilationLabel = new JBLabel();
-    private final JLabel sourceTypeLabel = new JBLabel();
     private final JLabel sourceLabel = new JBLabel();
-    private final JLabel contentsLabel = new JBLabel();
+    private final JTextField startTimeLabel = RunConfigUiUtils.selectableValue("");
+    private final JTextField statusLabel = RunConfigUiUtils.selectableValue("");
+    private final JTextField durationLabel = RunConfigUiUtils.selectableValue("—");
+    private final JTextField compilationLabel = RunConfigUiUtils.selectableValue("");
+    private final JTextField sourceTypeLabel = RunConfigUiUtils.selectableValue("");
+    private final JTextField contentsLabel = RunConfigUiUtils.selectableValue("");
 
     public InvocationSummaryPanel() {
         super(new BorderLayout());
@@ -81,7 +81,7 @@ public class InvocationSummaryPanel extends JPanel {
 
         String[] keys = {"Execution URL", "Start time", "Status", "Duration",
                 "Compilation ID", "Source type", "Source", "Contents"};
-        JLabel[] valueLabels = {urlLabel, startTimeLabel, statusLabel, durationLabel,
+        Component[] valueLabels = {urlLabel, startTimeLabel, statusLabel, durationLabel,
                 compilationLabel, sourceTypeLabel, sourceLabel, contentsLabel};
 
         GridBagConstraints kc = new GridBagConstraints();
@@ -131,7 +131,7 @@ public class InvocationSummaryPanel extends JPanel {
         startTimeLabel.setText(TIME_FMT.format(summary.startTime()));
         statusLabel.setText(progress.state().name());
         Instant endTime = summary.endTime() != null ? summary.endTime() : Instant.now();
-        durationLabel.setText(formatDuration(Duration.between(summary.startTime(), endTime)));
+        durationLabel.setText(RunConfigUiUtils.formatDuration(Duration.between(summary.startTime(), endTime)));
 
 
         compilationLabel.setText(summary.compilationResultId());
@@ -187,13 +187,4 @@ public class InvocationSummaryPanel extends JPanel {
         return shortName(fullName);
     }
 
-    @NotNull
-    private static String formatDuration(@NotNull Duration d) {
-        long h = d.toHours();
-        long m = d.toMinutesPart();
-        long s = d.toSecondsPart();
-        if (h > 0) return String.format("%dh %02dm %02ds", h, m, s);
-        if (m > 0) return String.format("%dm %02ds", m, s);
-        return String.format("%ds", s);
-    }
 }

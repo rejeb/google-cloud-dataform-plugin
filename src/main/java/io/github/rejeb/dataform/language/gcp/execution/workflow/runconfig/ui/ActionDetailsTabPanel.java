@@ -36,12 +36,10 @@ import io.github.rejeb.dataform.language.gcp.execution.workflow.model.Invocation
 import io.github.rejeb.dataform.language.gcp.service.DataformGcpService;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.jspecify.annotations.NonNull;
 
 import javax.swing.*;
 import javax.swing.table.*;
 import java.awt.*;
-import java.awt.event.HierarchyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.net.URI;
@@ -72,6 +70,7 @@ public class ActionDetailsTabPanel extends JPanel implements Disposable {
     private final Project project;
 
     private final List<EditorEx> sqlEditors = new ArrayList<>();
+    private int loadGeneration = 0;
 
     public ActionDetailsTabPanel(@NotNull Project project) {
         super(new BorderLayout());
@@ -116,6 +115,7 @@ public class ActionDetailsTabPanel extends JPanel implements Disposable {
             cardLayout.show(cards, CARD_EMPTY);
             return;
         }
+        int gen = ++loadGeneration;
         cardLayout.show(cards, CARD_LOADING);
         ApplicationManager.getApplication().executeOnPooledThread(() -> {
             BigQueryJobDetails details = service.getJobDetails(
@@ -123,8 +123,10 @@ public class ActionDetailsTabPanel extends JPanel implements Disposable {
                     action.jobProject(),
                     action.jobLocation() != null ? action.jobLocation() : "US"
             );
-            BigQueryJobDetails formatted = preFormatSql(details);
-            SwingUtilities.invokeLater(() -> render(formatted));
+            ApplicationManager.getApplication().invokeLater(() -> {
+                if (gen != loadGeneration) return;
+                render(preFormatSql(details));
+            });
         });
     }
 
@@ -140,11 +142,7 @@ public class ActionDetailsTabPanel extends JPanel implements Disposable {
     @NotNull
     private BigQueryChildJob formatChildJobSql(@NotNull BigQueryChildJob job) {
         if (job.query() == null) return job;
-        String[] result = {job.query()};
-        ApplicationManager.getApplication().invokeAndWait(
-                () -> result[0] = formatSql(project, job.query())
-        );
-        return job.withQuery(result[0]);
+        return job.withQuery(formatSql(project, job.query()));
     }
 
     private void render(@Nullable BigQueryJobDetails details) {
@@ -166,8 +164,8 @@ public class ActionDetailsTabPanel extends JPanel implements Disposable {
         }
         contentPanel.add(Box.createVerticalStrut(20));
         cardLayout.show(cards, CARD_CONTENT);
-        contentPanel.revalidate();
-        contentPanel.repaint();
+        cards.revalidate();
+        cards.repaint();
     }
 
     private JPanel buildMetaPanel(@NotNull BigQueryJobDetails d) {
@@ -188,7 +186,7 @@ public class ActionDetailsTabPanel extends JPanel implements Disposable {
                 {"Location", d.location()},
                 {"Bytes processed", formatBytes(d.bytesProcessed())},
                 {"Bytes billed", formatBytes(d.bytesBilled())},
-                {"Duration", formatDuration(d.startTime(), d.endTime())},
+                {"Duration", RunConfigUiUtils.formatDuration(d.startTime(), d.endTime())},
                 {"Statements processed", d.statementsProcessed() != null
                         ? String.valueOf(d.statementsProcessed()) : "—"},
         };
@@ -223,7 +221,7 @@ public class ActionDetailsTabPanel extends JPanel implements Disposable {
                 });
                 panel.add(link, vc);
             } else {
-                panel.add(new JBLabel(rows[i][1] != null ? rows[i][1] : "—"), vc);
+                panel.add(RunConfigUiUtils.selectableValue(rows[i][1]), vc);
             }
         }
 
@@ -238,7 +236,6 @@ public class ActionDetailsTabPanel extends JPanel implements Disposable {
     private JPanel buildChildJobsPanel(@NotNull List<BigQueryChildJob> jobs) {
         String[] columns = {"", "Start date", "End date", "SQL Query", "Bytes processed"};
 
-        // Un EditorEx par ligne — partagé entre renderer et editor hover
         List<EditorEx> rowEditors = jobs.stream()
                 .map(j -> createSqlEditor(j.query() != null ? j.query() : "", project))
                 .toList();
@@ -330,25 +327,9 @@ public class ActionDetailsTabPanel extends JPanel implements Disposable {
             }
         });
 
-        // Supprime le HierarchyListener existant (remplacé par componentResized ci-dessus)
         return wrapper;
     }
 
-    private static @NonNull JPanel getJPanel(JBTable table) {
-        JBScrollPane scrollPane = new JBScrollPane(table);
-        scrollPane.setAlignmentX(Component.LEFT_ALIGNMENT);
-        scrollPane.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_NEVER);
-        scrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-        JPanel wrapper = new JPanel(new BorderLayout());
-        wrapper.setAlignmentX(Component.LEFT_ALIGNMENT);
-        wrapper.add(scrollPane, BorderLayout.CENTER);
-        return wrapper;
-    }
-
-    /**
-     * Utilise un JTextArea probe (identique à l'original) pour un calcul
-     * fiable de la hauteur, indépendamment du layout de l'EditorEx.
-     */
     private static void computeRowHeights(@NotNull JBTable table,
                                           @NotNull List<EditorEx> editors) {
         int colWidth = table.getColumnModel().getColumn(3).getWidth();
@@ -409,9 +390,6 @@ public class ActionDetailsTabPanel extends JPanel implements Disposable {
         }
     }
 
-    /**
-     * Renderer : affiche l'EditorEx directement — coloration visible en permanence.
-     */
     private static final class SqlEditorRenderer implements TableCellRenderer {
 
         private final EditorEx editor;
@@ -427,10 +405,6 @@ public class ActionDetailsTabPanel extends JPanel implements Disposable {
         }
     }
 
-    /**
-     * Editor hover : enveloppe le même EditorEx dans un JBScrollPane interactif.
-     * Pas de création d'un nouvel éditeur — réutilise celui du renderer.
-     */
     private static final class SqlScrollEditor extends AbstractCellEditor
             implements TableCellEditor {
 
@@ -519,18 +493,6 @@ public class ActionDetailsTabPanel extends JPanel implements Disposable {
                 + "&page=queryresults";
     }
 
-
-
-    @NotNull
-    private static String formatDuration(@Nullable java.time.Instant start,
-                                         @Nullable java.time.Instant end) {
-        if (start == null || end == null) return "—";
-        java.time.Duration d = java.time.Duration.between(start, end);
-        long h = d.toHours(), m = d.toMinutesPart(), s = d.toSecondsPart();
-        if (h > 0) return String.format("%dh %02dm %02ds", h, m, s);
-        if (m > 0) return String.format("%dm %02ds", m, s);
-        return s + "s";
-    }
 
     private static void openUrl(@NotNull String url) {
         try {

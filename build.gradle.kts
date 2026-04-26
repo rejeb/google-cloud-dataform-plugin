@@ -46,6 +46,7 @@ intellijPlatform {
 
         changeNotes = """
                 <ul>
+                    <li>Add goto column navigation.</li>
                     <li>Fix issues.</li>
                 </ul>
         """.trimIndent()

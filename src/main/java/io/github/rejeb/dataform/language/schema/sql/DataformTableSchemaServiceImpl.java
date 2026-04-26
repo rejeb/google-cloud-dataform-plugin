@@ -26,8 +26,12 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.vfs.LocalFileSystem;
+import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.psi.PsiManager;
 import io.github.rejeb.dataform.language.compilation.model.*;
 import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
+import io.github.rejeb.dataform.language.schema.sql.model.DataformDasTable;
 import io.github.rejeb.dataform.language.util.DataformAuthNotifier;
 import io.github.rejeb.dataform.language.util.GcpClientsUtils;
 import org.jetbrains.annotations.NotNull;
@@ -55,8 +59,9 @@ public final class DataformTableSchemaServiceImpl implements DataformTableSchema
     }.getType();
 
     private final Project project;
-    private final ConcurrentHashMap<String, List<ColumnInfo>> schemaCache = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, DataformDasTable> tableCache = new ConcurrentHashMap<>();
     private final Map<String, Long> fileModificationTimes = new ConcurrentHashMap<>();
+    private final Map<String, String> fileNames = new ConcurrentHashMap<>();
     private final AtomicBoolean running = new AtomicBoolean(false);
 
     private volatile boolean pendingRefresh = false;
@@ -86,6 +91,7 @@ public final class DataformTableSchemaServiceImpl implements DataformTableSchema
         if (running.compareAndSet(false, true)) {
             pendingRefresh = false;
             pendingGraph = null;
+            if (forceRefresh) tableCache.clear();
             startTask(graph, forceRefresh);
         } else {
             pendingGraph = graph;
@@ -95,8 +101,8 @@ public final class DataformTableSchemaServiceImpl implements DataformTableSchema
     }
 
     @NotNull
-    public Map<String, List<ColumnInfo>> getAllSchemas() {
-        return Collections.unmodifiableMap(schemaCache);
+    public Map<String, DataformDasTable> getAllTables() {
+        return Collections.unmodifiableMap(tableCache);
     }
 
     private void startTask(@NotNull CompiledGraph graph, boolean forceRefresh) {
@@ -198,7 +204,7 @@ public final class DataformTableSchemaServiceImpl implements DataformTableSchema
         String fqn = action.target().getFullName();
         LOG.info("Resolving schema for: " + fqn);
         Optional<List<ColumnInfo>> result = computeSchema(action, ctx, resolvedInThisRun);
-        result.ifPresent(columns -> publishResult(fqn, columns, resolvedInThisRun));
+        result.ifPresent(columns -> publishResult(action, columns, resolvedInThisRun));
     }
 
 
@@ -248,12 +254,32 @@ public final class DataformTableSchemaServiceImpl implements DataformTableSchema
         return columns.isEmpty() ? Optional.empty() : Optional.of(columns);
     }
 
-    private void publishResult(@NotNull String fqn,
+    private void publishResult(@NotNull SortableAction action,
                                @NotNull List<ColumnInfo> columns,
                                @NotNull Map<String, List<ColumnInfo>> resolvedInThisRun) {
-        schemaCache.put(fqn, columns);
+        String fqn = action.target().getFullName();
+        String fileName = getFileNameFromAction(action);
+        DataformDasTable table = buildTable(action.target().getName(), columns, fileName);
+        tableCache.put(fqn, table);
+        if (fileName != null) fileNames.put(fqn, fileName);
         resolvedInThisRun.put(fqn, columns);
         LOG.info("Resolved schema for " + fqn + ": " + columns.size() + " columns");
+    }
+
+    @NotNull
+    private DataformDasTable buildTable(@NotNull String tableName,
+                                        @NotNull List<ColumnInfo> columns,
+                                        @Nullable String fileName) {
+        VirtualFile sourceFile = resolveSourceFile(fileName);
+        return new DataformDasTable(PsiManager.getInstance(project), tableName, columns, sourceFile);
+    }
+
+    @Nullable
+    private VirtualFile resolveSourceFile(@Nullable String fileName) {
+        if (fileName == null) return null;
+        String basePath = project.getBasePath();
+        if (basePath == null) return null;
+        return LocalFileSystem.getInstance().findFileByPath(basePath + "/" + fileName);
     }
 
     @NotNull
@@ -333,7 +359,7 @@ public final class DataformTableSchemaServiceImpl implements DataformTableSchema
     }
 
     private boolean isModified(@NotNull String fqn, @Nullable String fileName, @NotNull String basePath) {
-        if (fileName == null) return !schemaCache.containsKey(fqn);
+        if (fileName == null) return !tableCache.containsKey(fqn);
         long currentModTime = getFileModificationTime(basePath, fileName);
         fileModificationTimes.put(fqn, currentModTime);
         Long cached = getCachedModTime(fqn);
@@ -374,22 +400,36 @@ public final class DataformTableSchemaServiceImpl implements DataformTableSchema
         try {
             Map<String, SchemaCacheEntry> loaded = GSON.fromJson(state.schemaCacheJson, CACHE_TYPE);
             if (loaded == null) return;
-            schemaCache.clear();
-            loaded.forEach((fqn, entry) -> schemaCache.put(fqn, entry.columns()));
-            LOG.info("Restored " + schemaCache.size() + " schemas from persistent state");
+            tableCache.clear();
+            fileNames.clear();
+            loaded.forEach((fqn, entry) -> {
+                String tableName = extractTableName(fqn);
+                tableCache.put(fqn, buildTable(tableName, entry.columns(), entry.fileName()));
+                if (entry.fileName() != null) fileNames.put(fqn, entry.fileName());
+            });
+            LOG.info("Restored " + tableCache.size() + " schemas from persistent state");
         } catch (Exception e) {
             LOG.warn("Failed to deserialize schema cache from state: " + e.getMessage());
-            schemaCache.clear();
+            tableCache.clear();
+            fileNames.clear();
             this.currentState = new State();
         }
     }
 
+    @NotNull
+    private static String extractTableName(@NotNull String fqn) {
+        int idx = fqn.lastIndexOf('.');
+        return idx >= 0 ? fqn.substring(idx + 1) : fqn;
+    }
+
     private void persistStateFromCache() {
-        Map<String, SchemaCacheEntry> toSerialize = schemaCache.entrySet().stream()
+        Map<String, SchemaCacheEntry> toSerialize = tableCache.entrySet().stream()
                 .collect(Collectors.toMap(
                         Map.Entry::getKey,
-                        e -> new SchemaCacheEntry(e.getValue(),
-                                fileModificationTimes.getOrDefault(e.getKey(), Long.MAX_VALUE))
+                        e -> new SchemaCacheEntry(
+                                e.getValue().getColumns(),
+                                fileModificationTimes.getOrDefault(e.getKey(), Long.MAX_VALUE),
+                                fileNames.get(e.getKey()))
                 ));
         currentState.schemaCacheJson = GSON.toJson(toSerialize);
         LOG.info("Persisted " + toSerialize.size() + " schemas to state");
@@ -410,8 +450,9 @@ public final class DataformTableSchemaServiceImpl implements DataformTableSchema
 
     @Nullable
     private String getFileNameFromAction(@NotNull SortableAction action) {
-        if (action.isTable() && action.table() != null) return action.table().getFileName();
-        if (action.isOperation() && action.operation() != null) return action.operation().getFileName();
+        if (action.isTable()) return action.table().getFileName();
+        if (action.isOperation()) return action.operation().getFileName();
+        if (action.isDeclaration()) return action.declaration().getFileName();
         return null;
     }
 

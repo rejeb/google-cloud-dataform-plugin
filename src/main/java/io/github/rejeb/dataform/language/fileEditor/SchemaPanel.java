@@ -23,6 +23,7 @@ import com.intellij.util.ui.UIUtil;
 import io.github.rejeb.dataform.language.fileEditor.lineage.LineageGraph;
 import io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService;
 import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
+import io.github.rejeb.dataform.language.schema.sql.model.DataformDasTable;
 
 import javax.swing.*;
 import java.awt.*;
@@ -64,12 +65,13 @@ public class SchemaPanel extends JPanel {
         }
 
         DataformTableSchemaService schemaService = DataformTableSchemaService.getInstance(project);
-        Map<String, List<ColumnInfo>> allSchemas = schemaService.getAllSchemas();
+        Map<String, DataformDasTable> allTables = schemaService.getAllTables();
 
         for (LineageGraph q : tables) {
             String tableName = q.targetTable().fullName();
             String displayName = String.format("%s: %s", q.targetTable().type(), q.targetTable().name());
-            List<ColumnInfo> schema = tableName != null ? allSchemas.get(tableName) : null;
+            DataformDasTable table = tableName != null ? allTables.get(tableName) : null;
+            List<ColumnInfo> schema = table != null ? table.getColumns() : null;
 
             TableSchemaSection section = new TableSchemaSection(displayName, schema);
             sections.add(section);

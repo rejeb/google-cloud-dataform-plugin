@@ -22,15 +22,14 @@ import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.ResolveState;
+import com.intellij.sql.psi.SqlCompositeElementTypes;
 import com.intellij.sql.psi.SqlReference;
 import com.intellij.sql.psi.SqlScopeProcessor;
 import com.intellij.sql.psi.impl.SqlResolveExtension;
 import com.intellij.sql.symbols.DasSymbolUtil;
-import io.github.rejeb.dataform.language.schema.sql.model.*;
+import io.github.rejeb.dataform.language.schema.sql.model.DataformDasTable;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 public class DataformSqlResolveExtension implements SqlResolveExtension {
@@ -47,47 +46,21 @@ public class DataformSqlResolveExtension implements SqlResolveExtension {
                 .getTopLevelFile(place.getContainingFile());
         if (topLevel == null || !topLevel.getName().endsWith(".sqlx")) return true;
 
-        if (!processor.mayAccept(ObjectKind.TABLE)
-                && !processor.mayAccept(ObjectKind.COLUMN)) return true;
-
-        DataformTableSchemaService svc = DataformTableSchemaService
-                .getInstance(place.getProject());
-        Map<String, List<ColumnInfo>> cache = svc.getAllSchemas();
-        if (cache.isEmpty()) return true;
+        if (ref.getReferenceElementType() != SqlCompositeElementTypes.SQL_TABLE_REFERENCE) return true;
+        if (!processor.mayAccept(ObjectKind.TABLE)) return true;
 
         String refName = ref.getReferenceName();
 
-        for (Map.Entry<String, List<ColumnInfo>> entry : cache.entrySet()) {
-            String[] parts = entry.getKey().split("\\.", 3);
-            if (parts.length != 3) continue;
+        Map<String, DataformDasTable> tables = DataformTableSchemaService
+                .getInstance(place.getProject())
+                .getAllTables();
+        if (tables.isEmpty()) return true;
 
-            String tableName = parts[2];
-
-            if (processor.mayAccept(ObjectKind.TABLE)
-                    && tableName.equalsIgnoreCase(refName)) {
-                DataformDasCatalog dataformDasCatalog = new DataformDasCatalog(parts[0], new HashMap<>());
-                DataformDasSchema dataformDasSchema = new DataformDasSchema(dataformDasCatalog, parts[1], List.of());
-                DataformDasTable table = new DataformDasTable(
-                        dataformDasSchema, tableName, entry.getValue());
-                DasSymbol tableSymbol = DasSymbolUtil.wrapObjectToSymbol(table, processor);
-                if (!processor.execute(tableSymbol,
-                        ResolveState.initial())) return false;
-            }
-
-            if (processor.mayAccept(ObjectKind.COLUMN)) {
-                DataformDasTable table = new DataformDasTable(
-                        null, tableName, entry.getValue());
-                for (ColumnInfo col : entry.getValue()) {
-                    if (col.name().startsWith(refName)) {
-                        DataformDasColumn column = new DataformDasColumn(table, col);
-                        DasSymbol columnSymbol = DasSymbolUtil.wrapObjectToSymbol(column, processor);
-                        if (!processor.execute(columnSymbol,
-                                ResolveState.initial())) return false;
-                    }
-                }
-            }
+        for (DataformDasTable table : tables.values()) {
+            if (!table.getName().equalsIgnoreCase(refName)) continue;
+            DasSymbol tableSymbol = DasSymbolUtil.wrapObjectToSymbol(table, processor);
+            if (!processor.execute(tableSymbol, ResolveState.initial())) return false;
         }
-        return false;
+        return true;
     }
-
 }

@@ -29,6 +29,8 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static io.github.rejeb.dataform.language.util.Utils.DATAFORM_SCHEMA_PREFIX;
+
 public final class SqlxRefSelfResolver {
 
     private static final Pattern REF_PATTERN = Pattern.compile(
@@ -38,7 +40,6 @@ public final class SqlxRefSelfResolver {
     private static final Pattern SELF_PATTERN = Pattern.compile(
             "\\$\\{\\s*self\\s*\\(\\s*\\)\\s*\\}"
     );
-    public static final String DATAFORM_SCHEMA_PREFIX = "gcdp_";
 
     private SqlxRefSelfResolver() {
     }

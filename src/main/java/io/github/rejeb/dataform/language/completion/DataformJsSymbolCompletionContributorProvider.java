@@ -145,7 +145,7 @@ public class DataformJsSymbolCompletionContributorProvider extends CompletionPro
         return DataformCoreIndexService.getInstance(project)
                 .getCachedDataformVariablesRef()
                 .stream()
-                .filter(variable -> variable.getName() != null && !wfService.isWorkflowSettingProperty(variable.getName()))
+                .filter(variable -> variable.getName() != null && wfService.isWorkflowSettingProperty(variable.getName()))
                 .map(this::buildJsVarElemLookup).toList();
     }
 

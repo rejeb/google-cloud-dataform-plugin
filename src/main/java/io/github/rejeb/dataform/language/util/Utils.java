@@ -20,6 +20,7 @@ import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.project.ProjectUtil;
 import com.intellij.openapi.util.Computable;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiDocumentManager;
@@ -32,6 +33,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public class Utils {
+    public static final String DATAFORM_SCHEMA_PREFIX = "gcdp_";
 
     public static String formatSql(@NotNull Project project, @NotNull String sql) {
         return ApplicationManager.getApplication().runWriteIntentReadAction(() -> doFormat(project, sql));
@@ -66,5 +68,14 @@ public class Utils {
         if (bytes < 1_048_576) return String.format("%.1f KB", bytes / 1_024.0);
         if (bytes < 1_073_741_824) return String.format("%.1f MB", bytes / 1_048_576.0);
         return String.format("%.2f GB", bytes / 1_073_741_824.0);
+    }
+
+    public static boolean isDataformProject(@NotNull Project project) {
+        VirtualFile baseDir = ProjectUtil.guessProjectDir(project);
+        if (baseDir == null) {
+            return false;
+        }
+        return baseDir.findChild("dataform.json") != null
+                || baseDir.findChild("workflow_settings.yaml") != null;
     }
 }

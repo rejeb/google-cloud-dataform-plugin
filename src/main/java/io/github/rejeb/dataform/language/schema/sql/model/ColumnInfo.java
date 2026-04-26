@@ -16,6 +16,8 @@
  */
 package io.github.rejeb.dataform.language.schema.sql.model;
 
+import com.intellij.database.model.properties.PropertyConverter;
+import com.intellij.database.types.DasType;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -31,11 +33,22 @@ public record ColumnInfo(
         @Nullable String description,
         @NotNull List<ColumnInfo> subFields
 ) implements Serializable {
-    public ColumnInfo(@NotNull String name, @NotNull String type, @NotNull String mode,@Nullable String description) {
-        this(name, type, mode,description, Collections.emptyList());
+    public ColumnInfo(@NotNull String name, @NotNull String type, @NotNull String mode, @Nullable String description) {
+        this(name, type, mode, description, Collections.emptyList());
     }
 
+    public ColumnInfo withParentName(String parentName) {
+        return new ColumnInfo(parentName + "." + name, type, mode, description, subFields);
+    }
 
+    public DasType dasType() {
+        if (isRecord()) {
+            String dasType = String.format("STRUCT<%s>", String.join(",", subFields.stream().map(child -> child.name() + " " + child.dasType().getDescription()).toList()));
+            return PropertyConverter.importDasType(dasType);
+        } else {
+            return PropertyConverter.importDasType(type);
+        }
+    }
 
     public boolean isRecord() {
         return "RECORD".equals(type) || "STRUCT".equals(type);

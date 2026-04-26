@@ -23,6 +23,7 @@ import java.util.List;
 
 public record SchemaCacheEntry(
         List<ColumnInfo> columns,
-        long lastModified
+        long lastModified,
+        String fileName
 ) implements Serializable {
 }

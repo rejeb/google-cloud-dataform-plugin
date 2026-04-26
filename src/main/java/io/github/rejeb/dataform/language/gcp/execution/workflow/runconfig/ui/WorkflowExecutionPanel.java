@@ -16,23 +16,32 @@
  */
 package io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.ui;
 
+import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.project.ProjectUtil;
+import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.ui.OnePixelSplitter;
 import com.intellij.ui.ScrollPaneFactory;
 import com.intellij.ui.treeStructure.Tree;
+import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
+import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.InvocationActionResult;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowInvocationProgress;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
 import javax.swing.tree.DefaultMutableTreeNode;
+import javax.swing.tree.TreePath;
 import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 
 public class WorkflowExecutionPanel extends JPanel {
 
     private static final String CARD_INVOCATION = "invocation";
     private static final String CARD_ACTION = "action";
 
+    private final Project project;
     private final WorkflowInvocationTreeModel treeModel;
     private final Tree tree;
     private final InvocationSummaryPanel summaryPanel;
@@ -43,6 +52,7 @@ public class WorkflowExecutionPanel extends JPanel {
 
     public WorkflowExecutionPanel(@NotNull String invocationName, @NotNull Project project) {
         super(new BorderLayout());
+        this.project = project;
 
         treeModel = new WorkflowInvocationTreeModel(invocationName);
         tree = new Tree(treeModel);
@@ -56,6 +66,19 @@ public class WorkflowExecutionPanel extends JPanel {
         rightCards.add(ScrollPaneFactory.createScrollPane(summaryPanel), CARD_INVOCATION);
         rightCards.add(actionDetailPanel, CARD_ACTION);
         rightCardLayout.show(rightCards, CARD_INVOCATION);
+
+        tree.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() < 2) return;
+                TreePath path = tree.getPathForLocation(e.getX(), e.getY());
+                if (path == null) return;
+                var node = (DefaultMutableTreeNode) path.getLastPathComponent();
+                if (node.getUserObject() instanceof InvocationActionResult action) {
+                    openActionFile(action);
+                }
+            }
+        });
 
         tree.addTreeSelectionListener(e -> {
             var path = e.getNewLeadSelectionPath();
@@ -94,6 +117,18 @@ public class WorkflowExecutionPanel extends JPanel {
      */
     public void release() {
         actionDetailPanel.release();
+    }
+
+    private void openActionFile(@NotNull InvocationActionResult action) {
+        CompiledGraph graph = DataformCompilationService.getInstance(project).getCompiledGraph();
+        if (graph == null) return;
+        String fileName = graph.actionFileName(action.target());
+        if (fileName == null) return;
+        VirtualFile baseDir = ProjectUtil.guessProjectDir(project);
+        if (baseDir == null) return;
+        VirtualFile file = baseDir.findFileByRelativePath(fileName.replace('\\', '/'));
+        if (file == null) return;
+        FileEditorManager.getInstance(project).openFile(file, true);
     }
 
     private void expandAll() {

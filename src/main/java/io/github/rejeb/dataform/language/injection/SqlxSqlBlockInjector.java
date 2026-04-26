@@ -93,7 +93,7 @@ public class SqlxSqlBlockInjector implements MultiHostInjector {
                     ? SqlxRefSelfResolver.resolveToSqlIdentifier(jsElement, currentFileName)
                     : null;
             if (placeholder == null)
-                placeholder = (jsElement != null) ? InjectionHelper.sqlCoteJsElement(jsElement) : "NULL";
+                placeholder = "NULL";
 
             registrar.addPlace(
                     placeholder,

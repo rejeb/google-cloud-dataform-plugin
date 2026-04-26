@@ -61,7 +61,6 @@ public final class DataformBuildManager {
         ApplicationManager.getApplication().executeOnPooledThread(() -> {
             if (!context.waitAndStart()) return;
 
-            Object buildId = context;
             long startTime = context.started;
             String workDir = getWorkDir(project);
 
@@ -77,10 +76,10 @@ public final class DataformBuildManager {
                     "Rerun dataform compile",
                     AllIcons.Actions.Rebuild);
             DefaultBuildDescriptor descriptor = new DefaultBuildDescriptor(
-                    buildId, TASK_NAME, workDir, startTime
+                    context, TASK_NAME, workDir, startTime
             ).withRestartAction(rebuildAction);
 
-            buildViewManager.onEvent(buildId,
+            buildViewManager.onEvent(context,
                     StartBuildEvent.builder("Running dataform compile...", descriptor).build());
 
             try {
@@ -89,11 +88,11 @@ public final class DataformBuildManager {
 
                 if (compiledGraph == null) {
                     context.errors.incrementAndGet();
-                    buildViewManager.onEvent(buildId,
+                    buildViewManager.onEvent(context,
                             MessageEvent.builder("dataform compile returned no output — check stderr", MessageEvent.Kind.ERROR)
-                                    .withParentId(buildId)
+                                    .withParentId(context)
                                     .withGroup(TASK_NAME).build());
-                    finishBuild(buildViewManager, buildId, context, false, "Dataform compile failed");
+                    finishBuild(buildViewManager, context, context, false, "Dataform compile failed");
                     showNotification(project, "Dataform compile failed", null, NotificationType.ERROR);
                     return;
                 }
@@ -109,42 +108,41 @@ public final class DataformBuildManager {
                         FilePosition filePosition = resolveFilePosition(project, error);
 
                         if (filePosition != null) {
-                            buildViewManager.onEvent(buildId,
+                            buildViewManager.onEvent(context,
                                     FileMessageEvent.builder(detail, MessageEvent.Kind.ERROR, filePosition)
-                                            .withParentId(buildId)
+                                            .withParentId(context)
                                             .withGroup(TASK_NAME).build()
                             );
                         } else {
-                            buildViewManager.onEvent(buildId,
+                            buildViewManager.onEvent(context,
                                     MessageEvent.builder(detail, MessageEvent.Kind.ERROR)
-                                            .withParentId(buildId)
+                                            .withParentId(context)
                                             .withGroup(TASK_NAME).build());
                         }
                     }
-                    finishBuild(buildViewManager, buildId, context, false,
+                    finishBuild(buildViewManager, context, context, false,
                             "Dataform compile failed with " + errors.size() + " error(s)");
                     showNotification(project, "Dataform compile failed",
                             errors.size() + " error(s) — see Build window", NotificationType.ERROR);
                     return;
                 }
 
-                // Succès
                 DataformTableSchemaService.getInstance(project)
                         .refreshAsync(compiledGraph, true);
 
                 String durationMsg = NlsMessages.formatDuration(context.getDuration());
-                finishBuild(buildViewManager, buildId, context, true, "Dataform compile succeeded");
+                finishBuild(buildViewManager, context, context, true, "Dataform compile succeeded");
                 showNotification(project, "Dataform compile succeeded",
                         "Completed in " + durationMsg, NotificationType.INFORMATION);
 
             } catch (Exception e) {
                 LOG.warn("Unexpected error during dataform compile", e);
                 context.errors.incrementAndGet();
-                buildViewManager.onEvent(buildId, MessageEvent.builder(e.getMessage(), MessageEvent.Kind.ERROR)
-                        .withParentId(buildId)
+                buildViewManager.onEvent(context, MessageEvent.builder(e.getMessage(), MessageEvent.Kind.ERROR)
+                        .withParentId(context)
                         .withGroup(
                                 TASK_NAME).build());
-                finishBuild(buildViewManager, buildId, context, false,
+                finishBuild(buildViewManager, context, context, false,
                         "Dataform compile error: " + e.getMessage());
                 showNotification(project, "Dataform compile error", e.getMessage(), NotificationType.ERROR);
             }
@@ -167,9 +165,6 @@ public final class DataformBuildManager {
                         .build());
     }
 
-    /**
-     * Construit le message d'erreur affiché dans le Build Tool Window.
-     */
     private static String buildErrorDetail(CompilationError error) {
         StringBuilder sb = new StringBuilder();
         if (error.getActionName() != null) {
@@ -183,10 +178,6 @@ public final class DataformBuildManager {
         return sb.toString().isBlank() ? "(no message)" : sb.toString();
     }
 
-    /**
-     * Résout le chemin de fichier depuis CompilationError.fileName
-     * pour créer une FilePosition cliquable.
-     */
     @Nullable
     private static FilePosition resolveFilePosition(@NotNull Project project,
                                                     @NotNull CompilationError error) {
@@ -196,11 +187,9 @@ public final class DataformBuildManager {
         VirtualFile projectDir = ProjectUtil.guessProjectDir(project);
         if (projectDir == null) return null;
 
-        // fileName est relatif à la racine du projet (ex: "definitions/my_table.sqlx")
         String normalized = fileName.replace("\\", "/");
         VirtualFile vf = projectDir.findFileByRelativePath(normalized);
         if (vf == null) {
-            // Essai direct comme chemin absolu
             File f = new File(normalized);
             if (f.exists()) {
                 return new FilePosition(f, 0, 0);

@@ -51,11 +51,11 @@ public class ActionSummaryPanel extends JPanel {
     private final Project project;
 
     private final JLabel urlLabel = new JBLabel("—");
-    private final JLabel startLabel = new JBLabel("—");
-    private final JLabel statusLabel = new JBLabel("—");
-    private final JLabel errorLabel = new JBLabel("—");
-    private final JLabel durationLabel = new JBLabel("—");
     private final JLabel jobIdLabel = new JBLabel("—");
+    private final JTextField startLabel = RunConfigUiUtils.selectableValue("—");
+    private final JTextField statusLabel = RunConfigUiUtils.selectableValue("—");
+    private final JTextField errorLabel = RunConfigUiUtils.selectableValue("—");
+    private final JTextField durationLabel = RunConfigUiUtils.selectableValue("—");
 
     private Editor sqlEditor;
     private final JPanel sqlContainer = new JPanel(new BorderLayout());
@@ -80,7 +80,7 @@ public class ActionSummaryPanel extends JPanel {
         panel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         String[] keys = {"Execution URL", "Job ID", "Status", "Failure reason", "Start time", "Duration"};
-        JLabel[] values = {urlLabel, jobIdLabel, statusLabel, errorLabel, startLabel, durationLabel};
+        Component[] values = {urlLabel, jobIdLabel, statusLabel, errorLabel, startLabel, durationLabel};
 
         GridBagConstraints kc = new GridBagConstraints();
         kc.anchor = GridBagConstraints.NORTHWEST;
@@ -120,7 +120,7 @@ public class ActionSummaryPanel extends JPanel {
                 ? TIME_FMT.format(action.startTime()) : "—");
 
         if (action.startTime() != null && action.endTime() != null) {
-            durationLabel.setText(formatDuration(Duration.between(action.startTime(), action.endTime())));
+            durationLabel.setText(RunConfigUiUtils.formatDuration(Duration.between(action.startTime(), action.endTime())));
         } else {
             durationLabel.setText("—");
         }
@@ -295,16 +295,6 @@ public class ActionSummaryPanel extends JPanel {
             }
         });
         label.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-    }
-
-    @NotNull
-    private static String formatDuration(@NotNull Duration d) {
-        long h = d.toHours();
-        long m = d.toMinutesPart();
-        long s = d.toSecondsPart();
-        if (h > 0) return String.format("%dh %02dm %02ds", h, m, s);
-        if (m > 0) return String.format("%dm %02ds", m, s);
-        return String.format("%ds", s);
     }
 
 }

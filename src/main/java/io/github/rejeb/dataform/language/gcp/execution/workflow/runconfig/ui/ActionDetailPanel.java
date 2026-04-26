@@ -31,7 +31,7 @@ public class ActionDetailPanel extends JPanel {
 
     private final ActionSummaryPanel summaryPanel;
     private final ActionDetailsTabPanel detailsPanel;
-    private InvocationActionResult currentAction;
+
     public ActionDetailPanel(@NotNull Project project) {
         super(new BorderLayout());
         summaryPanel = new ActionSummaryPanel(project);
@@ -47,7 +47,6 @@ public class ActionDetailPanel extends JPanel {
 
     public void show(@NotNull WorkflowInvocationProgress progress,
                      @NotNull InvocationActionResult action) {
-        this.currentAction = action;
         summaryPanel.show(progress, action);
         detailsPanel.load(action);
     }
