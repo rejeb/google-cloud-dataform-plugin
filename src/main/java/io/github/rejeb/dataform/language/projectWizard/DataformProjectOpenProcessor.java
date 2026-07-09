@@ -16,15 +16,14 @@
  */
 package io.github.rejeb.dataform.language.projectWizard;
 
+import com.intellij.ide.impl.OpenProjectTask;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.project.ex.ProjectManagerEx;
 import com.intellij.openapi.vfs.VirtualFile;
-import com.intellij.platform.PlatformProjectOpenProcessor;
 import com.intellij.projectImport.ProjectOpenProcessor;
 import io.github.rejeb.dataform.language.DataformIcons;
-import kotlin.coroutines.Continuation;
 import org.jetbrains.annotations.NotNull;
-import org.jspecify.annotations.NonNull;
-import org.jspecify.annotations.Nullable;
+import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 
@@ -47,6 +46,17 @@ public final class DataformProjectOpenProcessor extends ProjectOpenProcessor {
                     || file.findChild("dataform.json") != null;
         }
         return false;
+    }
+
+    @Override
+    public @Nullable Object openProjectAsync(@NotNull VirtualFile virtualFile,
+                                             @Nullable Project projectToClose,
+                                             boolean forceOpenInNewFrame,
+                                             @NotNull kotlin.coroutines.Continuation<? super Project> $completion) {
+        OpenProjectTask task = OpenProjectTask.build()
+                .withProjectToClose(projectToClose)
+                .withForceOpenInNewFrame(forceOpenInNewFrame);
+        return ProjectManagerEx.getInstanceEx().openProject(virtualFile.toNioPath(), task);
     }
 
 }
