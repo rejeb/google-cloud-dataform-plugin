@@ -28,11 +28,6 @@ public class DataformInterpreterManagerTestImpl implements DataformInterpreterMa
     }
 
     @Override
-    public Optional<VirtualFile> dataformCliDir() {
-        return Optional.empty();
-    }
-
-    @Override
     public String currentDataformCoreVersion() {
         return "";
     }
