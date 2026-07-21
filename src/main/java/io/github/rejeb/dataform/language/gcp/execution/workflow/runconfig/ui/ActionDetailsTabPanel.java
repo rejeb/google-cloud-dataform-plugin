@@ -21,6 +21,7 @@ import com.intellij.openapi.Disposable;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.editor.EditorFactory;
 import com.intellij.openapi.editor.EditorSettings;
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.ex.EditorEx;
 import com.intellij.openapi.fileTypes.FileTypeManager;
 import com.intellij.openapi.project.Project;
@@ -52,6 +53,8 @@ import static io.github.rejeb.dataform.language.util.Utils.formatBytes;
 import static io.github.rejeb.dataform.language.util.Utils.formatSql;
 
 public class ActionDetailsTabPanel extends JPanel implements Disposable {
+
+    private static final Logger LOG = Logger.getInstance(ActionDetailsTabPanel.class);
 
     private static final DateTimeFormatter FMT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault());
@@ -118,14 +121,21 @@ public class ActionDetailsTabPanel extends JPanel implements Disposable {
         int gen = ++loadGeneration;
         cardLayout.show(cards, CARD_LOADING);
         ApplicationManager.getApplication().executeOnPooledThread(() -> {
-            BigQueryJobDetails details = service.getJobDetails(
-                    action.jobId(),
-                    action.jobProject(),
-                    action.jobLocation() != null ? action.jobLocation() : "US"
-            );
+            BigQueryJobDetails details;
+            try {
+                details = service.getJobDetails(
+                        action.jobId(),
+                        action.jobProject(),
+                        action.jobLocation() != null ? action.jobLocation() : "US"
+                );
+            } catch (Exception e) {
+                LOG.warn("Failed to load BigQuery job details for " + action.jobId(), e);
+                details = null;
+            }
+            BigQueryJobDetails result = details;
             ApplicationManager.getApplication().invokeLater(() -> {
                 if (gen != loadGeneration) return;
-                render(preFormatSql(details));
+                render(preFormatSql(result));
             });
         });
     }

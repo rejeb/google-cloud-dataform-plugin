@@ -114,6 +114,7 @@
         <postStartupActivity
                 implementation="io.github.rejeb.dataform.language.startup.DataformProjectStartup"/>
         <fileEditorProvider implementation="io.github.rejeb.dataform.language.fileEditor.SqlxSplitEditorProvider"/>
+        <fileEditorProvider implementation="io.github.rejeb.dataform.language.lineage.view.LineageFileEditorProvider"/>
         <fileType name="SQLX"
                   implementationClass="io.github.rejeb.dataform.language.SqlxFileType"
                   fieldName="INSTANCE"
@@ -222,6 +223,13 @@
             <add-to-group group-id="EditorPopupMenu"
                           anchor="before"
                           relative-to-action="CompareClipboardWithSelection"/>
+        </action>
+        <action id="Dataform.OpenLineageView"
+                class="io.github.rejeb.dataform.language.lineage.view.OpenLineageViewAction"
+                text="Open Dataform Lineage"
+                description="Open the project-wide Dataform table and column lineage view"
+                icon="AllIcons.CodeWithMe.CwmShared">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
         </action>
     </actions>
 </idea-plugin>

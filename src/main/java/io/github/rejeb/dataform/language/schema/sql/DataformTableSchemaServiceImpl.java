@@ -45,6 +45,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 @State(
@@ -63,6 +64,7 @@ public final class DataformTableSchemaServiceImpl implements DataformTableSchema
     private final Map<String, Long> fileModificationTimes = new ConcurrentHashMap<>();
     private final Map<String, String> fileNames = new ConcurrentHashMap<>();
     private final AtomicBoolean running = new AtomicBoolean(false);
+    private final AtomicLong modificationCount = new AtomicLong(0);
 
     private volatile boolean pendingRefresh = false;
     private volatile CompiledGraph pendingGraph = null;
@@ -81,6 +83,12 @@ public final class DataformTableSchemaServiceImpl implements DataformTableSchema
     public void loadState(@NotNull State state) {
         this.currentState = state;
         restoreCacheFromState(state);
+        modificationCount.incrementAndGet();
+    }
+
+    @Override
+    public long getModificationCount() {
+        return modificationCount.get();
     }
 
     public void refreshAsync(@NotNull CompiledGraph graph) {
@@ -123,6 +131,7 @@ public final class DataformTableSchemaServiceImpl implements DataformTableSchema
 
     private void onTaskFinished() {
         running.set(false);
+        modificationCount.incrementAndGet();
         if (pendingRefresh && pendingGraph != null) {
             CompiledGraph next = pendingGraph;
             pendingGraph = null;
@@ -226,9 +235,11 @@ public final class DataformTableSchemaServiceImpl implements DataformTableSchema
     private Optional<List<ColumnInfo>> extractTableSchema(@NotNull CompiledTable table,
                                                           @NotNull ExtractionContext ctx,
                                                           @NotNull Map<String, List<ColumnInfo>> resolvedInThisRun) {
-        String query = ReadAction.computeBlocking(() ->
+        String mainQuery = ReadAction.computeBlocking(() ->
                 DataformCteQueryBuilder.buildDryRunQuery(table.getQuery(), resolvedInThisRun, project)
         );
+        String query = io.github.rejeb.dataform.language.util.Utils.withPreOperations(
+                table.getPreOps(), mainQuery);
         return runDryRun(ctx, query);
     }
 

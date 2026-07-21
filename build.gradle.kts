@@ -1,11 +1,11 @@
 plugins {
-    id("org.jetbrains.kotlin.jvm") version "2.3.20"
-    id("org.jetbrains.intellij.platform") version "2.14.0"
-    id("org.jetbrains.kotlin.plugin.compose") version "2.3.20"
+    id("org.jetbrains.kotlin.jvm") version "2.4.20-Beta1"
+    id("org.jetbrains.intellij.platform") version "2.18.1"
+    id("org.jetbrains.kotlin.plugin.compose") version "2.4.20-Beta1"
 }
 
 group = "io.github.rejeb"
-version = "0.2.14"
+version = "0.2.15"
 
 repositories {
     mavenCentral()
@@ -23,7 +23,7 @@ dependencies {
 
     testImplementation("org.junit.vintage:junit-vintage-engine:5.10.0")
     intellijPlatform {
-        intellijIdea("2026.1")
+        intellijIdea("2026.2")
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
         bundledPlugin("JavaScript")
         bundledPlugin("NodeJS")

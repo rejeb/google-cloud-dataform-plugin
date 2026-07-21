@@ -38,6 +38,7 @@ public class InvocationSummaryPanel extends JPanel {
 
     private static final String CARD_LOADING = "loading";
     private static final String CARD_CONTENT = "content";
+    private static final String CARD_ERROR = "error";
 
     private static final DateTimeFormatter TIME_FMT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault());
@@ -53,6 +54,7 @@ public class InvocationSummaryPanel extends JPanel {
     private final JTextField compilationLabel = RunConfigUiUtils.selectableValue("");
     private final JTextField sourceTypeLabel = RunConfigUiUtils.selectableValue("");
     private final JTextField contentsLabel = RunConfigUiUtils.selectableValue("");
+    private final JTextArea errorText = RunConfigUiUtils.selectableTextArea("");
 
     public InvocationSummaryPanel() {
         super(new BorderLayout());
@@ -61,9 +63,23 @@ public class InvocationSummaryPanel extends JPanel {
 
         cards.add(buildLoadingCard(), CARD_LOADING);
         cards.add(buildContentCard(), CARD_CONTENT);
+        cards.add(buildErrorCard(), CARD_ERROR);
         cardLayout.show(cards, CARD_LOADING);
 
         add(cards, BorderLayout.CENTER);
+    }
+
+    private JPanel buildErrorCard() {
+        JPanel panel = new JPanel(new BorderLayout(0, 6));
+        panel.setBackground(UIUtil.getPanelBackground());
+
+        JBLabel title = new JBLabel("Workflow execution failed");
+        title.setForeground(UIUtil.getErrorForeground());
+        title.setFont(title.getFont().deriveFont(Font.BOLD));
+
+        panel.add(title, BorderLayout.NORTH);
+        panel.add(new JScrollPane(errorText), BorderLayout.CENTER);
+        return panel;
     }
 
     private JPanel buildLoadingCard() {
@@ -123,7 +139,14 @@ public class InvocationSummaryPanel extends JPanel {
      */
     public void update(@NotNull WorkflowInvocationProgress progress) {
         InvocationSummary summary = progress.summary();
-        if (summary == null) return;
+        if (summary == null) {
+            if (progress.errorMessage() != null) {
+                errorText.setText(progress.errorMessage());
+                errorText.setCaretPosition(0);
+                cardLayout.show(cards, CARD_ERROR);
+            }
+            return;
+        }
 
         cardLayout.show(cards, CARD_CONTENT);
 

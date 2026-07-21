@@ -22,6 +22,7 @@ import com.intellij.task.ProjectTask;
 import com.intellij.task.ProjectTaskContext;
 import com.intellij.task.ProjectTaskRunner;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.jetbrains.concurrency.AsyncPromise;
 import org.jetbrains.concurrency.Promise;
 import org.jetbrains.concurrency.Promises;
@@ -64,7 +65,7 @@ public final class DataformBuildTaskRunner extends ProjectTaskRunner {
     }
 
     @Override
-    public boolean canRun(@NotNull ProjectTask projectTask) {
+    public boolean canRun(@NotNull Project project, @NotNull ProjectTask projectTask, @Nullable ProjectTaskContext context) {
         if (projectTask instanceof ModuleBuildTask moduleBuildTask) {
             return isDataformProject(moduleBuildTask.getModule().getProject());
         }

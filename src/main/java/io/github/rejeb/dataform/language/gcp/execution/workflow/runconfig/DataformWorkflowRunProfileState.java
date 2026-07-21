@@ -28,6 +28,8 @@ import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
 import com.intellij.util.concurrency.AppExecutorUtil;
+import io.github.rejeb.dataform.language.gcp.execution.workflow.model.InvocationActionResult;
+import io.github.rejeb.dataform.language.gcp.execution.workflow.model.InvocationActionState;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowCreationResult;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowInvocationProgress;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowInvocationState;
@@ -38,6 +40,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
+import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledFuture;
@@ -51,6 +54,7 @@ public class DataformWorkflowRunProfileState
 
     private final ExecutionEnvironment environment;
     private final DataformWorkflowRunConfiguration configuration;
+    private volatile WorkflowInvocationProgress lastProgress;
 
     public DataformWorkflowRunProfileState(
             @NotNull ExecutionEnvironment environment,
@@ -88,6 +92,7 @@ public class DataformWorkflowRunProfileState
                     runWorkflow(project, indicator, console);
                 } catch (Exception e) {
                     LOG.warn("Dataform workflow execution failed", e);
+                    publishAndDisplay(project, console, failedProgress(e));
                     processHandler.notifyProcessTerminated(1);
                 } finally {
                     processHandler.notifyProcessTerminated(0);
@@ -158,6 +163,7 @@ public class DataformWorkflowRunProfileState
             if (progress.isTerminal()) latch.countDown();
         } catch (Exception e) {
             LOG.warn("Error polling workflow progress", e);
+            publishAndDisplay(project, console, failedProgress(e));
             latch.countDown();
         }
     }
@@ -165,10 +171,58 @@ public class DataformWorkflowRunProfileState
     private void publishAndDisplay(@NotNull Project project,
                                    @NotNull WorkflowExecutionConsole console,
                                    @NotNull WorkflowInvocationProgress progress) {
+        this.lastProgress = progress;
         project.getMessageBus()
                 .syncPublisher(DataformGcpEvent.TOPIC)
                 .onWorkflowInvocationProgress(progress);
         SwingUtilities.invokeLater(() -> console.updateProgress(progress));
+    }
+
+    @NotNull
+    private WorkflowInvocationProgress failedProgress(@NotNull Throwable cause) {
+        WorkflowInvocationProgress last = lastProgress;
+        String invocationName = last != null ? last.invocationName() : configuration.getWorkspaceId();
+        List<InvocationActionResult> actions = last == null
+                ? List.of()
+                : last.actions().stream().map(action -> markFailedIfPending(action, cause)).toList();
+        return new WorkflowInvocationProgress(
+                invocationName, WorkflowInvocationState.FAILED, actions, null, describeError(cause));
+    }
+
+    @NotNull
+    private String describeError(@NotNull Throwable cause) {
+        StringBuilder sb = new StringBuilder();
+        Throwable current = cause;
+        while (current != null) {
+            String message = current.getMessage();
+            if (message != null && !message.isBlank() && sb.indexOf(message) < 0) {
+                if (sb.length() > 0) sb.append(System.lineSeparator());
+                sb.append(message);
+            }
+            current = current.getCause();
+        }
+        return sb.length() > 0 ? sb.toString() : cause.getClass().getName();
+    }
+
+    @NotNull
+    private InvocationActionResult markFailedIfPending(@NotNull InvocationActionResult action,
+                                                       @NotNull Throwable cause) {
+        if (action.state() != InvocationActionState.PENDING
+                && action.state() != InvocationActionState.RUNNING
+                && action.state() != InvocationActionState.UNKNOWN) {
+            return action;
+        }
+        return new InvocationActionResult(
+                action.target(),
+                InvocationActionState.FAILED,
+                cause.getMessage(),
+                action.startTime(),
+                Instant.now(),
+                action.jobId(),
+                action.jobProject(),
+                action.jobLocation(),
+                action.sqlScript()
+        );
     }
 
     private void notifyRunStarted(@NotNull Project project, @NotNull String runName) {

@@ -288,7 +288,8 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
                             if (q.query() == null || q.query().isBlank()) continue;
                             indicator.setText("Executing " + q.tableName() + "...");
 
-                            BigQueryJobResult result = svc.execute(q.query(), projectId, q.tableName());
+                            String sql = q.preOps() != null ? Utils.withPreOperations(List.of(q.preOps()), q.query()) : q.query();
+                            BigQueryJobResult result = svc.execute(sql, projectId, q.tableName());
                             registry.put(result);
                             ServiceEventListener.ServiceEvent resetEvent =
                                     ServiceEventListener.ServiceEvent.createResetEvent(

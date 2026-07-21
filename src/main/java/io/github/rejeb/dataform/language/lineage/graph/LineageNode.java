@@ -14,32 +14,28 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.rejeb.dataform.language.gcp.execution.workflow.model;
+package io.github.rejeb.dataform.language.lineage.graph;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.List;
-
 /**
- * Snapshot of a workflow invocation at a given polling tick.
+ * Immutable representation of a table-level node in the Dataform lineage graph.
+ *
+ * @param id           unique identifier within the graph, derived from {@link #idOf}.
+ * @param name         short name of the action (last segment of the FQN).
+ * @param fullName     fully qualified name {@code project.dataset.table}.
+ * @param dataformType Dataform action type: table, view, incremental, assertion, declaration, external…
+ * @param fileName     project-relative path of the source SQLX file, {@code null} for external nodes.
  */
-public record WorkflowInvocationProgress(
-        @NotNull String invocationName,
-        @NotNull WorkflowInvocationState state,
-        @NotNull List<InvocationActionResult> actions,
-        @Nullable InvocationSummary summary,
-        @Nullable String errorMessage
+public record LineageNode(
+        @NotNull String id,
+        @NotNull String name,
+        @NotNull String fullName,
+        @NotNull String dataformType,
+        @Nullable String fileName
 ) {
-    public WorkflowInvocationProgress(
-            @NotNull String invocationName,
-            @NotNull WorkflowInvocationState state,
-            @NotNull List<InvocationActionResult> actions,
-            @Nullable InvocationSummary summary) {
-        this(invocationName, state, actions, summary, null);
-    }
-
-    public boolean isTerminal() {
-        return state != WorkflowInvocationState.RUNNING;
+    public static @NotNull String idOf(@NotNull String fullName) {
+        return "node:" + fullName;
     }
 }

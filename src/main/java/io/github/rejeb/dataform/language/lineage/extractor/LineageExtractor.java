@@ -14,33 +14,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.rejeb.dataform.language.schema.sql;
+package io.github.rejeb.dataform.language.lineage.extractor;
 
-import com.intellij.openapi.components.PersistentStateComponent;
-import com.intellij.openapi.project.Project;
-import com.intellij.openapi.util.ModificationTracker;
-import com.intellij.util.xmlb.annotations.Tag;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
-import io.github.rejeb.dataform.language.schema.sql.model.DataformDasTable;
+import io.github.rejeb.dataform.language.lineage.graph.LineageGraph;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Map;
+/**
+ * Builds a table-level {@link LineageGraph} from a {@link CompiledGraph}.
+ */
+public interface LineageExtractor {
 
-
-public interface DataformTableSchemaService extends PersistentStateComponent<DataformTableSchemaService.State>, ModificationTracker {
-    static DataformTableSchemaService getInstance(Project project) {
-        return project.getService(DataformTableSchemaService.class);
-
-    }
-
-    void refreshAsync(@NotNull CompiledGraph graph, boolean forceRefresh);
-
-    @NotNull
-    Map<String, DataformDasTable> getAllTables();
-
-
-    class State {
-        @Tag("schemaCacheJson")
-        public String schemaCacheJson = null;
-    }
+    @NotNull LineageGraph extract(@NotNull CompiledGraph compiledGraph);
 }
