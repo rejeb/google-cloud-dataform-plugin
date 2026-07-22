@@ -29,11 +29,14 @@ import org.jetbrains.annotations.NotNull;
 
 public class RunSqlxHelper {
 
+    private static final String TAGS_NAME_SUFFIX = " (tags)";
+
+    /**
+     * Creates a tag based run configuration for the given file and opens the run configuration
+     * dialog before launching.
+     */
     public static void launchFromTags(@NotNull Project project,
-                                      @NotNull VirtualFile file,
-                                      boolean deps,
-                                      boolean dependants,
-                                      boolean fullRefresh) {
+                                      @NotNull VirtualFile file) {
         RunManager runManager = RunManager.getInstance(project);
         DataformWorkflowConfigurationType type = ConfigurationTypeUtil.findConfigurationType(
                 DataformWorkflowConfigurationType.class);
@@ -41,7 +44,7 @@ public class RunSqlxHelper {
                 (DataformWorkflowConfigurationFactory) type.getConfigurationFactories()[0];
         CompiledGraph graphs = DataformCompilationService.getInstance(project).getCompiledGraph();
         RunnerAndConfigurationSettings settings =
-                runManager.createConfiguration(file.getNameWithoutExtension(), factory);
+                runManager.createConfiguration(file.getNameWithoutExtension() + TAGS_NAME_SUFFIX, factory);
         DataformWorkflowRunConfiguration config =
                 (DataformWorkflowRunConfiguration) settings.getConfiguration();
         GcpRepositorySettings gcpRepositorySettings = GcpRepositorySettings.getInstance(project);
@@ -50,14 +53,14 @@ public class RunSqlxHelper {
         );
         config.setWorkspaceId(gcpRepositorySettings.getSelectedWorkspaceId());
         config.setSelectedMode(Mode.TAGS);
-        config.setTransitiveDependenciesIncluded(deps);
-        config.setTransitiveDependentsIncluded(dependants);
-        config.setFullyRefreshIncrementalTables(fullRefresh);
+        config.setTransitiveDependenciesIncluded(false);
+        config.setTransitiveDependentsIncluded(false);
+        config.setFullyRefreshIncrementalTables(false);
 
         runManager.addConfiguration(settings);
         runManager.setSelectedConfiguration(settings);
         settings.setTemporary(true);
-        settings.setEditBeforeRun(false);
+        settings.setEditBeforeRun(true);
         settings.setActivateToolWindowBeforeRun(true);
         Executor executorById = ExecutorRegistry.getInstance()
                 .getExecutorById(DefaultRunExecutor.EXECUTOR_ID);

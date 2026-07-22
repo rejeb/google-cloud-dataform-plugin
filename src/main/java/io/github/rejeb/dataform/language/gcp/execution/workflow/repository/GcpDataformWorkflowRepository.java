@@ -99,6 +99,7 @@ public final class GcpDataformWorkflowRepository implements WorkflowRepository, 
     @NotNull
     public WorkflowInvocationProgress getWorkflowRunProgress(@NotNull WorkflowCreationResult workflowRun) {
         String quotaProjectId = GcpClientsUtils.projectIdFromResourceName(workflowRun.invocationName());
+        String invocationLocation = GcpClientsUtils.locationFromResourceName(workflowRun.invocationName());
         try (DataformClient client = GcpClientsUtils.dataformClient(quotaProjectId)) {
             WorkflowInvocation inv = client.getWorkflowInvocation(
                     GetWorkflowInvocationRequest.newBuilder()
@@ -146,12 +147,13 @@ public final class GcpDataformWorkflowRepository implements WorkflowRepository, 
                 }
 
                 jobProject = !t.getDatabase().isEmpty() ? t.getDatabase() : null;
+                String jobDataset = !t.getSchema().isEmpty() ? t.getSchema() : null;
 
                 actions.add(new InvocationActionResult(
                         label, mapActionState(action.getState()),
                         action.getState() == WorkflowInvocationAction.State.FAILED ? action.getFailureReason() : null,
                         startTime, endTime,
-                        jobId, jobProject, null,
+                        jobId, jobProject, invocationLocation, jobDataset,
                         sqlScript
                 ));
             }

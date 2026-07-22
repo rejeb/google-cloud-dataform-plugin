@@ -224,6 +224,7 @@ public class DataformWorkflowRunProfileState
                 action.jobId(),
                 action.jobProject(),
                 action.jobLocation(),
+                action.jobDataset(),
                 action.sqlScript()
         );
     }

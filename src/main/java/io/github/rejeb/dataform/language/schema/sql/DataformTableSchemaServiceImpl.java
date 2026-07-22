@@ -35,6 +35,7 @@ import io.github.rejeb.dataform.language.schema.sql.model.DataformDasTable;
 import io.github.rejeb.dataform.language.gcp.auth.AuthTrigger;
 import io.github.rejeb.dataform.language.gcp.auth.DataformAuthState;
 import io.github.rejeb.dataform.language.util.GcpClientsUtils;
+import io.github.rejeb.dataform.language.util.PreOperationsFilter;
 import io.github.rejeb.dataform.language.util.Utils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -241,7 +242,7 @@ public final class DataformTableSchemaServiceImpl implements DataformTableSchema
                 DataformCteQueryBuilder.buildDryRunQuery(table.getQuery(), resolvedInThisRun, project)
         );
         String query = Utils.withPreOperations(
-                table.getPreOps(), mainQuery);
+                PreOperationsFilter.keepReadOnly(table.getPreOps()), mainQuery);
         return runDryRun(ctx, query);
     }
 

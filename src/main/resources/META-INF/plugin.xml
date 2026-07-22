@@ -221,6 +221,12 @@
         <runConfigurationProducer
                 implementation="io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.DataformSqlxRunConfigurationProducer"/>
     </extensions>
+
+    <projectListeners>
+        <listener class="io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.DataformRunConfigurationEditPolicy"
+                  topic="com.intellij.execution.RunManagerListener"/>
+    </projectListeners>
+
     <actions>
         <action id="Dataform.CompareFileWithRemote"
                 class="io.github.rejeb.dataform.language.gcp.action.CompareFileWithRemoteAction"

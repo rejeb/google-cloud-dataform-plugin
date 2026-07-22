@@ -34,8 +34,14 @@ public final class BigQueryJobOperationsHandler implements BigQueryJobOperations
     public BigQueryJobDetails getJobDetails(
             @NotNull String jobId,
             @NotNull String project,
-            @NotNull String location
+            @Nullable String location
     ) {
         return repository.getJobDetails(jobId, project, location);
+    }
+
+    @Override
+    @Nullable
+    public String resolveDatasetLocation(@NotNull String project, @NotNull String dataset) {
+        return repository.resolveDatasetLocation(project, dataset);
     }
 }

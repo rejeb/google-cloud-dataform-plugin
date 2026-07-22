@@ -35,6 +35,7 @@ import io.github.rejeb.dataform.language.gcp.execution.workflow.model.BigQueryJo
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.BigQueryJobDetails.BigQueryChildJob;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.InvocationActionResult;
 import io.github.rejeb.dataform.language.gcp.service.DataformGcpService;
+import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -114,30 +115,75 @@ public class ActionDetailsTabPanel extends JPanel implements Disposable {
 
 
     public void load(@NotNull InvocationActionResult action) {
+        LOG.info("Loading action details: target=" + action.target()
+                + " state=" + action.state()
+                + " jobId=" + action.jobId()
+                + " jobProject=" + action.jobProject()
+                + " jobLocation=" + action.jobLocation()
+                + " jobDataset=" + action.jobDataset());
+
         if (action.jobId() == null || action.jobProject() == null) {
+            LOG.info("No BigQuery job attached to action " + action.target()
+                    + " (jobId=" + action.jobId() + ", jobProject=" + action.jobProject()
+                    + "), showing the empty card.");
             cardLayout.show(cards, CARD_EMPTY);
             return;
         }
         int gen = ++loadGeneration;
         cardLayout.show(cards, CARD_LOADING);
         ApplicationManager.getApplication().executeOnPooledThread(() -> {
+            long startedAt = System.currentTimeMillis();
+            String location = resolveLocation(action);
             BigQueryJobDetails details;
             try {
-                details = service.getJobDetails(
-                        action.jobId(),
-                        action.jobProject(),
-                        action.jobLocation() != null ? action.jobLocation() : "US"
-                );
+                details = service.getJobDetails(action.jobId(), action.jobProject(), location);
+                LOG.info("BigQuery job details fetched for jobId=" + action.jobId()
+                        + " in " + (System.currentTimeMillis() - startedAt) + " ms, result="
+                        + (details == null ? "null" : details.childJobs().size() + " child job(s), status="
+                        + details.status()));
             } catch (Exception e) {
-                LOG.warn("Failed to load BigQuery job details for " + action.jobId(), e);
+                LOG.warn("Failed to load BigQuery job details for jobId=" + action.jobId()
+                        + " project=" + action.jobProject() + " location=" + location, e);
                 details = null;
             }
             BigQueryJobDetails result = details;
             ApplicationManager.getApplication().invokeLater(() -> {
-                if (gen != loadGeneration) return;
+                if (gen != loadGeneration) {
+                    LOG.info("Discarding stale action details for jobId=" + action.jobId()
+                            + " (generation " + gen + ", current " + loadGeneration + ").");
+                    return;
+                }
                 render(preFormatSql(result));
             });
         });
+    }
+
+    @Nullable
+    private String resolveLocation(@NotNull InvocationActionResult action) {
+        if (action.jobProject() != null && action.jobDataset() != null) {
+            String datasetLocation =
+                    service.resolveDatasetLocation(action.jobProject(), action.jobDataset());
+            if (datasetLocation != null) {
+                LOG.info("Using the BigQuery dataset location " + datasetLocation
+                        + " for action " + action.target());
+                return datasetLocation;
+            }
+        }
+        if (action.jobLocation() != null && !action.jobLocation().isBlank()) {
+            LOG.info("Dataset location unavailable for action " + action.target()
+                    + ", falling back to the Dataform repository location "
+                    + action.jobLocation() + ".");
+            return action.jobLocation();
+        }
+        String configured = GcpRepositorySettings.getInstance(project).getLocation();
+        if (configured != null && !configured.isBlank()) {
+            LOG.info("Falling back to the configured Dataform repository location " + configured
+                    + " for action " + action.target() + ".");
+            return configured;
+        }
+        LOG.warn("No location could be resolved for action " + action.target()
+                + ", letting BigQuery resolve it.");
+        return null;
     }
 
     @Nullable
@@ -159,9 +205,16 @@ public class ActionDetailsTabPanel extends JPanel implements Disposable {
         releaseSqlEditors();
         contentPanel.removeAll();
         if (details == null) {
+            LOG.info("Rendering the empty card: no BigQuery job details available.");
             cardLayout.show(cards, CARD_EMPTY);
+            cards.revalidate();
+            cards.repaint();
             return;
         }
+        LOG.info("Rendering action details for jobId=" + details.jobId()
+                + " status=" + details.status()
+                + " childJobs=" + details.childJobs().size()
+                + " on EDT=" + ApplicationManager.getApplication().isDispatchThread());
         contentPanel.add(buildMetaPanel(details));
         contentPanel.add(Box.createVerticalStrut(8));
         if (!details.childJobs().isEmpty()) {
@@ -176,6 +229,8 @@ public class ActionDetailsTabPanel extends JPanel implements Disposable {
         cardLayout.show(cards, CARD_CONTENT);
         cards.revalidate();
         cards.repaint();
+        LOG.info("Action details view updated, content size=" + contentPanel.getComponentCount()
+                + " component(s), panel showing=" + isShowing());
     }
 
     private JPanel buildMetaPanel(@NotNull BigQueryJobDetails d) {

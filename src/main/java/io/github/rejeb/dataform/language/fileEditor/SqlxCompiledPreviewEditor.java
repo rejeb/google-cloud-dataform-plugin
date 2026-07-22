@@ -61,6 +61,7 @@ import io.github.rejeb.dataform.language.gcp.execution.bigquery.serviceview.Quer
 import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
 import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
 import io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService;
+import io.github.rejeb.dataform.language.util.PreOperationsFilter;
 import io.github.rejeb.dataform.language.util.Utils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -91,7 +92,7 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
 
         mainPanel.setOpaque(true);
         mainPanel.setBackground(UIUtil.getPanelBackground());
-        mainPanel.add(withHeader("Lineage", DataformIcons.LINEAGE, lineagePanel), View.LINEAGE.name());
+        mainPanel.add(lineagePanel, View.LINEAGE.name());
         mainPanel.add(withHeader("Query", DatabaseIcons.Sql, queryPanel), View.QUERY.name());
         mainPanel.add(withHeader("Schema", AllIcons.Nodes.DataTables, schemaPanel), View.SCHEMA.name());
 
@@ -289,7 +290,10 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
                             if (q.query() == null || q.query().isBlank()) continue;
                             indicator.setText("Executing " + q.tableName() + "...");
 
-                            String sql = q.preOps() != null ? Utils.withPreOperations(List.of(q.preOps()), q.query()) : q.query();
+                            String sql = q.preOps() != null
+                                    ? Utils.withPreOperations(
+                                            PreOperationsFilter.keepReadOnly(List.of(q.preOps())), q.query())
+                                    : q.query();
                             BigQueryJobResult result = svc.execute(sql, projectId, q.tableName());
                             registry.put(result);
                             ServiceEventListener.ServiceEvent resetEvent =
@@ -326,6 +330,8 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
     private static FormattedCompiledQuery toFormatted(CompiledQuery q, Project project) {
         List<String> preOps = q.preOps().stream()
                 .map(s -> Utils.formatSql(project, s)).toList();
+        List<String> incrementalPreOps = q.incrementalPreOps().stream()
+                .map(s -> Utils.formatSql(project, s)).toList();
         List<String> postOps = q.postOps().stream()
                 .map(s -> Utils.formatSql(project, s)).toList();
         String query = q.query() != null ? Utils.formatSql(project, q.query()) : null;
@@ -334,6 +340,7 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
         return new FormattedCompiledQuery(
                 q.tableName(),
                 preOps.isEmpty() ? null : String.join("\n", preOps),
+                incrementalPreOps.isEmpty() ? null : String.join("\n", incrementalPreOps),
                 query,
                 postOps.isEmpty() ? null : String.join("\n", postOps),
                 errors

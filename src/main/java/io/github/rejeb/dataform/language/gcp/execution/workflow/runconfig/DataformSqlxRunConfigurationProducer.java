@@ -56,23 +56,33 @@ public class DataformSqlxRunConfigurationProducer
 
         VirtualFile file = getFile(context);
         if (file == null) return false;
-        config.setIncludedTargets(
-                configTargets(config, context, file));
-
+        config.setIncludedTargets(actionTargets(context, file));
+        config.setWorkspaceId(resolveWorkspaceId(config, context));
         config.setName(file.getNameWithoutExtension());
         config.setSelectedMode(Mode.ACTIONS);
         return true;
     }
 
-    private List<String> configTargets(@NotNull DataformWorkflowRunConfiguration config, @NotNull ConfigurationContext context, VirtualFile file) {
-        GcpRepositorySettings settings = GcpRepositorySettings.getInstance(context.getProject());
-        config.setWorkspaceId(config.getWorkspaceId() != null ? config.getWorkspaceId() : settings.getSelectedWorkspaceId());
+    private static List<String> actionTargets(@NotNull ConfigurationContext context,
+                                              @NotNull VirtualFile file) {
         CompiledGraph compiledGraph = DataformCompilationService.getInstance(context.getProject()).getCompiledGraph();
         return Optional.ofNullable(compiledGraph).stream()
                 .flatMap(graph ->
                         graph.findCompiledQueryByFileName(file.getCanonicalPath()).stream()
                 )
                 .flatMap(q -> Optional.ofNullable(q.tableName()).stream()).toList();
+    }
+
+    @NotNull
+    private static String resolveWorkspaceId(@NotNull DataformWorkflowRunConfiguration config,
+                                             @NotNull ConfigurationContext context) {
+        String current = config.getWorkspaceId();
+        if (current != null && !current.isBlank()) {
+            return current;
+        }
+        String selected = GcpRepositorySettings.getInstance(context.getProject())
+                .getSelectedWorkspaceId();
+        return selected != null ? selected : "";
     }
 
     @Override
@@ -82,10 +92,13 @@ public class DataformSqlxRunConfigurationProducer
 
         VirtualFile file = getFile(context);
         if (file == null) return false;
-        String actionName = file.getNameWithoutExtension();
-        List<String> includedTargets = configTargets(config, context, file);
+        if (config.getSelectedMode() != Mode.ACTIONS) return false;
+        if (!file.getNameWithoutExtension().equals(config.getName())) return false;
 
-        return actionName.equals(config.getName()) && config.getIncludedTargets().contains(includedTargets);
+        List<String> targets = actionTargets(context, file);
+        return targets.isEmpty()
+                ? config.getIncludedTargets().isEmpty()
+                : config.getIncludedTargets().containsAll(targets);
     }
 
     @Override
@@ -94,7 +107,7 @@ public class DataformSqlxRunConfigurationProducer
     }
 
     /**
-     * Intercepte le lancement pour afficher la popup d'options avant d'exécuter.
+     * Opens the run configuration dialog before launching, so run options are always reviewed.
      */
     @Override
     public void onFirstRun(@NotNull ConfigurationFromContext configFromContext,
@@ -109,13 +122,10 @@ public class DataformSqlxRunConfigurationProducer
 
         DataformWorkflowRunConfiguration config =
                 (DataformWorkflowRunConfiguration) configFromContext.getConfiguration();
+        config.setWorkspaceId(resolveWorkspaceId(config, context));
+        configFromContext.getConfigurationSettings().setEditBeforeRun(true);
 
-        SqlxRunOptionsPopup.show(context.getProject(), null, (deps, dependants, fullRefresh) -> {
-            config.setTransitiveDependenciesIncluded(deps);
-            config.setTransitiveDependentsIncluded(dependants);
-            config.setFullyRefreshIncrementalTables(fullRefresh);
-            startRunnable.run();
-        });
+        startRunnable.run();
     }
 
     private static VirtualFile getFile(@NotNull ConfigurationContext context) {

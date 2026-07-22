@@ -25,6 +25,7 @@ import com.google.cloud.dataform.v1.DataformSettings;
 import com.google.cloud.http.HttpTransportOptions;
 import io.github.rejeb.dataform.language.gcp.auth.SslConfig;
 import io.github.rejeb.dataform.language.gcp.auth.DataformCredentialsService;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
@@ -32,6 +33,7 @@ import java.io.IOException;
 public class GcpClientsUtils {
 
     private static final String RESOURCE_NAME_PREFIX = "projects/";
+    private static final String LOCATION_MARKER = "/locations/";
 
     public static BigQuery bigQuery(String projectId) {
         return BigQueryOptions.newBuilder()
@@ -97,5 +99,27 @@ public class GcpClientsUtils {
         int end = resourceName.indexOf('/', start);
         String projectId = end < 0 ? resourceName.substring(start) : resourceName.substring(start, end);
         return projectId.isBlank() ? null : projectId;
+    }
+
+    /**
+     * Extracts the location from a GCP resource name such as
+     * {@code projects/my-project/locations/eu/repositories/my-repo}.
+     *
+     * @param resourceName fully qualified resource name
+     * @return the location, or {@code null} when the name has an unexpected shape
+     */
+    @Nullable
+    public static String locationFromResourceName(@Nullable String resourceName) {
+        if (resourceName == null) {
+            return null;
+        }
+        int markerIndex = resourceName.indexOf(LOCATION_MARKER);
+        if (markerIndex < 0) {
+            return null;
+        }
+        int start = markerIndex + LOCATION_MARKER.length();
+        int end = resourceName.indexOf('/', start);
+        String location = end < 0 ? resourceName.substring(start) : resourceName.substring(start, end);
+        return location.isBlank() ? null : location;
     }
 }

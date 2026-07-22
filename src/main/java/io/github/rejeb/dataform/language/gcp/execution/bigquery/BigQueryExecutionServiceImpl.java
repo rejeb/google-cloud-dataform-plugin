@@ -71,7 +71,7 @@ public final class BigQueryExecutionServiceImpl implements BigQueryExecutionServ
         } catch (RuntimeException e) {
             LOG.warn("Failed to build BigQuery client", e);
             GcpAuthErrors.reportIfAuthFailure(e, AuthTrigger.USER_ACTION);
-            return failure(tableName, "Authentication error: " + e.getMessage());
+            return failure(tableName, "Execution error: " + e.getMessage());
         } catch (Exception e) {
             LOG.warn("BigQuery execution failed", e);
             GcpAuthErrors.reportIfAuthFailure(e, AuthTrigger.USER_ACTION);

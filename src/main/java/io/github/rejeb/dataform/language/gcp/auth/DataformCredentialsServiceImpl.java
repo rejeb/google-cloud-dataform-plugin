@@ -47,6 +47,7 @@ public final class DataformCredentialsServiceImpl implements DataformCredentials
 
     private volatile GoogleCredentials cached;
     private volatile String accountEmail;
+    private volatile Boolean lastKnownSignedIn;
 
     @Override
     public @NotNull GoogleCredentials get() {
@@ -64,10 +65,12 @@ public final class DataformCredentialsServiceImpl implements DataformCredentials
                 resolved = fromApplicationDefault();
             }
             if (resolved == null) {
+                lastKnownSignedIn = Boolean.FALSE;
                 throw new GcpAuthRequiredException(
                         "No usable Google credential. Sign in from the Dataform banner.");
             }
             cached = resolved;
+            lastKnownSignedIn = Boolean.TRUE;
             return resolved;
         }
     }
@@ -75,10 +78,15 @@ public final class DataformCredentialsServiceImpl implements DataformCredentials
     @Override
     public void invalidate() {
         cached = null;
+        lastKnownSignedIn = null;
     }
 
     @Override
     public boolean isSignedIn() {
+        Boolean known = lastKnownSignedIn;
+        if (known != null) {
+            return known;
+        }
         try {
             get();
             return true;
@@ -119,6 +127,7 @@ public final class DataformCredentialsServiceImpl implements DataformCredentials
         synchronized (this) {
             cached = null;
             accountEmail = null;
+            lastKnownSignedIn = Boolean.FALSE;
             store.clear();
             setSignedOut(true);
         }
@@ -132,6 +141,7 @@ public final class DataformCredentialsServiceImpl implements DataformCredentials
                 store.save(credentials);
                 accountEmail = credentials.accountEmail();
                 cached = null;
+                lastKnownSignedIn = null;
                 setSignedOut(false);
             }
             get();

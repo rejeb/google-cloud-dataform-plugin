@@ -36,4 +36,14 @@ public interface BigQueryJobRepository {
             @NotNull String project,
             @Nullable String location
     );
+
+    /**
+     * Resolves the BigQuery location of a dataset. Must be called off the EDT.
+     *
+     * @param project GCP project owning the dataset
+     * @param dataset dataset id
+     * @return the dataset location, or null when it cannot be resolved
+     */
+    @Nullable
+    String resolveDatasetLocation(@NotNull String project, @NotNull String dataset);
 }

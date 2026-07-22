@@ -33,6 +33,7 @@ class TableQuerySection extends JPanel {
 
     private final FormattedCompiledQuery query;
     private final QuerySection preOpsSection;
+    private final QuerySection incrementalPreOpsSection;
     private final QuerySection querySection;
     private final QuerySection postOpsSection;
     private final QuerySection errorsSection;
@@ -62,6 +63,7 @@ class TableQuerySection extends JPanel {
         header.add(tableLabel, BorderLayout.CENTER);
 
         preOpsSection = new QuerySection("Pre Operations", fileType, project, false);
+        incrementalPreOpsSection = new QuerySection("Incremental Pre Operations", fileType, project, false);
         querySection = new QuerySection("Query", fileType, project, false);
         postOpsSection = new QuerySection("Post Operations", fileType, project, false);
         errorsSection = new QuerySection("Compilation Errors", null, project, true);
@@ -71,6 +73,7 @@ class TableQuerySection extends JPanel {
         contentPanel.setOpaque(false);
         contentPanel.setBorder(JBUI.Borders.empty(8, 12, 4, 12));
         contentPanel.add(preOpsSection);
+        contentPanel.add(incrementalPreOpsSection);
         contentPanel.add(querySection);
         contentPanel.add(postOpsSection);
         contentPanel.add(errorsSection);
@@ -79,6 +82,7 @@ class TableQuerySection extends JPanel {
         add(contentPanel, BorderLayout.CENTER);
 
         preOpsSection.setContent(query.preOps());
+        incrementalPreOpsSection.setContent(query.incrementalPreOps());
         querySection.setContent(query.query());
         postOpsSection.setContent(query.postOps());
         errorsSection.setContent(query.compilationErrors());
@@ -124,6 +128,7 @@ class TableQuerySection extends JPanel {
 
     public void dispose() {
         preOpsSection.dispose();
+        incrementalPreOpsSection.dispose();
         querySection.dispose();
         postOpsSection.dispose();
         errorsSection.dispose();
