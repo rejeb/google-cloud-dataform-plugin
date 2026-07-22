@@ -58,7 +58,7 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository, Disp
             @NotNull String repositoryId
     ) {
         List<Workspace> result = new ArrayList<>();
-        try (DataformClient client = GcpClientsUtils.dataformClient()) {
+        try (DataformClient client = GcpClientsUtils.dataformClient(projectId)) {
             String parent = RepositoryName.of(projectId, location, repositoryId).toString();
             ListWorkspacesRequest request = ListWorkspacesRequest.newBuilder()
                     .setParent(parent)
@@ -67,7 +67,8 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository, Disp
                 result.add(Workspace.fromResourceName(w.getName()));
             }
         } catch (Exception e) {
-            throw new GcpApiException("Error fetching workspaces from GCP Dataform API.", e);
+            LOG.warn("Error fetching workspaces from GCP Dataform.", e);
+            throw new GcpApiException("Error fetching workspaces from GCP Dataform API. Message: " + e.getMessage(), e);
         }
         return result;
     }
@@ -80,7 +81,7 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository, Disp
             @NotNull String workspaceId,
             @NotNull CommitAuthorConfig author
     ) {
-        try (DataformClient client = GcpClientsUtils.dataformClient()) {
+        try (DataformClient client = GcpClientsUtils.dataformClient(projectId)) {
             String wsName = workspaceName(projectId, location, repositoryId, workspaceId);
             PushGitCommitsRequest pushRequest = PushGitCommitsRequest.newBuilder()
                     .setName(wsName)
@@ -99,7 +100,7 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository, Disp
             @NotNull String workspaceId,
             @NotNull CommitAuthorConfig author
     ) {
-        try (DataformClient client = GcpClientsUtils.dataformClient()) {
+        try (DataformClient client = GcpClientsUtils.dataformClient(projectId)) {
             PullGitCommitsRequest request = PullGitCommitsRequest.newBuilder()
                     .setName(workspaceName(projectId, location, repositoryId, workspaceId))
                     .setAuthor(CommitAuthor.newBuilder()
@@ -122,7 +123,7 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository, Disp
             @NotNull Map<String, String> filesToWrite,
             @NotNull Set<String> pathsToDelete
     ) {
-        try (DataformClient client = GcpClientsUtils.dataformClient()) {
+        try (DataformClient client = GcpClientsUtils.dataformClient(projectId)) {
             String wsName = workspaceName(projectId, location, repositoryId, workspaceId);
             writeAllFiles(wsName, filesToWrite, client);
             deleteAllFiles(wsName, pathsToDelete, client);
@@ -230,7 +231,7 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository, Disp
             @Nullable String workspaceId
     ) {
 
-        try (DataformClient client = GcpClientsUtils.dataformClient()) {
+        try (DataformClient client = GcpClientsUtils.dataformClient(projectId)) {
             if (workspaceId != null) {
                 return listAllWorkspacePaths(projectId, location, repositoryId, workspaceId, "", client).toList();
             } else {
@@ -252,7 +253,7 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository, Disp
     ) {
         Map<String, String> result = new LinkedHashMap<>();
         String repoName = RepositoryName.of(projectId, location, repositoryId).toString();
-        try (DataformClient client = GcpClientsUtils.dataformClient()) {
+        try (DataformClient client = GcpClientsUtils.dataformClient(projectId)) {
             for (String path : paths) {
                 try {
                     ReadRepositoryFileRequest request = ReadRepositoryFileRequest.newBuilder()
@@ -280,7 +281,7 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository, Disp
             @NotNull String repositoryId,
             @Nullable String workspaceId
     ) {
-        try (DataformClient client = GcpClientsUtils.dataformClient()) {
+        try (DataformClient client = GcpClientsUtils.dataformClient(projectId)) {
             if (workspaceId != null) {
                 return readAllWorkspaceFiles(projectId, location, repositoryId, workspaceId, client);
             } else {
@@ -307,7 +308,7 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository, Disp
             @NotNull String location,
             @NotNull String repositoryId
     ) {
-        try (DataformClient client = GcpClientsUtils.dataformClient()) {
+        try (DataformClient client = GcpClientsUtils.dataformClient(projectId)) {
             String parent = LocationName.of(projectId, location).toString();
             CreateRepositoryRequest request = CreateRepositoryRequest.newBuilder()
                     .setParent(parent)
@@ -328,7 +329,7 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository, Disp
             @NotNull String repositoryId,
             @NotNull String workspaceId
     ) {
-        try (DataformClient client = GcpClientsUtils.dataformClient()) {
+        try (DataformClient client = GcpClientsUtils.dataformClient(projectId)) {
             String parent = RepositoryName.of(projectId, location, repositoryId).toString();
             CreateWorkspaceRequest request = CreateWorkspaceRequest.newBuilder()
                     .setParent(parent)
@@ -350,7 +351,7 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository, Disp
             @NotNull String repositoryId,
             @NotNull String workspaceId
     ) {
-        try (DataformClient client = GcpClientsUtils.dataformClient()) {
+        try (DataformClient client = GcpClientsUtils.dataformClient(projectId)) {
             FetchFileGitStatusesRequest request = FetchFileGitStatusesRequest.newBuilder()
                     .setName(workspaceName(projectId, location, repositoryId, workspaceId))
                     .build();
@@ -373,7 +374,7 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository, Disp
             @NotNull String message,
             @NotNull CommitAuthorConfig author
     ) {
-        try (DataformClient client = GcpClientsUtils.dataformClient()) {
+        try (DataformClient client = GcpClientsUtils.dataformClient(projectId)) {
             CommitWorkspaceChangesRequest request = CommitWorkspaceChangesRequest.newBuilder()
                     .setName(workspaceName(projectId, location, repositoryId, workspaceId))
                     .setAuthor(CommitAuthor.newBuilder()
@@ -395,7 +396,7 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository, Disp
                                           @NotNull String repositoryId,
                                           @Nullable String workspaceId,
                                           @NotNull String filePath) {
-        try (DataformClient client = GcpClientsUtils.dataformClient()) {
+        try (DataformClient client = GcpClientsUtils.dataformClient(projectId)) {
             if (StringUtil.isNotEmpty(workspaceId)) {
                 return readWorkspaceFile(projectId, location, repositoryId, workspaceId, filePath, client);
             } else {

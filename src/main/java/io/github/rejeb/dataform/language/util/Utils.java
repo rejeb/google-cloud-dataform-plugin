@@ -21,16 +21,18 @@ import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectUtil;
-import com.intellij.openapi.util.Computable;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiDocumentManager;
-import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiFileFactory;
 import com.intellij.psi.codeStyle.CodeStyleManager;
 import com.intellij.sql.dialects.bigquery.BigQueryDialect;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+
+import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 public class Utils {
     public static final String DATAFORM_SCHEMA_PREFIX = "gcdp_";
@@ -39,11 +41,30 @@ public class Utils {
         return ApplicationManager.getApplication().runWriteIntentReadAction(() -> doFormat(project, sql));
     }
 
+    /**
+     * Prepends the given pre-operations to a query, producing a BigQuery multi-statement
+     * script. Each pre-operation statement is terminated with a semicolon before being
+     * joined. Returns the query unchanged when there are no pre-operations.
+     */
+    @NotNull
+    public static String withPreOperations(@Nullable List<String> preOperations, @NotNull String query) {
+        if (preOperations == null || preOperations.isEmpty()) {
+            return query;
+        }
+        String joined = preOperations.stream()
+                .filter(Objects::nonNull)
+                .map(String::strip)
+                .filter(s -> !s.isBlank())
+                .map(s -> s.endsWith(";") ? s : s + ";")
+                .collect(Collectors.joining("\n"));
+        return joined + "\n" + query + ";";
+    }
+
     private static String doFormat(@NotNull Project project, @NotNull String sql) {
         PsiFile file = PsiFileFactory.getInstance(project)
                 .createFileFromText("temp.sql", BigQueryDialect.INSTANCE, sql);
         Runnable r = () -> CodeStyleManager.getInstance(project).reformat(file);
-        WriteCommandAction.runWriteCommandAction(project,null,null, r);
+        WriteCommandAction.runWriteCommandAction(project, null, null, r);
         return file.getText();
     }
 

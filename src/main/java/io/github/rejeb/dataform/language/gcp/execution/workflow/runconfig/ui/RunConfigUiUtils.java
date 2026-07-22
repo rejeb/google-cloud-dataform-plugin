@@ -20,6 +20,7 @@ import com.intellij.util.ui.UIUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import java.time.Duration;
 import java.time.Instant;
@@ -38,6 +39,19 @@ public final class RunConfigUiUtils {
         field.setForeground(UIUtil.getLabelForeground());
         field.setFont(UIUtil.getLabelFont());
         return field;
+    }
+
+    @NotNull
+    public static JTextArea selectableTextArea(@Nullable String text) {
+        JTextArea area = new JTextArea(text != null ? text : "");
+        area.setEditable(false);
+        area.setLineWrap(true);
+        area.setWrapStyleWord(true);
+        area.setBorder(null);
+        area.setBackground(UIUtil.getPanelBackground());
+        area.setForeground(UIUtil.getLabelForeground());
+        area.setFont(UIUtil.getLabelFont());
+        return area;
     }
 
     @NotNull

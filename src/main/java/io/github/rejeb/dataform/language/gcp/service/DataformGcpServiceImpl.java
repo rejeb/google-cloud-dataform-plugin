@@ -227,8 +227,14 @@ public final class DataformGcpServiceImpl implements DataformGcpService, Disposa
     public BigQueryJobDetails getJobDetails(
             @NotNull String jobId,
             @NotNull String project,
-            @NotNull String location
+            @Nullable String location
     ) {
         return bigQueryJobOperations.getJobDetails(jobId, project, location);
+    }
+
+    @Override
+    @Nullable
+    public String resolveDatasetLocation(@NotNull String project, @NotNull String dataset) {
+        return bigQueryJobOperations.resolveDatasetLocation(project, dataset);
     }
 }

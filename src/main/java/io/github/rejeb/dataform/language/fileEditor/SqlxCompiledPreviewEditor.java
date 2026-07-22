@@ -42,8 +42,6 @@ import com.intellij.openapi.util.Key;
 import com.intellij.openapi.util.ThrowableComputable;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.sql.SqlFileType;
-import com.intellij.ui.JBColor;
-import com.intellij.util.IconUtil;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
 import icons.DatabaseIcons;
@@ -52,7 +50,9 @@ import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.compilation.model.CompiledQuery;
 import io.github.rejeb.dataform.language.fileEditor.lineage.LineageGraph;
 import io.github.rejeb.dataform.language.fileEditor.lineage.LineageGraphHelper;
-import io.github.rejeb.dataform.language.fileEditor.lineage.LineagePanel;
+import io.github.rejeb.dataform.language.DataformIcons;
+import io.github.rejeb.dataform.language.lineage.extractor.LineageExtractorImpl;
+import io.github.rejeb.dataform.language.lineage.view.LineageFilePanel;
 import io.github.rejeb.dataform.language.gcp.execution.bigquery.BigQueryExecutionService;
 import io.github.rejeb.dataform.language.gcp.execution.bigquery.BigQueryJobResult;
 import io.github.rejeb.dataform.language.gcp.execution.bigquery.QueryResultsRegistry;
@@ -61,6 +61,7 @@ import io.github.rejeb.dataform.language.gcp.execution.bigquery.serviceview.Quer
 import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
 import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
 import io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService;
+import io.github.rejeb.dataform.language.util.PreOperationsFilter;
 import io.github.rejeb.dataform.language.util.Utils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -76,7 +77,7 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
 
     private final JPanel mainPanel = new JPanel(new CardLayout());
     private final SchemaPanel schemaPanel;
-    private final LineagePanel lineagePanel;
+    private final LineageFilePanel lineagePanel;
     private final QueryPanel queryPanel;
     private final Project project;
     private final VirtualFile file;
@@ -86,13 +87,12 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
         this.project = project;
         this.file = file;
         schemaPanel = new SchemaPanel(project);
-        lineagePanel = new LineagePanel(project);
+        lineagePanel = new LineageFilePanel(project, file);
         queryPanel = new QueryPanel(project, resolveFileType(file));
 
         mainPanel.setOpaque(true);
         mainPanel.setBackground(UIUtil.getPanelBackground());
-        mainPanel.add(withHeader("Lineage", IconUtil.colorize(AllIcons.CodeWithMe.CwmShared, JBColor.BLUE),
-                lineagePanel), View.LINEAGE.name());
+        mainPanel.add(lineagePanel, View.LINEAGE.name());
         mainPanel.add(withHeader("Query", DatabaseIcons.Sql, queryPanel), View.QUERY.name());
         mainPanel.add(withHeader("Schema", AllIcons.Nodes.DataTables, schemaPanel), View.SCHEMA.name());
 
@@ -109,6 +109,7 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
         ProgressManager.getInstance().run(new Task.Backgroundable(project, "Dataform: compiling", true) {
             private List<FormattedCompiledQuery> compiledQueries;
             private List<LineageGraph> lineageGraphs;
+            private io.github.rejeb.dataform.language.lineage.graph.LineageGraph fileLineage;
 
             @Override
             public void run(@NotNull ProgressIndicator indicator) {
@@ -126,6 +127,7 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
                                             .toList()
                     );
                     lineageGraphs = LineageGraphHelper.buildGraph(graph, path);
+                    fileLineage = new LineageExtractorImpl().extract(graph);
                 }
                 if (graph != null && (graph.getGraphErrors() == null
                         || graph.getGraphErrors().getCompilationErrors().isEmpty())) {
@@ -139,7 +141,7 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
                 ApplicationManager.getApplication().invokeLater(() -> {
                     schemaPanel.setContent(lineageGraphs);
                     queryPanel.setContent(compiledQueries);
-                    lineagePanel.setData(lineageGraphs);
+                    lineagePanel.setLineage(fileLineage);
                     mainPanel.revalidate();
                 }, ModalityState.nonModal());
             }
@@ -288,7 +290,11 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
                             if (q.query() == null || q.query().isBlank()) continue;
                             indicator.setText("Executing " + q.tableName() + "...");
 
-                            BigQueryJobResult result = svc.execute(q.query(), projectId, q.tableName());
+                            String sql = q.preOps() != null
+                                    ? Utils.withPreOperations(
+                                            PreOperationsFilter.keepReadOnly(List.of(q.preOps())), q.query())
+                                    : q.query();
+                            BigQueryJobResult result = svc.execute(sql, projectId, q.tableName());
                             registry.put(result);
                             ServiceEventListener.ServiceEvent resetEvent =
                                     ServiceEventListener.ServiceEvent.createResetEvent(
@@ -324,6 +330,8 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
     private static FormattedCompiledQuery toFormatted(CompiledQuery q, Project project) {
         List<String> preOps = q.preOps().stream()
                 .map(s -> Utils.formatSql(project, s)).toList();
+        List<String> incrementalPreOps = q.incrementalPreOps().stream()
+                .map(s -> Utils.formatSql(project, s)).toList();
         List<String> postOps = q.postOps().stream()
                 .map(s -> Utils.formatSql(project, s)).toList();
         String query = q.query() != null ? Utils.formatSql(project, q.query()) : null;
@@ -332,6 +340,7 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
         return new FormattedCompiledQuery(
                 q.tableName(),
                 preOps.isEmpty() ? null : String.join("\n", preOps),
+                incrementalPreOps.isEmpty() ? null : String.join("\n", incrementalPreOps),
                 query,
                 postOps.isEmpty() ? null : String.join("\n", postOps),
                 errors

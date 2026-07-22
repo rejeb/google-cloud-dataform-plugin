@@ -32,6 +32,7 @@ public record InvocationActionResult(
         @Nullable Instant endTime,
         @Nullable String jobId,
         @Nullable String jobProject,   // ← nouveau
-        @Nullable String jobLocation,  // ← nouveau
+        @Nullable String jobLocation,
+        @Nullable String jobDataset,
         @Nullable String sqlScript
 ) {}

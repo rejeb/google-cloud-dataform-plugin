@@ -93,15 +93,24 @@ public class SqlxFormattingBlock extends AbstractBlock {
 
     @Override
     public @Nullable Spacing getSpacing(@Nullable Block child1, @NotNull Block child2) {
-        if (child1 instanceof AbstractBlock ab && ab.getNode().getElementType() == SharedTokenTypes.LBRACE) {
-            IElementType parentType = myNode.getElementType();
-            if (parentType == SharedTokenTypes.CONFIG_BLOCK
-                    || parentType == SharedTokenTypes.JS_BLOCK
-                    || parentType == SharedTokenTypes.PRE_OPERATIONS_BLOCK
-                    || parentType == SharedTokenTypes.POST_OPERATIONS_BLOCK) {
-                return Spacing.createSpacing(0, 0, 1, false, 0);
-            }
+        IElementType parentType = myNode.getElementType();
+        boolean isBraceBlock = parentType == SharedTokenTypes.CONFIG_BLOCK
+                || parentType == SharedTokenTypes.JS_BLOCK
+                || parentType == SharedTokenTypes.PRE_OPERATIONS_BLOCK
+                || parentType == SharedTokenTypes.POST_OPERATIONS_BLOCK;
+
+        if (isBraceBlock && child1 instanceof AbstractBlock ab
+                && ab.getNode().getElementType() == SharedTokenTypes.LBRACE) {
+            return Spacing.createSpacing(0, 0, 1, false, 0);
         }
+
+        boolean isOperationsBlock = parentType == SharedTokenTypes.PRE_OPERATIONS_BLOCK
+                || parentType == SharedTokenTypes.POST_OPERATIONS_BLOCK;
+        if (isOperationsBlock && child2 instanceof AbstractBlock ab
+                && ab.getNode().getElementType() == SharedTokenTypes.RBRACE) {
+            return Spacing.createSpacing(0, 0, 1, false, 0);
+        }
+
         return spacingBuilder.getSpacing(this, child1, child2);
     }
 

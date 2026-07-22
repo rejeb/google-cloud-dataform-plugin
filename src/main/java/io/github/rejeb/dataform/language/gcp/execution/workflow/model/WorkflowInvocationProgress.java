@@ -28,8 +28,17 @@ public record WorkflowInvocationProgress(
         @NotNull String invocationName,
         @NotNull WorkflowInvocationState state,
         @NotNull List<InvocationActionResult> actions,
-        @Nullable InvocationSummary summary
+        @Nullable InvocationSummary summary,
+        @Nullable String errorMessage
 ) {
+    public WorkflowInvocationProgress(
+            @NotNull String invocationName,
+            @NotNull WorkflowInvocationState state,
+            @NotNull List<InvocationActionResult> actions,
+            @Nullable InvocationSummary summary) {
+        this(invocationName, state, actions, summary, null);
+    }
+
     public boolean isTerminal() {
         return state != WorkflowInvocationState.RUNNING;
     }

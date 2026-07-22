@@ -19,6 +19,8 @@ package io.github.rejeb.dataform.language.gcp.execution.bigquery;
 import com.google.cloud.bigquery.*;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
+import io.github.rejeb.dataform.language.gcp.auth.AuthTrigger;
+import io.github.rejeb.dataform.language.gcp.auth.GcpAuthErrors;
 import io.github.rejeb.dataform.language.util.GcpClientsUtils;
 import org.jetbrains.annotations.NotNull;
 
@@ -68,9 +70,11 @@ public final class BigQueryExecutionServiceImpl implements BigQueryExecutionServ
             return failure(tableName, "Query execution interrupted");
         } catch (RuntimeException e) {
             LOG.warn("Failed to build BigQuery client", e);
-            return failure(tableName, "Authentication error: " + e.getMessage());
+            GcpAuthErrors.reportIfAuthFailure(e, AuthTrigger.USER_ACTION);
+            return failure(tableName, "Execution error: " + e.getMessage());
         } catch (Exception e) {
             LOG.warn("BigQuery execution failed", e);
+            GcpAuthErrors.reportIfAuthFailure(e, AuthTrigger.USER_ACTION);
             return failure(tableName, e.getMessage());
         }
     }

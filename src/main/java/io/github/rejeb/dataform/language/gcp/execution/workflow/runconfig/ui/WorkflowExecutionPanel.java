@@ -49,6 +49,7 @@ public class WorkflowExecutionPanel extends JPanel {
     private final CardLayout rightCardLayout = new CardLayout();
     private final JPanel rightCards = new JPanel(rightCardLayout);
     private WorkflowInvocationProgress lastProgress;
+    private InvocationActionResult shownAction;
 
     public WorkflowExecutionPanel(@NotNull String invocationName, @NotNull Project project) {
         super(new BorderLayout());
@@ -88,9 +89,11 @@ public class WorkflowExecutionPanel extends JPanel {
             }
             var node = (DefaultMutableTreeNode) path.getLastPathComponent();
             if (node.getUserObject() instanceof InvocationActionResult action) {
+                shownAction = action;
                 actionDetailPanel.show(lastProgress, action);
                 rightCardLayout.show(rightCards, CARD_ACTION);
             } else {
+                shownAction = null;
                 rightCardLayout.show(rightCards, CARD_INVOCATION);
             }
         });
@@ -109,7 +112,21 @@ public class WorkflowExecutionPanel extends JPanel {
         this.lastProgress = progress;
         treeModel.update(progress);
         summaryPanel.update(progress);
+        refreshShownAction(progress);
         expandAll();
+    }
+
+    private void refreshShownAction(@NotNull WorkflowInvocationProgress progress) {
+        if (shownAction == null) return;
+        for (InvocationActionResult action : progress.actions()) {
+            if (action.target().equals(shownAction.target())) {
+                if (!action.equals(shownAction)) {
+                    shownAction = action;
+                    actionDetailPanel.show(progress, action);
+                }
+                return;
+            }
+        }
     }
 
     /**

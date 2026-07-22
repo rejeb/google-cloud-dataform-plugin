@@ -32,8 +32,11 @@ import com.intellij.psi.PsiManager;
 import io.github.rejeb.dataform.language.compilation.model.*;
 import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasTable;
-import io.github.rejeb.dataform.language.util.DataformAuthNotifier;
+import io.github.rejeb.dataform.language.gcp.auth.AuthTrigger;
+import io.github.rejeb.dataform.language.gcp.auth.DataformAuthState;
 import io.github.rejeb.dataform.language.util.GcpClientsUtils;
+import io.github.rejeb.dataform.language.util.PreOperationsFilter;
+import io.github.rejeb.dataform.language.util.Utils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -45,6 +48,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 @State(
@@ -63,6 +67,7 @@ public final class DataformTableSchemaServiceImpl implements DataformTableSchema
     private final Map<String, Long> fileModificationTimes = new ConcurrentHashMap<>();
     private final Map<String, String> fileNames = new ConcurrentHashMap<>();
     private final AtomicBoolean running = new AtomicBoolean(false);
+    private final AtomicLong modificationCount = new AtomicLong(0);
 
     private volatile boolean pendingRefresh = false;
     private volatile CompiledGraph pendingGraph = null;
@@ -81,6 +86,12 @@ public final class DataformTableSchemaServiceImpl implements DataformTableSchema
     public void loadState(@NotNull State state) {
         this.currentState = state;
         restoreCacheFromState(state);
+        modificationCount.incrementAndGet();
+    }
+
+    @Override
+    public long getModificationCount() {
+        return modificationCount.get();
     }
 
     public void refreshAsync(@NotNull CompiledGraph graph) {
@@ -123,6 +134,7 @@ public final class DataformTableSchemaServiceImpl implements DataformTableSchema
 
     private void onTaskFinished() {
         running.set(false);
+        modificationCount.incrementAndGet();
         if (pendingRefresh && pendingGraph != null) {
             CompiledGraph next = pendingGraph;
             pendingGraph = null;
@@ -159,7 +171,7 @@ public final class DataformTableSchemaServiceImpl implements DataformTableSchema
             return null;
         }
         if (!hasValidCredentials()) {
-            DataformAuthNotifier.notifyAuthRequired(project);
+            DataformAuthState.getInstance().markAuthRequired(AuthTrigger.BACKGROUND);
             return null;
         }
         return new ExtractionContext(projectId, config.getDefaultLocation(),
@@ -226,9 +238,11 @@ public final class DataformTableSchemaServiceImpl implements DataformTableSchema
     private Optional<List<ColumnInfo>> extractTableSchema(@NotNull CompiledTable table,
                                                           @NotNull ExtractionContext ctx,
                                                           @NotNull Map<String, List<ColumnInfo>> resolvedInThisRun) {
-        String query = ReadAction.computeBlocking(() ->
+        String mainQuery = ReadAction.computeBlocking(() ->
                 DataformCteQueryBuilder.buildDryRunQuery(table.getQuery(), resolvedInThisRun, project)
         );
+        String query = Utils.withPreOperations(
+                PreOperationsFilter.keepReadOnly(table.getPreOps()), mainQuery);
         return runDryRun(ctx, query);
     }
 
@@ -468,8 +482,8 @@ public final class DataformTableSchemaServiceImpl implements DataformTableSchema
 
     private boolean hasValidCredentials() {
         try {
-            GcpClientsUtils.getCredentials().refresh();
-            return true;
+            return io.github.rejeb.dataform.language.gcp.auth.DataformCredentialsService
+                    .getInstance().isSignedIn();
         } catch (Exception e) {
             LOG.warn("Google credentials not available: " + e.getMessage());
             return false;

@@ -16,14 +16,21 @@
  */
 package io.github.rejeb.dataform.language.gcp.common;
 
+import io.github.rejeb.dataform.language.gcp.auth.AuthTrigger;
+import io.github.rejeb.dataform.language.gcp.auth.GcpAuthErrors;
+
 public class GcpApiException extends RuntimeException {
 
     /**
+     * Wraps a GCP SDK failure. Every repository of the plugin funnels its failures here, so this
+     * is also where a credential rejected by the server is turned into a sign-in request.
+     *
      * @param message human-readable description of the GCP API failure
      * @param cause   the underlying exception from the GCP SDK
      */
     public GcpApiException(String message, Throwable cause) {
         super(message, cause);
+        GcpAuthErrors.reportIfAuthFailure(cause, AuthTrigger.USER_ACTION);
     }
 
     public GcpApiException(String message) {

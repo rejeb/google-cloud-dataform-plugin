@@ -19,7 +19,6 @@ package io.github.rejeb.dataform.language.compilation.model;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Stream;
 
 public class CompiledTable {
     private String type;
@@ -61,9 +60,7 @@ public class CompiledTable {
     }
 
     public CompiledQuery getQueries() {
-        List<String> preOpsQueries = Stream.concat(preOps.stream(), incrementalPreOps.stream()).toList();
-
-        return new CompiledQuery(this.getTarget().getFullName(),preOpsQueries, query, postOps, null);
+        return new CompiledQuery(this.getTarget().getFullName(), preOps, incrementalPreOps, query, postOps, null);
     }
 
     public boolean isDisabled() {

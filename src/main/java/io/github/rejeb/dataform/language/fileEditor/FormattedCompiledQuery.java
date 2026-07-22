@@ -23,6 +23,7 @@ import java.util.List;
 record FormattedCompiledQuery(
         @NotNull String tableName,
         @Nullable String preOps,
+        @Nullable String incrementalPreOps,
         @Nullable String query,
         @Nullable String postOps,
         @Nullable String compilationErrors

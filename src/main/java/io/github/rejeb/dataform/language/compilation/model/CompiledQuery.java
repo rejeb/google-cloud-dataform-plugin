@@ -19,14 +19,14 @@ package io.github.rejeb.dataform.language.compilation.model;
 import java.util.Collections;
 import java.util.List;
 
-public record CompiledQuery(String tableName, List<String> preOps, String query, List<String> postOps,
-                            List<String> compilationErrors) {
+public record CompiledQuery(String tableName, List<String> preOps, List<String> incrementalPreOps, String query,
+                            List<String> postOps, List<String> compilationErrors) {
     public CompiledQuery(String tableName, String query) {
-        this(tableName, Collections.emptyList(), query, Collections.emptyList(), null);
+        this(tableName, Collections.emptyList(), Collections.emptyList(), query, Collections.emptyList(), null);
     }
 
     public CompiledQuery(String tableName, List<String> compilationErrors) {
-        this(tableName, List.of(), null, List.of(), compilationErrors);
+        this(tableName, List.of(), List.of(), null, List.of(), compilationErrors);
     }
 
 

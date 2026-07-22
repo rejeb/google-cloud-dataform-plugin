@@ -16,11 +16,7 @@
  */
 package io.github.rejeb.dataform.language.compilation;
 
-import com.intellij.build.BuildContentManager;
-import com.intellij.build.BuildViewManager;
-import com.intellij.build.DefaultBuildDescriptor;
-import com.intellij.build.FilePosition;
-import com.intellij.build.events.FileMessageEvent;
+import com.intellij.build.*;
 import com.intellij.build.events.FinishBuildEvent;
 import com.intellij.build.events.MessageEvent;
 import com.intellij.build.events.StartBuildEvent;
@@ -109,7 +105,8 @@ public final class DataformBuildManager {
 
                         if (filePosition != null) {
                             buildViewManager.onEvent(context,
-                                    FileMessageEvent.builder(detail, MessageEvent.Kind.ERROR, filePosition)
+                                    MessageEvent.builder(detail, MessageEvent.Kind.ERROR)
+                                            .withNavigatable(new FileNavigatable(project, filePosition))
                                             .withParentId(context)
                                             .withGroup(TASK_NAME).build()
                             );
@@ -204,7 +201,7 @@ public final class DataformBuildManager {
     private static String getWorkDir(@NotNull Project project) {
         VirtualFile projectDir = ProjectUtil.guessProjectDir(project);
         return projectDir != null ? projectDir.getPath() : project.getBasePath() != null
-                                                           ? project.getBasePath() : "";
+                ? project.getBasePath() : "";
     }
 
     private static void showNotification(@NotNull Project project,

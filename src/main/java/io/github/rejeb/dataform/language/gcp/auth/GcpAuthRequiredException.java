@@ -14,8 +14,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.rejeb.dataform.language.fileEditor.lineage;
+package io.github.rejeb.dataform.language.gcp.auth;
 
-public enum LineageNodeType {
-    SOURCE, TARGET, DEPENDENT
+public class GcpAuthRequiredException extends RuntimeException {
+
+    /**
+     * @param message reason why no usable Google credential is available
+     */
+    public GcpAuthRequiredException(String message) {
+        super(message);
+    }
+
+    /**
+     * @param message reason why no usable Google credential is available
+     * @param cause   the underlying failure
+     */
+    public GcpAuthRequiredException(String message, Throwable cause) {
+        super(message, cause);
+    }
 }

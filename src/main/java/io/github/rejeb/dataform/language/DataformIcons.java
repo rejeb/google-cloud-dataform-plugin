@@ -16,7 +16,10 @@
  */
 package io.github.rejeb.dataform.language;
 
+import com.intellij.icons.AllIcons;
 import com.intellij.openapi.util.IconLoader;
+import com.intellij.ui.JBColor;
+import com.intellij.util.IconUtil;
 
 import javax.swing.*;
 
@@ -24,5 +27,10 @@ public class DataformIcons {
     public static final Icon FILE = IconLoader.getIcon(
             "/icons/dataformFile.png",
             DataformIcons.class
+    );
+
+    public static final Icon LINEAGE = IconUtil.colorize(
+            AllIcons.CodeWithMe.CwmShared,
+            JBColor.BLUE
     );
 }

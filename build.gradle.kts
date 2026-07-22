@@ -1,11 +1,11 @@
 plugins {
-    id("org.jetbrains.kotlin.jvm") version "2.3.20"
-    id("org.jetbrains.intellij.platform") version "2.14.0"
-    id("org.jetbrains.kotlin.plugin.compose") version "2.3.20"
+    id("org.jetbrains.kotlin.jvm") version "2.4.20-Beta1"
+    id("org.jetbrains.intellij.platform") version "2.18.1"
+    id("org.jetbrains.kotlin.plugin.compose") version "2.4.20-Beta1"
 }
 
 group = "io.github.rejeb"
-version = "0.2.14"
+version = "0.2.15"
 
 repositories {
     mavenCentral()
@@ -46,8 +46,10 @@ intellijPlatform {
 
         changeNotes = """
                 <ul>
-                    <li>Add goto column navigation.</li>
-                    <li>Fix issues.</li>
+                    <li>Add lineage view.</li>
+                    <li>Fix resolve tables having preOperations.</li>
+                    <li>Fix run query for tables having preOperations.</li>
+                    <li>Fix renew google credentials.</li>
                 </ul>
         """.trimIndent()
     }

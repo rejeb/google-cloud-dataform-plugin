@@ -18,6 +18,7 @@ package io.github.rejeb.dataform.language.gcp.execution.workflow.repository;
 
 import com.google.api.gax.paging.Page;
 import com.google.cloud.bigquery.*;
+import com.intellij.openapi.diagnostic.Logger;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.BigQueryJobDetails;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.BigQueryJobDetails.BigQueryChildJob;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.InvocationActionState;
@@ -27,9 +28,39 @@ import org.jetbrains.annotations.Nullable;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.List;
 
 public final class GcpBigQueryJobRepository implements BigQueryJobRepository {
+
+    private static final Logger LOG = Logger.getInstance(GcpBigQueryJobRepository.class);
+
+    private static final Map<String, String> DATASET_LOCATIONS = new ConcurrentHashMap<>();
+
+    @Override
+    @Nullable
+    public String resolveDatasetLocation(@NotNull String project, @NotNull String dataset) {
+        String cacheKey = project + ":" + dataset;
+        String cached = DATASET_LOCATIONS.get(cacheKey);
+        if (cached != null) {
+            return cached;
+        }
+        try {
+            Dataset ds = GcpClientsUtils.bigQuery(project).getDataset(DatasetId.of(project, dataset));
+            if (ds == null || ds.getLocation() == null) {
+                LOG.warn("BigQuery dataset " + cacheKey + " not found or has no location.");
+                return null;
+            }
+            String location = ds.getLocation();
+            LOG.info("Resolved BigQuery location of dataset " + cacheKey + " to " + location);
+            DATASET_LOCATIONS.put(cacheKey, location);
+            return location;
+        } catch (Exception e) {
+            LOG.warn("Failed to resolve the BigQuery location of dataset " + cacheKey, e);
+            return null;
+        }
+    }
 
     @Override
     @Nullable
@@ -38,6 +69,8 @@ public final class GcpBigQueryJobRepository implements BigQueryJobRepository {
             @NotNull String project,
             @Nullable String location
     ) {
+        LOG.info("Fetching BigQuery job details: jobId=" + jobId
+                + " project=" + project + " location=" + location);
         BigQuery bq = GcpClientsUtils.bigQuery(project);
 
         Job job = bq.getJob(JobId.newBuilder()
@@ -46,7 +79,12 @@ public final class GcpBigQueryJobRepository implements BigQueryJobRepository {
                 .setJob(jobId)
                 .build());
 
-        if (job == null) return null;
+        if (job == null) {
+            LOG.warn("BigQuery returned no job for jobId=" + jobId
+                    + " project=" + project + " location=" + location
+                    + ". A wrong location is the most frequent cause.");
+            return null;
+        }
 
         JobStatus status = job.getStatus();
         JobStatistics stats = job.getStatistics();
@@ -108,6 +146,9 @@ public final class GcpBigQueryJobRepository implements BigQueryJobRepository {
                     cStatus, cStart, cEnd, cQuery, cBytes
             ));
         }
+        LOG.info("BigQuery job " + jobId + " resolved: status=" + statusStr
+                + " realProject=" + realProject + " realLocation=" + realLocation
+                + " childJobs=" + childJobs.size());
 
         Integer statementsProcessed = childJobs.isEmpty() ? 1 : childJobs.size();
 

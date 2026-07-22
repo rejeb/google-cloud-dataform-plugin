@@ -27,7 +27,11 @@ import com.intellij.util.ui.JBUI;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.Mode;
+import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.application.ModalityState;
+import com.intellij.openapi.diagnostic.Logger;
 import io.github.rejeb.dataform.language.gcp.service.DataformGcpService;
+import io.github.rejeb.dataform.language.gcp.workspace.Workspace;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
@@ -38,6 +42,8 @@ import java.util.Set;
 
 public class DataformWorkflowSettingsEditor
         extends SettingsEditor<DataformWorkflowRunConfiguration> {
+
+    private static final Logger LOG = Logger.getInstance(DataformWorkflowSettingsEditor.class);
 
     private final ComboBox<String> workspaceCombo = new ComboBox<>();
 
@@ -57,12 +63,12 @@ public class DataformWorkflowSettingsEditor
     private final CompiledGraph graph;
 
     private Mode selectedMode = Mode.ACTIONS;
+    private volatile String pendingWorkspaceId;
+    private volatile boolean disposed = false;
 
     public DataformWorkflowSettingsEditor(@NotNull Project project) {
         workspaceCombo.addItem("");
-        DataformGcpService.getInstance(project)
-                .listWorkspaces()
-                .forEach(ws -> workspaceCombo.addItem(ws.workspaceId()));
+        loadWorkspaces(project);
 
         this.graph = DataformCompilationService.getInstance(project).getCompiledGraph();
         tagsField.setItems(graph != null ? graph.getTags() : Set.of());
@@ -85,6 +91,32 @@ public class DataformWorkflowSettingsEditor
                 .getPanel();
 
         selectMode(Mode.ALL);
+    }
+
+    private void loadWorkspaces(@NotNull Project project) {
+        workspaceCombo.setEnabled(false);
+        ApplicationManager.getApplication().executeOnPooledThread(() -> {
+            List<String> workspaceIds;
+            try {
+                workspaceIds = DataformGcpService.getInstance(project).listWorkspaces().stream()
+                        .map(Workspace::workspaceId)
+                        .toList();
+            } catch (Exception e) {
+                LOG.warn("Failed to list Dataform workspaces for the run configuration editor.", e);
+                workspaceIds = List.of();
+            }
+            List<String> loaded = workspaceIds;
+            ApplicationManager.getApplication().invokeLater(() -> {
+                if (disposed) {
+                    return;
+                }
+                loaded.forEach(workspaceCombo::addItem);
+                workspaceCombo.setEnabled(true);
+                if (pendingWorkspaceId != null) {
+                    workspaceCombo.setSelectedItem(pendingWorkspaceId);
+                }
+            }, ModalityState.any());
+        });
     }
 
     private JPanel buildActionsView() {
@@ -228,6 +260,7 @@ public class DataformWorkflowSettingsEditor
 
     @Override
     protected void resetEditorFrom(@NotNull DataformWorkflowRunConfiguration config) {
+        pendingWorkspaceId = config.getWorkspaceId();
         workspaceCombo.setSelectedItem(config.getWorkspaceId());
         tagsField.setSelectedItems(config.getIncludedTags().stream().filter(this.graph.getTags()::contains).toList());
         targetsField.setSelectedItems(config.getIncludedTargets().stream().filter(this.graph.getAllTargets()::contains).toList());
@@ -255,5 +288,11 @@ public class DataformWorkflowSettingsEditor
     @Override
     protected JComponent createEditor() {
         return mainPanel;
+    }
+
+    @Override
+    protected void disposeEditor() {
+        disposed = true;
+        super.disposeEditor();
     }
 }

@@ -18,6 +18,7 @@ package io.github.rejeb.dataform.language.schema.sql;
 
 import com.intellij.openapi.components.PersistentStateComponent;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.ModificationTracker;
 import com.intellij.util.xmlb.annotations.Tag;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasTable;
@@ -26,7 +27,7 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Map;
 
 
-public interface DataformTableSchemaService extends PersistentStateComponent<DataformTableSchemaService.State> {
+public interface DataformTableSchemaService extends PersistentStateComponent<DataformTableSchemaService.State>, ModificationTracker {
     static DataformTableSchemaService getInstance(Project project) {
         return project.getService(DataformTableSchemaService.class);
 

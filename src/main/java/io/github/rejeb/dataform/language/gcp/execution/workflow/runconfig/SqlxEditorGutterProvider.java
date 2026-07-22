@@ -55,10 +55,7 @@ public class SqlxEditorGutterProvider implements LineMarkerProvider {
                 e -> "Run " + sqlxFile.getVirtualFile().getNameWithoutExtension(),
                 (mouseEvent, psiElement) -> {
                     if (sqlxFile.getVirtualFile() == null) return;
-                    SqlxRunOptionsPopup.RunOptionsCallback callback = (deps, dependants, fullRefresh) ->
-                            RunSqlxHelper.launchFromTags(sqlxFile.getProject(), sqlxFile.getVirtualFile(),
-                                    deps, dependants, fullRefresh);
-                    SqlxRunOptionsPopup.show(sqlxFile.getProject(), mouseEvent, callback);
+                    RunSqlxHelper.launchFromTags(sqlxFile.getProject(), sqlxFile.getVirtualFile());
                 },
                 GutterIconRenderer.Alignment.LEFT,
                 () -> "Run " + sqlxFile.getName()
