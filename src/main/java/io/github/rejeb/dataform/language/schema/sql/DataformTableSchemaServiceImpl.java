@@ -32,7 +32,8 @@ import com.intellij.psi.PsiManager;
 import io.github.rejeb.dataform.language.compilation.model.*;
 import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasTable;
-import io.github.rejeb.dataform.language.util.DataformAuthNotifier;
+import io.github.rejeb.dataform.language.gcp.auth.AuthTrigger;
+import io.github.rejeb.dataform.language.gcp.auth.DataformAuthState;
 import io.github.rejeb.dataform.language.util.GcpClientsUtils;
 import io.github.rejeb.dataform.language.util.Utils;
 import org.jetbrains.annotations.NotNull;
@@ -169,7 +170,7 @@ public final class DataformTableSchemaServiceImpl implements DataformTableSchema
             return null;
         }
         if (!hasValidCredentials()) {
-            DataformAuthNotifier.notifyAuthRequired(project);
+            DataformAuthState.getInstance().markAuthRequired(AuthTrigger.BACKGROUND);
             return null;
         }
         return new ExtractionContext(projectId, config.getDefaultLocation(),
@@ -480,8 +481,8 @@ public final class DataformTableSchemaServiceImpl implements DataformTableSchema
 
     private boolean hasValidCredentials() {
         try {
-            GcpClientsUtils.getCredentials().refresh();
-            return true;
+            return io.github.rejeb.dataform.language.gcp.auth.DataformCredentialsService
+                    .getInstance().isSignedIn();
         } catch (Exception e) {
             LOG.warn("Google credentials not available: " + e.getMessage());
             return false;

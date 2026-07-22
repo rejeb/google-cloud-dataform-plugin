@@ -14,26 +14,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.rejeb.dataform.language.gcp.common;
+package io.github.rejeb.dataform.language.gcp.auth;
 
-import io.github.rejeb.dataform.language.gcp.auth.AuthTrigger;
-import io.github.rejeb.dataform.language.gcp.auth.GcpAuthErrors;
-
-public class GcpApiException extends RuntimeException {
+public class GcpAuthRequiredException extends RuntimeException {
 
     /**
-     * Wraps a GCP SDK failure. Every repository of the plugin funnels its failures here, so this
-     * is also where a credential rejected by the server is turned into a sign-in request.
-     *
-     * @param message human-readable description of the GCP API failure
-     * @param cause   the underlying exception from the GCP SDK
+     * @param message reason why no usable Google credential is available
      */
-    public GcpApiException(String message, Throwable cause) {
-        super(message, cause);
-        GcpAuthErrors.reportIfAuthFailure(cause, AuthTrigger.USER_ACTION);
+    public GcpAuthRequiredException(String message) {
+        super(message);
     }
 
-    public GcpApiException(String message) {
-        super(message);
+    /**
+     * @param message reason why no usable Google credential is available
+     * @param cause   the underlying failure
+     */
+    public GcpAuthRequiredException(String message, Throwable cause) {
+        super(message, cause);
     }
 }

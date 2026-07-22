@@ -45,7 +45,7 @@ public final class GcpDataformWorkflowRepository implements WorkflowRepository, 
             @NotNull String repositoryId,
             @NotNull WorkflowRunRequest request
     ) {
-        try (DataformClient client = GcpClientsUtils.dataformClient()) {
+        try (DataformClient client = GcpClientsUtils.dataformClient(projectId)) {
             String repoName = RepositoryName.of(projectId, location, repositoryId).toString();
             String wsName = WorkspaceName.of(projectId, location, repositoryId, request.workspaceId()).toString();
             ensureNpmPackagesInstalled(wsName, client);
@@ -98,7 +98,8 @@ public final class GcpDataformWorkflowRepository implements WorkflowRepository, 
     @Override
     @NotNull
     public WorkflowInvocationProgress getWorkflowRunProgress(@NotNull WorkflowCreationResult workflowRun) {
-        try (DataformClient client = GcpClientsUtils.dataformClient()) {
+        String quotaProjectId = GcpClientsUtils.projectIdFromResourceName(workflowRun.invocationName());
+        try (DataformClient client = GcpClientsUtils.dataformClient(quotaProjectId)) {
             WorkflowInvocation inv = client.getWorkflowInvocation(
                     GetWorkflowInvocationRequest.newBuilder()
                             .setName(workflowRun.invocationName())
@@ -222,7 +223,8 @@ public final class GcpDataformWorkflowRepository implements WorkflowRepository, 
 
     @Override
     public void cancelWorkflowRun(@NotNull String workflowRunName) {
-        try (DataformClient client = GcpClientsUtils.dataformClient()) {
+        String quotaProjectId = GcpClientsUtils.projectIdFromResourceName(workflowRunName);
+        try (DataformClient client = GcpClientsUtils.dataformClient(quotaProjectId)) {
             client.cancelWorkflowInvocation(
                     CancelWorkflowInvocationRequest.newBuilder()
                             .setName(workflowRunName)
@@ -280,7 +282,8 @@ public final class GcpDataformWorkflowRepository implements WorkflowRepository, 
      * all of node_modules (potentially thousands of entries).
      */
     private boolean isDataformCoreInstalled(@NotNull String workspaceName) {
-        try (DataformClient client = GcpClientsUtils.dataformClient()) {
+        String quotaProjectId = GcpClientsUtils.projectIdFromResourceName(workspaceName);
+        try (DataformClient client = GcpClientsUtils.dataformClient(quotaProjectId)) {
             QueryDirectoryContentsRequest request = QueryDirectoryContentsRequest.newBuilder()
                     .setWorkspace(workspaceName)
                     .setPath("node_modules/@dataform")

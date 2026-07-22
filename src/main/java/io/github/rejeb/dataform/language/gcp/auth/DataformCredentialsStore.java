@@ -14,26 +14,31 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.rejeb.dataform.language.gcp.common;
+package io.github.rejeb.dataform.language.gcp.auth;
 
-import io.github.rejeb.dataform.language.gcp.auth.AuthTrigger;
-import io.github.rejeb.dataform.language.gcp.auth.GcpAuthErrors;
+import org.jetbrains.annotations.NotNull;
 
-public class GcpApiException extends RuntimeException {
+import java.util.Optional;
+
+/**
+ * Persistent, IDE wide storage for the plugin owned Google credential. Shared by every project
+ * and window of the running IDE, and by other IDEs when the platform keystore is OS backed.
+ */
+public interface DataformCredentialsStore {
 
     /**
-     * Wraps a GCP SDK failure. Every repository of the plugin funnels its failures here, so this
-     * is also where a credential rejected by the server is turned into a sign-in request.
-     *
-     * @param message human-readable description of the GCP API failure
-     * @param cause   the underlying exception from the GCP SDK
+     * @return the stored credential, or empty when the user never signed in
      */
-    public GcpApiException(String message, Throwable cause) {
-        super(message, cause);
-        GcpAuthErrors.reportIfAuthFailure(cause, AuthTrigger.USER_ACTION);
-    }
+    @NotNull
+    Optional<StoredCredentials> load();
 
-    public GcpApiException(String message) {
-        super(message);
-    }
+    /**
+     * @param credentials credential to persist
+     */
+    void save(@NotNull StoredCredentials credentials);
+
+    /**
+     * Removes the stored credential.
+     */
+    void clear();
 }

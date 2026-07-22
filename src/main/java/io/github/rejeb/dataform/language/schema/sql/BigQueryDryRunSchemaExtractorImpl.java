@@ -18,6 +18,8 @@ package io.github.rejeb.dataform.language.schema.sql;
 
 import com.google.cloud.bigquery.*;
 import com.intellij.openapi.diagnostic.Logger;
+import io.github.rejeb.dataform.language.gcp.auth.AuthTrigger;
+import io.github.rejeb.dataform.language.gcp.auth.GcpCalls;
 import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
 import io.github.rejeb.dataform.language.util.GcpClientsUtils;
 import org.jetbrains.annotations.NotNull;
@@ -37,33 +39,8 @@ public final class BigQueryDryRunSchemaExtractorImpl implements BigQueryDryRunSc
                                           @Nullable String location,
                                           @NotNull String dryRunQuery) {
         try {
-            BigQuery bigQuery = GcpClientsUtils.bigQuery(projectId);
-
-            QueryJobConfiguration config = QueryJobConfiguration.newBuilder(dryRunQuery)
-                    .setDryRun(true)
-                    .setUseLegacySql(false)
-                    .build();
-
-            JobId jobId = location != null && !location.isBlank()
-                    ? JobId.newBuilder().setLocation(location).build()
-                    : JobId.of();
-
-            Job dryRunJob = bigQuery.create(JobInfo.newBuilder(config).setJobId(jobId).build());
-
-            Schema schema = extractSchemaFromJob(dryRunJob);
-            if (schema == null || schema.getFields() == null) {
-                LOG.debug("BigQuery dry-run returned no schema for project: " + projectId);
-                return Collections.emptyList();
-            }
-
-            List<ColumnInfo> columns = new ArrayList<>(schema.getFields().stream()
-                    .map(BigQueryDryRunSchemaExtractorImpl::fieldToColumnInfo)
-                    .toList());
-
-            addPartitionColumnIfMissing(dryRunJob, columns);
-
-            return columns;
-
+            return GcpCalls.execute(AuthTrigger.BACKGROUND,
+                    () -> runDryRun(projectId, location, dryRunQuery));
         } catch (BigQueryException e) {
             LOG.warn("BigQuery dry-run [" + dryRunQuery + "] failed: [" + e.getCode() + "] " + e.getMessage());
             return Collections.emptyList();
@@ -71,6 +48,38 @@ public final class BigQueryDryRunSchemaExtractorImpl implements BigQueryDryRunSc
             LOG.warn("Unexpected error during BigQuery dry-run", e);
             return Collections.emptyList();
         }
+    }
+
+    @NotNull
+    private List<ColumnInfo> runDryRun(@NotNull String projectId,
+                                       @Nullable String location,
+                                       @NotNull String dryRunQuery) {
+        BigQuery bigQuery = GcpClientsUtils.bigQuery(projectId);
+
+        QueryJobConfiguration config = QueryJobConfiguration.newBuilder(dryRunQuery)
+                .setDryRun(true)
+                .setUseLegacySql(false)
+                .build();
+
+        JobId jobId = location != null && !location.isBlank()
+                ? JobId.newBuilder().setLocation(location).build()
+                : JobId.of();
+
+        Job dryRunJob = bigQuery.create(JobInfo.newBuilder(config).setJobId(jobId).build());
+
+        Schema schema = extractSchemaFromJob(dryRunJob);
+        if (schema == null || schema.getFields() == null) {
+            LOG.debug("BigQuery dry-run returned no schema for project: " + projectId);
+            return Collections.emptyList();
+        }
+
+        List<ColumnInfo> columns = new ArrayList<>(schema.getFields().stream()
+                .map(BigQueryDryRunSchemaExtractorImpl::fieldToColumnInfo)
+                .toList());
+
+        addPartitionColumnIfMissing(dryRunJob, columns);
+
+        return columns;
     }
 
     /**

@@ -65,11 +65,16 @@ public final class DataformBuildTaskRunner extends ProjectTaskRunner {
     }
 
     @Override
-    public boolean canRun(@NotNull Project project, @NotNull ProjectTask projectTask, @Nullable ProjectTaskContext context) {
+    public boolean canRun(@NotNull ProjectTask projectTask) {
         if (projectTask instanceof ModuleBuildTask moduleBuildTask) {
             return isDataformProject(moduleBuildTask.getModule().getProject());
         }
         return false;
+    }
+
+    @Override
+    public boolean canRun(@NotNull Project project, @NotNull ProjectTask projectTask, @Nullable ProjectTaskContext context) {
+        return this.canRun(projectTask);
     }
 
     private record TaskResult(boolean myAborted, boolean myErrors) implements Result {

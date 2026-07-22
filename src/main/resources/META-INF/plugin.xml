@@ -87,6 +87,15 @@
                 serviceInterface="io.github.rejeb.dataform.language.settings.DataformToolsSettings"
                 serviceImplementation="io.github.rejeb.dataform.language.settings.DataformToolsSettingsImpl"/>
 
+        <applicationService
+                serviceInterface="io.github.rejeb.dataform.language.gcp.auth.DataformAuthState"
+                serviceImplementation="io.github.rejeb.dataform.language.gcp.auth.DataformAuthStateImpl"/>
+        <applicationService
+                serviceInterface="io.github.rejeb.dataform.language.gcp.auth.DataformCredentialsService"
+                serviceImplementation="io.github.rejeb.dataform.language.gcp.auth.DataformCredentialsServiceImpl"/>
+        <editorNotificationProvider
+                implementation="io.github.rejeb.dataform.language.gcp.auth.DataformAuthEditorNotificationProvider"/>
+
         <serviceViewContributor
                 implementation="io.github.rejeb.dataform.language.gcp.execution.bigquery.serviceview.DataformQueryContributor"/>
         <toolWindow

@@ -16,10 +16,7 @@
  */
 package io.github.rejeb.dataform.language.compilation;
 
-import com.intellij.build.BuildContentManager;
-import com.intellij.build.BuildViewManager;
-import com.intellij.build.DefaultBuildDescriptor;
-import com.intellij.build.FilePosition;
+import com.intellij.build.*;
 import com.intellij.build.events.FinishBuildEvent;
 import com.intellij.build.events.MessageEvent;
 import com.intellij.build.events.StartBuildEvent;
@@ -109,8 +106,8 @@ public final class DataformBuildManager {
                         if (filePosition != null) {
                             buildViewManager.onEvent(context,
                                     MessageEvent.builder(detail, MessageEvent.Kind.ERROR)
+                                            .withNavigatable(new FileNavigatable(project, filePosition))
                                             .withParentId(context)
-                                            .withFilePosition(filePosition)
                                             .withGroup(TASK_NAME).build()
                             );
                         } else {
@@ -192,12 +189,12 @@ public final class DataformBuildManager {
         if (vf == null) {
             File f = new File(normalized);
             if (f.exists()) {
-                return new FilePosition(f.toPath(), 0, 0);
+                return new FilePosition(f, 0, 0);
             }
             return null;
         }
 
-        return new FilePosition(new File(vf.getPath()).toPath(), 0, 0);
+        return new FilePosition(new File(vf.getPath()), 0, 0);
     }
 
     @NotNull

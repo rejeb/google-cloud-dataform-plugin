@@ -23,7 +23,7 @@ dependencies {
 
     testImplementation("org.junit.vintage:junit-vintage-engine:5.10.0")
     intellijPlatform {
-        intellijIdea("2026.2")
+        intellijIdea("2026.1")
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
         bundledPlugin("JavaScript")
         bundledPlugin("NodeJS")
