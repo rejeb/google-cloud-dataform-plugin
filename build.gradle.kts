@@ -46,8 +46,10 @@ intellijPlatform {
 
         changeNotes = """
                 <ul>
-                    <li>Add goto column navigation.</li>
-                    <li>Fix issues.</li>
+                    <li>Add lineage view.</li>
+                    <li>Fix resolve tables having preOperations.</li>
+                    <li>Fix run query for tables having preOperations.</li>
+                    <li>Fix renew google credentials.</li>
                 </ul>
         """.trimIndent()
     }
