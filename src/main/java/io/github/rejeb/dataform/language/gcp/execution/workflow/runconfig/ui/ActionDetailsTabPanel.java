@@ -28,6 +28,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.ui.AnimatedIcon;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBScrollPane;
+import com.intellij.ui.scale.JBUIScale;
 import com.intellij.ui.table.JBTable;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
@@ -64,8 +65,8 @@ public class ActionDetailsTabPanel extends JPanel implements Disposable {
     private static final String CARD_CONTENT = "content";
     private static final String CARD_EMPTY = "empty";
 
-    private static final int MAX_SQL_HEIGHT = JBUI.scale(120);
-    private static final int MIN_ROW_HEIGHT = JBUI.scale(28);
+    private static final int MAX_SQL_HEIGHT = JBUIScale.scale(120);
+    private static final int MIN_ROW_HEIGHT = JBUIScale.scale(28);
 
     private final CardLayout cardLayout = new CardLayout();
     private final JPanel cards = new JPanel(cardLayout);
@@ -408,8 +409,8 @@ public class ActionDetailsTabPanel extends JPanel implements Disposable {
             probe.setFont(editorFont);
             probe.setLineWrap(true);
             probe.setWrapStyleWord(true);
-            probe.setSize(colWidth - JBUI.scale(8), Integer.MAX_VALUE);
-            int natural = probe.getPreferredSize().height + JBUI.scale(8);
+            probe.setSize(colWidth - JBUIScale.scale(8), Integer.MAX_VALUE);
+            int natural = probe.getPreferredSize().height + JBUIScale.scale(8);
             table.setRowHeight(row, Math.clamp(natural, MIN_ROW_HEIGHT, MAX_SQL_HEIGHT));
         }
     }
@@ -421,12 +422,12 @@ public class ActionDetailsTabPanel extends JPanel implements Disposable {
             TableCellRenderer hr = table.getTableHeader().getDefaultRenderer();
             int max = hr.getTableCellRendererComponent(
                             table, tc.getHeaderValue(), false, false, -1, col)
-                    .getPreferredSize().width + JBUI.scale(16);
+                    .getPreferredSize().width + JBUIScale.scale(16);
             for (int row = 0; row < table.getRowCount(); row++) {
                 Component c = table.getCellRenderer(row, col)
                         .getTableCellRendererComponent(
                                 table, table.getValueAt(row, col), false, false, row, col);
-                max = Math.max(max, c.getPreferredSize().width + JBUI.scale(16));
+                max = Math.max(max, c.getPreferredSize().width + JBUIScale.scale(16));
             }
             tc.setPreferredWidth(max);
             tc.setMinWidth(max);

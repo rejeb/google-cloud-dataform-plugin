@@ -30,6 +30,7 @@ import com.intellij.ui.JBColor;
 import com.intellij.ui.OnePixelSplitter;
 import com.intellij.ui.SearchTextField;
 import com.intellij.ui.components.JBLabel;
+import com.intellij.ui.scale.JBUIScale;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
@@ -149,7 +150,7 @@ public final class LineageProjectPanel extends JPanel {
                 .createActionToolbar("DataformLineageToolbar", group, true);
         toolbar.setTargetComponent(this);
 
-        JPanel title = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT, JBUI.scale(6), JBUI.scale(2)));
+        JPanel title = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT, JBUIScale.scale(6), JBUIScale.scale(2)));
         title.setOpaque(false);
         JBLabel name = new JBLabel("Lineage", DataformIcons.LINEAGE, SwingConstants.LEADING);
         name.setFont(name.getFont().deriveFont(java.awt.Font.BOLD));
@@ -158,7 +159,7 @@ public final class LineageProjectPanel extends JPanel {
         crumb.setForeground(UIUtil.getLabelDisabledForeground());
         title.add(crumb);
 
-        JPanel north = new JPanel(new BorderLayout(JBUI.scale(8), 0));
+        JPanel north = new JPanel(new BorderLayout(JBUIScale.scale(8), 0));
         north.setBorder(JBUI.Borders.compound(
                 JBUI.Borders.customLine(UIUtil.getBoundsColor(), 0, 0, 1, 0),
                 JBUI.Borders.empty(2, 6)));

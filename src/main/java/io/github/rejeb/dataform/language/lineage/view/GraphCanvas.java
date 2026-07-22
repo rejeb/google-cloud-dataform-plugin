@@ -18,6 +18,7 @@ package io.github.rejeb.dataform.language.lineage.view;
 
 import com.intellij.openapi.project.Project;
 import com.intellij.ui.JBColor;
+import com.intellij.ui.scale.JBUIScale;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
 import io.github.rejeb.dataform.language.lineage.graph.LineageNode;
@@ -398,10 +399,10 @@ public final class GraphCanvas extends JComponent {
     }
 
     private void paintMinimap(@NotNull Graphics2D g2) {
-        int mmW = JBUI.scale(180);
-        int mmH = JBUI.scale(120);
-        int margin = JBUI.scale(12);
-        int inset = JBUI.scale(4);
+        int mmW = JBUIScale.scale(180);
+        int mmH = JBUIScale.scale(120);
+        int margin = JBUIScale.scale(12);
+        int inset = JBUIScale.scale(4);
         int mx = getWidth() - mmW - margin;
         int my = getHeight() - mmH - margin;
 
@@ -540,7 +541,7 @@ public final class GraphCanvas extends JComponent {
     private int measureNodeWidth(@NotNull Set<String> visibleIds) {
         boolean comfortable = model.density() == Density.COMFORTABLE;
         int min = comfortable ? 180 : 160;
-        int max = JBUI.scale(460);
+        int max = JBUIScale.scale(460);
         var nameFm = getFontMetrics(monospace(comfortable ? 12f : 11f));
         var subFm = getFontMetrics(monospace(10f));
         int content = min;
@@ -583,7 +584,7 @@ public final class GraphCanvas extends JComponent {
     // ------------------------------------------------------------------
 
     private static @NotNull Font monospace(float size) {
-        return MonoFont.get().deriveFont(JBUI.scale(size));
+        return MonoFont.get().deriveFont(JBUIScale.scale(size));
     }
 
     private static @NotNull Color nodeBackground() {

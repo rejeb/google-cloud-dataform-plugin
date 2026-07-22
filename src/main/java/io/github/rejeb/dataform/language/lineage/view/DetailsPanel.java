@@ -20,6 +20,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBScrollPane;
 import com.intellij.ui.components.panels.VerticalLayout;
+import com.intellij.ui.scale.JBUIScale;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
 import io.github.rejeb.dataform.language.lineage.graph.LineageNode;
@@ -50,13 +51,13 @@ public final class DetailsPanel extends JPanel {
 
     private final Project project;
     private final LineageModel model;
-    private final JPanel content = new JPanel(new VerticalLayout(JBUI.scale(8)));
+    private final JPanel content = new JPanel(new VerticalLayout(JBUIScale.scale(8)));
 
     public DetailsPanel(@NotNull Project project, @NotNull LineageModel model) {
         super(new BorderLayout());
         this.project = project;
         this.model = model;
-        setPreferredSize(new Dimension(JBUI.scale(300), 0));
+        setPreferredSize(new Dimension(JBUIScale.scale(300), 0));
         content.setBorder(JBUI.Borders.empty(10));
         content.setBackground(UIUtil.getPanelBackground());
 
@@ -110,11 +111,11 @@ public final class DetailsPanel extends JPanel {
     }
 
     private JComponent metaRow(@NotNull String key, @NotNull String value) {
-        JPanel panel = new JPanel(new BorderLayout(JBUI.scale(8), 0));
+        JPanel panel = new JPanel(new BorderLayout(JBUIScale.scale(8), 0));
         panel.setOpaque(false);
         JBLabel k = new JBLabel(key);
         k.setForeground(UIUtil.getLabelDisabledForeground());
-        k.setPreferredSize(new Dimension(JBUI.scale(60), k.getPreferredSize().height));
+        k.setPreferredSize(new Dimension(JBUIScale.scale(60), k.getPreferredSize().height));
         panel.add(k, BorderLayout.WEST);
         JBLabel v = new JBLabel("<html>" + escape(value) + "</html>");
         panel.add(v, BorderLayout.CENTER);
@@ -122,7 +123,7 @@ public final class DetailsPanel extends JPanel {
     }
 
     private JComponent tagsRow(@NotNull LineageNode node) {
-        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT, JBUI.scale(4), JBUI.scale(2)));
+        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT, JBUIScale.scale(4), JBUIScale.scale(2)));
         panel.setOpaque(false);
         JBLabel k = new JBLabel("Tags");
         k.setForeground(UIUtil.getLabelDisabledForeground());
@@ -141,7 +142,7 @@ public final class DetailsPanel extends JPanel {
     }
 
     private JComponent actionButtons(@NotNull LineageNode node) {
-        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT, JBUI.scale(4), JBUI.scale(4)));
+        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT, JBUIScale.scale(4), JBUIScale.scale(4)));
         panel.setOpaque(false);
         boolean focused = node.id().equals(model.focusId());
         JButton focus = new JButton(focused ? "Exit focus" : "Focus on lineage");
@@ -188,7 +189,7 @@ public final class DetailsPanel extends JPanel {
             none.setAlignmentX(Component.LEFT_ALIGNMENT);
             panel.add(none);
         }
-        panel.add(Box.createVerticalStrut(JBUI.scale(4)));
+        panel.add(Box.createVerticalStrut(JBUIScale.scale(4)));
         return panel;
     }
 

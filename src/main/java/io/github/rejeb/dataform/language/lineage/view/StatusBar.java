@@ -17,6 +17,7 @@
 package io.github.rejeb.dataform.language.lineage.view;
 
 import com.intellij.ui.components.JBLabel;
+import com.intellij.ui.scale.JBUIScale;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
 import io.github.rejeb.dataform.language.lineage.graph.LineageNode;
@@ -45,7 +46,7 @@ public final class StatusBar extends JPanel {
         setBorder(JBUI.Borders.compound(
                 JBUI.Borders.customLine(UIUtil.getBoundsColor(), 1, 0, 0, 0),
                 JBUI.Borders.empty(2, 8)));
-        setPreferredSize(new Dimension(0, JBUI.scale(22)));
+        setPreferredSize(new Dimension(0, JBUIScale.scale(22)));
         left.setForeground(UIUtil.getLabelDisabledForeground());
         right.setForeground(UIUtil.getLabelDisabledForeground());
         add(left, BorderLayout.WEST);

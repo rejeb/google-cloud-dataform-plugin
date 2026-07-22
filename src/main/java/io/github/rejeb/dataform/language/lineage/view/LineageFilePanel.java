@@ -28,6 +28,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.ui.JBColor;
 import com.intellij.ui.components.JBLabel;
+import com.intellij.ui.scale.JBUIScale;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
 import io.github.rejeb.dataform.language.DataformIcons;
@@ -142,7 +143,7 @@ public final class LineageFilePanel extends JPanel {
                 .createActionToolbar("DataformFileLineageToolbar", group, true);
         toolbar.setTargetComponent(this);
 
-        JPanel title = new JPanel(new FlowLayout(FlowLayout.LEFT, JBUI.scale(6), JBUI.scale(2)));
+        JPanel title = new JPanel(new FlowLayout(FlowLayout.LEFT, JBUIScale.scale(6), JBUIScale.scale(2)));
         title.setOpaque(false);
         JBLabel name = new JBLabel("Lineage", DataformIcons.LINEAGE, SwingConstants.LEADING);
         name.setFont(name.getFont().deriveFont(Font.BOLD));
@@ -151,7 +152,7 @@ public final class LineageFilePanel extends JPanel {
         crumb.setForeground(UIUtil.getLabelDisabledForeground());
         title.add(crumb);
 
-        JPanel north = new JPanel(new BorderLayout(JBUI.scale(8), 0));
+        JPanel north = new JPanel(new BorderLayout(JBUIScale.scale(8), 0));
         north.setBorder(JBUI.Borders.compound(
                 JBUI.Borders.customLine(UIUtil.getBoundsColor(), 0, 0, 1, 0),
                 JBUI.Borders.empty(2, 6)));

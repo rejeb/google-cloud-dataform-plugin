@@ -21,6 +21,7 @@ import com.intellij.ui.components.JBCheckBox;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBScrollPane;
 import com.intellij.ui.components.panels.VerticalLayout;
+import com.intellij.ui.scale.JBUIScale;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
 import io.github.rejeb.dataform.language.lineage.graph.LineageNode;
@@ -70,7 +71,7 @@ public final class FiltersPanel extends JPanel {
     private final JPanel content = new JPanel(new VerticalLayout(0));
     private final Map<String, Boolean> sectionOpen = new HashMap<>();
     private String lastSignature;
-    private int contentWidth = JBUI.scale(240);
+    private int contentWidth = JBUIScale.scale(240);
 
     public FiltersPanel(@NotNull LineageModel model, @NotNull Runnable onFit) {
         super(new BorderLayout());
@@ -151,7 +152,7 @@ public final class FiltersPanel extends JPanel {
         Runnable clear = selected > 0 ? this::clearTags : null;
         Section section = new Section("Tags", selected > 0 ? String.valueOf(selected)
                 : String.valueOf(model.tagCounts().size()), clear);
-        JPanel chips = new JPanel(new WrapLayout(FlowLayout.LEFT, JBUI.scale(4), JBUI.scale(4)));
+        JPanel chips = new JPanel(new WrapLayout(FlowLayout.LEFT, JBUIScale.scale(4), JBUIScale.scale(4)));
         chips.setOpaque(false);
         model.tagCounts().entrySet().stream()
                 .sorted((a, b) -> b.getValue() - a.getValue())
@@ -187,7 +188,7 @@ public final class FiltersPanel extends JPanel {
         String focusId = model.focusId();
         if (focusId != null) {
             LineageNode node = model.graph().node(focusId);
-            JPanel card = new JPanel(new VerticalLayout(JBUI.scale(4)));
+            JPanel card = new JPanel(new VerticalLayout(JBUIScale.scale(4)));
             card.setBorder(BorderFactory.createCompoundBorder(
                     JBUI.Borders.customLine(UIUtil.getBoundsColor()), JBUI.Borders.empty(8)));
             card.setOpaque(false);
@@ -208,7 +209,7 @@ public final class FiltersPanel extends JPanel {
     }
 
     private JComponent legend() {
-        JPanel panel = new JPanel(new VerticalLayout(JBUI.scale(2)));
+        JPanel panel = new JPanel(new VerticalLayout(JBUIScale.scale(2)));
         panel.setOpaque(false);
         panel.setBorder(BorderFactory.createCompoundBorder(
                 JBUI.Borders.empty(12, 12, 0, 12),
@@ -217,7 +218,7 @@ public final class FiltersPanel extends JPanel {
                         JBUI.Borders.empty(8))));
         panel.add(dim("LEGEND"));
         for (String type : displayTypes()) {
-            JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, JBUI.scale(8), 0));
+            JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, JBUIScale.scale(8), 0));
             row.setOpaque(false);
             row.add(glyphLabel(GraphCanvas.glyphFor(type), GraphCanvas.typeColor(type)));
             row.add(new JBLabel(type));
@@ -232,11 +233,11 @@ public final class FiltersPanel extends JPanel {
 
     private JComponent checkRow(@Nullable String glyph, @Nullable Color glyphColor, @NotNull String label,
                                 int count, boolean checked, @NotNull Runnable onToggle, boolean mono) {
-        JPanel row = new JPanel(new BorderLayout(JBUI.scale(8), 0));
+        JPanel row = new JPanel(new BorderLayout(JBUIScale.scale(8), 0));
         row.setOpaque(false);
         row.setBorder(JBUI.Borders.empty(2, 4));
 
-        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, JBUI.scale(6), 0));
+        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, JBUIScale.scale(6), 0));
         left.setOpaque(false);
         JBCheckBox box = new JBCheckBox(null, checked);
         box.setOpaque(false);
@@ -281,19 +282,19 @@ public final class FiltersPanel extends JPanel {
     private static JBLabel glyphLabel(@NotNull String glyph, @NotNull Color color) {
         JBLabel label = new JBLabel(glyph);
         label.setForeground(color);
-        label.setFont(new Font(Font.MONOSPACED, Font.BOLD, JBUI.scaleFontSize(11f)));
+        label.setFont(new Font(Font.MONOSPACED, Font.BOLD, JBUIScale.scaleFontSize(11f)));
         return label;
     }
 
     private static JBLabel dim(@NotNull String text) {
         JBLabel label = new JBLabel(text);
         label.setForeground(UIUtil.getLabelDisabledForeground());
-        label.setFont(label.getFont().deriveFont(JBUI.scale(10f)));
+        label.setFont(label.getFont().deriveFont(JBUIScale.scale(10f)));
         return label;
     }
 
     private JBLabel hint(@NotNull String text) {
-        int wrap = Math.max(JBUI.scale(120), contentWidth - JBUI.scale(44));
+        int wrap = Math.max(JBUIScale.scale(120), contentWidth - JBUIScale.scale(44));
         JBLabel label = new JBLabel("<html><div width='" + wrap + "'>" + text + "</div></html>");
         label.setForeground(UIUtil.getLabelDisabledForeground());
         label.setBorder(JBUI.Borders.emptyTop(4));
@@ -353,30 +354,30 @@ public final class FiltersPanel extends JPanel {
         FontMetrics mono = getFontMetrics(new Font(Font.MONOSPACED, Font.PLAIN, base.getSize()));
         int text = 0;
 
-        int rowChrome = JBUI.scale(20 + 16 + 6 + 14);
+        int rowChrome = JBUIScale.scale(20 + 16 + 6 + 14);
         for (String type : displayTypes()) {
             text = Math.max(text, rowChrome + fm.stringWidth(type));
         }
         for (String schema : model.schemas()) {
-            text = Math.max(text, JBUI.scale(20 + 14) + mono.stringWidth(schema));
+            text = Math.max(text, JBUIScale.scale(20 + 14) + mono.stringWidth(schema));
         }
         for (Map.Entry<String, Integer> e : model.tagCounts().entrySet()) {
-            text = Math.max(text, mono.stringWidth(e.getKey() + "  " + e.getValue()) + JBUI.scale(26));
+            text = Math.max(text, mono.stringWidth(e.getKey() + "  " + e.getValue()) + JBUIScale.scale(26));
         }
         for (String title : new String[]{"Action types", "Tags", "Schemas", "Focus"}) {
-            text = Math.max(text, fm.stringWidth("▾  " + title) + JBUI.scale(60));
+            text = Math.max(text, fm.stringWidth("▾  " + title) + JBUIScale.scale(60));
         }
         for (String type : displayTypes()) {
-            text = Math.max(text, JBUI.scale(24) + fm.stringWidth(type));
+            text = Math.max(text, JBUIScale.scale(24) + fm.stringWidth(type));
         }
         String focusId = model.focusId();
         if (focusId != null) {
             LineageNode node = model.graph().node(focusId);
-            text = Math.max(text, JBUI.scale(24) + fm.stringWidth(node != null ? node.name() : focusId));
+            text = Math.max(text, JBUIScale.scale(24) + fm.stringWidth(node != null ? node.name() : focusId));
         }
 
-        int total = text + JBUI.scale(12 + 12 + 12);
-        return Math.max(JBUI.scale(MIN_WIDTH), Math.min(JBUI.scale(MAX_WIDTH), total));
+        int total = text + JBUIScale.scale(12 + 12 + 12);
+        return Math.max(JBUIScale.scale(MIN_WIDTH), Math.min(JBUIScale.scale(MAX_WIDTH), total));
     }
 
     // ------------------------------------------------------------------
@@ -384,7 +385,7 @@ public final class FiltersPanel extends JPanel {
     // ------------------------------------------------------------------
 
     private final class Section extends JPanel {
-        private final JPanel body = new JPanel(new VerticalLayout(JBUI.scale(2)));
+        private final JPanel body = new JPanel(new VerticalLayout(JBUIScale.scale(2)));
 
         Section(@NotNull String title, @Nullable String count, @Nullable Runnable onClear) {
             super(new BorderLayout());
@@ -396,7 +397,7 @@ public final class FiltersPanel extends JPanel {
             boolean open = sectionOpen.getOrDefault(title, true);
             body.setVisible(open);
 
-            JPanel head = new JPanel(new BorderLayout(JBUI.scale(6), 0));
+            JPanel head = new JPanel(new BorderLayout(JBUIScale.scale(6), 0));
             head.setOpaque(false);
             head.setBorder(JBUI.Borders.empty(8, 12));
             head.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
@@ -404,11 +405,11 @@ public final class FiltersPanel extends JPanel {
             JBLabel titleLabel = new JBLabel((open ? "▾  " : "▸  ") + title);
             head.add(titleLabel, BorderLayout.WEST);
 
-            JPanel east = new JPanel(new FlowLayout(FlowLayout.RIGHT, JBUI.scale(6), 0));
+            JPanel east = new JPanel(new FlowLayout(FlowLayout.RIGHT, JBUIScale.scale(6), 0));
             east.setOpaque(false);
             if (count != null) {
                 JBLabel countLabel = new JBLabel(count);
-                countLabel.setFont(monospace(countLabel.getFont()).deriveFont(JBUI.scale(10f)));
+                countLabel.setFont(monospace(countLabel.getFont()).deriveFont(JBUIScale.scale(10f)));
                 countLabel.setForeground(UIUtil.getLabelDisabledForeground());
                 east.add(countLabel);
             }
@@ -446,7 +447,7 @@ public final class FiltersPanel extends JPanel {
             this.active = active;
             this.onClick = onClick;
             setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-            setFont(new Font(Font.MONOSPACED, Font.PLAIN, JBUI.scaleFontSize(10.5f)));
+            setFont(new Font(Font.MONOSPACED, Font.PLAIN, JBUIScale.scaleFontSize(10.5f)));
             addMouseListener(new MouseAdapter() {
                 @Override
                 public void mouseClicked(MouseEvent e) {
@@ -460,7 +461,7 @@ public final class FiltersPanel extends JPanel {
         @Override
         public Dimension getPreferredSize() {
             int textW = getFontMetrics(getFont()).stringWidth(text);
-            return new Dimension(textW + JBUI.scale(26), JBUI.scale(20));
+            return new Dimension(textW + JBUIScale.scale(26), JBUIScale.scale(20));
         }
 
         @Override
@@ -479,15 +480,15 @@ public final class FiltersPanel extends JPanel {
                 g2.setColor(active ? accent() : UIUtil.getBoundsColor());
                 g2.drawRoundRect(0, 0, w - 1, h - 1, h, h);
 
-                int dot = JBUI.scale(6);
+                int dot = JBUIScale.scale(6);
                 int dy = (h - dot) / 2;
                 g2.setColor(active ? accent() : UIUtil.getLabelDisabledForeground());
-                g2.fillOval(JBUI.scale(8), dy, dot, dot);
+                g2.fillOval(JBUIScale.scale(8), dy, dot, dot);
 
                 g2.setColor(active ? UIUtil.getLabelForeground() : UIUtil.getLabelDisabledForeground());
                 g2.setFont(getFont());
                 FontMetrics fm = g2.getFontMetrics();
-                g2.drawString(text, JBUI.scale(8) + dot + JBUI.scale(5),
+                g2.drawString(text, JBUIScale.scale(8) + dot + JBUIScale.scale(5),
                         (h + fm.getAscent() - fm.getDescent()) / 2);
             } finally {
                 g2.dispose();

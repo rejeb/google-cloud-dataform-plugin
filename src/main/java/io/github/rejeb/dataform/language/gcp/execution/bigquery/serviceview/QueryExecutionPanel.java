@@ -34,6 +34,7 @@ import com.intellij.ui.HyperlinkLabel;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBScrollPane;
 import com.intellij.ui.components.JBTabbedPane;
+import com.intellij.ui.scale.JBUIScale;
 import com.intellij.util.ui.FormBuilder;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
@@ -147,14 +148,14 @@ public class QueryExecutionPanel extends JPanel {
         String message = result.errorMessage() != null ? result.errorMessage() : "Unknown error";
 
         JLabel titleLabel = new JLabel("Query execution failed", AllIcons.General.Error, SwingConstants.LEFT);
-        titleLabel.setFont(titleLabel.getFont().deriveFont(Font.BOLD, JBUI.scaleFontSize(13f)));
+        titleLabel.setFont(titleLabel.getFont().deriveFont(Font.BOLD, JBUIScale.scaleFontSize(13f)));
         titleLabel.setBorder(JBUI.Borders.empty(12, 12, 8, 12));
 
         JTextArea textArea = new JTextArea(message);
         textArea.setEditable(false);
         textArea.setLineWrap(true);
         textArea.setWrapStyleWord(false);
-        textArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, JBUI.scaleFontSize(12f)));
+        textArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, JBUIScale.scaleFontSize(12f)));
         textArea.setForeground(UIUtil.getErrorForeground());
         textArea.setBackground(UIUtil.getPanelBackground());
         textArea.setBorder(JBUI.Borders.empty(0, 12, 12, 12));

@@ -17,6 +17,7 @@
 package io.github.rejeb.dataform.language.lineage.view;
 
 import com.intellij.ui.JBColor;
+import com.intellij.ui.scale.JBUIScale;
 import com.intellij.util.ui.JBUI;
 import org.jetbrains.annotations.NotNull;
 
@@ -131,12 +132,12 @@ final class LineageIcons {
 
             @Override
             public int getIconWidth() {
-                return JBUI.scale(16);
+                return JBUIScale.scale(16);
             }
 
             @Override
             public int getIconHeight() {
-                return JBUI.scale(16);
+                return JBUIScale.scale(16);
             }
         };
     }
