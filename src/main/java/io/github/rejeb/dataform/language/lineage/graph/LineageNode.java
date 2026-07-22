@@ -19,20 +19,26 @@ package io.github.rejeb.dataform.language.lineage.graph;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.List;
+
 /**
  * Immutable representation of a table-level node in the Dataform lineage graph.
  *
  * @param id           unique identifier within the graph, derived from {@link #idOf}.
  * @param name         short name of the action (last segment of the FQN).
  * @param fullName     fully qualified name {@code project.dataset.table}.
- * @param dataformType Dataform action type: table, view, incremental, assertion, declaration, external…
+ * @param schema       dataset/schema the action belongs to.
+ * @param dataformType Dataform action type: table, view, incremental, operation, assertion, declaration, external…
+ * @param tags         Dataform tags declared on the action; empty when none.
  * @param fileName     project-relative path of the source SQLX file, {@code null} for external nodes.
  */
 public record LineageNode(
         @NotNull String id,
         @NotNull String name,
         @NotNull String fullName,
+        @NotNull String schema,
         @NotNull String dataformType,
+        @NotNull List<String> tags,
         @Nullable String fileName
 ) {
     public static @NotNull String idOf(@NotNull String fullName) {

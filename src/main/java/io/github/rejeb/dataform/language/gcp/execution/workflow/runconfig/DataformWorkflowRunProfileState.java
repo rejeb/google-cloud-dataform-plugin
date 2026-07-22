@@ -22,6 +22,8 @@ import com.intellij.execution.ExecutionResult;
 import com.intellij.execution.Executor;
 import com.intellij.execution.runners.ExecutionEnvironment;
 import com.intellij.execution.runners.ProgramRunner;
+import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
@@ -175,7 +177,8 @@ public class DataformWorkflowRunProfileState
         project.getMessageBus()
                 .syncPublisher(DataformGcpEvent.TOPIC)
                 .onWorkflowInvocationProgress(progress);
-        SwingUtilities.invokeLater(() -> console.updateProgress(progress));
+        ApplicationManager.getApplication().invokeLater(
+                () -> console.updateProgress(progress), ModalityState.nonModal());
     }
 
     @NotNull

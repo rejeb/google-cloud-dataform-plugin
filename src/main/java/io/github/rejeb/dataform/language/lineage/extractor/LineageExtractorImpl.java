@@ -18,6 +18,7 @@ package io.github.rejeb.dataform.language.lineage.extractor;
 
 import io.github.rejeb.dataform.language.compilation.model.CompiledAssertion;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
+import io.github.rejeb.dataform.language.compilation.model.CompiledOperation;
 import io.github.rejeb.dataform.language.compilation.model.CompiledTable;
 import io.github.rejeb.dataform.language.compilation.model.Declaration;
 import io.github.rejeb.dataform.language.compilation.model.Target;
@@ -25,10 +26,12 @@ import io.github.rejeb.dataform.language.lineage.graph.LineageGraph;
 import io.github.rejeb.dataform.language.lineage.graph.LineageNode;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.List;
+
 /**
  * Builds a table-level {@link LineageGraph} from a {@link CompiledGraph}.
  *
- * <p>Registers nodes for declarations, tables (all types), and assertions.
+ * <p>Registers nodes for declarations, tables (all types), operations, and assertions.
  * For each dependency that does not correspond to a known action, a placeholder
  * node of type {@code "external"} is created. Edges go from dependency to dependent
  * (A → B means "A feeds B").</p>
@@ -41,9 +44,11 @@ public final class LineageExtractorImpl implements LineageExtractor {
 
         registerDeclarations(builder, compiledGraph);
         registerTables(builder, compiledGraph);
+        registerOperations(builder, compiledGraph);
         registerAssertions(builder, compiledGraph);
 
         addTableEdges(builder, compiledGraph);
+        addOperationEdges(builder, compiledGraph);
         addAssertionEdges(builder, compiledGraph);
 
         return builder.build();
@@ -58,7 +63,9 @@ public final class LineageExtractorImpl implements LineageExtractor {
                     LineageNode.idOf(t.getFullName()),
                     t.getName(),
                     t.getFullName(),
+                    schemaOf(t),
                     "declaration",
+                    List.of(),
                     d.getFileName()));
         }
     }
@@ -72,8 +79,27 @@ public final class LineageExtractorImpl implements LineageExtractor {
                     LineageNode.idOf(t.getFullName()),
                     t.getName(),
                     t.getFullName(),
-                    table.getType(),
+                    schemaOf(t),
+                    tableType(table),
+                    tagsOf(table.getTags()),
                     table.getFileName()));
+        }
+    }
+
+    private void registerOperations(@NotNull LineageGraph.Builder builder,
+                                    @NotNull CompiledGraph graph) {
+        for (CompiledOperation operation : graph.getOperations()) {
+            if (!operation.isHasOutput()) continue;
+            Target t = operation.getTarget();
+            if (t == null || t.getFullName() == null) continue;
+            builder.addNode(new LineageNode(
+                    LineageNode.idOf(t.getFullName()),
+                    t.getName(),
+                    t.getFullName(),
+                    schemaOf(t),
+                    "operation",
+                    tagsOf(operation.getTags()),
+                    operation.getFileName()));
         }
     }
 
@@ -86,7 +112,9 @@ public final class LineageExtractorImpl implements LineageExtractor {
                     LineageNode.idOf(t.getFullName()),
                     t.getName(),
                     t.getFullName(),
+                    schemaOf(t),
                     "assertion",
+                    tagsOf(a.getTags()),
                     a.getFileName()));
         }
     }
@@ -94,28 +122,34 @@ public final class LineageExtractorImpl implements LineageExtractor {
     private void addTableEdges(@NotNull LineageGraph.Builder builder,
                                @NotNull CompiledGraph graph) {
         for (CompiledTable table : graph.getTables()) {
-            Target t = table.getTarget();
-            if (t == null || t.getFullName() == null) continue;
-            String targetId = LineageNode.idOf(t.getFullName());
-            for (Target dep : table.getDependencyTargets()) {
-                if (dep.getFullName() == null) continue;
-                ensureNode(builder, dep);
-                builder.addEdge(LineageNode.idOf(dep.getFullName()), targetId);
-            }
+            addEdges(builder, table.getTarget(), table.getDependencyTargets());
+        }
+    }
+
+    private void addOperationEdges(@NotNull LineageGraph.Builder builder,
+                                   @NotNull CompiledGraph graph) {
+        for (CompiledOperation operation : graph.getOperations()) {
+            if (!operation.isHasOutput()) continue;
+            addEdges(builder, operation.getTarget(), operation.getDependencyTargets());
         }
     }
 
     private void addAssertionEdges(@NotNull LineageGraph.Builder builder,
                                    @NotNull CompiledGraph graph) {
         for (CompiledAssertion assertion : graph.getAssertions()) {
-            Target t = assertion.getTarget();
-            if (t == null || t.getFullName() == null) continue;
-            String targetId = LineageNode.idOf(t.getFullName());
-            for (Target dep : assertion.getDependencyTargets()) {
-                if (dep.getFullName() == null) continue;
-                ensureNode(builder, dep);
-                builder.addEdge(LineageNode.idOf(dep.getFullName()), targetId);
-            }
+            addEdges(builder, assertion.getTarget(), assertion.getDependencyTargets());
+        }
+    }
+
+    private void addEdges(@NotNull LineageGraph.Builder builder,
+                          Target target,
+                          @NotNull List<Target> dependencies) {
+        if (target == null || target.getFullName() == null) return;
+        String targetId = LineageNode.idOf(target.getFullName());
+        for (Target dep : dependencies) {
+            if (dep.getFullName() == null) continue;
+            ensureNode(builder, dep);
+            builder.addEdge(LineageNode.idOf(dep.getFullName()), targetId);
         }
     }
 
@@ -124,7 +158,24 @@ public final class LineageExtractorImpl implements LineageExtractor {
                 LineageNode.idOf(dep.getFullName()),
                 dep.getName(),
                 dep.getFullName(),
+                schemaOf(dep),
                 "external",
+                List.of(),
                 null));
+    }
+
+    private static @NotNull String tableType(@NotNull CompiledTable table) {
+        String enumType = table.getEnumType();
+        if (enumType != null && !enumType.isBlank()) return enumType;
+        return table.isMaterialized() ? "materialized_view" : "table";
+    }
+
+    private static @NotNull String schemaOf(@NotNull Target target) {
+        String schema = target.getSchema();
+        return schema != null && !schema.isBlank() ? schema : "default";
+    }
+
+    private static @NotNull List<String> tagsOf(List<String> tags) {
+        return tags != null ? List.copyOf(tags) : List.of();
     }
 }

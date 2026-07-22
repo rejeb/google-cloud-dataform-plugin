@@ -16,36 +16,24 @@
  */
 package io.github.rejeb.dataform.language.lineage.view;
 
-import com.intellij.openapi.fileEditor.FileEditor;
-import com.intellij.openapi.fileEditor.FileEditorPolicy;
-import com.intellij.openapi.fileEditor.FileEditorProvider;
+import com.intellij.ide.FileIconProvider;
 import com.intellij.openapi.project.DumbAware;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
+import io.github.rejeb.dataform.language.DataformIcons;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+import javax.swing.Icon;
 
 /**
- * Provides a {@link LineageFileEditor} for {@link LineageProjectVirtualFile} instances.
+ * Gives the project-wide lineage editor tab the Dataform lineage icon instead of the
+ * default plain-text one.
  */
-public final class LineageFileEditorProvider implements FileEditorProvider, DumbAware {
+public final class LineageFileIconProvider implements FileIconProvider, DumbAware {
 
     @Override
-    public boolean accept(@NotNull Project project, @NotNull VirtualFile file) {
-        return file instanceof LineageProjectVirtualFile;
-    }
-
-    @Override
-    public @NotNull FileEditor createEditor(@NotNull Project project, @NotNull VirtualFile file) {
-        return new LineageFileEditor(project, file);
-    }
-
-    @Override
-    public @NotNull String getEditorTypeId() {
-        return "dataform-lineage-view";
-    }
-
-    @Override
-    public @NotNull FileEditorPolicy getPolicy() {
-        return FileEditorPolicy.HIDE_DEFAULT_EDITOR;
+    public @Nullable Icon getIcon(@NotNull VirtualFile file, int flags, @Nullable Project project) {
+        return file instanceof LineageProjectVirtualFile ? DataformIcons.LINEAGE : null;
     }
 }

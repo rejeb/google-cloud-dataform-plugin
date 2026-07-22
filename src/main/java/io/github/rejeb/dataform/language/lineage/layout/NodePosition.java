@@ -14,8 +14,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.rejeb.dataform.language.fileEditor.lineage;
+package io.github.rejeb.dataform.language.lineage.layout;
 
-public enum LineageNodeType {
-    SOURCE, TARGET, DEPENDENT
+import org.jetbrains.annotations.NotNull;
+
+/**
+ * Top-left position (in world coordinates) and layer index of a laid-out node.
+ */
+public record NodePosition(@NotNull String id, double x, double y, int layer) {
 }

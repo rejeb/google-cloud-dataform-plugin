@@ -179,14 +179,7 @@ public class SqlxSqlfluffFormatter {
         if (formatted == null) return null;
         String leading = leadingWhitespace(original);
         String trailing = trailingWhitespace(original);
-        String result = formatted;
-        if (!leading.isEmpty() && !result.startsWith(leading)) {
-            result = leading + result.stripLeading();
-        }
-        if (!trailing.isEmpty() && !result.endsWith(trailing)) {
-            result = result.stripTrailing() + trailing;
-        }
-        return result;
+        return leading + formatted.strip() + trailing;
     }
 
     private static String leadingWhitespace(String text) {

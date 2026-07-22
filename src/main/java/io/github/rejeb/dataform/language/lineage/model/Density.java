@@ -14,23 +14,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.rejeb.dataform.language;
+package io.github.rejeb.dataform.language.lineage.model;
 
-import com.intellij.icons.AllIcons;
-import com.intellij.openapi.util.IconLoader;
-import com.intellij.ui.JBColor;
-import com.intellij.util.IconUtil;
-
-import javax.swing.*;
-
-public class DataformIcons {
-    public static final Icon FILE = IconLoader.getIcon(
-            "/icons/dataformFile.png",
-            DataformIcons.class
-    );
-
-    public static final Icon LINEAGE = IconUtil.colorize(
-            AllIcons.CodeWithMe.CwmShared,
-            JBColor.BLUE
-    );
+/**
+ * Node rendering density: compact or comfortable.
+ */
+public enum Density {
+    COMPACT,
+    COMFORTABLE
 }

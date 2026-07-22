@@ -64,4 +64,39 @@ public class RunSqlxHelper {
         ProgramRunnerUtil.executeConfiguration(settings,
                 executorById != null ? executorById : new DefaultRunExecutor());
     }
+
+    /**
+     * Runs a single Dataform action identified by its fully-qualified target
+     * ({@code database.schema.name}), without dependencies or dependents.
+     */
+    public static void launchAction(@NotNull Project project,
+                                    @NotNull String targetFullName,
+                                    @NotNull String configName) {
+        RunManager runManager = RunManager.getInstance(project);
+        DataformWorkflowConfigurationType type = ConfigurationTypeUtil.findConfigurationType(
+                DataformWorkflowConfigurationType.class);
+        DataformWorkflowConfigurationFactory factory =
+                (DataformWorkflowConfigurationFactory) type.getConfigurationFactories()[0];
+        RunnerAndConfigurationSettings settings =
+                runManager.createConfiguration(configName, factory);
+        DataformWorkflowRunConfiguration config =
+                (DataformWorkflowRunConfiguration) settings.getConfiguration();
+        GcpRepositorySettings gcpRepositorySettings = GcpRepositorySettings.getInstance(project);
+        config.setWorkspaceId(gcpRepositorySettings.getSelectedWorkspaceId());
+        config.setSelectedMode(Mode.ACTIONS);
+        config.setIncludedTargets(java.util.List.of(targetFullName));
+        config.setTransitiveDependenciesIncluded(false);
+        config.setTransitiveDependentsIncluded(false);
+        config.setFullyRefreshIncrementalTables(false);
+
+        runManager.addConfiguration(settings);
+        runManager.setSelectedConfiguration(settings);
+        settings.setTemporary(true);
+        settings.setEditBeforeRun(false);
+        settings.setActivateToolWindowBeforeRun(true);
+        Executor executorById = ExecutorRegistry.getInstance()
+                .getExecutorById(DefaultRunExecutor.EXECUTOR_ID);
+        ProgramRunnerUtil.executeConfiguration(settings,
+                executorById != null ? executorById : new DefaultRunExecutor());
+    }
 }

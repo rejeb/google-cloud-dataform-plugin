@@ -20,15 +20,19 @@ import com.intellij.openapi.fileEditor.FileEditor;
 import com.intellij.openapi.fileEditor.FileEditorState;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Key;
-import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
-import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
-import io.github.rejeb.dataform.language.lineage.extractor.LineageExtractorImpl;
-import io.github.rejeb.dataform.language.lineage.graph.LineageGraph;
+import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.openapi.vfs.VirtualFileManager;
+import com.intellij.openapi.vfs.newvfs.BulkFileListener;
+import com.intellij.openapi.vfs.newvfs.events.VFileEvent;
+import com.intellij.util.messages.MessageBusConnection;
+import io.github.rejeb.dataform.language.lineage.model.LineageModel;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.JComponent;
+import javax.swing.Timer;
 import java.beans.PropertyChangeListener;
+import java.util.List;
 
 /**
  * File editor hosting the project-wide {@link LineageProjectPanel}.
@@ -37,20 +41,42 @@ import java.beans.PropertyChangeListener;
 public final class LineageFileEditor implements FileEditor {
 
     private final Project project;
+    private final VirtualFile file;
+    private final LineageModel model;
     private final LineageProjectPanel panel;
+    private final MessageBusConnection connection;
+    private final Timer debounce;
 
-    public LineageFileEditor(@NotNull Project project) {
+    public LineageFileEditor(@NotNull Project project, @NotNull VirtualFile file) {
         this.project = project;
-        this.panel = new LineageProjectPanel(project);
+        this.file = file;
+        this.model = new LineageModel(project);
+        this.panel = new LineageProjectPanel(project, model);
+
+        this.debounce = new Timer(300, e -> panel.refresh(true));
+        this.debounce.setRepeats(false);
+
+        this.connection = project.getMessageBus().connect();
+        this.connection.subscribe(VirtualFileManager.VFS_CHANGES, new BulkFileListener() {
+            @Override
+            public void after(@NotNull List<? extends VFileEvent> events) {
+                boolean sqlxChanged = events.stream().anyMatch(event -> {
+                    String path = event.getPath();
+                    return path.endsWith(".sqlx") || path.endsWith(".js");
+                });
+                if (sqlxChanged) debounce.restart();
+            }
+        });
+    }
+
+    @Override
+    public @NotNull VirtualFile getFile() {
+        return file;
     }
 
     @Override
     public void selectNotify() {
-        CompiledGraph compiledGraph = DataformCompilationService.getInstance(project).getCompiledGraph();
-        LineageGraph graph = compiledGraph != null
-                ? new LineageExtractorImpl().extract(compiledGraph)
-                : null;
-        panel.setGraph(graph);
+        panel.refresh(false);
     }
 
     @Override
@@ -92,6 +118,8 @@ public final class LineageFileEditor implements FileEditor {
 
     @Override
     public void dispose() {
+        debounce.stop();
+        connection.disconnect();
     }
 
     @Override

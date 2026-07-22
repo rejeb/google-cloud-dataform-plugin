@@ -273,6 +273,13 @@ public class SqlxFileLexer extends LexerBase {
             return;
         }
 
+        if (braceDepth == 1 && Character.isWhitespace(first) && whitespaceRunEndsAtBrace(currentPosition)) {
+            skipWhitespace();
+            currentTokenType = TokenType.WHITE_SPACE;
+            currentTokenEnd = currentPosition;
+            return;
+        }
+
         if (braceDepth == 0 && first == '{') {
             braceDepth = 1;
             currentPosition++;
@@ -307,8 +314,14 @@ public class SqlxFileLexer extends LexerBase {
             } else if (c == '}') {
                 if (braceDepth == 1) {
                     if (currentPosition > start) {
+                        int contentEnd = currentPosition;
+                        while (contentEnd > start
+                                && Character.isWhitespace(buffer.charAt(contentEnd - 1))) {
+                            contentEnd--;
+                        }
                         currentTokenType = tokenType;
-                        currentTokenEnd = currentPosition;
+                        currentTokenEnd = contentEnd > start ? contentEnd : currentPosition;
+                        currentPosition = currentTokenEnd;
                         return;
                     }
                     braceDepth = 0;
@@ -497,5 +510,13 @@ public class SqlxFileLexer extends LexerBase {
                 Character.isWhitespace(buffer.charAt(currentPosition))) {
             currentPosition++;
         }
+    }
+
+    private boolean whitespaceRunEndsAtBrace(int position) {
+        int p = position;
+        while (p < endOffset && Character.isWhitespace(buffer.charAt(p))) {
+            p++;
+        }
+        return p < endOffset && buffer.charAt(p) == '}';
     }
 }

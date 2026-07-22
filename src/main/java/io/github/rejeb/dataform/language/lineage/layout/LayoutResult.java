@@ -14,23 +14,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.rejeb.dataform.language;
+package io.github.rejeb.dataform.language.lineage.layout;
 
-import com.intellij.icons.AllIcons;
-import com.intellij.openapi.util.IconLoader;
-import com.intellij.ui.JBColor;
-import com.intellij.util.IconUtil;
+import org.jetbrains.annotations.NotNull;
 
-import javax.swing.*;
+import java.awt.geom.Rectangle2D;
+import java.util.Map;
 
-public class DataformIcons {
-    public static final Icon FILE = IconLoader.getIcon(
-            "/icons/dataformFile.png",
-            DataformIcons.class
-    );
-
-    public static final Icon LINEAGE = IconUtil.colorize(
-            AllIcons.CodeWithMe.CwmShared,
-            JBColor.BLUE
-    );
+/**
+ * Result of a DAG layout pass: node positions, the enclosing bounds, and the node size used.
+ */
+public record LayoutResult(
+        @NotNull Map<String, NodePosition> positions,
+        @NotNull Rectangle2D.Double bounds,
+        int nodeW,
+        int nodeH
+) {
 }

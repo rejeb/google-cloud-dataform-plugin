@@ -42,8 +42,6 @@ import com.intellij.openapi.util.Key;
 import com.intellij.openapi.util.ThrowableComputable;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.sql.SqlFileType;
-import com.intellij.ui.JBColor;
-import com.intellij.util.IconUtil;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
 import icons.DatabaseIcons;
@@ -52,7 +50,9 @@ import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.compilation.model.CompiledQuery;
 import io.github.rejeb.dataform.language.fileEditor.lineage.LineageGraph;
 import io.github.rejeb.dataform.language.fileEditor.lineage.LineageGraphHelper;
-import io.github.rejeb.dataform.language.fileEditor.lineage.LineagePanel;
+import io.github.rejeb.dataform.language.DataformIcons;
+import io.github.rejeb.dataform.language.lineage.extractor.LineageExtractorImpl;
+import io.github.rejeb.dataform.language.lineage.view.LineageFilePanel;
 import io.github.rejeb.dataform.language.gcp.execution.bigquery.BigQueryExecutionService;
 import io.github.rejeb.dataform.language.gcp.execution.bigquery.BigQueryJobResult;
 import io.github.rejeb.dataform.language.gcp.execution.bigquery.QueryResultsRegistry;
@@ -76,7 +76,7 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
 
     private final JPanel mainPanel = new JPanel(new CardLayout());
     private final SchemaPanel schemaPanel;
-    private final LineagePanel lineagePanel;
+    private final LineageFilePanel lineagePanel;
     private final QueryPanel queryPanel;
     private final Project project;
     private final VirtualFile file;
@@ -86,13 +86,12 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
         this.project = project;
         this.file = file;
         schemaPanel = new SchemaPanel(project);
-        lineagePanel = new LineagePanel(project);
+        lineagePanel = new LineageFilePanel(project, file);
         queryPanel = new QueryPanel(project, resolveFileType(file));
 
         mainPanel.setOpaque(true);
         mainPanel.setBackground(UIUtil.getPanelBackground());
-        mainPanel.add(withHeader("Lineage", IconUtil.colorize(AllIcons.CodeWithMe.CwmShared, JBColor.BLUE),
-                lineagePanel), View.LINEAGE.name());
+        mainPanel.add(withHeader("Lineage", DataformIcons.LINEAGE, lineagePanel), View.LINEAGE.name());
         mainPanel.add(withHeader("Query", DatabaseIcons.Sql, queryPanel), View.QUERY.name());
         mainPanel.add(withHeader("Schema", AllIcons.Nodes.DataTables, schemaPanel), View.SCHEMA.name());
 
@@ -109,6 +108,7 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
         ProgressManager.getInstance().run(new Task.Backgroundable(project, "Dataform: compiling", true) {
             private List<FormattedCompiledQuery> compiledQueries;
             private List<LineageGraph> lineageGraphs;
+            private io.github.rejeb.dataform.language.lineage.graph.LineageGraph fileLineage;
 
             @Override
             public void run(@NotNull ProgressIndicator indicator) {
@@ -126,6 +126,7 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
                                             .toList()
                     );
                     lineageGraphs = LineageGraphHelper.buildGraph(graph, path);
+                    fileLineage = new LineageExtractorImpl().extract(graph);
                 }
                 if (graph != null && (graph.getGraphErrors() == null
                         || graph.getGraphErrors().getCompilationErrors().isEmpty())) {
@@ -139,7 +140,7 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
                 ApplicationManager.getApplication().invokeLater(() -> {
                     schemaPanel.setContent(lineageGraphs);
                     queryPanel.setContent(compiledQueries);
-                    lineagePanel.setData(lineageGraphs);
+                    lineagePanel.setLineage(fileLineage);
                     mainPanel.revalidate();
                 }, ModalityState.nonModal());
             }
