@@ -64,6 +64,13 @@ public class DataformDasColumn extends LightElement implements DasColumn, DasSym
         return myInfo.name();
     }
 
+    /**
+     * Returns the schema information backing this column.
+     */
+    public @NotNull ColumnInfo getColumnInfo() {
+        return myInfo;
+    }
+
     @Override
     public @NotNull String toString() {
         return myInfo.name();
@@ -114,7 +121,7 @@ public class DataformDasColumn extends LightElement implements DasColumn, DasSym
 
             @Override
             public String getLocationString() {
-                return myParent != null ? myParent.getName() : null;
+                return null;
             }
 
             @Override

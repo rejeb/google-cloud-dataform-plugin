@@ -153,7 +153,7 @@ public class DataformDasTable extends LightElement implements DasTable, DasSymbo
     public @NotNull JBIterable<? extends DasObject> getDasChildren(@Nullable ObjectKind kind) {
         if (kind == ObjectKind.COLUMN) {
             return JBIterable.from(myColumns)
-                    .map(col -> new DataformDasColumn(getManager(), null, col, getContainingFile()));
+                    .map(col -> new DataformDasColumn(getManager(), this, col, getContainingFile()));
         }
         return JBIterable.empty();
     }

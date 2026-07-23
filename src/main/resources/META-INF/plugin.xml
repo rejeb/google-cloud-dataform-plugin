@@ -88,6 +88,10 @@
                 serviceImplementation="io.github.rejeb.dataform.language.settings.DataformToolsSettingsImpl"/>
 
         <applicationService
+                serviceInterface="io.github.rejeb.dataform.language.documentation.bigquery.BigQueryFunctionDocService"
+                serviceImplementation="io.github.rejeb.dataform.language.documentation.bigquery.BigQueryFunctionDocServiceImpl"/>
+
+        <applicationService
                 serviceInterface="io.github.rejeb.dataform.language.gcp.auth.DataformAuthState"
                 serviceImplementation="io.github.rejeb.dataform.language.gcp.auth.DataformAuthStateImpl"/>
         <applicationService
@@ -105,9 +109,11 @@
                 icon="/icons/dataform-panel.png"/>
         <sql.resolveExtension
                 implementation="io.github.rejeb.dataform.language.schema.sql.DataformSqlResolveExtension"/>
+        <sql.resolveExtension
+                implementation="io.github.rejeb.dataform.language.schema.sql.DataformSqlVariableResolveExtension"/>
 
-        <daemon.highlightInfoFilter
-                implementation="io.github.rejeb.dataform.language.highlight.SqlxHighlightInfoFilter"/>
+<!--        <daemon.highlightInfoFilter-->
+<!--                implementation="io.github.rejeb.dataform.language.highlight.SqlxHighlightInfoFilter"/>-->
         <facetType implementation="io.github.rejeb.dataform.language.projectWizard.DataformFacetType"/>
         <framework.detector implementation="io.github.rejeb.dataform.language.projectWizard.DataformFrameworkDetector"/>
         <projectTaskRunner
@@ -155,6 +161,13 @@
         <multiHostInjector
                 implementation="io.github.rejeb.dataform.language.injection.SqlxTemplateInjector"/>
 
+        <multiHostInjector order="first" id="dataformJsQueryInjector"
+                implementation="io.github.rejeb.dataform.language.injection.SqlxJsQueryInjector"/>
+
+        <completion.contributor
+                language="JavaScript"
+                implementationClass="io.github.rejeb.dataform.language.completion.DataformRefCompletionContributor"/>
+
         <completion.contributor
                 language="JavaScript"
                 implementationClass="io.github.rejeb.dataform.language.completion.DataformJsSymbolCompletionContributor"/>
@@ -166,6 +179,15 @@
         <completion.contributor
                 language="SQL"
                 implementationClass="io.github.rejeb.dataform.language.completion.SqlxKeywordCompletionContributor"/>
+
+        <platform.backend.documentation.targetProvider
+                implementation="io.github.rejeb.dataform.language.documentation.DataformRefDocumentationTargetProvider"/>
+
+        <platform.backend.documentation.targetProvider order="first"
+                implementation="io.github.rejeb.dataform.language.documentation.bigquery.BigQueryFunctionDocumentationTargetProvider"/>
+
+        <platform.backend.documentation.psiTargetProvider
+                implementation="io.github.rejeb.dataform.language.documentation.DataformDasDocumentationTargetProvider"/>
 
         <psi.referenceContributor
                 language="JavaScript"

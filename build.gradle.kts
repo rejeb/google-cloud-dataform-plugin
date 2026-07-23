@@ -77,5 +77,6 @@ sourceSets{
 
 tasks.test {
     useJUnitPlatform()
+    systemProperty("idea.suppressed.plugins.id", "org.jetbrains.plugins.vue")
 }
 
