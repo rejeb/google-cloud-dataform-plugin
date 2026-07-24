@@ -112,8 +112,8 @@
         <sql.resolveExtension
                 implementation="io.github.rejeb.dataform.language.schema.sql.DataformSqlVariableResolveExtension"/>
 
-<!--        <daemon.highlightInfoFilter-->
-<!--                implementation="io.github.rejeb.dataform.language.highlight.SqlxHighlightInfoFilter"/>-->
+        <daemon.highlightInfoFilter
+                implementation="io.github.rejeb.dataform.language.highlight.SqlxHighlightInfoFilter"/>
         <facetType implementation="io.github.rejeb.dataform.language.projectWizard.DataformFacetType"/>
         <framework.detector implementation="io.github.rejeb.dataform.language.projectWizard.DataformFrameworkDetector"/>
         <projectTaskRunner

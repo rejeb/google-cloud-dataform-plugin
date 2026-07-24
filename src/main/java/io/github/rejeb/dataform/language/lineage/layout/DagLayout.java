@@ -31,6 +31,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.ToIntFunction;
 
 /**
  * Sugiyama-style layered layout for the lineage DAG. Nodes are assigned to layers by
@@ -64,6 +65,21 @@ public final class DagLayout {
                                                 @NotNull Direction direction,
                                                 @NotNull Density density,
                                                 int nodeW) {
+        return compute(graph, visibleIds, direction, density, nodeW, id -> 0);
+    }
+
+    /**
+     * Same as {@link #compute(LineageGraph, Set, Direction, Density, int)} but reserves, per
+     * node, {@code extraVerticalHeight} additional pixels below the node along the vertical
+     * (screen {@code y}) axis, so a column list drawn below a node does not overlap the node
+     * beneath it. Each node only reserves the space its own list needs.
+     */
+    public static @NotNull LayoutResult compute(@NotNull LineageGraph graph,
+                                                @NotNull Set<String> visibleIds,
+                                                @NotNull Direction direction,
+                                                @NotNull Density density,
+                                                int nodeW,
+                                                @NotNull ToIntFunction<String> extraVerticalHeight) {
         int nodeH = density == Density.COMPACT ? 30 : 44;
         int layerGap = direction == Direction.TB ? 60 : 90;
         int rowGap = density == Density.COMPACT ? 14 : 22;
@@ -110,28 +126,72 @@ public final class DagLayout {
             }
         }
 
-        int alongNode = direction == Direction.TB ? nodeH : nodeW;
-        int acrossNode = direction == Direction.TB ? nodeW : nodeH;
-
-        Map<String, NodePosition> positions = new LinkedHashMap<>();
-        int maxRows = layers.stream().mapToInt(List::size).max().orElse(0);
-        double totalAcross = maxRows * acrossNode + (double) (maxRows - 1) * rowGap;
-
-        for (int layerIdx = 0; layerIdx < layers.size(); layerIdx++) {
-            List<String> lay = layers.get(layerIdx);
-            double layerAcross = lay.size() * acrossNode + (double) (lay.size() - 1) * rowGap;
-            double acrossStart = (totalAcross - layerAcross) / 2.0;
-            for (int i = 0; i < lay.size(); i++) {
-                String id = lay.get(i);
-                double along = layerIdx * (alongNode + (double) layerGap);
-                double across = acrossStart + i * (acrossNode + (double) rowGap);
-                double x = direction == Direction.TB ? across : along;
-                double y = direction == Direction.TB ? along : across;
-                positions.put(id, new NodePosition(id, x, y, layerIdx));
-            }
-        }
+        Map<String, NodePosition> positions = direction == Direction.TB
+                ? layoutTopToBottom(layers, nodeW, nodeH, layerGap, rowGap, extraVerticalHeight)
+                : layoutLeftToRight(layers, nodeW, nodeH, layerGap, rowGap, extraVerticalHeight);
 
         return new LayoutResult(positions, computeBounds(positions, nodeW, nodeH), nodeW, nodeH);
+    }
+
+    /**
+     * Left-to-right: layers advance along {@code x}; within a layer nodes stack along the
+     * vertical {@code y} axis, each consuming {@code nodeH + its column-list height}, so a
+     * node reserves only the space its own list needs.
+     */
+    private static @NotNull Map<String, NodePosition> layoutLeftToRight(
+            @NotNull List<List<String>> layers, int nodeW, int nodeH, int layerGap, int rowGap,
+            @NotNull ToIntFunction<String> extraVerticalHeight) {
+        double totalAcross = 0;
+        for (List<String> lay : layers) {
+            totalAcross = Math.max(totalAcross, layerVerticalExtent(lay, nodeH, rowGap, extraVerticalHeight));
+        }
+        Map<String, NodePosition> positions = new LinkedHashMap<>();
+        for (int layerIdx = 0; layerIdx < layers.size(); layerIdx++) {
+            List<String> lay = layers.get(layerIdx);
+            double along = layerIdx * (nodeW + (double) layerGap);
+            double cursor = (totalAcross - layerVerticalExtent(lay, nodeH, rowGap, extraVerticalHeight)) / 2.0;
+            for (String id : lay) {
+                positions.put(id, new NodePosition(id, along, cursor, layerIdx));
+                cursor += nodeH + extraVerticalHeight.applyAsInt(id) + rowGap;
+            }
+        }
+        return positions;
+    }
+
+    /**
+     * Top-to-bottom: layers advance along the vertical {@code y} axis; within a layer nodes
+     * stack along {@code x}. Because the list extends into the next layer, each layer's gap
+     * grows by the tallest column list in it.
+     */
+    private static @NotNull Map<String, NodePosition> layoutTopToBottom(
+            @NotNull List<List<String>> layers, int nodeW, int nodeH, int layerGap, int rowGap,
+            @NotNull ToIntFunction<String> extraVerticalHeight) {
+        int maxRows = layers.stream().mapToInt(List::size).max().orElse(0);
+        double totalAcross = maxRows * nodeW + (double) (maxRows - 1) * rowGap;
+        Map<String, NodePosition> positions = new LinkedHashMap<>();
+        double alongCursor = 0;
+        for (int layerIdx = 0; layerIdx < layers.size(); layerIdx++) {
+            List<String> lay = layers.get(layerIdx);
+            double layerAcross = lay.size() * nodeW + (double) (lay.size() - 1) * rowGap;
+            double acrossStart = (totalAcross - layerAcross) / 2.0;
+            int maxExtra = 0;
+            for (int i = 0; i < lay.size(); i++) {
+                String id = lay.get(i);
+                double across = acrossStart + i * (nodeW + (double) rowGap);
+                positions.put(id, new NodePosition(id, across, alongCursor, layerIdx));
+                maxExtra = Math.max(maxExtra, extraVerticalHeight.applyAsInt(id));
+            }
+            alongCursor += nodeH + maxExtra + layerGap;
+        }
+        return positions;
+    }
+
+    private static double layerVerticalExtent(@NotNull List<String> layer, int nodeH, int rowGap,
+                                              @NotNull ToIntFunction<String> extraVerticalHeight) {
+        if (layer.isEmpty()) return 0;
+        double extent = (layer.size() - 1) * (double) rowGap;
+        for (String id : layer) extent += nodeH + extraVerticalHeight.applyAsInt(id);
+        return extent;
     }
 
     private static int longestPathLayer(@NotNull String id,

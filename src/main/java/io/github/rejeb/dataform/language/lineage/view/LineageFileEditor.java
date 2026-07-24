@@ -26,6 +26,7 @@ import com.intellij.openapi.vfs.newvfs.BulkFileListener;
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent;
 import com.intellij.util.messages.MessageBusConnection;
 import io.github.rejeb.dataform.language.lineage.model.LineageModel;
+import io.github.rejeb.dataform.language.schema.sql.DataformSchemaEvent;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -67,6 +68,7 @@ public final class LineageFileEditor implements FileEditor {
                 if (sqlxChanged) debounce.restart();
             }
         });
+        this.connection.subscribe(DataformSchemaEvent.TOPIC, (DataformSchemaEvent) () -> panel.refresh(false));
     }
 
     @Override

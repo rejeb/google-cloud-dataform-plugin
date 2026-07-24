@@ -21,6 +21,9 @@ import com.intellij.ui.JBColor;
 import com.intellij.ui.scale.JBUIScale;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
+import io.github.rejeb.dataform.language.lineage.column.ColumnEdge;
+import io.github.rejeb.dataform.language.lineage.column.ColumnLineageGraph;
+import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
 import io.github.rejeb.dataform.language.lineage.graph.LineageNode;
 import io.github.rejeb.dataform.language.lineage.layout.DagLayout;
 import io.github.rejeb.dataform.language.lineage.layout.LayoutResult;
@@ -34,7 +37,6 @@ import org.jetbrains.annotations.Nullable;
 import javax.swing.JComponent;
 import javax.swing.JPopupMenu;
 import javax.swing.SwingUtilities;
-import javax.swing.ToolTipManager;
 import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
 import java.awt.Color;
@@ -50,7 +52,13 @@ import java.awt.datatransfer.StringSelection;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseWheelEvent;
+import java.awt.Rectangle;
 import java.awt.geom.Path2D;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -71,9 +79,23 @@ public final class GraphCanvas extends JComponent {
     private static final int FIT_PAD = 60;
     private static final double FIT_MAX_ZOOM = 1.4;
     private static final float DIM_ALPHA = 0.28f;
+    private static final int COLUMN_ROW_H = 16;
+    private static final int MAX_COLUMN_LIST_ROWS = 12;
 
     private final LineageModel model;
     private final Project project;
+
+    private final Map<String, Rectangle> columnRowBounds = new LinkedHashMap<>();
+    private final Map<String, Rectangle> columnListBoundsByNode = new LinkedHashMap<>();
+    private final Map<String, Integer> columnScroll = new LinkedHashMap<>();
+    private final Map<String, Integer> columnColorIndex = new LinkedHashMap<>();
+    private @Nullable String hoverColumnId;
+    private boolean lastColumnSelected;
+
+    private static final int COLUMN_HOVER_DELAY_MS = 1000;
+    private final javax.swing.Timer columnHoverTimer;
+    private @Nullable String hoverExpandedNodeId;
+    private @Nullable Point lastHoverPoint;
 
     private LayoutResult layout;
     private double zoom = 1.0;
@@ -101,9 +123,19 @@ public final class GraphCanvas extends JComponent {
         this.model = model;
         setOpaque(true);
         setFocusable(true);
-        ToolTipManager.sharedInstance().registerComponent(this);
+        columnHoverTimer = new javax.swing.Timer(COLUMN_HOVER_DELAY_MS, e -> {
+            hoverExpandedNodeId = resolveHoverTarget(lastHoverPoint);
+            repaint();
+        });
+        columnHoverTimer.setRepeats(false);
         installMouseHandlers();
         installKeyBindings();
+        addFocusListener(new java.awt.event.FocusAdapter() {
+            @Override
+            public void focusLost(java.awt.event.FocusEvent e) {
+                collapseColumnList();
+            }
+        });
         model.addListener(m -> onModelChanged());
         onModelChanged();
     }
@@ -114,7 +146,9 @@ public final class GraphCanvas extends JComponent {
         getActionMap().put("lineage.escape", new javax.swing.AbstractAction() {
             @Override
             public void actionPerformed(java.awt.event.ActionEvent e) {
-                if (model.focusId() != null) {
+                if (model.selectedColumnId() != null) {
+                    model.clearColumnSelection();
+                } else if (model.focusId() != null) {
                     model.exitFocus();
                     fitToView();
                 } else if (model.selectedId() != null) {
@@ -134,6 +168,7 @@ public final class GraphCanvas extends JComponent {
         boolean graphChanged = model.graph() != lastGraph;
         if (!key.equals(lastLayoutKey) || layout == null) {
             lastLayoutKey = key;
+            needsFit = true;
             relayout(visible);
         }
         if (graphChanged) {
@@ -141,18 +176,50 @@ public final class GraphCanvas extends JComponent {
             needsFit = true;
             maybeFit();
         }
+        boolean columnSelected = model.selectedColumnId() != null;
+        if (columnSelected != lastColumnSelected) {
+            lastColumnSelected = columnSelected;
+            needsFit = true;
+            maybeFit();
+        }
         repaint();
     }
 
     private @NotNull String layoutKey(@NotNull Set<String> visible) {
-        return System.identityHashCode(model.graph()) + "|" + model.direction() + "|"
-                + model.density() + "|" + new java.util.TreeSet<>(visible);
+        return System.identityHashCode(model.graph()) + "|"
+                + System.identityHashCode(model.columnGraph()) + "|"
+                + new java.util.TreeSet<>(model.selectedColumnIds())
+                + "|" + model.direction() + "|" + model.density() + "|" + new java.util.TreeSet<>(visible);
     }
 
     private void relayout(@NotNull Set<String> visible) {
         int nodeW = measureNodeWidth(visible);
-        this.layout = DagLayout.compute(model.graph(), visible, model.direction(), model.density(), nodeW);
+        this.layout = DagLayout.compute(model.graph(), visible, model.direction(), model.density(),
+                nodeW, this::columnListHeightOf);
         maybeFit();
+    }
+
+    /**
+     * Vertical space to reserve below a single node for its column list, so the node beneath it
+     * stays clear. Only reserved when a column is selected (the scoped list is visible), and
+     * sized to the number of participating columns actually shown on that node.
+     */
+    private int columnListHeightOf(@NotNull String nodeId) {
+        ColumnLineageGraph cg = model.columnGraph();
+        if (cg == null || model.selectedColumnId() == null) return 0;
+        ColumnRef selectedRef = cg.column(model.selectedColumnId());
+        String selectedNode = selectedRef != null ? selectedRef.tableNodeId() : null;
+        int count;
+        if (nodeId.equals(selectedNode)) {
+            count = columnCountFor(nodeId);
+        } else {
+            count = 0;
+            for (String columnId : model.highlightColumnLineage()) {
+                ColumnRef ref = cg.column(columnId);
+                if (ref != null && ref.tableNodeId().equals(nodeId)) count++;
+            }
+        }
+        return count > 0 ? visibleRowCount(count) * COLUMN_ROW_H + 6 : 0;
     }
 
     private void maybeFit() {
@@ -216,6 +283,133 @@ public final class GraphCanvas extends JComponent {
                 worldX(screen.x), worldY(screen.y));
     }
 
+    /**
+     * Returns the id of the column row whose world-coordinate rectangle contains the given
+     * world point, or {@code null} if none.
+     */
+    static @Nullable String columnHitTest(@NotNull Map<String, Rectangle> bounds,
+                                          double worldX, double worldY) {
+        for (Map.Entry<String, Rectangle> entry : bounds.entrySet()) {
+            Rectangle r = entry.getValue();
+            if (worldX >= r.x && worldX <= r.x + r.width
+                    && worldY >= r.y && worldY <= r.y + r.height) {
+                return entry.getKey();
+            }
+        }
+        return null;
+    }
+
+    @Nullable String columnAt(@NotNull Point screen) {
+        return columnHitTest(columnRowBounds, worldX(screen.x), worldY(screen.y));
+    }
+
+    private @Nullable String columnListNodeAt(@NotNull Point screen) {
+        double wx = worldX(screen.x);
+        double wy = worldY(screen.y);
+        for (Map.Entry<String, Rectangle> entry : columnListBoundsByNode.entrySet()) {
+            if (entry.getValue().contains(wx, wy)) return entry.getKey();
+        }
+        return null;
+    }
+
+    /**
+     * Arms the delay timer that reveals (or, after leaving, hides) the hovered node's columns.
+     * While the pointer stays over the node or its already-open column list the timer is
+     * cancelled so the list stays open.
+     */
+    private void updateColumnHover(@NotNull Point screen) {
+        lastHoverPoint = screen;
+        if (model.selectedColumnId() != null) {
+            columnHoverTimer.stop();
+            if (hoverExpandedNodeId != null) {
+                hoverExpandedNodeId = null;
+                repaint();
+            }
+            return;
+        }
+        if (isOverExpandedRegion(screen)) {
+            columnHoverTimer.stop();
+            return;
+        }
+        columnHoverTimer.restart();
+    }
+
+    private void resetColumnHover() {
+        lastHoverPoint = null;
+        columnHoverTimer.restart();
+    }
+
+    /** Immediately hides the hover/click-opened column list. */
+    private void collapseColumnList() {
+        columnHoverTimer.stop();
+        if (hoverExpandedNodeId != null) {
+            hoverExpandedNodeId = null;
+            repaint();
+        }
+    }
+
+    private @Nullable String resolveHoverTarget(@Nullable Point screen) {
+        if (screen == null) return null;
+        if (isOverExpandedRegion(screen)) return hoverExpandedNodeId;
+        return nodeAt(screen);
+    }
+
+    /**
+     * Whether the pointer is over the currently expanded node's box or the contiguous
+     * bounding rectangle of its column list (so inter-row gaps do not collapse it).
+     */
+    private boolean isOverExpandedRegion(@NotNull Point screen) {
+        if (hoverExpandedNodeId == null || layout == null) return false;
+        NodePosition pos = layout.positions().get(hoverExpandedNodeId);
+        if (pos == null) return false;
+        Rectangle nodeRect = new Rectangle((int) Math.round(pos.x()), (int) Math.round(pos.y()),
+                layout.nodeW(), layout.nodeH());
+        Rectangle region = nodeRect.union(columnListWorldBounds(pos, columnCountFor(hoverExpandedNodeId)));
+        return region.contains(worldX(screen.x), worldY(screen.y));
+    }
+
+    /**
+     * World-space bounds of a node's column list. Opens below the node when the viewport has
+     * room; otherwise opens above so the list is not clipped at the bottom of the screen.
+     */
+    private @NotNull Rectangle columnListWorldBounds(@NotNull NodePosition pos, int count) {
+        int w = layout.nodeW();
+        int h = layout.nodeH();
+        int listHeight = visibleRowCount(count) * COLUMN_ROW_H;
+        int x = (int) Math.round(pos.x());
+        int top = drawColumnsAbove(pos, count)
+                ? (int) Math.round(pos.y()) - 2 - listHeight
+                : (int) Math.round(pos.y()) + h + 2;
+        return new Rectangle(x, top, w, Math.max(listHeight, 1));
+    }
+
+    private static int visibleRowCount(int count) {
+        return Math.min(count, MAX_COLUMN_LIST_ROWS);
+    }
+
+    private boolean drawColumnsAbove(@NotNull NodePosition pos, int count) {
+        int h = layout.nodeH();
+        double listScreenHeight = visibleRowCount(count) * COLUMN_ROW_H * zoom;
+        double spaceBelow = getHeight() - (offsetY + (pos.y() + h) * zoom);
+        double spaceAbove = offsetY + pos.y() * zoom;
+        if (spaceBelow >= listScreenHeight) return false;
+        return spaceAbove > spaceBelow;
+    }
+
+    private int columnCountFor(@NotNull String tableNodeId) {
+        ColumnLineageGraph cg = model.columnGraph();
+        return cg == null ? 0 : cg.columnsForTable(tableNodeId).size();
+    }
+
+    private void setHoverColumn(@Nullable String columnId) {
+        if (java.util.Objects.equals(hoverColumnId, columnId)) return;
+        hoverColumnId = columnId;
+        setCursor(columnId != null
+                ? Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+                : Cursor.getDefaultCursor());
+        repaint();
+    }
+
     // ------------------------------------------------------------------
     // Mouse handling
     // ------------------------------------------------------------------
@@ -257,26 +451,58 @@ public final class GraphCanvas extends JComponent {
             @Override
             public void mouseMoved(MouseEvent e) {
                 model.setHover(nodeAt(e.getPoint()));
+                setHoverColumn(columnAt(e.getPoint()));
+                updateColumnHover(e.getPoint());
             }
 
             @Override
             public void mouseExited(MouseEvent e) {
                 model.setHover(null);
+                setHoverColumn(null);
+                resetColumnHover();
             }
 
             @Override
             public void mouseClicked(MouseEvent e) {
                 if (e.isPopupTrigger()) return;
-                String id = nodeAt(e.getPoint());
-                if (SwingUtilities.isLeftMouseButton(e) && e.getClickCount() == 2 && id != null) {
-                    openSource(model.graph().node(id));
-                } else if (SwingUtilities.isLeftMouseButton(e)) {
-                    model.select(id);
+                if (!SwingUtilities.isLeftMouseButton(e)) return;
+                String columnId = columnAt(e.getPoint());
+                if (columnId != null) {
+                    if (e.isControlDown() || e.isMetaDown()) {
+                        model.toggleColumn(columnId);
+                    } else {
+                        model.selectColumn(columnId);
+                    }
+                    return;
                 }
+                if (columnListNodeAt(e.getPoint()) != null) {
+                    return;
+                }
+                String id = nodeAt(e.getPoint());
+                if (e.getClickCount() == 2 && id != null) {
+                    openSource(model.graph().node(id));
+                    return;
+                }
+                if (id != null && columnCountFor(id) > 0 && !id.equals(hoverExpandedNodeId)) {
+                    model.clearColumnSelection();
+                    columnHoverTimer.stop();
+                    hoverExpandedNodeId = id;
+                    repaint();
+                    return;
+                }
+                if (id == null) collapseColumnList();
+                model.clearColumnSelection();
+                model.select(id);
             }
 
             @Override
             public void mouseWheelMoved(MouseWheelEvent e) {
+                String node = columnListNodeAt(e.getPoint());
+                if (node != null) {
+                    columnScroll.merge(node, e.getWheelRotation(), Integer::sum);
+                    repaint();
+                    return;
+                }
                 zoomAt(e.getPoint(), e.getWheelRotation() < 0 ? 1.1 : 1 / 1.1);
             }
         };
@@ -328,14 +554,6 @@ public final class GraphCanvas extends JComponent {
         return menuItem;
     }
 
-    @Override
-    public String getToolTipText(MouseEvent event) {
-        String id = nodeAt(event.getPoint());
-        if (id == null) return null;
-        LineageNode node = model.graph().node(id);
-        return node != null ? node.fullName() + "  [" + node.dataformType() + "]" : null;
-    }
-
     private void openSource(@Nullable LineageNode node) {
         LineageActions.openSource(project, node);
     }
@@ -351,6 +569,8 @@ public final class GraphCanvas extends JComponent {
         bg.fillRect(0, 0, getWidth(), getHeight());
         bg.dispose();
         if (layout == null || layout.positions().isEmpty()) return;
+
+        columnRowBounds.clear();
 
         Graphics2D g2 = (Graphics2D) g.create();
         try {
@@ -383,6 +603,8 @@ public final class GraphCanvas extends JComponent {
                 drawNode(g2, node, pos, pos.id().equals(model.selectedId()));
                 g2.setComposite(old);
             }
+
+            paintColumns(g2);
         } finally {
             g2.dispose();
         }
@@ -536,6 +758,195 @@ public final class GraphCanvas extends JComponent {
             int ty = y + (h + nfm.getAscent() - nfm.getDescent()) / 2;
             g2.drawString(clip(g2, node.name(), textAvail), textX, ty);
         }
+    }
+
+    private void paintColumns(@NotNull Graphics2D g2) {
+        ColumnLineageGraph cg = model.columnGraph();
+        if (cg == null || layout == null) return;
+
+        Set<String> highlight = model.highlightColumnLineage();
+        boolean columnSelected = model.selectedColumnId() != null && !highlight.isEmpty();
+
+        Map<String, List<ColumnRef>> byTable = new LinkedHashMap<>();
+        if (columnSelected) {
+            ColumnRef selectedRef = cg.column(model.selectedColumnId());
+            String selectedNode = selectedRef != null ? selectedRef.tableNodeId() : null;
+            for (String colId : highlight) {
+                ColumnRef ref = cg.column(colId);
+                if (ref == null || ref.tableNodeId().equals(selectedNode)) continue;
+                byTable.computeIfAbsent(ref.tableNodeId(), k -> new ArrayList<>()).add(ref);
+            }
+            if (selectedNode != null) {
+                byTable.computeIfAbsent(selectedNode, k -> new ArrayList<>())
+                        .addAll(cg.columnsForTable(selectedNode));
+            }
+        } else if (hoverExpandedNodeId != null) {
+            List<ColumnRef> columns = cg.columnsForTable(hoverExpandedNodeId);
+            if (!columns.isEmpty()) {
+                byTable.computeIfAbsent(hoverExpandedNodeId, k -> new ArrayList<>()).addAll(columns);
+            }
+        }
+        if (byTable.isEmpty()) return;
+
+        List<String> selectedIds = new ArrayList<>(model.selectedColumnIds());
+        reconcileSelectionColors(selectedIds);
+        Map<String, Set<String>> lineageBySelected = new LinkedHashMap<>();
+        Map<String, Color> colorBySelected = new LinkedHashMap<>();
+        for (String selectedId : selectedIds) {
+            Set<String> lineage = new LinkedHashSet<>();
+            lineage.add(selectedId);
+            lineage.addAll(cg.upstream(selectedId));
+            lineage.addAll(cg.downstream(selectedId));
+            lineageBySelected.put(selectedId, lineage);
+            colorBySelected.put(selectedId, selectionColor(columnColorIndex.get(selectedId)));
+        }
+
+        columnListBoundsByNode.clear();
+        int w = layout.nodeW();
+        for (Map.Entry<String, List<ColumnRef>> entry : byTable.entrySet()) {
+            NodePosition pos = layout.positions().get(entry.getKey());
+            if (pos == null) continue;
+            List<ColumnRef> columns = entry.getValue();
+            int total = columns.size();
+            int visibleRows = visibleRowCount(total);
+            int maxScroll = Math.max(0, total - visibleRows);
+            int scroll = Math.max(0, Math.min(columnScroll.getOrDefault(entry.getKey(), 0), maxScroll));
+            columnScroll.put(entry.getKey(), scroll);
+
+            Rectangle listBounds = columnListWorldBounds(pos, total);
+            columnListBoundsByNode.put(entry.getKey(), listBounds);
+
+            java.awt.Shape oldClip = g2.getClip();
+            g2.clip(listBounds);
+            for (int row = 0; row < visibleRows; row++) {
+                ColumnRef ref = columns.get(scroll + row);
+                Rectangle rect = new Rectangle(listBounds.x, listBounds.y + row * COLUMN_ROW_H, w, COLUMN_ROW_H - 2);
+                columnRowBounds.put(ref.id(), rect);
+                Color highlightColor = ownerColor(ref.id(), selectedIds, lineageBySelected, colorBySelected);
+                drawColumnRow(g2, ref, rect, highlightColor, ref.id().equals(hoverColumnId));
+            }
+            g2.setClip(oldClip);
+
+            if (total > visibleRows) {
+                drawColumnScrollbar(g2, listBounds, scroll, visibleRows, total);
+            }
+        }
+
+        for (ColumnEdge edge : cg.edges()) {
+            Rectangle from = columnRowBounds.get(edge.from().id());
+            Rectangle to = columnRowBounds.get(edge.to().id());
+            if (from == null || to == null) continue;
+            Color color = edgeOwnerColor(edge.from().id(), edge.to().id(),
+                    selectedIds, lineageBySelected, colorBySelected);
+            if (color == null) continue;
+            drawColumnEdge(g2, from, to, color);
+        }
+    }
+
+    /**
+     * Keeps each selected column's colour index stable across selection changes: deselected
+     * columns free their slot; a newly selected column takes the lowest unused slot without
+     * disturbing the colours of columns that stay selected.
+     */
+    private void reconcileSelectionColors(@NotNull List<String> selectedIds) {
+        columnColorIndex.keySet().retainAll(selectedIds);
+        Set<Integer> used = new java.util.HashSet<>(columnColorIndex.values());
+        for (String id : selectedIds) {
+            if (!columnColorIndex.containsKey(id)) {
+                int index = 0;
+                while (used.contains(index)) index++;
+                columnColorIndex.put(id, index);
+                used.add(index);
+            }
+        }
+    }
+
+    /** Colour of the first selected column whose lineage contains this column, or {@code null}. */
+    private @Nullable Color ownerColor(@NotNull String columnId, @NotNull List<String> selectedIds,
+                                       @NotNull Map<String, Set<String>> lineageBySelected,
+                                       @NotNull Map<String, Color> colorBySelected) {
+        for (String selectedId : selectedIds) {
+            if (lineageBySelected.get(selectedId).contains(columnId)) {
+                return colorBySelected.get(selectedId);
+            }
+        }
+        return null;
+    }
+
+    private @Nullable Color edgeOwnerColor(@NotNull String from, @NotNull String to,
+                                           @NotNull List<String> selectedIds,
+                                           @NotNull Map<String, Set<String>> lineageBySelected,
+                                           @NotNull Map<String, Color> colorBySelected) {
+        for (String selectedId : selectedIds) {
+            Set<String> lineage = lineageBySelected.get(selectedId);
+            if (lineage.contains(from) && lineage.contains(to)) {
+                return colorBySelected.get(selectedId);
+            }
+        }
+        return null;
+    }
+
+    private void drawColumnRow(@NotNull Graphics2D g2, @NotNull ColumnRef ref,
+                               @NotNull Rectangle rect, @Nullable Color highlightColor, boolean hover) {
+        boolean lit = highlightColor != null;
+        Color accent = lit ? highlightColor : accentColor();
+        Color background = lit ? translucent(accent, 40)
+                : hover ? translucent(accentColor(), 22) : nodeBackground();
+        g2.setColor(background);
+        g2.fillRoundRect(rect.x, rect.y, rect.width, rect.height, 6, 6);
+        g2.setColor(lit || hover ? accent : nodeBorder());
+        g2.setStroke(new BasicStroke(lit || hover ? 1.4f : 1f));
+        g2.drawRoundRect(rect.x, rect.y, rect.width, rect.height, 6, 6);
+
+        g2.setColor(UIUtil.getLabelForeground());
+        g2.setFont(monospace(10f));
+        var fm = g2.getFontMetrics();
+        int ty = rect.y + (rect.height + fm.getAscent() - fm.getDescent()) / 2;
+        g2.drawString(clip(g2, ref.columnName(), rect.width - 12), rect.x + 6, ty);
+    }
+
+    private void drawColumnScrollbar(@NotNull Graphics2D g2, @NotNull Rectangle bounds,
+                                     int scroll, int visibleRows, int total) {
+        int barW = 3;
+        int x = bounds.x + bounds.width - barW - 1;
+        g2.setColor(translucent(edgeColor(), 60));
+        g2.fillRoundRect(x, bounds.y, barW, bounds.height, barW, barW);
+        int thumbH = Math.max(6, (int) Math.round(bounds.height * (double) visibleRows / total));
+        int thumbY = bounds.y + (int) Math.round((bounds.height - thumbH) * (double) scroll / Math.max(1, total - visibleRows));
+        g2.setColor(edgeColor());
+        g2.fillRoundRect(x, thumbY, barW, thumbH, barW, barW);
+    }
+
+    private void drawColumnEdge(@NotNull Graphics2D g2, @NotNull Rectangle from,
+                                @NotNull Rectangle to, @NotNull Color color) {
+        double x1 = from.x + from.width;
+        double y1 = from.y + from.height / 2.0;
+        double x2 = to.x;
+        double y2 = to.y + to.height / 2.0;
+        double cx = (x1 + x2) / 2.0;
+        Path2D.Double path = new Path2D.Double();
+        path.moveTo(x1, y1);
+        path.curveTo(cx, y1, cx, y2, x2, y2);
+        g2.setColor(color);
+        g2.setStroke(new BasicStroke(1.4f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_ROUND,
+                1f, new float[]{4f, 3f}, 0f));
+        g2.draw(path);
+        g2.setStroke(new BasicStroke(1f));
+        drawArrowHead(g2, x2, y2, Direction.LR);
+    }
+
+    private static final float GOLDEN_RATIO_CONJUGATE = 0.618033988f;
+    private static final float FIRST_SELECTION_HUE = 0.61f;
+
+    /**
+     * A distinct colour per selected column. The first selection is blue; subsequent hues are
+     * spread by the golden ratio so consecutive selections are far apart on the wheel and colours
+     * do not repeat for a large number of selections. Saturation/brightness are tuned per theme.
+     */
+    private static @NotNull Color selectionColor(int index) {
+        float hue = (FIRST_SELECTION_HUE + index * GOLDEN_RATIO_CONJUGATE) % 1.0f;
+        return new JBColor(Color.getHSBColor(hue, 0.68f, 0.72f),
+                Color.getHSBColor(hue, 0.55f, 0.88f));
     }
 
     private int measureNodeWidth(@NotNull Set<String> visibleIds) {

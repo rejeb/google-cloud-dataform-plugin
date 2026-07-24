@@ -81,6 +81,24 @@ class DagLayoutTest {
     }
 
     @Test
+    void perNodeExtraHeightOffsetsOnlyNodesBelowIt() {
+        LineageGraph g = chain();
+        Set<String> visible = Set.of(LineageNode.idOf("p.s.a"), LineageNode.idOf("p.s.d"));
+
+        LayoutResult base = DagLayout.compute(g, visible, Direction.LR, Density.COMFORTABLE, 180);
+        LayoutResult withExtra = DagLayout.compute(g, visible, Direction.LR, Density.COMFORTABLE, 180,
+                id -> id.equals(LineageNode.idOf("p.s.a")) ? 100 : 0);
+
+        double baseAY = base.positions().get(LineageNode.idOf("p.s.a")).y();
+        double baseDY = base.positions().get(LineageNode.idOf("p.s.d")).y();
+        double extraAY = withExtra.positions().get(LineageNode.idOf("p.s.a")).y();
+        double extraDY = withExtra.positions().get(LineageNode.idOf("p.s.d")).y();
+
+        assertEquals(baseAY, extraAY, 0.001, "node with the reserved space keeps its own position");
+        assertEquals(baseDY + 100, extraDY, 0.001, "node below is pushed down by exactly the reserved height");
+    }
+
+    @Test
     void boundsEncloseAllNodes() {
         LineageGraph g = chain();
         LayoutResult r = DagLayout.compute(g, Set.of(

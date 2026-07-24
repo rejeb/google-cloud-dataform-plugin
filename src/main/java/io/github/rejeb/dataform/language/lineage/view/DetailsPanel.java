@@ -16,13 +16,18 @@
  */
 package io.github.rejeb.dataform.language.lineage.view;
 
+import com.intellij.icons.AllIcons;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.ui.popup.IconButton;
+import com.intellij.ui.InplaceButton;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBScrollPane;
 import com.intellij.ui.components.panels.VerticalLayout;
 import com.intellij.ui.scale.JBUIScale;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
+import io.github.rejeb.dataform.language.lineage.column.ColumnLineageGraph;
+import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
 import io.github.rejeb.dataform.language.lineage.graph.LineageNode;
 import io.github.rejeb.dataform.language.lineage.model.LineageModel;
 import org.jetbrains.annotations.NotNull;
@@ -52,14 +57,25 @@ public final class DetailsPanel extends JPanel {
     private final Project project;
     private final LineageModel model;
     private final JPanel content = new JPanel(new VerticalLayout(JBUIScale.scale(8)));
+    private final JPanel headerHolder = new JPanel(new BorderLayout());
+    private @NotNull Runnable reduceHandler = () -> {};
+
+    /** Sets the action run when the header's reduce button is pressed (collapse without clearing selection). */
+    public void setReduceHandler(@NotNull Runnable handler) {
+        this.reduceHandler = handler;
+    }
 
     public DetailsPanel(@NotNull Project project, @NotNull LineageModel model) {
         super(new BorderLayout());
         this.project = project;
         this.model = model;
         setPreferredSize(new Dimension(JBUIScale.scale(300), 0));
-        content.setBorder(JBUI.Borders.empty(10));
+        content.setBorder(JBUI.Borders.empty(0, 10, 10, 10));
         content.setBackground(UIUtil.getPanelBackground());
+
+        headerHolder.setBorder(JBUI.Borders.empty(8, 10));
+        headerHolder.setBackground(UIUtil.getPanelBackground());
+        add(headerHolder, BorderLayout.NORTH);
 
         JBScrollPane scroll = new JBScrollPane(content);
         scroll.setBorder(JBUI.Borders.empty());
@@ -73,7 +89,7 @@ public final class DetailsPanel extends JPanel {
 
     private void onModelChanged() {
         String signature = System.identityHashCode(model.graph()) + "|" + model.selectedId()
-                + "|" + model.focusId();
+                + "|" + model.focusId() + "|" + model.selectedColumnId();
         if (signature.equals(lastSignature)) return;
         lastSignature = signature;
         javax.swing.SwingUtilities.invokeLater(this::rebuild);
@@ -81,9 +97,14 @@ public final class DetailsPanel extends JPanel {
 
     private void rebuild() {
         content.removeAll();
+        headerHolder.removeAll();
         LineageNode node = model.selectedId() != null ? model.graph().node(model.selectedId()) : null;
+        if (node == null && model.selectedColumnId() != null && model.columnGraph() != null) {
+            ColumnRef ref = model.columnGraph().column(model.selectedColumnId());
+            if (ref != null) node = model.graph().node(ref.tableNodeId());
+        }
         if (node != null) {
-            content.add(header(node));
+            headerHolder.add(header(node), BorderLayout.CENTER);
             content.add(new JBLabel(node.schema() + "." + node.name()));
             content.add(metaRow("Type", GraphCanvas.glyphFor(node.dataformType()) + "  " + node.dataformType()));
             content.add(metaRow("Schema", node.schema()));
@@ -93,20 +114,26 @@ public final class DetailsPanel extends JPanel {
             content.add(dependencyList("Upstream", model.graph().predecessors(node.id())));
             content.add(dependencyList("Downstream", model.graph().successors(node.id())));
         }
+        if (model.selectedColumnId() != null && model.columnGraph() != null) {
+            content.add(columnLineageSection());
+        }
+        headerHolder.revalidate();
+        headerHolder.repaint();
         content.revalidate();
         content.repaint();
     }
 
     private JComponent header(@NotNull LineageNode node) {
-        JPanel panel = new JPanel(new BorderLayout());
+        JPanel panel = new JPanel(new BorderLayout(JBUIScale.scale(6), 0));
         panel.setOpaque(false);
-        JBLabel title = new JBLabel(GraphCanvas.glyphFor(node.dataformType()) + "  " + node.name());
-        title.setFont(monospaceBold(title.getFont()));
+        JBLabel title = new JBLabel(node.name());
+        title.setToolTipText(node.fullName());
+        title.setFont(title.getFont().deriveFont(Font.BOLD));
         panel.add(title, BorderLayout.CENTER);
-        JButton close = new JButton("✕");
-        close.setToolTipText("Close");
-        close.addActionListener(e -> model.select(null));
-        panel.add(close, BorderLayout.EAST);
+        InplaceButton reduce = new InplaceButton(
+                new IconButton("Collapse", AllIcons.General.HideToolWindow),
+                e -> reduceHandler.run());
+        panel.add(reduce, BorderLayout.EAST);
         return panel;
     }
 
@@ -190,6 +217,59 @@ public final class DetailsPanel extends JPanel {
             panel.add(none);
         }
         panel.add(Box.createVerticalStrut(JBUIScale.scale(4)));
+        return panel;
+    }
+
+    private JComponent columnLineageSection() {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setOpaque(false);
+
+        ColumnLineageGraph cg = model.columnGraph();
+        String columnId = model.selectedColumnId();
+        ColumnRef selected = cg.column(columnId);
+
+        JBLabel title = new JBLabel("Column lineage");
+        title.setFont(monospaceBold(title.getFont()));
+        title.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.add(title);
+
+        if (selected != null) {
+            JBLabel col = new JBLabel(selected.columnName() + "   " + selected.tableFullName());
+            col.setAlignmentX(Component.LEFT_ALIGNMENT);
+            panel.add(col);
+        }
+
+        panel.add(columnList("Upstream columns", cg.predecessors(columnId)));
+        panel.add(columnList("Downstream columns", cg.successors(columnId)));
+        panel.add(Box.createVerticalStrut(JBUIScale.scale(4)));
+        return panel;
+    }
+
+    private JComponent columnList(@NotNull String title, @NotNull Set<String> ids) {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setOpaque(false);
+        JBLabel header = new JBLabel(title + " (" + ids.size() + ")");
+        header.setForeground(UIUtil.getLabelDisabledForeground());
+        header.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.add(header);
+        ColumnLineageGraph cg = model.columnGraph();
+        for (String id : ids) {
+            ColumnRef ref = cg != null ? cg.column(id) : null;
+            if (ref == null) continue;
+            JButton row = new JButton(ref.columnName() + "   " + ref.tableFullName());
+            row.setHorizontalAlignment(SwingConstants.LEFT);
+            row.setAlignmentX(Component.LEFT_ALIGNMENT);
+            row.setMaximumSize(new Dimension(Integer.MAX_VALUE, row.getPreferredSize().height));
+            row.addActionListener(e -> model.selectColumn(id));
+            panel.add(row);
+        }
+        if (ids.isEmpty()) {
+            JBLabel none = new JBLabel("—");
+            none.setAlignmentX(Component.LEFT_ALIGNMENT);
+            panel.add(none);
+        }
         return panel;
     }
 
