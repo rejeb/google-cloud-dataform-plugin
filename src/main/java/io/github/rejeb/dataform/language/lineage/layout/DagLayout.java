@@ -80,6 +80,23 @@ public final class DagLayout {
                                                 @NotNull Density density,
                                                 int nodeW,
                                                 @NotNull ToIntFunction<String> extraVerticalHeight) {
+        return compute(graph, visibleIds, direction, density, id -> nodeW, extraVerticalHeight);
+    }
+
+    /**
+     * Same as {@link #compute(LineageGraph, Set, Direction, Density, int, ToIntFunction)} but with
+     * a per-node measured width. Nodes of the same vertical group share the widest measurement of
+     * that group: in {@link Direction#LR} a group is a layer (the nodes stacked vertically in one
+     * column), in {@link Direction#TB} it is the set of nodes sharing a row index across layers.
+     * Groups are laid out one after another using their own width, so a group of short labels no
+     * longer reserves the space required by the longest label in the whole graph.
+     */
+    public static @NotNull LayoutResult compute(@NotNull LineageGraph graph,
+                                                @NotNull Set<String> visibleIds,
+                                                @NotNull Direction direction,
+                                                @NotNull Density density,
+                                                @NotNull ToIntFunction<String> nodeWidth,
+                                                @NotNull ToIntFunction<String> extraVerticalHeight) {
         int nodeH = density == Density.COMPACT ? 30 : 44;
         int layerGap = direction == Direction.TB ? 60 : 90;
         int rowGap = density == Density.COMPACT ? 14 : 22;
@@ -126,11 +143,43 @@ public final class DagLayout {
             }
         }
 
-        Map<String, NodePosition> positions = direction == Direction.TB
-                ? layoutTopToBottom(layers, nodeW, nodeH, layerGap, rowGap, extraVerticalHeight)
-                : layoutLeftToRight(layers, nodeW, nodeH, layerGap, rowGap, extraVerticalHeight);
+        Map<String, Integer> widths = groupWidths(layers, direction, nodeWidth);
 
-        return new LayoutResult(positions, computeBounds(positions, nodeW, nodeH), nodeW, nodeH);
+        Map<String, NodePosition> positions = direction == Direction.TB
+                ? layoutTopToBottom(layers, widths, nodeH, layerGap, rowGap, extraVerticalHeight)
+                : layoutLeftToRight(layers, widths, nodeH, layerGap, rowGap, extraVerticalHeight);
+
+        int maxWidth = widths.values().stream().mapToInt(Integer::intValue).max().orElse(0);
+        return new LayoutResult(positions, computeBounds(positions, nodeH), maxWidth, nodeH);
+    }
+
+    /**
+     * Width of each node, equalised within its vertical group so the group forms a clean column:
+     * per layer in {@link Direction#LR}, per row index across layers in {@link Direction#TB}.
+     */
+    private static @NotNull Map<String, Integer> groupWidths(@NotNull List<List<String>> layers,
+                                                             @NotNull Direction direction,
+                                                             @NotNull ToIntFunction<String> nodeWidth) {
+        Map<String, Integer> widths = new HashMap<>();
+        if (direction == Direction.TB) {
+            int maxRows = layers.stream().mapToInt(List::size).max().orElse(0);
+            for (int row = 0; row < maxRows; row++) {
+                int groupWidth = 0;
+                for (List<String> lay : layers) {
+                    if (row < lay.size()) groupWidth = Math.max(groupWidth, nodeWidth.applyAsInt(lay.get(row)));
+                }
+                for (List<String> lay : layers) {
+                    if (row < lay.size()) widths.put(lay.get(row), groupWidth);
+                }
+            }
+        } else {
+            for (List<String> lay : layers) {
+                int groupWidth = 0;
+                for (String id : lay) groupWidth = Math.max(groupWidth, nodeWidth.applyAsInt(id));
+                for (String id : lay) widths.put(id, groupWidth);
+            }
+        }
+        return widths;
     }
 
     /**
@@ -139,23 +188,31 @@ public final class DagLayout {
      * node reserves only the space its own list needs.
      */
     private static @NotNull Map<String, NodePosition> layoutLeftToRight(
-            @NotNull List<List<String>> layers, int nodeW, int nodeH, int layerGap, int rowGap,
-            @NotNull ToIntFunction<String> extraVerticalHeight) {
+            @NotNull List<List<String>> layers, @NotNull Map<String, Integer> widths, int nodeH,
+            int layerGap, int rowGap, @NotNull ToIntFunction<String> extraVerticalHeight) {
         double totalAcross = 0;
         for (List<String> lay : layers) {
             totalAcross = Math.max(totalAcross, layerVerticalExtent(lay, nodeH, rowGap, extraVerticalHeight));
         }
         Map<String, NodePosition> positions = new LinkedHashMap<>();
+        double along = 0;
         for (int layerIdx = 0; layerIdx < layers.size(); layerIdx++) {
             List<String> lay = layers.get(layerIdx);
-            double along = layerIdx * (nodeW + (double) layerGap);
+            int layerWidth = layerWidth(lay, widths);
             double cursor = (totalAcross - layerVerticalExtent(lay, nodeH, rowGap, extraVerticalHeight)) / 2.0;
             for (String id : lay) {
-                positions.put(id, new NodePosition(id, along, cursor, layerIdx));
+                positions.put(id, new NodePosition(id, along, cursor, layerIdx, widths.get(id)));
                 cursor += nodeH + extraVerticalHeight.applyAsInt(id) + rowGap;
             }
+            along += layerWidth + (double) layerGap;
         }
         return positions;
+    }
+
+    private static int layerWidth(@NotNull List<String> layer, @NotNull Map<String, Integer> widths) {
+        int width = 0;
+        for (String id : layer) width = Math.max(width, widths.getOrDefault(id, 0));
+        return width;
     }
 
     /**
@@ -164,26 +221,34 @@ public final class DagLayout {
      * grows by the tallest column list in it.
      */
     private static @NotNull Map<String, NodePosition> layoutTopToBottom(
-            @NotNull List<List<String>> layers, int nodeW, int nodeH, int layerGap, int rowGap,
-            @NotNull ToIntFunction<String> extraVerticalHeight) {
-        int maxRows = layers.stream().mapToInt(List::size).max().orElse(0);
-        double totalAcross = maxRows * nodeW + (double) (maxRows - 1) * rowGap;
+            @NotNull List<List<String>> layers, @NotNull Map<String, Integer> widths, int nodeH,
+            int layerGap, int rowGap, @NotNull ToIntFunction<String> extraVerticalHeight) {
+        double totalAcross = 0;
+        for (List<String> lay : layers) {
+            totalAcross = Math.max(totalAcross, layerHorizontalExtent(lay, widths, rowGap));
+        }
         Map<String, NodePosition> positions = new LinkedHashMap<>();
         double alongCursor = 0;
         for (int layerIdx = 0; layerIdx < layers.size(); layerIdx++) {
             List<String> lay = layers.get(layerIdx);
-            double layerAcross = lay.size() * nodeW + (double) (lay.size() - 1) * rowGap;
-            double acrossStart = (totalAcross - layerAcross) / 2.0;
+            double across = (totalAcross - layerHorizontalExtent(lay, widths, rowGap)) / 2.0;
             int maxExtra = 0;
-            for (int i = 0; i < lay.size(); i++) {
-                String id = lay.get(i);
-                double across = acrossStart + i * (nodeW + (double) rowGap);
-                positions.put(id, new NodePosition(id, across, alongCursor, layerIdx));
+            for (String id : lay) {
+                positions.put(id, new NodePosition(id, across, alongCursor, layerIdx, widths.get(id)));
+                across += widths.get(id) + (double) rowGap;
                 maxExtra = Math.max(maxExtra, extraVerticalHeight.applyAsInt(id));
             }
             alongCursor += nodeH + maxExtra + layerGap;
         }
         return positions;
+    }
+
+    private static double layerHorizontalExtent(@NotNull List<String> layer,
+                                                @NotNull Map<String, Integer> widths, int rowGap) {
+        if (layer.isEmpty()) return 0;
+        double extent = (layer.size() - 1) * (double) rowGap;
+        for (String id : layer) extent += widths.getOrDefault(id, 0);
+        return extent;
     }
 
     private static double layerVerticalExtent(@NotNull List<String> layer, int nodeH, int rowGap,
@@ -242,14 +307,14 @@ public final class DagLayout {
     }
 
     private static @NotNull Rectangle2D.Double computeBounds(@NotNull Map<String, NodePosition> positions,
-                                                             int nodeW, int nodeH) {
+                                                             int nodeH) {
         if (positions.isEmpty()) return new Rectangle2D.Double(0, 0, 0, 0);
         double minX = Double.POSITIVE_INFINITY, minY = Double.POSITIVE_INFINITY;
         double maxX = Double.NEGATIVE_INFINITY, maxY = Double.NEGATIVE_INFINITY;
         for (NodePosition p : positions.values()) {
             minX = Math.min(minX, p.x());
             minY = Math.min(minY, p.y());
-            maxX = Math.max(maxX, p.x() + nodeW);
+            maxX = Math.max(maxX, p.x() + p.width());
             maxY = Math.max(maxY, p.y() + nodeH);
         }
         return new Rectangle2D.Double(minX, minY, maxX - minX, maxY - minY);

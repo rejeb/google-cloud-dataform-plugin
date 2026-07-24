@@ -106,7 +106,7 @@ public final class DetailsPanel extends JPanel {
         if (node != null) {
             headerHolder.add(header(node), BorderLayout.CENTER);
             content.add(new JBLabel(node.schema() + "." + node.name()));
-            content.add(metaRow("Type", GraphCanvas.glyphFor(node.dataformType()) + "  " + node.dataformType()));
+            content.add(metaRow("Type", LineageTheme.glyphFor(node.dataformType()) + "  " + node.dataformType()));
             content.add(metaRow("Schema", node.schema()));
             content.add(metaRow("File", node.fileName() != null ? node.fileName() : "—"));
             content.add(tagsRow(node));
@@ -203,7 +203,7 @@ public final class DetailsPanel extends JPanel {
         for (String id : ids) {
             LineageNode dep = model.graph().node(id);
             if (dep == null) continue;
-            JButton row = new JButton(GraphCanvas.glyphFor(dep.dataformType()) + "  " + dep.name()
+            JButton row = new JButton(LineageTheme.glyphFor(dep.dataformType()) + "  " + dep.name()
                     + "   " + dep.schema());
             row.setHorizontalAlignment(SwingConstants.LEFT);
             row.setAlignmentX(Component.LEFT_ALIGNMENT);

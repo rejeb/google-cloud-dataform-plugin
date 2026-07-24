@@ -141,7 +141,7 @@ public final class FiltersPanel extends JPanel {
         Section section = new Section("Action types", enabled + "/" + total, clear);
         for (String type : displayTypes()) {
             int count = model.typeCounts().getOrDefault(type, 0);
-            section.body.add(checkRow(GraphCanvas.glyphFor(type), GraphCanvas.typeColor(type),
+            section.body.add(checkRow(LineageTheme.glyphFor(type), LineageTheme.typeColor(type),
                     type, count, model.enabledTypes().contains(type), () -> model.toggleType(type), false));
         }
         return section;
@@ -197,7 +197,7 @@ public final class FiltersPanel extends JPanel {
             row.add(dim("FOCUSED ON"), BorderLayout.WEST);
             row.add(link("exit", model::exitFocus), BorderLayout.EAST);
             card.add(row);
-            card.add(new JBLabel(GraphCanvas.glyphFor(node != null ? node.dataformType() : "")
+            card.add(new JBLabel(LineageTheme.glyphFor(node != null ? node.dataformType() : "")
                     + "  " + (node != null ? node.name() : focusId)));
             card.add(hint("Showing only upstream + downstream of this node."));
             section.body.add(card);
@@ -220,7 +220,7 @@ public final class FiltersPanel extends JPanel {
         for (String type : displayTypes()) {
             JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, JBUIScale.scale(8), 0));
             row.setOpaque(false);
-            row.add(glyphLabel(GraphCanvas.glyphFor(type), GraphCanvas.typeColor(type)));
+            row.add(glyphLabel(LineageTheme.glyphFor(type), LineageTheme.typeColor(type)));
             row.add(new JBLabel(type));
             panel.add(row);
         }

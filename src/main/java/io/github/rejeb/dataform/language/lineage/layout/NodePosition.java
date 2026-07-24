@@ -19,7 +19,9 @@ package io.github.rejeb.dataform.language.lineage.layout;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Top-left position (in world coordinates) and layer index of a laid-out node.
+ * Top-left position (in world coordinates), layer index and box width of a laid-out node.
+ * The width is shared by every node of the same vertical group so a layer stays a clean
+ * column, while different groups adapt to the content they hold.
  */
-public record NodePosition(@NotNull String id, double x, double y, int layer) {
+public record NodePosition(@NotNull String id, double x, double y, int layer, int width) {
 }

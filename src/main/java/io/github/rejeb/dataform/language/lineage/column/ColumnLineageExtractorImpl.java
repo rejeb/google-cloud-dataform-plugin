@@ -16,6 +16,7 @@
  */
 package io.github.rejeb.dataform.language.lineage.column;
 
+import io.github.rejeb.dataform.language.compilation.model.CompiledAssertion;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.compilation.model.CompiledTable;
 import io.github.rejeb.dataform.language.compilation.model.Target;
@@ -23,6 +24,7 @@ import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -44,8 +46,17 @@ public final class ColumnLineageExtractorImpl implements ColumnLineageExtractor 
     @Override
     public @NotNull ColumnLineageGraph extract(@NotNull CompiledGraph graph,
                                                @NotNull Map<String, List<ColumnInfo>> schemas) {
-        List<TableAnalysis> analyses = graph.getTables().parallelStream()
-                .map(this::analyzeTable)
+        List<Analyzable> units = new ArrayList<>();
+        for (CompiledTable table : graph.getTables()) {
+            units.add(new Analyzable(table.getTarget(), table.getQuery(), table.getDependencyTargets()));
+        }
+        for (CompiledAssertion assertion : graph.getAssertions()) {
+            units.add(new Analyzable(assertion.getTarget(), queryOf(assertion),
+                    assertion.getDependencyTargets()));
+        }
+
+        List<TableAnalysis> analyses = units.parallelStream()
+                .map(this::analyzeUnit)
                 .filter(Objects::nonNull)
                 .toList();
 
@@ -57,20 +68,20 @@ public final class ColumnLineageExtractorImpl implements ColumnLineageExtractor 
     }
 
     /**
-     * Parses one table's SQL into an intermediate result. This is the expensive step (PSI
+     * Parses one action's SQL into an intermediate result. This is the expensive step (PSI
      * parsing per {@code analyze} call) and is safe to run in parallel because it only reads and
      * produces immutable data; the shared {@link ColumnLineageGraph.Builder} is populated later,
-     * sequentially. Returns {@code null} for tables without a usable target or query.
+     * sequentially. Returns {@code null} for actions without a usable target or query.
      */
-    private @Nullable TableAnalysis analyzeTable(@NotNull CompiledTable table) {
+    private @Nullable TableAnalysis analyzeUnit(@NotNull Analyzable unit) {
         try {
-            Target target = table.getTarget();
+            Target target = unit.target();
             if (target == null || target.getFullName() == null) return null;
-            String sql = table.getQuery();
+            String sql = unit.sql();
             if (sql == null || sql.isBlank()) return null;
             SelectAnalyzer.QueryAnalysis analysis = analyzer.analyzeQuery(sql);
             return new TableAnalysis(target.getFullName(), analysis.outputs(),
-                    analysis.aliases(), table.getDependencyTargets());
+                    analysis.aliases(), unit.deps());
         } catch (RuntimeException e) {
             return null;
         }
@@ -308,6 +319,20 @@ public final class ColumnLineageExtractorImpl implements ColumnLineageExtractor 
 
     private @Nullable String fullName(@NotNull Target target) {
         return target.getFullName();
+    }
+
+    private @Nullable String queryOf(@NotNull CompiledAssertion assertion) {
+        try {
+            return assertion.getQuery();
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /** A compiled action (table or assertion) whose SQL can be analyzed for column lineage. */
+    private record Analyzable(@Nullable Target target,
+                              @Nullable String sql,
+                              @NotNull List<Target> deps) {
     }
 
     /** Immutable per-table analysis result produced in the parallel phase. */

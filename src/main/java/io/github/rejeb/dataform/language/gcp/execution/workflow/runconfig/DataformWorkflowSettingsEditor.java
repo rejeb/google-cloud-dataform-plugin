@@ -33,6 +33,7 @@ import com.intellij.openapi.diagnostic.Logger;
 import io.github.rejeb.dataform.language.gcp.service.DataformGcpService;
 import io.github.rejeb.dataform.language.gcp.workspace.Workspace;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.awt.*;
@@ -65,6 +66,7 @@ public class DataformWorkflowSettingsEditor
     private Mode selectedMode = Mode.ACTIONS;
     private volatile String pendingWorkspaceId;
     private volatile boolean disposed = false;
+    private volatile boolean workspacesLoaded = false;
 
     public DataformWorkflowSettingsEditor(@NotNull Project project) {
         workspaceCombo.addItem("");
@@ -112,8 +114,9 @@ public class DataformWorkflowSettingsEditor
                 }
                 loaded.forEach(workspaceCombo::addItem);
                 workspaceCombo.setEnabled(true);
+                workspacesLoaded = true;
                 if (pendingWorkspaceId != null) {
-                    workspaceCombo.setSelectedItem(pendingWorkspaceId);
+                    selectWorkspace(pendingWorkspaceId);
                 }
             }, ModalityState.any());
         });
@@ -261,7 +264,7 @@ public class DataformWorkflowSettingsEditor
     @Override
     protected void resetEditorFrom(@NotNull DataformWorkflowRunConfiguration config) {
         pendingWorkspaceId = config.getWorkspaceId();
-        workspaceCombo.setSelectedItem(config.getWorkspaceId());
+        selectWorkspace(config.getWorkspaceId());
         tagsField.setSelectedItems(config.getIncludedTags().stream().filter(this.graph.getTags()::contains).toList());
         targetsField.setSelectedItems(config.getIncludedTargets().stream().filter(this.graph.getAllTargets()::contains).toList());
 
@@ -275,13 +278,37 @@ public class DataformWorkflowSettingsEditor
 
     @Override
     protected void applyEditorTo(@NotNull DataformWorkflowRunConfiguration config) {
-        config.setWorkspaceId((String) workspaceCombo.getSelectedItem());
+        config.setWorkspaceId(resolveWorkspaceId());
         config.setIncludedTags(tagsField.getSelectedItems());
         config.setIncludedTargets(targetsField.getSelectedItems());
         config.setTransitiveDependenciesIncluded(transitiveDeps.isSelected());
         config.setTransitiveDependentsIncluded(transitiveDependents.isSelected());
         config.setFullyRefreshIncrementalTables(fullRefresh.isSelected());
         config.setSelectedMode(selectedMode);
+    }
+
+    private void selectWorkspace(@Nullable String workspaceId) {
+        if (workspaceId == null || workspaceId.isBlank()) {
+            workspaceCombo.setSelectedItem("");
+            return;
+        }
+        ComboBoxModel<String> model = workspaceCombo.getModel();
+        for (int i = 0; i < model.getSize(); i++) {
+            if (workspaceId.equals(model.getElementAt(i))) {
+                workspaceCombo.setSelectedItem(workspaceId);
+                return;
+            }
+        }
+        workspaceCombo.addItem(workspaceId);
+        workspaceCombo.setSelectedItem(workspaceId);
+    }
+
+    private String resolveWorkspaceId() {
+        String selected = (String) workspaceCombo.getSelectedItem();
+        if ((selected == null || selected.isBlank()) && !workspacesLoaded) {
+            return pendingWorkspaceId;
+        }
+        return selected;
     }
 
     @NotNull

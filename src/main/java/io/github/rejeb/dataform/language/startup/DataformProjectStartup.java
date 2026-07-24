@@ -28,7 +28,6 @@ import com.intellij.openapi.roots.ProjectRootManager;
 import com.intellij.openapi.startup.ProjectActivity;
 import com.intellij.openapi.vfs.VirtualFile;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
-import io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.DataformRunConfigurationEditPolicy;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.LastMousePositionService;
 import io.github.rejeb.dataform.language.gcp.service.DataformGcpService;
 import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
@@ -68,7 +67,6 @@ public class DataformProjectStartup implements ProjectActivity {
 
         if (!isDataformProject) return null;
         LastMousePositionService.getInstance();
-        DataformRunConfigurationEditPolicy.enforceOnExistingConfigurations(project);
         if (GcpRepositorySettings.getInstance(project).getActiveConfig() != null) {
             List<String> cached = DataformGcpService.getInstance(project).getCachedFiles();
             if (cached.isEmpty()) {

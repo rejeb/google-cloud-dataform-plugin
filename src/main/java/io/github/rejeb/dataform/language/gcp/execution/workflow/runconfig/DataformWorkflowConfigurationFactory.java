@@ -21,6 +21,7 @@ import com.intellij.execution.configurations.ConfigurationType;
 import com.intellij.execution.configurations.RunConfiguration;
 import com.intellij.openapi.components.BaseState;
 import com.intellij.openapi.project.Project;
+import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
 import org.jetbrains.annotations.NotNull;
 
 public class DataformWorkflowConfigurationFactory extends ConfigurationFactory {
@@ -38,7 +39,10 @@ public class DataformWorkflowConfigurationFactory extends ConfigurationFactory {
     @NotNull
     @Override
     public RunConfiguration createTemplateConfiguration(@NotNull Project project) {
-        return new DataformWorkflowRunConfiguration(project, this, "Dataform Workflow");
+        DataformWorkflowRunConfiguration configuration =
+                new DataformWorkflowRunConfiguration(project, this, "Dataform Workflow");
+        configuration.setWorkspaceId(GcpRepositorySettings.getInstance(project).getSelectedWorkspaceId());
+        return configuration;
     }
 
     @NotNull

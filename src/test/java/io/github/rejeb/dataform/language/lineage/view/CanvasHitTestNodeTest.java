@@ -16,32 +16,32 @@
  */
 package io.github.rejeb.dataform.language.lineage.view;
 
+import io.github.rejeb.dataform.language.lineage.layout.NodePosition;
 import org.junit.jupiter.api.Test;
 
-import java.awt.Rectangle;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
-class GraphCanvasColumnHitTestTest {
+class CanvasHitTestNodeTest {
 
-    private static Map<String, Rectangle> bounds() {
-        Map<String, Rectangle> b = new LinkedHashMap<>();
-        b.put("p.d.src#amount", new Rectangle(0, 50, 180, 14));
-        b.put("p.d.mid#total", new Rectangle(300, 150, 180, 14));
-        return b;
+    private static Map<String, NodePosition> positions() {
+        Map<String, NodePosition> p = new LinkedHashMap<>();
+        p.put("a", new NodePosition("a", 0, 0, 0, 180));
+        p.put("b", new NodePosition("b", 300, 100, 1, 180));
+        return p;
     }
 
     @Test
-    void pointInsideColumnRowReturnsItsId() {
-        assertEquals("p.d.src#amount", GraphCanvas.columnHitTest(bounds(), 10, 55));
-        assertEquals("p.d.mid#total", GraphCanvas.columnHitTest(bounds(), 320, 158));
+    void pointInsideNodeReturnsItsId() {
+        assertEquals("b", CanvasHitTest.nodeAt(positions(), 44, 320, 120));
+        assertEquals("a", CanvasHitTest.nodeAt(positions(), 44, 10, 10));
     }
 
     @Test
     void pointInEmptySpaceReturnsNull() {
-        assertNull(GraphCanvas.columnHitTest(bounds(), 250, 250));
+        assertNull(CanvasHitTest.nodeAt(positions(), 44, 250, 250));
     }
 }

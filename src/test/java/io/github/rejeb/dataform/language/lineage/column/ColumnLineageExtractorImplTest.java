@@ -34,6 +34,11 @@ class ColumnLineageExtractorImplTest {
         return GSON.fromJson("{\"tables\":" + tablesJson + "}", CompiledGraph.class);
     }
 
+    private CompiledGraph graph(String tablesJson, String assertionsJson) {
+        return GSON.fromJson("{\"tables\":" + tablesJson + ",\"assertions\":" + assertionsJson + "}",
+                CompiledGraph.class);
+    }
+
     private String tableJson(String database, String schema, String name, String query, String depsJson) {
         return "{\"target\":{\"database\":\"" + database + "\",\"schema\":\"" + schema + "\",\"name\":\"" + name + "\"},"
                 + "\"query\":\"" + query + "\",\"dependencyTargets\":" + depsJson + "}";
@@ -257,6 +262,23 @@ class ColumnLineageExtractorImplTest {
                 "the struct container itself is not a leaf column");
         assertTrue(result.upstream(new ColumnRef("p.d.copy", "address.geo.lat").id())
                 .contains(new ColumnRef("p.d.src", "address.geo.lat").id()));
+    }
+
+    @Test
+    void assertionColumnsAreIncludedInLineage() {
+        String sql = "SELECT id AS invalid_id FROM p.d.src";
+        CompiledGraph graph = graph("[]",
+                "[" + tableJson("p", "d", "assert_src", sql, "[" + targetJson("p", "d", "src") + "]") + "]");
+
+        SelectAnalyzer analyzer = analyzer(
+                Map.of(sql, Map.of("invalid_id", List.of(new InputColumn(null, "id", Confidence.RENAME, false)))),
+                Map.of(sql, Map.of("p.d.src", "p.d.src")));
+
+        ColumnLineageGraph result = new ColumnLineageExtractorImpl(analyzer).extract(graph, Map.of());
+
+        assertTrue(result.upstream(new ColumnRef("p.d.assert_src", "invalid_id").id())
+                        .contains(new ColumnRef("p.d.src", "id").id()),
+                "assertion columns must be part of the column lineage graph");
     }
 
     @Test

@@ -26,6 +26,7 @@ import com.intellij.execution.runners.AsyncProgramRunner;
 import com.intellij.execution.runners.ExecutionEnvironment;
 import com.intellij.execution.runners.RunContentBuilder;
 import com.intellij.execution.ui.RunContentDescriptor;
+import com.intellij.openapi.util.Key;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.concurrency.Promise;
 import org.jetbrains.concurrency.Promises;
@@ -36,6 +37,9 @@ public class DataformWorkflowProgramRunner
         extends AsyncProgramRunner<RunnerSettings> {
 
     public static final String RUNNER_ID = "DataformWorkflowRunner";
+
+    private static final Key<Boolean> OPTIONS_REVIEWED =
+            Key.create("dataform.workflow.options.reviewed");
 
     @NotNull
     @Override
@@ -55,6 +59,9 @@ public class DataformWorkflowProgramRunner
             @NotNull ExecutionEnvironment environment,
             @NotNull RunProfileState state
     ) {
+        if (!reviewOptionsIfLaunchedFromFile(environment)) {
+            return Promises.resolvedPromise(null);
+        }
         try {
             flushFiles(environment.getProject());
             ExecutionResult result = state.execute(
@@ -68,5 +75,16 @@ public class DataformWorkflowProgramRunner
         } catch (ExecutionException e) {
             return Promises.rejectedPromise(e);
         }
+    }
+
+    private static boolean reviewOptionsIfLaunchedFromFile(@NotNull ExecutionEnvironment environment) {
+        if (!environment.isRunningCurrentFile()) {
+            return true;
+        }
+        if (Boolean.TRUE.equals(environment.getUserData(OPTIONS_REVIEWED))) {
+            return true;
+        }
+        environment.putUserData(OPTIONS_REVIEWED, Boolean.TRUE);
+        return DataformRunConfigurationPrompt.confirmCurrentFileRun(environment);
     }
 }
