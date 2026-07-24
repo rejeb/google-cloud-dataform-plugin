@@ -180,6 +180,17 @@
                 language="SQL"
                 implementationClass="io.github.rejeb.dataform.language.completion.SqlxKeywordCompletionContributor"/>
 
+        <completion.contributor
+                language="SQL"
+                implementationClass="io.github.rejeb.dataform.language.completion.SqlxTemplateExpressionCompletionContributor"/>
+
+        <completion.contributor
+                language="JavaScript"
+                implementationClass="io.github.rejeb.dataform.language.completion.SqlxTemplateExpressionCompletionContributor"/>
+
+        <typedHandler
+                implementation="io.github.rejeb.dataform.language.completion.SqlxDollarTypedHandler"/>
+
         <platform.backend.documentation.targetProvider
                 implementation="io.github.rejeb.dataform.language.documentation.DataformRefDocumentationTargetProvider"/>
 

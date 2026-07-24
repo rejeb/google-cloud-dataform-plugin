@@ -139,7 +139,10 @@ public class SqlxJsQueryInjector implements MultiHostInjector {
         return isDataformDefinitionFile(template);
     }
 
-    private static boolean isDataformDefinitionFile(@NotNull PsiElement element) {
+    /**
+     * Tells whether the given element belongs to a Dataform JavaScript or TypeScript definition file.
+     */
+    public static boolean isDataformDefinitionFile(@NotNull PsiElement element) {
         PsiFile topLevel = InjectedLanguageManager.getInstance(element.getProject())
                 .getTopLevelFile(element);
         VirtualFile file = topLevel == null ? null : topLevel.getVirtualFile();

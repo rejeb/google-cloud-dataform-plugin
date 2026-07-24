@@ -4,7 +4,7 @@ A comprehensive IntelliJ IDEA plugin that provides advanced language support for
 
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-IntelliJ-lightgrey.svg)
-![version](https://img.shields.io/badge/version-0.2.15-green.svg)
+![version](https://img.shields.io/badge/version-0.2.16-green.svg)
 [![Java](https://img.shields.io/badge/Java-21-blue)](https://www.java.com/fr/)
 
 ## Features
@@ -16,14 +16,26 @@ A comprehensive IntelliJ IDEA plugin that provides advanced language support for
   - JavaScript symbols and TypeScript definitions
   - Workflow settings and configuration properties
   - JSON schema-based completion for configuration files
+  - `ref()` completion listing the actions declared in the project, in SQLX and JavaScript files
+  - Dataform template expressions (`${...}`), with the `$` key opening completion automatically
 - **Code Navigation**: Navigate between references, includes, and declarations
 - **BigQuery SQL Support**: Native BigQuery SQL dialect integration with proper syntax validation
+- **Declared Variables**: `DECLARE` variables defined in pre-operations resolve inside the query
+
+### Quick Documentation
+`Ctrl+Q` on:
+- **Table References**: `ref()` and resolved tables show the target action, its type, schema and columns
+- **Columns**: Column name, type, mode and description from the resolved table schema
+- **BigQuery Functions**: Built-in documentation for the BigQuery function catalog, with signature,
+  description and examples
 
 ### Multi-Language Injection
 - **SQL Injection**: BigQuery SQL support within SQLX SQL blocks with template expression handling
 - **JavaScript Injection**: Full JavaScript/TypeScript support in JS blocks
 - **Config Injection**: JSON-based configuration with schema validation
 - **Template Injection**: Support for Dataform template expressions
+- **JS Query Injection**: BigQuery SQL injected in query template literals written in `.js` / `.ts`
+  files, with working `ref()` resolution and column completion
 
 ### Smart References
 - **File References**: Navigate to included files and definitions
@@ -48,6 +60,8 @@ A split editor next to any `.sqlx` file, with three views:
 ### Lineage View
 - **File Lineage**: Upstream and downstream dependencies of the open file
 - **Project Lineage**: A full project graph (`Tools` → `Open Dataform Lineage`, or `Alt+Shift+D`)
+- **Column-Level Lineage**: Expand a node to see its columns and follow column-to-column edges,
+  derived from the compiled `SELECT` statements, with a confidence level per edge
 - **Interactive Graph**: Pan, zoom, search, minimap, focus mode, and filtering by type, tag and schema
 - **Navigation**: Jump from a node to its source file, or run the corresponding action
 
@@ -56,6 +70,8 @@ A split editor next to any `.sqlx` file, with three views:
   password store and shared across projects and windows. An editor banner prompts for a new sign-in when
   the session expires, so no external `gcloud` login is required
 - **Repository Management**: Configure and switch between several Dataform repositories
+- **Service Account**: Pick the service account used by a repository from the project's accounts,
+  listed through the IAM API, so workflow invocations run with the right identity
 - **Workspace Management**: Browse, create and select GCP Dataform workspaces
 - **Push / Pull**: Synchronize local files with a GCP Dataform workspace
 - **Compare with Remote**: Diff a local file against its remote workspace version
