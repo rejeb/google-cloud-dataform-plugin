@@ -210,7 +210,8 @@ public class ManageRepositoriesDialog extends DialogWrapper {
                 copyLabel,
                 src.projectId(),
                 src.repositoryId(),
-                src.location()
+                src.location(),
+                src.serviceAccount()
         );
         int newIndex = listModel.size();
         insertAndSelect(copy, newIndex);

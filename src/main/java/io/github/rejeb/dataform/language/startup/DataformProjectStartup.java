@@ -87,22 +87,22 @@ public class DataformProjectStartup implements ProjectActivity {
         WriteAction.runAndWait(() -> {
             project.getService(DataformDtsGenerator.class).generateDts();
             ModuleManager moduleManager = ModuleManager.getInstance(project);
-
-            Module[] modules = moduleManager.getModules();
-
-            for (Module module : modules) {
-                FacetManager facetManager = FacetManager.getInstance(module);
-
-                if (facetManager.getFacetByType(DataformFacetType.ID) == null) {
-                    ModifiableFacetModel model = facetManager.createModifiableModel();
-                    DataformFacet facet = facetManager.createFacet(
-                            DataformFacetType.INSTANCE, "Dataform", null);
-                    model.addFacet(facet);
-                    model.commit();
-                    LOG.info("Dataform facet added to module: " + module.getName());
-                }
-            }
             try {
+                Module[] modules = moduleManager.getModules();
+
+                for (Module module : modules) {
+                    FacetManager facetManager = FacetManager.getInstance(module);
+
+                    if (facetManager.getFacetByType(DataformFacetType.ID) == null) {
+                        ModifiableFacetModel model = facetManager.createModifiableModel();
+                        DataformFacet facet = facetManager.createFacet(
+                                DataformFacetType.INSTANCE, "Dataform", null);
+                        model.addFacet(facet);
+                        model.commit();
+                        LOG.info("Dataform facet added to module: " + module.getName());
+                    }
+                }
+
                 VirtualFile[] roots = ProjectRootManager.getInstance(project).getContentRoots();
                 if (roots.length == 0) return;
                 VirtualFile contentRoot = roots[0];

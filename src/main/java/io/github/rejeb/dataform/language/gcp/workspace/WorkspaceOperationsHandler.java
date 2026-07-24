@@ -131,7 +131,10 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
             return result;
         });
 
-        if (localFiles.isEmpty()) return;
+        if (localFiles.isEmpty()) {
+            LOG.info("pushCode: no local files resolved, skipping push for workspace: " + workspaceId);
+            return;
+        }
 
         List<String> remotePaths = workspaceRepository.listAllPaths(
                 config.projectId, config.location, config.repositoryId, workspaceId);
@@ -148,7 +151,8 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
         workspaceRepository.createRepository(
                 config.projectId(),
                 config.location(),
-                config.repositoryId()
+                config.repositoryId(),
+                config.serviceAccount()
         );
     }
 

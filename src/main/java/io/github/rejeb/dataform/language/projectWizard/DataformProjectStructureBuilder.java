@@ -72,10 +72,7 @@ public final class DataformProjectStructureBuilder {
         exampleSqlx.setBinaryContent(exampleSqlxContent.getBytes());
 
         VirtualFile readme = baseDir.createChildData(project, "README.md");
-        String readmeContent = String.format(
-                "# %s%n%n" +
-                        "Dataform project for BigQuery data transformation."
-        );
+        String readmeContent = "# Dataform project for BigQuery data transformation.";
         readme.setBinaryContent(readmeContent.getBytes());
     }
 }

@@ -43,6 +43,7 @@ public class RepositoryEditPanel extends JPanel {
     private final JBTextField projectIdField = new JBTextField(30);
     private final JBTextField repositoryIdField = new JBTextField(30);
     private final JBTextField locationField = new JBTextField(30);
+    private final ServiceAccountComboBox serviceAccountField;
 
     private final JButton testButton = new JButton("Test Connection");
     private final JButton createGcpButton = new JButton("Create in GCP");
@@ -58,6 +59,7 @@ public class RepositoryEditPanel extends JPanel {
     public RepositoryEditPanel(@NotNull Project project) {
         super(new BorderLayout());
         this.project = project;
+        this.serviceAccountField = new ServiceAccountComboBox(project, () -> projectIdField.getText().trim());
 
         testButton.addActionListener(e -> runAction(ActionKind.TEST));
         createGcpButton.addActionListener(e -> runAction(ActionKind.CREATE_GCP));
@@ -73,6 +75,7 @@ public class RepositoryEditPanel extends JPanel {
                 .addLabeledComponent(new JBLabel("GCP Project ID:"), projectIdField, 1, false)
                 .addLabeledComponent(new JBLabel("Repository ID:"), repositoryIdField, 1, false)
                 .addLabeledComponent(new JBLabel("Location:"), locationField, 1, false)
+                .addLabeledComponent(new JBLabel("Service Account:"), serviceAccountField, 1, false)
                 .addComponentFillVertically(new JPanel(), 0)
                 .addComponent(actionRow)
                 .getPanel();
@@ -94,6 +97,7 @@ public class RepositoryEditPanel extends JPanel {
         projectIdField.setText(config.projectId());
         repositoryIdField.setText(config.repositoryId());
         locationField.setText(config.location());
+        serviceAccountField.setText(config.serviceAccount());
         statusLabel.setText("");
         setEnabled(true);
     }
@@ -103,6 +107,7 @@ public class RepositoryEditPanel extends JPanel {
         projectIdField.setText("");
         repositoryIdField.setText("");
         locationField.setText("");
+        serviceAccountField.setText("");
         statusLabel.setText("");
         setEnabled(false);
     }
@@ -133,7 +138,8 @@ public class RepositoryEditPanel extends JPanel {
                 label.isEmpty() ? labelFallback : label,
                 projectIdField.getText().trim(),
                 repositoryIdField.getText().trim(),
-                locationField.getText().trim()
+                locationField.getText().trim(),
+                serviceAccountField.getText().trim()
         );
     }
 
@@ -144,6 +150,7 @@ public class RepositoryEditPanel extends JPanel {
         projectIdField.setEnabled(enabled);
         repositoryIdField.setEnabled(enabled);
         locationField.setEnabled(enabled);
+        serviceAccountField.setEnabled(enabled);
         testButton.setEnabled(enabled);
         createGcpButton.setEnabled(enabled);
     }
