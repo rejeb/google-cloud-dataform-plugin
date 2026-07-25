@@ -50,9 +50,13 @@ import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
 import io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService;
 import org.jetbrains.annotations.NotNull;
 
+import io.github.rejeb.dataform.language.compilation.model.Target;
+
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import javax.swing.AbstractAction;
 import javax.swing.JComponent;
@@ -117,8 +121,12 @@ public final class LineageProjectPanel extends JPanel {
         detailsSplitter.setFirstComponent(canvas);
         detailsSplitter.setSecondComponent(null);
 
+        JPanel header = new JPanel(new BorderLayout());
+        header.add(new LineageWarningBanner(model), BorderLayout.NORTH);
+        header.add(buildToolbar(), BorderLayout.CENTER);
+
         JPanel body = new JPanel(new BorderLayout());
-        body.add(buildToolbar(), BorderLayout.NORTH);
+        body.add(header, BorderLayout.NORTH);
         body.add(filtersPanel, BorderLayout.WEST);
         body.add(detailsSplitter, BorderLayout.CENTER);
         body.add(statusBar, BorderLayout.SOUTH);
@@ -172,13 +180,34 @@ public final class LineageProjectPanel extends JPanel {
         });
     }
 
+    /**
+     * Builds the column graph from the schemas of the actions present in the compiled graph.
+     * Cached schemas of actions that are no longer part of the graph are ignored, so a stale
+     * entry cannot contribute columns to the lineage.
+     */
     private ColumnLineageGraph computeColumnGraph(@NotNull CompiledGraph compiled) {
+        Set<String> actionNames = actionFullNames(compiled);
         Map<String, List<ColumnInfo>> schemas = new LinkedHashMap<>();
         DataformTableSchemaService.getInstance(project).getAllTables()
-                .forEach((fqn, table) -> schemas.put(fqn, table.getColumns()));
+                .forEach((fqn, table) -> {
+                    if (actionNames.contains(fqn)) schemas.put(fqn, table.getColumns());
+                });
         ColumnLineageExtractor extractor =
                 new ColumnLineageExtractorImpl(new BigQuerySelectAnalyzer(project));
         return extractor.extract(compiled, schemas);
+    }
+
+    private @NotNull Set<String> actionFullNames(@NotNull CompiledGraph compiled) {
+        Set<String> names = new LinkedHashSet<>();
+        compiled.getTables().forEach(t -> addFullName(names, t.getTarget()));
+        compiled.getAssertions().forEach(a -> addFullName(names, a.getTarget()));
+        compiled.getOperations().forEach(o -> addFullName(names, o.getTarget()));
+        compiled.getDeclarations().forEach(d -> addFullName(names, d.getTarget()));
+        return names;
+    }
+
+    private void addFullName(@NotNull Set<String> names, Target target) {
+        if (target != null && target.getFullName() != null) names.add(target.getFullName());
     }
 
     private JComponent buildToolbar() {

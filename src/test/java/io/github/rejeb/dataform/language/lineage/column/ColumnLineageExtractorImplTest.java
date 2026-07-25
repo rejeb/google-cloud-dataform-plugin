@@ -79,7 +79,12 @@ class ColumnLineageExtractorImplTest {
                         midSql, Map.of("p.d.src", "p.d.src"),
                         finSql, Map.of("p.d.mid", "p.d.mid")));
 
-        ColumnLineageGraph result = new ColumnLineageExtractorImpl(analyzer).extract(graph, Map.of());
+        Map<String, List<ColumnInfo>> schemas = Map.of(
+                "p.d.src", List.of(new ColumnInfo("amount", "NUMERIC", "NULLABLE", null)),
+                "p.d.mid", List.of(new ColumnInfo("amt", "NUMERIC", "NULLABLE", null)),
+                "p.d.fin", List.of(new ColumnInfo("total", "NUMERIC", "NULLABLE", null)));
+
+        ColumnLineageGraph result = new ColumnLineageExtractorImpl(analyzer).extract(graph, schemas);
 
         String total = new ColumnRef("p.d.fin", "total").id();
         String amount = new ColumnRef("p.d.src", "amount").id();
@@ -97,7 +102,11 @@ class ColumnLineageExtractorImplTest {
                 Map.of(sql, Map.of("PARTITION_DATE", List.<InputColumn>of())),
                 Map.of(sql, Map.of("p.d.src", "p.d.src")));
 
-        ColumnLineageGraph result = new ColumnLineageExtractorImpl(analyzer).extract(graph, Map.of());
+        Map<String, List<ColumnInfo>> schemas = Map.of(
+                "p.d.src", List.of(new ColumnInfo("id", "INT64", "NULLABLE", null)),
+                "p.d.t", List.of(new ColumnInfo("PARTITION_DATE", "DATE", "NULLABLE", null)));
+
+        ColumnLineageGraph result = new ColumnLineageExtractorImpl(analyzer).extract(graph, schemas);
         assertNotNull(result.column(new ColumnRef("p.d.t", "PARTITION_DATE").id()),
                 "a computed column with no upstream must still be a node");
     }
@@ -115,7 +124,12 @@ class ColumnLineageExtractorImplTest {
         ColumnInfo goalKeeper = new ColumnInfo("goalKeeper", "RECORD", "NULLABLE", null, List.of(
                 new ColumnInfo("playerName", "STRING", "NULLABLE", null),
                 new ColumnInfo("cleanSheets", "INT64", "NULLABLE", null)));
-        Map<String, List<ColumnInfo>> schemas = Map.of("p.d.src", List.of(goalKeeper));
+        ColumnInfo gk = new ColumnInfo("gk", "RECORD", "NULLABLE", null, List.of(
+                new ColumnInfo("playerName", "STRING", "NULLABLE", null),
+                new ColumnInfo("cleanSheets", "INT64", "NULLABLE", null)));
+        Map<String, List<ColumnInfo>> schemas = Map.of(
+                "p.d.src", List.of(goalKeeper),
+                "p.d.view", List.of(gk));
 
         ColumnLineageGraph result = new ColumnLineageExtractorImpl(analyzer).extract(graph, schemas);
 
@@ -210,7 +224,10 @@ class ColumnLineageExtractorImplTest {
                 new ColumnInfo("playerName", "STRING", "NULLABLE", null),
                 new ColumnInfo("cleanSheets", "INT64", "NULLABLE", null)));
         ColumnInfo unrelated = new ColumnInfo("teamName", "STRING", "NULLABLE", null);
-        Map<String, List<ColumnInfo>> schemas = Map.of("p.d.src", List.of(goalKeeper, unrelated));
+        Map<String, List<ColumnInfo>> schemas = Map.of(
+                "p.d.src", List.of(goalKeeper, unrelated),
+                "p.d.view", List.of(new ColumnInfo("playerName", "STRING", "NULLABLE", null),
+                        new ColumnInfo("cleanSheets", "INT64", "NULLABLE", null)));
 
         ColumnLineageGraph result = new ColumnLineageExtractorImpl(analyzer).extract(graph, schemas);
 
@@ -223,7 +240,7 @@ class ColumnLineageExtractorImplTest {
     }
 
     @Test
-    void starWithoutSchemaFallsBackToTableColumn() {
+    void tableWithoutResolvedSchemaIsSkippedAndReported() {
         String sql = "SELECT * FROM p.d.src";
         CompiledGraph graph = graph("["
                 + tableJson("p", "d", "copy", sql, "[" + targetJson("p", "d", "src") + "]") + "]");
@@ -233,7 +250,13 @@ class ColumnLineageExtractorImplTest {
                 Map.of(sql, Map.of("p.d.src", "p.d.src")));
 
         ColumnLineageGraph result = new ColumnLineageExtractorImpl(analyzer).extract(graph, Map.of());
-        assertNotNull(result.column(new ColumnRef("p.d.src", "*").id()));
+
+        assertTrue(result.columns().isEmpty(),
+                "no schema means no column may be invented for any table");
+        assertTrue(result.unresolvedTables().contains("p.d.copy"),
+                "the skipped table must be reported so the user can be warned");
+        assertTrue(result.unresolvedTables().contains("p.d.src"),
+                "the skipped dependency must be reported too");
     }
 
     @Test
@@ -251,7 +274,9 @@ class ColumnLineageExtractorImplTest {
                 List.of(new ColumnInfo("lat", "FLOAT64", "NULLABLE", null)));
         ColumnInfo address = new ColumnInfo("address", "RECORD", "NULLABLE", null, List.of(leaf, innerStruct));
         ColumnInfo id = new ColumnInfo("id", "INT64", "NULLABLE", null);
-        Map<String, List<ColumnInfo>> schemas = Map.of("p.d.src", List.of(id, address));
+        Map<String, List<ColumnInfo>> schemas = Map.of(
+                "p.d.src", List.of(id, address),
+                "p.d.copy", List.of(id, address));
 
         ColumnLineageGraph result = new ColumnLineageExtractorImpl(analyzer).extract(graph, schemas);
 
@@ -274,11 +299,70 @@ class ColumnLineageExtractorImplTest {
                 Map.of(sql, Map.of("invalid_id", List.of(new InputColumn(null, "id", Confidence.RENAME, false)))),
                 Map.of(sql, Map.of("p.d.src", "p.d.src")));
 
-        ColumnLineageGraph result = new ColumnLineageExtractorImpl(analyzer).extract(graph, Map.of());
+        Map<String, List<ColumnInfo>> schemas = Map.of(
+                "p.d.src", List.of(new ColumnInfo("id", "INT64", "NULLABLE", null)),
+                "p.d.assert_src", List.of(new ColumnInfo("invalid_id", "INT64", "NULLABLE", null)));
+
+        ColumnLineageGraph result = new ColumnLineageExtractorImpl(analyzer).extract(graph, schemas);
 
         assertTrue(result.upstream(new ColumnRef("p.d.assert_src", "invalid_id").id())
                         .contains(new ColumnRef("p.d.src", "id").id()),
                 "assertion columns must be part of the column lineage graph");
+    }
+
+    @Test
+    void qualifiedColumnWithBacktickedAliasResolvesToItsOwnDependency() {
+        String sql = "SELECT c.full_name FROM `p.d.customers` AS c JOIN `p.d.summary` AS s ON TRUE";
+        CompiledGraph graph = graph("["
+                + tableJson("p", "d", "ltv", sql, "["
+                + targetJson("p", "d", "customers") + "," + targetJson("p", "d", "summary") + "]") + "]");
+
+        SelectAnalyzer analyzer = analyzer(
+                Map.of(sql, Map.of("full_name",
+                        List.of(new InputColumn("c", "full_name", Confidence.DIRECT, false)))),
+                Map.of(sql, Map.of("c", "`p.d.customers`", "s", "`p.d.summary`")));
+
+        Map<String, List<ColumnInfo>> schemas = Map.of(
+                "p.d.customers", List.of(new ColumnInfo("full_name", "STRING", "NULLABLE", null)),
+                "p.d.summary", List.of(new ColumnInfo("full_name", "STRING", "NULLABLE", null)),
+                "p.d.ltv", List.of(new ColumnInfo("full_name", "STRING", "NULLABLE", null)));
+
+        ColumnLineageGraph result = new ColumnLineageExtractorImpl(analyzer).extract(graph, schemas);
+
+        String output = new ColumnRef("p.d.ltv", "full_name").id();
+        assertTrue(result.upstream(output).contains(new ColumnRef("p.d.customers", "full_name").id()),
+                "a backticked alias must resolve to its own dependency");
+        assertFalse(result.upstream(output).contains(new ColumnRef("p.d.summary", "full_name").id()),
+                "a column qualified by an alias must not be attributed to unrelated dependencies");
+    }
+
+    @Test
+    void columnsAreNeverInventedOnATableThatDoesNotDeclareThem() {
+        String sql = "SELECT c.full_name, s.order_amount FROM `p.d.customers` AS c, `p.d.summary` AS s";
+        CompiledGraph graph = graph("["
+                + tableJson("p", "d", "ltv", sql, "["
+                + targetJson("p", "d", "customers") + "," + targetJson("p", "d", "summary") + "]") + "]");
+
+        SelectAnalyzer analyzer = analyzer(
+                Map.of(sql, Map.of(
+                        "full_name", List.of(new InputColumn("unknown", "full_name", Confidence.DIRECT, false)),
+                        "order_amount", List.of(new InputColumn("s", "order_amount", Confidence.DIRECT, false)))),
+                Map.of(sql, Map.of("c", "`p.d.customers`", "s", "`p.d.summary`")));
+
+        Map<String, List<ColumnInfo>> schemas = Map.of(
+                "p.d.customers", List.of(new ColumnInfo("full_name", "STRING", "NULLABLE", null)),
+                "p.d.summary", List.of(new ColumnInfo("order_amount", "NUMERIC", "NULLABLE", null)),
+                "p.d.ltv", List.of(new ColumnInfo("full_name", "STRING", "NULLABLE", null),
+                        new ColumnInfo("order_amount", "NUMERIC", "NULLABLE", null)));
+
+        ColumnLineageGraph result = new ColumnLineageExtractorImpl(analyzer).extract(graph, schemas);
+
+        assertEquals(List.of("order_amount"),
+                result.columnsForTable(new ColumnRef("p.d.summary", "x").tableNodeId()).stream()
+                        .map(ColumnRef::columnName).toList(),
+                "a table exposes exactly the columns of its resolved schema, whatever the SQL analysis says");
+        assertNull(result.column(new ColumnRef("p.d.summary", "full_name").id()),
+                "an unresolvable alias must not fabricate a column on a dependency");
     }
 
     @Test
@@ -291,9 +375,10 @@ class ColumnLineageExtractorImplTest {
                 Map.of(sql, Map.of("*", List.of(new InputColumn(null, "*", Confidence.STAR, true)))),
                 Map.of(sql, Map.of("p.d.src", "p.d.src")));
 
-        Map<String, List<ColumnInfo>> schemas = Map.of("p.d.src", List.of(
+        List<ColumnInfo> columns = List.of(
                 new ColumnInfo("id", "INT64", "NULLABLE", null),
-                new ColumnInfo("amount", "NUMERIC", "NULLABLE", null)));
+                new ColumnInfo("amount", "NUMERIC", "NULLABLE", null));
+        Map<String, List<ColumnInfo>> schemas = Map.of("p.d.src", columns, "p.d.copy", columns);
 
         ColumnLineageGraph result = new ColumnLineageExtractorImpl(analyzer).extract(graph, schemas);
         assertNotNull(result.column(new ColumnRef("p.d.src", "id").id()));

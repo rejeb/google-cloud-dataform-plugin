@@ -44,15 +44,21 @@ public final class ColumnLineageGraph {
     private final Map<String, Set<String>> upstreamCache = new java.util.concurrent.ConcurrentHashMap<>();
     private final Map<String, Set<String>> downstreamCache = new java.util.concurrent.ConcurrentHashMap<>();
     private final Map<String, List<ColumnRef>> columnsByTable;
+    private final Set<String> unresolvedTables;
+    private final Map<String, String> canonicalIds;
 
     private ColumnLineageGraph(Map<String, ColumnRef> columns,
                                Map<String, Set<String>> predecessors,
                                Map<String, Set<String>> successors,
-                               List<ColumnEdge> edges) {
+                               List<ColumnEdge> edges,
+                               Set<String> unresolvedTables,
+                               Map<String, String> canonicalIds) {
+        this.canonicalIds = canonicalIds;
         this.columns = columns;
         this.predecessors = predecessors;
         this.successors = successors;
         this.edges = edges;
+        this.unresolvedTables = unresolvedTables;
         Map<String, List<ColumnRef>> byTable = new LinkedHashMap<>();
         for (ColumnRef column : columns.values()) {
             byTable.computeIfAbsent(column.tableNodeId(), k -> new java.util.ArrayList<>()).add(column);
@@ -64,13 +70,23 @@ public final class ColumnLineageGraph {
         return Collections.unmodifiableCollection(columns.values());
     }
 
+    /**
+     * Fully qualified names of the actions whose schema could not be resolved, and whose column
+     * lineage was therefore skipped. Callers should warn the user that the column graph is
+     * incomplete: columns and edges involving these tables are missing.
+     */
+    public @NotNull Set<String> unresolvedTables() {
+        return unresolvedTables;
+    }
+
     /** Columns belonging to a table node, indexed for O(1) lookup. */
     public @NotNull List<ColumnRef> columnsForTable(@NotNull String tableNodeId) {
         return columnsByTable.getOrDefault(tableNodeId, List.of());
     }
 
     public @Nullable ColumnRef column(@NotNull String id) {
-        return columns.get(id);
+        ColumnRef exact = columns.get(id);
+        return exact != null ? exact : columns.get(canonicalIds.get(Builder.key(id)));
     }
 
     public @NotNull List<ColumnEdge> edges() {
@@ -120,21 +136,44 @@ public final class ColumnLineageGraph {
         private final Map<String, Set<String>> predecessors = new LinkedHashMap<>();
         private final Map<String, Set<String>> successors = new LinkedHashMap<>();
         private final List<ColumnEdge> edges = new ArrayList<>();
+        private final Set<String> unresolvedTables = new LinkedHashSet<>();
+        private final Map<String, String> canonicalIds = new LinkedHashMap<>();
 
         private Builder() {
         }
 
-        public @NotNull Builder addColumn(@NotNull ColumnRef column) {
-            columns.putIfAbsent(column.id(), column);
+        /**
+         * Records an action whose schema is unknown, so its column lineage was skipped.
+         */
+        public @NotNull Builder addUnresolvedTable(@NotNull String tableFullName) {
+            unresolvedTables.add(tableFullName);
             return this;
         }
 
-        public @NotNull Builder addEdge(@NotNull String fromId, @NotNull String toId, @NotNull Confidence kind) {
-            if (!columns.containsKey(fromId) || !columns.containsKey(toId)) return this;
-            successors.computeIfAbsent(fromId, k -> new LinkedHashSet<>()).add(toId);
-            predecessors.computeIfAbsent(toId, k -> new LinkedHashSet<>()).add(fromId);
-            edges.add(new ColumnEdge(columns.get(fromId), columns.get(toId), kind));
+        public @NotNull Builder addColumn(@NotNull ColumnRef column) {
+            if (columns.putIfAbsent(column.id(), column) == null) {
+                canonicalIds.putIfAbsent(key(column.id()), column.id());
+            }
             return this;
+        }
+
+        /**
+         * Connects two known columns. Identifiers are resolved case-insensitively to the columns
+         * declared through {@link #addColumn}; an edge naming an unknown column is dropped, so
+         * edge resolution can never introduce a column a table does not have.
+         */
+        public @NotNull Builder addEdge(@NotNull String fromId, @NotNull String toId, @NotNull Confidence kind) {
+            String from = canonicalIds.get(key(fromId));
+            String to = canonicalIds.get(key(toId));
+            if (from == null || to == null) return this;
+            successors.computeIfAbsent(from, k -> new LinkedHashSet<>()).add(to);
+            predecessors.computeIfAbsent(to, k -> new LinkedHashSet<>()).add(from);
+            edges.add(new ColumnEdge(columns.get(from), columns.get(to), kind));
+            return this;
+        }
+
+        private static @NotNull String key(@NotNull String id) {
+            return id.toLowerCase(java.util.Locale.ROOT);
         }
 
         public @NotNull ColumnLineageGraph build() {
@@ -146,7 +185,9 @@ public final class ColumnLineageGraph {
                     Collections.unmodifiableMap(new LinkedHashMap<>(columns)),
                     Collections.unmodifiableMap(frozenPred),
                     Collections.unmodifiableMap(frozenSucc),
-                    Collections.unmodifiableList(new ArrayList<>(edges)));
+                    Collections.unmodifiableList(new ArrayList<>(edges)),
+                    Collections.unmodifiableSet(new LinkedHashSet<>(unresolvedTables)),
+                    Collections.unmodifiableMap(new LinkedHashMap<>(canonicalIds)));
         }
     }
 }

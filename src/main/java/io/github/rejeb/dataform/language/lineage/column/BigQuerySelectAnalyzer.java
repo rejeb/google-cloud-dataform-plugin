@@ -114,12 +114,31 @@ public class BigQuerySelectAnalyzer implements SelectAnalyzer {
     private @NotNull Map<String, String> aliasesOf(@NotNull PsiElement stmt) {
         PsiElement top = firstComposite(stmt);
         PsiElement outer = top;
-        if (isType(top, WITH_QUERY)) outer = firstQueryOrUnion(top);
         Map<String, String> aliases = new LinkedHashMap<>();
+        if (isType(top, WITH_QUERY)) {
+            outer = firstQueryOrUnion(top);
+            PsiElement withClause = directChild(top, WITH_CLAUSE);
+            if (withClause != null) collectCteAliases(withClause, aliases);
+        }
         for (PsiElement query : expandQueries(outer)) {
             aliases.putAll(fromAliasesOf(query));
         }
         return aliases;
+    }
+
+    /**
+     * Collects the FROM aliases declared inside each CTE. Inputs coming from a CTE are inlined
+     * with the alias they carry in the CTE body, so those aliases must be resolvable too.
+     */
+    private void collectCteAliases(@NotNull PsiElement withClause,
+                                   @NotNull Map<String, String> aliases) {
+        for (PsiElement def : directChildren(withClause, NAMED_QUERY)) {
+            PsiElement innerExpr = firstQueryOrUnion(def);
+            if (innerExpr == null) continue;
+            for (PsiElement query : expandQueries(innerExpr)) {
+                aliases.putAll(fromAliasesOf(query));
+            }
+        }
     }
 
     private @Nullable PsiElement parseStatement(@NotNull String sql) {

@@ -66,24 +66,44 @@ public final class WorkflowSettingsServiceImpl implements WorkflowSettingsServic
     }
 
     @NotNull
-    public Collection<String> getPropertiesForPrefix(@Nullable String prefix) {
-        Map<String, WorkflowSettingsProperty> properties = getWorkflowProperties();
+    public Collection<String> getLeafPathsForPrefix(@Nullable String prefix) {
+        List<String> paths = new ArrayList<>();
+        collectLeafPaths(propertiesForPrefix(prefix), "", paths);
+        return paths;
+    }
 
-        if (prefix == null || prefix.isEmpty()) {
-            return properties.keySet();
-        }
-        String[] parentPath = prefix.split("\\.");
-        Map<String, WorkflowSettingsProperty> current = properties;
-
-        for (String part : parentPath) {
-            WorkflowSettingsProperty prop = current.get(part);
-            if (prop == null || !prop.hasChildren()) {
-                return Collections.emptySet();
+    private void collectLeafPaths(@NotNull Map<String, WorkflowSettingsProperty> properties,
+                                  @NotNull String parentPath,
+                                  @NotNull List<String> paths) {
+        properties.forEach((name, property) -> {
+            String path = parentPath.isEmpty() ? name : parentPath + "." + name;
+            if (property.hasChildren()) {
+                collectLeafPaths(property.children(), path, paths);
+            } else {
+                paths.add(path);
             }
-            current = prop.children();
-        }
+        });
+    }
 
-        return current.keySet();
+    @NotNull
+    private Map<String, WorkflowSettingsProperty> propertiesForPrefix(@Nullable String prefix) {
+        Map<String, WorkflowSettingsProperty> current = getWorkflowProperties();
+        if (prefix == null || prefix.isEmpty()) {
+            return current;
+        }
+        for (String part : prefix.split("\\.")) {
+            WorkflowSettingsProperty property = current.get(part);
+            if (property == null || !property.hasChildren()) {
+                return Collections.emptyMap();
+            }
+            current = property.children();
+        }
+        return current;
+    }
+
+    @NotNull
+    public Collection<String> getPropertiesForPrefix(@Nullable String prefix) {
+        return propertiesForPrefix(prefix).keySet();
     }
 
     @Nullable

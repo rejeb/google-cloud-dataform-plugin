@@ -166,11 +166,27 @@
 
         <completion.contributor
                 language="JavaScript" order="first"
+                id="dataformConfigTagCompletion"
+                implementationClass="io.github.rejeb.dataform.language.completion.DataformConfigTagCompletionContributor"/>
+
+        <completion.contributor
+                language="JavaScript" order="first"
+                id="dataformConfigValueCompletion"
+                implementationClass="io.github.rejeb.dataform.language.completion.DataformConfigValueCompletionContributor"/>
+
+        <completion.contributor
+                language="JavaScript" order="first"
+                id="dataformConfigPropertyCompletion"
+                implementationClass="io.github.rejeb.dataform.language.completion.DataformConfigPropertyCompletionContributor"/>
+
+        <completion.contributor
+                language="JavaScript" order="first"
                 id="dataformRefCompletion"
                 implementationClass="io.github.rejeb.dataform.language.completion.DataformRefCompletionContributor"/>
 
         <completion.contributor
-                language="JavaScript"
+                language="JavaScript" order="first"
+                id="dataformJsSymbolCompletion"
                 implementationClass="io.github.rejeb.dataform.language.completion.DataformJsSymbolCompletionContributor"/>
 
         <completion.contributor

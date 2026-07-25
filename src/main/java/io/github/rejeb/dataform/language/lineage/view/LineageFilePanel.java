@@ -85,8 +85,12 @@ public final class LineageFilePanel extends JPanel {
         StatusBar statusBar = new StatusBar(model);
         canvas.setZoomListener(statusBar::setZoom);
 
+        JPanel header = new JPanel(new BorderLayout());
+        header.add(new LineageWarningBanner(model), BorderLayout.NORTH);
+        header.add(buildToolbar(), BorderLayout.CENTER);
+
         JPanel body = new JPanel(new BorderLayout());
-        body.add(buildToolbar(), BorderLayout.NORTH);
+        body.add(header, BorderLayout.NORTH);
         body.add(canvas, BorderLayout.CENTER);
         body.add(statusBar, BorderLayout.SOUTH);
 

@@ -18,6 +18,7 @@ package io.github.rejeb.dataform.language.lineage.column;
 
 import io.github.rejeb.dataform.language.compilation.model.CompiledAssertion;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
+import io.github.rejeb.dataform.language.compilation.model.CompiledOperation;
 import io.github.rejeb.dataform.language.compilation.model.CompiledTable;
 import io.github.rejeb.dataform.language.compilation.model.Target;
 import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
@@ -25,15 +26,20 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
- * Default {@link ColumnLineageExtractor}. For each model table, parses its compiled SQL
- * with a {@link BigQuerySelectAnalyzer}, resolves each input column to a dependency table,
- * and assembles the edges. Cross-layer rename tracking is emergent through transitive
- * traversal of the resulting graph.
+ * Default {@link ColumnLineageExtractor}. Column identity is owned by the resolved table
+ * schemas: every action's columns are seeded from its schema leaves before any edge is built,
+ * so edge resolution can only connect existing columns and can never invent one. For each
+ * action, the compiled SQL is parsed with a {@link BigQuerySelectAnalyzer} to map inputs onto
+ * those columns. Actions whose schema is unknown are skipped and reported through
+ * {@link ColumnLineageGraph#unresolvedTables()}. Cross-layer rename tracking is emergent
+ * through transitive traversal of the resulting graph.
  */
 public final class ColumnLineageExtractorImpl implements ColumnLineageExtractor {
 
@@ -61,10 +67,80 @@ public final class ColumnLineageExtractorImpl implements ColumnLineageExtractor 
                 .toList();
 
         ColumnLineageGraph.Builder builder = ColumnLineageGraph.builder();
+        seedColumns(builder, graph, schemas);
         for (TableAnalysis analysis : analyses) {
+            if (!hasSchema(schemas, analysis.tableFullName())) continue;
             processTable(builder, analysis, schemas);
         }
         return builder.build();
+    }
+
+    /**
+     * Registers one column per schema leaf for every action of the compiled graph, making the
+     * resolved schemas the single source of truth for column identity. Actions with no resolved
+     * schema are recorded as unresolved so the caller can warn that the graph is incomplete.
+     */
+    private void seedColumns(@NotNull ColumnLineageGraph.Builder builder,
+                             @NotNull CompiledGraph graph,
+                             @NotNull Map<String, List<ColumnInfo>> schemas) {
+        for (String fullName : collectActionFullNames(graph)) {
+            List<ColumnInfo> columns = schemas.get(fullName);
+            if (columns == null || columns.isEmpty()) {
+                builder.addUnresolvedTable(fullName);
+                continue;
+            }
+            for (String path : leafPaths(columns, "")) {
+                builder.addColumn(new ColumnRef(fullName, path));
+            }
+        }
+    }
+
+    /**
+     * Fully qualified names of everything that can carry columns: tables, assertions, operations
+     * with an output, declared sources, and the dependency targets of all of them (upstream
+     * tables that are not themselves actions of this project).
+     */
+    private @NotNull Set<String> collectActionFullNames(@NotNull CompiledGraph graph) {
+        Set<String> names = new LinkedHashSet<>();
+        graph.getTables().forEach(t -> {
+            addFullName(names, t.getTarget());
+            t.getDependencyTargets().forEach(d -> addFullName(names, d));
+        });
+        graph.getAssertions().forEach(a -> {
+            addFullName(names, a.getTarget());
+            a.getDependencyTargets().forEach(d -> addFullName(names, d));
+        });
+        graph.getOperations().stream()
+                .filter(CompiledOperation::isHasOutput)
+                .forEach(o -> {
+                    addFullName(names, o.getTarget());
+                    o.getDependencyTargets().forEach(d -> addFullName(names, d));
+                });
+        graph.getDeclarations().forEach(d -> addFullName(names, d.getTarget()));
+        return names;
+    }
+
+    private void addFullName(@NotNull Set<String> names, @Nullable Target target) {
+        if (target != null && target.getFullName() != null) names.add(target.getFullName());
+    }
+
+    /** Dotted paths of the leaf columns; STRUCT containers are not columns of their own. */
+    private @NotNull List<String> leafPaths(@NotNull List<ColumnInfo> columns, @NotNull String prefix) {
+        List<String> paths = new ArrayList<>();
+        for (ColumnInfo column : columns) {
+            String path = prefix.isEmpty() ? column.name() : prefix + "." + column.name();
+            if (isRecord(column)) {
+                paths.addAll(leafPaths(column.subFields(), path));
+            } else {
+                paths.add(path);
+            }
+        }
+        return paths;
+    }
+
+    private boolean hasSchema(@NotNull Map<String, List<ColumnInfo>> schemas, @NotNull String fullName) {
+        List<ColumnInfo> columns = schemas.get(fullName);
+        return columns != null && !columns.isEmpty();
     }
 
     /**
@@ -97,10 +173,6 @@ public final class ColumnLineageExtractorImpl implements ColumnLineageExtractor 
 
         List<ColumnInfo> targetSchema = schemas.get(tableFullName);
         outputs.forEach((outputName, inputs) -> {
-            boolean star = inputs.stream().anyMatch(InputColumn::star);
-            if (inputs.isEmpty() && !star) {
-                builder.addColumn(new ColumnRef(tableFullName, outputName));
-            }
             for (InputColumn input : inputs) {
                 addEdges(builder, tableFullName, outputName, input, aliases, deps, schemas, targetSchema);
             }
@@ -116,12 +188,8 @@ public final class ColumnLineageExtractorImpl implements ColumnLineageExtractor 
                           @NotNull Map<String, List<ColumnInfo>> schemas,
                           @Nullable List<ColumnInfo> targetSchema) {
         List<String> depTables = resolveDependencies(input.sourceAlias(), aliases, deps);
-        if (depTables.isEmpty()) {
-            if (!input.star()) builder.addColumn(new ColumnRef(tableFullName, outputName));
-            return;
-        }
-
         for (String depFullName : depTables) {
+            if (!hasSchema(schemas, depFullName)) continue;
             if (input.star()) {
                 addStarInputEdges(builder, tableFullName, depFullName, input, aliases, schemas, targetSchema);
             } else {
@@ -148,7 +216,7 @@ public final class ColumnLineageExtractorImpl implements ColumnLineageExtractor 
         String qualifier = input.sourceAlias();
         if (qualifier != null && !aliases.containsKey(qualifier)) {
             ColumnInfo structColumn = resolveColumnInfo(schemas.get(depFullName), qualifier);
-            if (structColumn != null && structColumn.isRecord() && !structColumn.subFields().isEmpty()) {
+            if (isRecord(structColumn)) {
                 for (ColumnInfo sub : structColumn.subFields()) {
                     ColumnInfo targetColumn = resolveColumnInfo(targetSchema, sub.name());
                     addColumnEdges(builder, depFullName, qualifier + "." + sub.name(),
@@ -157,10 +225,7 @@ public final class ColumnLineageExtractorImpl implements ColumnLineageExtractor 
                 return;
             }
             if (structColumn != null) {
-                ColumnRef source = new ColumnRef(depFullName, qualifier);
-                ColumnRef target = new ColumnRef(tableFullName, qualifier);
-                builder.addColumn(source).addColumn(target);
-                builder.addEdge(source.id(), target.id(), Confidence.STAR);
+                addEdge(builder, depFullName, qualifier, tableFullName, qualifier, Confidence.STAR);
                 return;
             }
         }
@@ -198,10 +263,22 @@ public final class ColumnLineageExtractorImpl implements ColumnLineageExtractor 
             String relativePath = relativePathForLeaf(targetColumn, leafOf(sourceName));
             if (relativePath != null) resolvedTarget = targetName + "." + relativePath;
         }
-        ColumnRef source = new ColumnRef(depFullName, sourceName);
-        ColumnRef target = new ColumnRef(tableFullName, resolvedTarget);
-        builder.addColumn(source).addColumn(target);
-        builder.addEdge(source.id(), target.id(), kind);
+        addEdge(builder, depFullName, sourceName, tableFullName, resolvedTarget, kind);
+    }
+
+    /**
+     * Connects two seeded columns. Columns absent from the seeded schemas are unknown to the
+     * builder, so such an edge is silently dropped instead of creating a column that does not
+     * belong to the table.
+     */
+    private void addEdge(@NotNull ColumnLineageGraph.Builder builder,
+                         @NotNull String sourceTable,
+                         @NotNull String sourceName,
+                         @NotNull String targetTable,
+                         @NotNull String targetName,
+                         @NotNull Confidence kind) {
+        builder.addEdge(new ColumnRef(sourceTable, sourceName).id(),
+                new ColumnRef(targetTable, targetName).id(), kind);
     }
 
     private boolean isRecord(@Nullable ColumnInfo column) {
@@ -251,43 +328,19 @@ public final class ColumnLineageExtractorImpl implements ColumnLineageExtractor 
         return found;
     }
 
+    /**
+     * Emits a STAR edge per leaf column of the dependency, using the dotted leaf paths shared by
+     * both schemas. Leaves the target does not actually expose are dropped by the builder.
+     */
     private void addStarEdges(@NotNull ColumnLineageGraph.Builder builder,
                               @NotNull String tableFullName,
                               @NotNull String depFullName,
                               @NotNull Map<String, List<ColumnInfo>> schemas) {
         List<ColumnInfo> columns = schemas.get(depFullName);
-        if (columns == null || columns.isEmpty()) {
-            ColumnRef source = new ColumnRef(depFullName, "*");
-            ColumnRef target = new ColumnRef(tableFullName, "*");
-            builder.addColumn(source).addColumn(target);
-            builder.addEdge(source.id(), target.id(), Confidence.TABLE_FALLBACK);
-            return;
+        if (columns == null) return;
+        for (String path : leafPaths(columns, "")) {
+            addEdge(builder, depFullName, path, tableFullName, path, Confidence.STAR);
         }
-        for (ColumnInfo column : columns) {
-            addLeafStarEdges(builder, tableFullName, depFullName, column, "");
-        }
-    }
-
-    /**
-     * Emits a STAR edge per leaf column, expanding STRUCT/RECORD columns recursively into their
-     * nested fields with dotted paths ({@code struct.nested}, {@code struct.nested.leaf}).
-     */
-    private void addLeafStarEdges(@NotNull ColumnLineageGraph.Builder builder,
-                                  @NotNull String tableFullName,
-                                  @NotNull String depFullName,
-                                  @NotNull ColumnInfo column,
-                                  @NotNull String prefix) {
-        String path = prefix.isEmpty() ? column.name() : prefix + "." + column.name();
-        if (column.isRecord() && !column.subFields().isEmpty()) {
-            for (ColumnInfo sub : column.subFields()) {
-                addLeafStarEdges(builder, tableFullName, depFullName, sub, path);
-            }
-            return;
-        }
-        ColumnRef source = new ColumnRef(depFullName, path);
-        ColumnRef target = new ColumnRef(tableFullName, path);
-        builder.addColumn(source).addColumn(target);
-        builder.addEdge(source.id(), target.id(), Confidence.STAR);
     }
 
     private @NotNull List<String> resolveDependencies(@Nullable String sourceAlias,
@@ -311,10 +364,20 @@ public final class ColumnLineageExtractorImpl implements ColumnLineageExtractor 
     }
 
     private boolean matches(@NotNull Target dep, @NotNull String token) {
+        String normalized = unquote(token);
         String full = dep.getFullName();
-        if (full != null && (full.equals(token) || full.endsWith("." + token))) return true;
+        if (full != null && (full.equals(normalized) || full.endsWith("." + normalized))) return true;
         String name = dep.getName();
-        return name != null && name.equals(token);
+        return name != null && name.equals(normalized);
+    }
+
+    /**
+     * Strips BigQuery quoting from a table token as written in the SQL, so that a compiled
+     * reference such as {@code `project.dataset.table`} can be compared to a dependency
+     * fully qualified name.
+     */
+    private @NotNull String unquote(@NotNull String token) {
+        return token.replace("`", "").replace("\"", "").trim();
     }
 
     private @Nullable String fullName(@NotNull Target target) {

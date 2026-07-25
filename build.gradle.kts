@@ -49,6 +49,7 @@ intellijPlatform {
                     <li>Add column level lineage view.</li>
                     <li>Add on hover table informations</li>
                     <li>Add autocomplete templates.</li>
+                    <li>Enhance config autocompletion.</li>
                     <li>Fix issues.</li>
                 </ul>
         """.trimIndent()
