@@ -56,6 +56,7 @@ public class DataformRefCompletionContributor extends CompletionContributor {
                     result.addElement(lookupElement);
                 }
             }
+            result.stopHere();
         }
 
         @Nullable

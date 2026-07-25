@@ -165,7 +165,8 @@
                 implementation="io.github.rejeb.dataform.language.injection.SqlxJsQueryInjector"/>
 
         <completion.contributor
-                language="JavaScript"
+                language="JavaScript" order="first"
+                id="dataformRefCompletion"
                 implementationClass="io.github.rejeb.dataform.language.completion.DataformRefCompletionContributor"/>
 
         <completion.contributor
