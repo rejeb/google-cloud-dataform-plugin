@@ -16,6 +16,7 @@
  */
 package io.github.rejeb.dataform.language.lineage.view;
 
+import com.intellij.icons.AllIcons;
 import com.intellij.openapi.actionSystem.ActionManager;
 import com.intellij.openapi.actionSystem.ActionToolbar;
 import com.intellij.openapi.actionSystem.ActionUpdateThread;
@@ -36,12 +37,26 @@ import com.intellij.util.ui.UIUtil;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.DataformIcons;
+import io.github.rejeb.dataform.language.lineage.column.BigQuerySelectAnalyzer;
+import io.github.rejeb.dataform.language.lineage.column.ColumnLineageExtractor;
+import io.github.rejeb.dataform.language.lineage.column.ColumnLineageExtractorImpl;
+import io.github.rejeb.dataform.language.lineage.column.ColumnLineageGraph;
 import io.github.rejeb.dataform.language.lineage.extractor.LineageExtractorImpl;
 import io.github.rejeb.dataform.language.lineage.graph.LineageGraph;
 import io.github.rejeb.dataform.language.lineage.model.Density;
 import io.github.rejeb.dataform.language.lineage.model.Direction;
 import io.github.rejeb.dataform.language.lineage.model.LineageModel;
+import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
+import io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService;
 import org.jetbrains.annotations.NotNull;
+
+import io.github.rejeb.dataform.language.compilation.model.Target;
+
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import javax.swing.AbstractAction;
 import javax.swing.JComponent;
@@ -77,6 +92,14 @@ public final class LineageProjectPanel extends JPanel {
     private final DetailsPanel detailsPanel;
     private final OnePixelSplitter detailsSplitter;
 
+    private boolean detailsCollapsed;
+    private String lastSelectionKey = "";
+
+    private volatile CompiledGraph cachedCompiled;
+    private volatile long cachedSchemaStamp = Long.MIN_VALUE;
+    private volatile LineageGraph cachedTableGraph;
+    private volatile ColumnLineageGraph cachedColumnGraph;
+
     public LineageProjectPanel(@NotNull Project project, @NotNull LineageModel model) {
         super(new BorderLayout());
         this.project = project;
@@ -87,6 +110,10 @@ public final class LineageProjectPanel extends JPanel {
         canvas = new GraphCanvas(project, model);
         filtersPanel = new FiltersPanel(model, canvas::fitToView);
         detailsPanel = new DetailsPanel(project, model);
+        detailsPanel.setReduceHandler(() -> {
+            detailsCollapsed = true;
+            update();
+        });
         StatusBar statusBar = new StatusBar(model);
         canvas.setZoomListener(statusBar::setZoom);
 
@@ -94,8 +121,12 @@ public final class LineageProjectPanel extends JPanel {
         detailsSplitter.setFirstComponent(canvas);
         detailsSplitter.setSecondComponent(null);
 
+        JPanel header = new JPanel(new BorderLayout());
+        header.add(new LineageWarningBanner(model), BorderLayout.NORTH);
+        header.add(buildToolbar(), BorderLayout.CENTER);
+
         JPanel body = new JPanel(new BorderLayout());
-        body.add(buildToolbar(), BorderLayout.NORTH);
+        body.add(header, BorderLayout.NORTH);
         body.add(filtersPanel, BorderLayout.WEST);
         body.add(detailsSplitter, BorderLayout.CENTER);
         body.add(statusBar, BorderLayout.SOUTH);
@@ -117,10 +148,66 @@ public final class LineageProjectPanel extends JPanel {
         ApplicationManager.getApplication().executeOnPooledThread(() -> {
             DataformCompilationService svc = DataformCompilationService.getInstance(project);
             CompiledGraph compiled = force ? svc.compile(true) : svc.getCompiledGraph();
-            LineageGraph graph = compiled != null ? new LineageExtractorImpl().extract(compiled) : null;
-            ApplicationManager.getApplication().invokeLater(
-                    () -> model.setGraph(graph), ModalityState.nonModal());
+
+            long schemaStamp = DataformTableSchemaService.getInstance(project).getModificationCount();
+            LineageGraph graph = null;
+            ColumnLineageGraph columnGraph = null;
+            if (compiled != null && compiled == cachedCompiled && schemaStamp == cachedSchemaStamp
+                    && cachedColumnGraph != null) {
+                graph = cachedTableGraph;
+                columnGraph = cachedColumnGraph;
+            } else if (compiled != null) {
+                CompiledGraph finalCompiled = compiled;
+                java.util.concurrent.CompletableFuture<LineageGraph> tableFuture =
+                        java.util.concurrent.CompletableFuture.supplyAsync(
+                                () -> new LineageExtractorImpl().extract(finalCompiled),
+                                com.intellij.util.concurrency.AppExecutorUtil.getAppExecutorService());
+                columnGraph = computeColumnGraph(compiled);
+                graph = tableFuture.join();
+
+                cachedCompiled = compiled;
+                cachedSchemaStamp = schemaStamp;
+                cachedTableGraph = graph;
+                cachedColumnGraph = columnGraph;
+            }
+
+            LineageGraph finalGraph = graph;
+            ColumnLineageGraph finalColumnGraph = columnGraph;
+            ApplicationManager.getApplication().invokeLater(() -> {
+                model.setGraph(finalGraph);
+                model.setColumnGraph(finalColumnGraph);
+            }, ModalityState.nonModal());
         });
+    }
+
+    /**
+     * Builds the column graph from the schemas of the actions present in the compiled graph.
+     * Cached schemas of actions that are no longer part of the graph are ignored, so a stale
+     * entry cannot contribute columns to the lineage.
+     */
+    private ColumnLineageGraph computeColumnGraph(@NotNull CompiledGraph compiled) {
+        Set<String> actionNames = actionFullNames(compiled);
+        Map<String, List<ColumnInfo>> schemas = new LinkedHashMap<>();
+        DataformTableSchemaService.getInstance(project).getAllTables()
+                .forEach((fqn, table) -> {
+                    if (actionNames.contains(fqn)) schemas.put(fqn, table.getColumns());
+                });
+        ColumnLineageExtractor extractor =
+                new ColumnLineageExtractorImpl(new BigQuerySelectAnalyzer(project));
+        return extractor.extract(compiled, schemas);
+    }
+
+    private @NotNull Set<String> actionFullNames(@NotNull CompiledGraph compiled) {
+        Set<String> names = new LinkedHashSet<>();
+        compiled.getTables().forEach(t -> addFullName(names, t.getTarget()));
+        compiled.getAssertions().forEach(a -> addFullName(names, a.getTarget()));
+        compiled.getOperations().forEach(o -> addFullName(names, o.getTarget()));
+        compiled.getDeclarations().forEach(d -> addFullName(names, d.getTarget()));
+        return names;
+    }
+
+    private void addFullName(@NotNull Set<String> names, Target target) {
+        if (target != null && target.getFullName() != null) names.add(target.getFullName());
     }
 
     private JComponent buildToolbar() {
@@ -143,6 +230,9 @@ public final class LineageProjectPanel extends JPanel {
                 () -> model.density() == Density.COMPACT, model::toggleDensity));
         group.add(toggle("Minimap", "Show or hide the minimap",
                 () -> LineageIcons.MINIMAP, model::minimapVisible, model::toggleMinimap));
+        group.add(toggle("Details", "Show or hide the details panel for the current selection",
+                () -> AllIcons.Actions.PreviewDetails,
+                () -> detailsSplitter.getSecondComponent() != null, this::toggleDetails));
         group.add(action("Re-layout", "Recompile and refresh lineage",
                 LineageIcons.RELAYOUT, () -> refresh(true)));
 
@@ -227,9 +317,25 @@ public final class LineageProjectPanel extends JPanel {
         });
     }
 
+    /**
+     * Shows or hides the details panel for the current selection. Does nothing when nothing is
+     * selected, since the panel only has content for a selected node or column.
+     */
+    private void toggleDetails() {
+        if (model.selectedId() == null) return;
+        detailsCollapsed = !detailsCollapsed;
+        update();
+    }
+
     private void update() {
         cardLayout.show(cards, model.graph().isEmpty() ? CARD_EMPTY : CARD_BODY);
-        boolean showDetails = model.selectedId() != null && !model.graph().isEmpty();
+        boolean hasSelection = model.selectedId() != null;
+        String selectionKey = String.valueOf(model.selectedId());
+        if (hasSelection && !selectionKey.equals(lastSelectionKey)) {
+            detailsCollapsed = false;
+        }
+        lastSelectionKey = selectionKey;
+        boolean showDetails = hasSelection && !detailsCollapsed && !model.graph().isEmpty();
         detailsSplitter.setSecondComponent(showDetails ? detailsPanel : null);
     }
 

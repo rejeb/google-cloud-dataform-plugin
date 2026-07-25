@@ -140,6 +140,8 @@ public final class DataformTableSchemaServiceImpl implements DataformTableSchema
             pendingGraph = null;
             pendingRefresh = false;
             refreshAsync(next);
+        } else if (!project.isDisposed()) {
+            project.getMessageBus().syncPublisher(DataformSchemaEvent.TOPIC).onSchemasUpdated();
         }
     }
 

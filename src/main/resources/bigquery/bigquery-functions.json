@@ -1,0 +1,842 @@
+[
+  {
+    "name": "COUNT",
+    "category": "aggregate",
+    "signatures": ["COUNT(*)", "COUNT([DISTINCT] expression)"],
+    "description": "Returns the number of rows, or the number of rows for which expression evaluates to a value other than NULL.",
+    "returns": "INT64",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/aggregate_functions#count"
+  },
+  {
+    "name": "COUNTIF",
+    "category": "aggregate",
+    "signatures": ["COUNTIF(expression)"],
+    "description": "Returns the count of TRUE values for the given boolean expression. Returns 0 when there are zero input rows.",
+    "returns": "INT64",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/aggregate_functions#countif"
+  },
+  {
+    "name": "SUM",
+    "category": "aggregate",
+    "signatures": ["SUM([DISTINCT] expression)"],
+    "description": "Returns the sum of non-NULL values. Returns NULL when the input contains only NULL values.",
+    "returns": "INT64, NUMERIC, BIGNUMERIC or FLOAT64",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/aggregate_functions#sum"
+  },
+  {
+    "name": "AVG",
+    "category": "aggregate",
+    "signatures": ["AVG([DISTINCT] expression)"],
+    "description": "Returns the average of non-NULL values. Produces NaN when the input contains a NaN value.",
+    "returns": "NUMERIC, BIGNUMERIC or FLOAT64",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/aggregate_functions#avg"
+  },
+  {
+    "name": "MIN",
+    "category": "aggregate",
+    "signatures": ["MIN(expression)"],
+    "description": "Returns the minimum non-NULL value of the input expression.",
+    "returns": "Same type as the input",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/aggregate_functions#min"
+  },
+  {
+    "name": "MAX",
+    "category": "aggregate",
+    "signatures": ["MAX(expression)"],
+    "description": "Returns the maximum non-NULL value of the input expression.",
+    "returns": "Same type as the input",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/aggregate_functions#max"
+  },
+  {
+    "name": "ARRAY_AGG",
+    "category": "aggregate",
+    "signatures": ["ARRAY_AGG([DISTINCT] expression [IGNORE NULLS] [ORDER BY key] [LIMIT n])"],
+    "description": "Returns an ARRAY of the expression values. The element order is non-deterministic unless ORDER BY is specified.",
+    "returns": "ARRAY",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/aggregate_functions#array_agg"
+  },
+  {
+    "name": "STRING_AGG",
+    "category": "aggregate",
+    "signatures": ["STRING_AGG([DISTINCT] expression [, delimiter] [ORDER BY key] [LIMIT n])"],
+    "description": "Concatenates non-NULL STRING or BYTES values, separated by the delimiter, which defaults to a comma.",
+    "returns": "STRING or BYTES",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/aggregate_functions#string_agg"
+  },
+  {
+    "name": "ANY_VALUE",
+    "category": "aggregate",
+    "signatures": ["ANY_VALUE(expression)"],
+    "description": "Returns an arbitrary non-NULL value from the input. Which value is returned is non-deterministic.",
+    "returns": "Same type as the input",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/aggregate_functions#any_value"
+  },
+  {
+    "name": "LOGICAL_AND",
+    "category": "aggregate",
+    "signatures": ["LOGICAL_AND(expression)"],
+    "description": "Returns TRUE when every non-NULL input value is TRUE.",
+    "returns": "BOOL",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/aggregate_functions#logical_and"
+  },
+  {
+    "name": "LOGICAL_OR",
+    "category": "aggregate",
+    "signatures": ["LOGICAL_OR(expression)"],
+    "description": "Returns TRUE when at least one non-NULL input value is TRUE.",
+    "returns": "BOOL",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/aggregate_functions#logical_or"
+  },
+  {
+    "name": "APPROX_COUNT_DISTINCT",
+    "category": "aggregate",
+    "signatures": ["APPROX_COUNT_DISTINCT(expression)"],
+    "description": "Returns the approximate number of distinct non-NULL values. Faster and cheaper than COUNT(DISTINCT) on large inputs, at the cost of exactness.",
+    "returns": "INT64",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/approximate_aggregate_functions#approx_count_distinct"
+  },
+  {
+    "name": "APPROX_QUANTILES",
+    "category": "aggregate",
+    "signatures": ["APPROX_QUANTILES([DISTINCT] expression, number)"],
+    "description": "Returns the approximate boundaries for a group of values, splitting the input into the requested number of quantiles.",
+    "returns": "ARRAY",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/approximate_aggregate_functions#approx_quantiles"
+  },
+  {
+    "name": "ARRAY_LENGTH",
+    "category": "aggregate",
+    "signatures": ["ARRAY_LENGTH(array_expression)"],
+    "description": "Returns the size of the array. Returns 0 for an empty array and NULL when the array is NULL.",
+    "returns": "INT64",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/array_functions#array_length"
+  },
+  {
+    "name": "CURRENT_DATE",
+    "category": "date",
+    "signatures": ["CURRENT_DATE()", "CURRENT_DATE(time_zone_expression)"],
+    "description": "Returns the current date. Defaults to the UTC time zone when no time zone is given.",
+    "returns": "DATE",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/date_functions#current_date"
+  },
+  {
+    "name": "CURRENT_TIMESTAMP",
+    "category": "date",
+    "signatures": ["CURRENT_TIMESTAMP()"],
+    "description": "Returns the current date and time as a TIMESTAMP, with microsecond precision.",
+    "returns": "TIMESTAMP",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/timestamp_functions#current_timestamp"
+  },
+  {
+    "name": "CURRENT_DATETIME",
+    "category": "date",
+    "signatures": ["CURRENT_DATETIME()", "CURRENT_DATETIME(time_zone_expression)"],
+    "description": "Returns the current time as a DATETIME. Defaults to the UTC time zone when no time zone is given.",
+    "returns": "DATETIME",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/datetime_functions#current_datetime"
+  },
+  {
+    "name": "DATE",
+    "category": "date",
+    "signatures": ["DATE(year, month, day)", "DATE(timestamp_expression [, time_zone])", "DATE(datetime_expression)"],
+    "description": "Constructs or extracts a DATE value from its arguments.",
+    "returns": "DATE",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/date_functions#date"
+  },
+  {
+    "name": "DATETIME",
+    "category": "date",
+    "signatures": ["DATETIME(year, month, day, hour, minute, second)", "DATETIME(date_expression [, time_expression])", "DATETIME(timestamp_expression [, time_zone])"],
+    "description": "Constructs a DATETIME value from its arguments.",
+    "returns": "DATETIME",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/datetime_functions#datetime"
+  },
+  {
+    "name": "TIMESTAMP",
+    "category": "date",
+    "signatures": ["TIMESTAMP(string_expression [, time_zone])", "TIMESTAMP(date_expression [, time_zone])", "TIMESTAMP(datetime_expression [, time_zone])"],
+    "description": "Converts a string, date, or datetime expression into a TIMESTAMP.",
+    "returns": "TIMESTAMP",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/timestamp_functions#timestamp"
+  },
+  {
+    "name": "DATE_ADD",
+    "category": "date",
+    "signatures": ["DATE_ADD(date_expression, INTERVAL int64_expression date_part)"],
+    "description": "Adds a specified time interval to a DATE. Supported date parts are DAY, WEEK, MONTH, QUARTER and YEAR.",
+    "returns": "DATE",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/date_functions#date_add"
+  },
+  {
+    "name": "DATE_SUB",
+    "category": "date",
+    "signatures": ["DATE_SUB(date_expression, INTERVAL int64_expression date_part)"],
+    "description": "Subtracts a specified time interval from a DATE. Supported date parts are DAY, WEEK, MONTH, QUARTER and YEAR.",
+    "returns": "DATE",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/date_functions#date_sub"
+  },
+  {
+    "name": "DATE_DIFF",
+    "category": "date",
+    "signatures": ["DATE_DIFF(date_expression_a, date_expression_b, date_part)"],
+    "description": "Returns the whole number of date_part intervals between two DATE values, computed as the first date minus the second.",
+    "returns": "INT64",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/date_functions#date_diff"
+  },
+  {
+    "name": "DATE_TRUNC",
+    "category": "date",
+    "signatures": ["DATE_TRUNC(date_expression, date_part)"],
+    "description": "Truncates a DATE to the granularity of date_part. The returned value is the earliest date within the specified granularity.",
+    "returns": "DATE",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/date_functions#date_trunc"
+  },
+  {
+    "name": "FORMAT_DATE",
+    "category": "date",
+    "signatures": ["FORMAT_DATE(format_string, date_expr)"],
+    "description": "Formats a DATE according to the given format string, for example '%Y-%m-%d'.",
+    "returns": "STRING",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/date_functions#format_date"
+  },
+  {
+    "name": "PARSE_DATE",
+    "category": "date",
+    "signatures": ["PARSE_DATE(format_string, date_string)"],
+    "description": "Converts a string representation of a date into a DATE, using the given format string.",
+    "returns": "DATE",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/date_functions#parse_date"
+  },
+  {
+    "name": "TIMESTAMP_ADD",
+    "category": "date",
+    "signatures": ["TIMESTAMP_ADD(timestamp_expression, INTERVAL int64_expression date_part)"],
+    "description": "Adds a time interval to a TIMESTAMP. Supported date parts range from MICROSECOND to DAY.",
+    "returns": "TIMESTAMP",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/timestamp_functions#timestamp_add"
+  },
+  {
+    "name": "TIMESTAMP_SUB",
+    "category": "date",
+    "signatures": ["TIMESTAMP_SUB(timestamp_expression, INTERVAL int64_expression date_part)"],
+    "description": "Subtracts a time interval from a TIMESTAMP. Supported date parts range from MICROSECOND to DAY.",
+    "returns": "TIMESTAMP",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/timestamp_functions#timestamp_sub"
+  },
+  {
+    "name": "TIMESTAMP_DIFF",
+    "category": "date",
+    "signatures": ["TIMESTAMP_DIFF(timestamp_expression_a, timestamp_expression_b, date_part)"],
+    "description": "Returns the whole number of date_part intervals between two TIMESTAMP values.",
+    "returns": "INT64",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/timestamp_functions#timestamp_diff"
+  },
+  {
+    "name": "TIMESTAMP_TRUNC",
+    "category": "date",
+    "signatures": ["TIMESTAMP_TRUNC(timestamp_expression, date_part [, time_zone])"],
+    "description": "Truncates a TIMESTAMP to the granularity of date_part.",
+    "returns": "TIMESTAMP",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/timestamp_functions#timestamp_trunc"
+  },
+  {
+    "name": "DATETIME_TRUNC",
+    "category": "date",
+    "signatures": ["DATETIME_TRUNC(datetime_expression, date_part)"],
+    "description": "Truncates a DATETIME to the granularity of date_part.",
+    "returns": "DATETIME",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/datetime_functions#datetime_trunc"
+  },
+  {
+    "name": "DATETIME_DIFF",
+    "category": "date",
+    "signatures": ["DATETIME_DIFF(datetime_expression_a, datetime_expression_b, date_part)"],
+    "description": "Returns the whole number of date_part intervals between two DATETIME values.",
+    "returns": "INT64",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/datetime_functions#datetime_diff"
+  },
+  {
+    "name": "FORMAT_TIMESTAMP",
+    "category": "date",
+    "signatures": ["FORMAT_TIMESTAMP(format_string, timestamp [, time_zone])"],
+    "description": "Formats a TIMESTAMP according to the given format string.",
+    "returns": "STRING",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/timestamp_functions#format_timestamp"
+  },
+  {
+    "name": "PARSE_TIMESTAMP",
+    "category": "date",
+    "signatures": ["PARSE_TIMESTAMP(format_string, timestamp_string [, time_zone])"],
+    "description": "Converts a string representation of a timestamp into a TIMESTAMP, using the given format string.",
+    "returns": "TIMESTAMP",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/timestamp_functions#parse_timestamp"
+  },
+  {
+    "name": "EXTRACT",
+    "category": "date",
+    "signatures": ["EXTRACT(part FROM date_expression)", "EXTRACT(part FROM timestamp_expression [AT TIME ZONE time_zone])"],
+    "description": "Returns a single part of a date or timestamp value, such as YEAR, MONTH, DAY, HOUR, DAYOFWEEK or ISOWEEK.",
+    "returns": "INT64, DATE or TIME depending on the part",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/date_functions#extract"
+  },
+  {
+    "name": "UNIX_SECONDS",
+    "category": "date",
+    "signatures": ["UNIX_SECONDS(timestamp_expression)"],
+    "description": "Returns the number of seconds since 1970-01-01 00:00:00 UTC, truncating any sub-second precision.",
+    "returns": "INT64",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/timestamp_functions#unix_seconds"
+  },
+  {
+    "name": "UNIX_MILLIS",
+    "category": "date",
+    "signatures": ["UNIX_MILLIS(timestamp_expression)"],
+    "description": "Returns the number of milliseconds since 1970-01-01 00:00:00 UTC.",
+    "returns": "INT64",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/timestamp_functions#unix_millis"
+  },
+  {
+    "name": "TIMESTAMP_SECONDS",
+    "category": "date",
+    "signatures": ["TIMESTAMP_SECONDS(int64_expression)"],
+    "description": "Interprets an integer as the number of seconds since 1970-01-01 00:00:00 UTC and returns a TIMESTAMP.",
+    "returns": "TIMESTAMP",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/timestamp_functions#timestamp_seconds"
+  },
+  {
+    "name": "TIMESTAMP_MILLIS",
+    "category": "date",
+    "signatures": ["TIMESTAMP_MILLIS(int64_expression)"],
+    "description": "Interprets an integer as the number of milliseconds since 1970-01-01 00:00:00 UTC and returns a TIMESTAMP.",
+    "returns": "TIMESTAMP",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/timestamp_functions#timestamp_millis"
+  },
+  {
+    "name": "LAST_DAY",
+    "category": "date",
+    "signatures": ["LAST_DAY(date_expression [, date_part])"],
+    "description": "Returns the last day of the period containing the given date. The date part defaults to MONTH.",
+    "returns": "DATE",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/date_functions#last_day"
+  },
+  {
+    "name": "DATE_FROM_UNIX_DATE",
+    "category": "date",
+    "signatures": ["DATE_FROM_UNIX_DATE(int64_expression)"],
+    "description": "Interprets an integer as the number of days since 1970-01-01 and returns a DATE.",
+    "returns": "DATE",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/date_functions#date_from_unix_date"
+  },
+  {
+    "name": "GENERATE_DATE_ARRAY",
+    "category": "date",
+    "signatures": ["GENERATE_DATE_ARRAY(start_date, end_date [, INTERVAL int64_expression date_part])"],
+    "description": "Returns an array of dates spanning the inclusive range, stepping by the given interval.",
+    "returns": "ARRAY<DATE>",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/array_functions#generate_date_array"
+  },
+  {
+    "name": "CONCAT",
+    "category": "string",
+    "signatures": ["CONCAT(value1 [, ...])"],
+    "description": "Concatenates its arguments into a single value. Returns NULL when any argument is NULL.",
+    "returns": "STRING or BYTES",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/string_functions#concat"
+  },
+  {
+    "name": "SUBSTR",
+    "category": "string",
+    "signatures": ["SUBSTR(value, position [, length])"],
+    "description": "Returns a substring starting at the one-based position. A negative position counts back from the end of the value.",
+    "returns": "STRING or BYTES",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/string_functions#substr"
+  },
+  {
+    "name": "LENGTH",
+    "category": "string",
+    "signatures": ["LENGTH(value)"],
+    "description": "Returns the length of the value in characters for STRING, or in bytes for BYTES.",
+    "returns": "INT64",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/string_functions#length"
+  },
+  {
+    "name": "LOWER",
+    "category": "string",
+    "signatures": ["LOWER(value)"],
+    "description": "Returns the value with all alphabetic characters converted to lowercase.",
+    "returns": "STRING or BYTES",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/string_functions#lower"
+  },
+  {
+    "name": "UPPER",
+    "category": "string",
+    "signatures": ["UPPER(value)"],
+    "description": "Returns the value with all alphabetic characters converted to uppercase.",
+    "returns": "STRING or BYTES",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/string_functions#upper"
+  },
+  {
+    "name": "TRIM",
+    "category": "string",
+    "signatures": ["TRIM(value_to_trim [, set_of_characters_to_remove])"],
+    "description": "Removes leading and trailing characters from the value. Removes whitespace when no character set is given.",
+    "returns": "STRING or BYTES",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/string_functions#trim"
+  },
+  {
+    "name": "LTRIM",
+    "category": "string",
+    "signatures": ["LTRIM(value_to_trim [, set_of_characters_to_remove])"],
+    "description": "Removes leading characters from the value. Removes whitespace when no character set is given.",
+    "returns": "STRING or BYTES",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/string_functions#ltrim"
+  },
+  {
+    "name": "RTRIM",
+    "category": "string",
+    "signatures": ["RTRIM(value_to_trim [, set_of_characters_to_remove])"],
+    "description": "Removes trailing characters from the value. Removes whitespace when no character set is given.",
+    "returns": "STRING or BYTES",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/string_functions#rtrim"
+  },
+  {
+    "name": "REPLACE",
+    "category": "string",
+    "signatures": ["REPLACE(original_value, from_pattern, to_value)"],
+    "description": "Replaces every occurrence of from_pattern with to_value. Returns the original value when from_pattern is empty.",
+    "returns": "STRING or BYTES",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/string_functions#replace"
+  },
+  {
+    "name": "SPLIT",
+    "category": "string",
+    "signatures": ["SPLIT(value [, delimiter])"],
+    "description": "Splits the value using the delimiter and returns an array. The delimiter defaults to a comma for STRING input.",
+    "returns": "ARRAY<STRING> or ARRAY<BYTES>",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/string_functions#split"
+  },
+  {
+    "name": "STARTS_WITH",
+    "category": "string",
+    "signatures": ["STARTS_WITH(value, prefix)"],
+    "description": "Returns TRUE when the value begins with the given prefix.",
+    "returns": "BOOL",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/string_functions#starts_with"
+  },
+  {
+    "name": "ENDS_WITH",
+    "category": "string",
+    "signatures": ["ENDS_WITH(value, suffix)"],
+    "description": "Returns TRUE when the value ends with the given suffix.",
+    "returns": "BOOL",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/string_functions#ends_with"
+  },
+  {
+    "name": "CONTAINS_SUBSTR",
+    "category": "string",
+    "signatures": ["CONTAINS_SUBSTR(expression, search_value_literal)"],
+    "description": "Performs a normalized, case-insensitive search for the value anywhere in the expression, including inside STRUCT and ARRAY fields.",
+    "returns": "BOOL",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/string_functions#contains_substr"
+  },
+  {
+    "name": "REGEXP_CONTAINS",
+    "category": "string",
+    "signatures": ["REGEXP_CONTAINS(value, regexp)"],
+    "description": "Returns TRUE when the value contains a partial match for the RE2 regular expression.",
+    "returns": "BOOL",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/string_functions#regexp_contains"
+  },
+  {
+    "name": "REGEXP_EXTRACT",
+    "category": "string",
+    "signatures": ["REGEXP_EXTRACT(value, regexp [, position [, occurrence]])"],
+    "description": "Returns the first substring matching the regular expression, or the first capturing group when the expression has one.",
+    "returns": "STRING or BYTES",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/string_functions#regexp_extract"
+  },
+  {
+    "name": "REGEXP_EXTRACT_ALL",
+    "category": "string",
+    "signatures": ["REGEXP_EXTRACT_ALL(value, regexp)"],
+    "description": "Returns an array of all non-overlapping substrings matching the regular expression.",
+    "returns": "ARRAY<STRING> or ARRAY<BYTES>",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/string_functions#regexp_extract_all"
+  },
+  {
+    "name": "REGEXP_REPLACE",
+    "category": "string",
+    "signatures": ["REGEXP_REPLACE(value, regexp, replacement)"],
+    "description": "Replaces all substrings matching the regular expression. Backslash-escaped digits in the replacement refer to capturing groups.",
+    "returns": "STRING or BYTES",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/string_functions#regexp_replace"
+  },
+  {
+    "name": "LPAD",
+    "category": "string",
+    "signatures": ["LPAD(original_value, return_length [, pattern])"],
+    "description": "Prepends the pattern to the value until it reaches the requested length. The pattern defaults to a space.",
+    "returns": "STRING or BYTES",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/string_functions#lpad"
+  },
+  {
+    "name": "RPAD",
+    "category": "string",
+    "signatures": ["RPAD(original_value, return_length [, pattern])"],
+    "description": "Appends the pattern to the value until it reaches the requested length. The pattern defaults to a space.",
+    "returns": "STRING or BYTES",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/string_functions#rpad"
+  },
+  {
+    "name": "REVERSE",
+    "category": "string",
+    "signatures": ["REVERSE(value)"],
+    "description": "Returns the reverse of the input STRING or BYTES value.",
+    "returns": "STRING or BYTES",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/string_functions#reverse"
+  },
+  {
+    "name": "FORMAT",
+    "category": "string",
+    "signatures": ["FORMAT(format_string [, ...])"],
+    "description": "Formats a string using printf-style format specifiers such as %s, %d and %t.",
+    "returns": "STRING",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/string_functions#format_string"
+  },
+  {
+    "name": "LEFT",
+    "category": "string",
+    "signatures": ["LEFT(value, length)"],
+    "description": "Returns the leftmost characters or bytes of the value.",
+    "returns": "STRING or BYTES",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/string_functions#left"
+  },
+  {
+    "name": "RIGHT",
+    "category": "string",
+    "signatures": ["RIGHT(value, length)"],
+    "description": "Returns the rightmost characters or bytes of the value.",
+    "returns": "STRING or BYTES",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/string_functions#right"
+  },
+  {
+    "name": "NORMALIZE",
+    "category": "string",
+    "signatures": ["NORMALIZE(value [, normalization_mode])"],
+    "description": "Normalizes a string using the given Unicode normalization mode, which defaults to NFC.",
+    "returns": "STRING",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/string_functions#normalize"
+  },
+  {
+    "name": "REPEAT",
+    "category": "string",
+    "signatures": ["REPEAT(original_value, repetitions)"],
+    "description": "Returns the value repeated the given number of times.",
+    "returns": "STRING or BYTES",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/string_functions#repeat"
+  },
+  {
+    "name": "STRPOS",
+    "category": "string",
+    "signatures": ["STRPOS(value, subvalue)"],
+    "description": "Returns the one-based position of the first occurrence of subvalue, or 0 when it is not found.",
+    "returns": "INT64",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/string_functions#strpos"
+  },
+  {
+    "name": "TO_JSON_STRING",
+    "category": "string",
+    "signatures": ["TO_JSON_STRING(value [, pretty_print])"],
+    "description": "Returns a JSON-formatted string representation of the value.",
+    "returns": "STRING",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/json_functions#to_json_string"
+  },
+  {
+    "name": "CAST",
+    "category": "conversion",
+    "signatures": ["CAST(expression AS typename)"],
+    "description": "Converts the expression to the target type. Raises an error when the conversion fails.",
+    "returns": "The target type",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/conversion_functions#cast"
+  },
+  {
+    "name": "SAFE_CAST",
+    "category": "conversion",
+    "signatures": ["SAFE_CAST(expression AS typename)"],
+    "description": "Converts the expression to the target type, returning NULL instead of raising an error when the conversion fails.",
+    "returns": "The target type",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/conversion_functions#safe_casting"
+  },
+  {
+    "name": "IFNULL",
+    "category": "conversion",
+    "signatures": ["IFNULL(expr, null_result)"],
+    "description": "Returns null_result when expr is NULL, otherwise returns expr. Both arguments must be of the same type.",
+    "returns": "Same type as the arguments",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/conditional_expressions#ifnull"
+  },
+  {
+    "name": "NULLIF",
+    "category": "conversion",
+    "signatures": ["NULLIF(expr, expr_to_match)"],
+    "description": "Returns NULL when the two expressions are equal, otherwise returns the first expression.",
+    "returns": "Same type as the arguments",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/conditional_expressions#nullif"
+  },
+  {
+    "name": "COALESCE",
+    "category": "conversion",
+    "signatures": ["COALESCE(expr [, ...])"],
+    "description": "Returns the value of the first non-NULL expression. The remaining expressions are not evaluated.",
+    "returns": "Supertype of the arguments",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/conditional_expressions#coalesce"
+  },
+  {
+    "name": "IF",
+    "category": "conversion",
+    "signatures": ["IF(expr, true_result, else_result)"],
+    "description": "Returns true_result when expr evaluates to TRUE, otherwise returns else_result. Only one branch is evaluated.",
+    "returns": "Supertype of true_result and else_result",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/conditional_expressions#if"
+  },
+  {
+    "name": "PARSE_JSON",
+    "category": "conversion",
+    "signatures": ["PARSE_JSON(json_string_expr [, wide_number_mode => mode])"],
+    "description": "Converts a JSON-formatted string into a JSON value.",
+    "returns": "JSON",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/json_functions#parse_json"
+  },
+  {
+    "name": "JSON_VALUE",
+    "category": "conversion",
+    "signatures": ["JSON_VALUE(json_string_expr [, json_path])"],
+    "description": "Extracts a scalar value from JSON and returns it as a SQL STRING. Returns NULL when the selected value is not scalar.",
+    "returns": "STRING",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/json_functions#json_value"
+  },
+  {
+    "name": "JSON_QUERY",
+    "category": "conversion",
+    "signatures": ["JSON_QUERY(json_string_expr [, json_path])"],
+    "description": "Extracts a JSON value, such as an array or object, and returns it as a JSON-formatted string.",
+    "returns": "STRING or JSON",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/json_functions#json_query"
+  },
+  {
+    "name": "JSON_EXTRACT_SCALAR",
+    "category": "conversion",
+    "signatures": ["JSON_EXTRACT_SCALAR(json_string_expr [, json_path])"],
+    "description": "Legacy alias for extracting a scalar value from JSON. Prefer JSON_VALUE in new code.",
+    "returns": "STRING",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/json_functions#json_extract_scalar"
+  },
+  {
+    "name": "GENERATE_UUID",
+    "category": "conversion",
+    "signatures": ["GENERATE_UUID()"],
+    "description": "Returns a random universally unique identifier as a lowercase 36-character string.",
+    "returns": "STRING",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/utility-functions#generate_uuid"
+  },
+  {
+    "name": "FARM_FINGERPRINT",
+    "category": "conversion",
+    "signatures": ["FARM_FINGERPRINT(value)"],
+    "description": "Computes the fingerprint of the value using the FarmHash Fingerprint64 function. Useful for deterministic bucketing.",
+    "returns": "INT64",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/hash_functions#farm_fingerprint"
+  },
+  {
+    "name": "TO_HEX",
+    "category": "conversion",
+    "signatures": ["TO_HEX(bytes)"],
+    "description": "Converts a BYTES value into a hexadecimal STRING.",
+    "returns": "STRING",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/string_functions#to_hex"
+  },
+  {
+    "name": "MD5",
+    "category": "conversion",
+    "signatures": ["MD5(input)"],
+    "description": "Computes the MD5 hash of the input and returns it as BYTES. Not suitable for security purposes.",
+    "returns": "BYTES",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/hash_functions#md5"
+  },
+  {
+    "name": "SHA256",
+    "category": "conversion",
+    "signatures": ["SHA256(input)"],
+    "description": "Computes the SHA-256 hash of the input and returns it as BYTES.",
+    "returns": "BYTES",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/hash_functions#sha256"
+  },
+  {
+    "name": "ROW_NUMBER",
+    "category": "window",
+    "signatures": ["ROW_NUMBER() OVER (...)"],
+    "description": "Returns the sequential one-based row number within each window partition. No ties are produced.",
+    "returns": "INT64",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/numbering_functions#row_number"
+  },
+  {
+    "name": "RANK",
+    "category": "window",
+    "signatures": ["RANK() OVER (...)"],
+    "description": "Returns the rank of each row within the window partition. Tied rows share a rank and leave gaps in the sequence.",
+    "returns": "INT64",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/numbering_functions#rank"
+  },
+  {
+    "name": "DENSE_RANK",
+    "category": "window",
+    "signatures": ["DENSE_RANK() OVER (...)"],
+    "description": "Returns the rank of each row within the window partition. Tied rows share a rank and leave no gaps.",
+    "returns": "INT64",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/numbering_functions#dense_rank"
+  },
+  {
+    "name": "LAG",
+    "category": "window",
+    "signatures": ["LAG(value_expression [, offset [, default_expression]]) OVER (...)"],
+    "description": "Returns the value of the row that precedes the current row by the given offset, which defaults to 1.",
+    "returns": "Same type as value_expression",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/navigation_functions#lag"
+  },
+  {
+    "name": "LEAD",
+    "category": "window",
+    "signatures": ["LEAD(value_expression [, offset [, default_expression]]) OVER (...)"],
+    "description": "Returns the value of the row that follows the current row by the given offset, which defaults to 1.",
+    "returns": "Same type as value_expression",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/navigation_functions#lead"
+  },
+  {
+    "name": "FIRST_VALUE",
+    "category": "window",
+    "signatures": ["FIRST_VALUE(value_expression [{RESPECT | IGNORE} NULLS]) OVER (...)"],
+    "description": "Returns the value of value_expression for the first row in the current window frame.",
+    "returns": "Same type as value_expression",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/navigation_functions#first_value"
+  },
+  {
+    "name": "LAST_VALUE",
+    "category": "window",
+    "signatures": ["LAST_VALUE(value_expression [{RESPECT | IGNORE} NULLS]) OVER (...)"],
+    "description": "Returns the value of value_expression for the last row in the current window frame.",
+    "returns": "Same type as value_expression",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/navigation_functions#last_value"
+  },
+  {
+    "name": "NTH_VALUE",
+    "category": "window",
+    "signatures": ["NTH_VALUE(value_expression, constant_integer_expression) OVER (...)"],
+    "description": "Returns the value of value_expression at the given one-based position of the current window frame.",
+    "returns": "Same type as value_expression",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/navigation_functions#nth_value"
+  },
+  {
+    "name": "NTILE",
+    "category": "window",
+    "signatures": ["NTILE(constant_integer_expression) OVER (...)"],
+    "description": "Divides the window partition into the given number of buckets and returns the one-based bucket number of each row.",
+    "returns": "INT64",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/numbering_functions#ntile"
+  },
+  {
+    "name": "PERCENT_RANK",
+    "category": "window",
+    "signatures": ["PERCENT_RANK() OVER (...)"],
+    "description": "Returns the percentile rank of each row, between 0 and 1 inclusive.",
+    "returns": "FLOAT64",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/numbering_functions#percent_rank"
+  },
+  {
+    "name": "CUME_DIST",
+    "category": "window",
+    "signatures": ["CUME_DIST() OVER (...)"],
+    "description": "Returns the relative rank of each row, defined as the number of peers or preceding rows divided by the total row count.",
+    "returns": "FLOAT64",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/numbering_functions#cume_dist"
+  },
+  {
+    "name": "PERCENTILE_CONT",
+    "category": "window",
+    "signatures": ["PERCENTILE_CONT(value_expression, percentile [{RESPECT | IGNORE} NULLS]) OVER (...)"],
+    "description": "Computes the specified percentile using linear interpolation between the surrounding input values.",
+    "returns": "FLOAT64 or NUMERIC",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/navigation_functions#percentile_cont"
+  },
+  {
+    "name": "ROUND",
+    "category": "numeric",
+    "signatures": ["ROUND(numeric_expression [, digits])"],
+    "description": "Rounds the value to the given number of decimal digits, which defaults to 0.",
+    "returns": "Same type as the input",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/mathematical_functions#round"
+  },
+  {
+    "name": "FLOOR",
+    "category": "numeric",
+    "signatures": ["FLOOR(numeric_expression)"],
+    "description": "Returns the largest integral value that is not greater than the input.",
+    "returns": "Same type as the input",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/mathematical_functions#floor"
+  },
+  {
+    "name": "CEIL",
+    "category": "numeric",
+    "signatures": ["CEIL(numeric_expression)"],
+    "description": "Returns the smallest integral value that is not less than the input.",
+    "returns": "Same type as the input",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/mathematical_functions#ceil"
+  },
+  {
+    "name": "ABS",
+    "category": "numeric",
+    "signatures": ["ABS(numeric_expression)"],
+    "description": "Returns the absolute value of the input.",
+    "returns": "Same type as the input",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/mathematical_functions#abs"
+  },
+  {
+    "name": "MOD",
+    "category": "numeric",
+    "signatures": ["MOD(dividend, divisor)"],
+    "description": "Returns the remainder of the division. Raises an error when the divisor is zero.",
+    "returns": "INT64, NUMERIC or BIGNUMERIC",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/mathematical_functions#mod"
+  },
+  {
+    "name": "SAFE_DIVIDE",
+    "category": "numeric",
+    "signatures": ["SAFE_DIVIDE(x, y)"],
+    "description": "Divides x by y, returning NULL instead of raising an error when y is zero.",
+    "returns": "FLOAT64, NUMERIC or BIGNUMERIC",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/mathematical_functions#safe_divide"
+  },
+  {
+    "name": "GREATEST",
+    "category": "numeric",
+    "signatures": ["GREATEST(value1 [, ...])"],
+    "description": "Returns the largest of the input values. Returns NULL when any argument is NULL.",
+    "returns": "Supertype of the arguments",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/mathematical_functions#greatest"
+  },
+  {
+    "name": "LEAST",
+    "category": "numeric",
+    "signatures": ["LEAST(value1 [, ...])"],
+    "description": "Returns the smallest of the input values. Returns NULL when any argument is NULL.",
+    "returns": "Supertype of the arguments",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/mathematical_functions#least"
+  },
+  {
+    "name": "TRUNC",
+    "category": "numeric",
+    "signatures": ["TRUNC(numeric_expression [, digits])"],
+    "description": "Truncates the value toward zero at the given number of decimal digits, which defaults to 0.",
+    "returns": "Same type as the input",
+    "docUrl": "https://cloud.google.com/bigquery/docs/reference/standard-sql/mathematical_functions#trunc"
+  }
+]

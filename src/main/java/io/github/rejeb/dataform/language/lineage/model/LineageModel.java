@@ -18,13 +18,13 @@ package io.github.rejeb.dataform.language.lineage.model;
 
 import com.intellij.ide.util.PropertiesComponent;
 import com.intellij.openapi.project.Project;
+import io.github.rejeb.dataform.language.lineage.column.ColumnLineageGraph;
+import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
 import io.github.rejeb.dataform.language.lineage.graph.LineageGraph;
 import io.github.rejeb.dataform.language.lineage.graph.LineageNode;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayDeque;
-import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -240,6 +240,79 @@ public final class LineageModel {
     }
 
     // ---------------------------------------------------------------------
+    // Column lineage
+    // ---------------------------------------------------------------------
+
+    private @Nullable ColumnLineageGraph columnGraph;
+    private final Set<String> selectedColumnIds = new LinkedHashSet<>();
+
+    public @Nullable ColumnLineageGraph columnGraph() {
+        return columnGraph;
+    }
+
+    /**
+     * Sets the column lineage graph. Drops any selected column that no longer exists.
+     */
+    public void setColumnGraph(@Nullable ColumnLineageGraph graph) {
+        this.columnGraph = graph;
+        selectedColumnIds.removeIf(id -> graph == null || graph.column(id) == null);
+        fire();
+    }
+
+    /** The primary selected column (first of the selection), or {@code null} when none. */
+    public @Nullable String selectedColumnId() {
+        return selectedColumnIds.isEmpty() ? null : selectedColumnIds.iterator().next();
+    }
+
+    public @NotNull Set<String> selectedColumnIds() {
+        return Set.copyOf(selectedColumnIds);
+    }
+
+    /** Replaces the selection with a single column (or clears it when {@code null}). */
+    public void selectColumn(@Nullable String columnId) {
+        selectedColumnIds.clear();
+        if (columnId != null) selectedColumnIds.add(columnId);
+        fire();
+    }
+
+    /**
+     * Toggles a column in the multi-selection. Selection is confined to one node: toggling a
+     * column on a different node than the current selection replaces the selection.
+     */
+    public void toggleColumn(@NotNull String columnId) {
+        if (columnGraph != null && !selectedColumnIds.isEmpty()) {
+            ColumnRef current = columnGraph.column(selectedColumnIds.iterator().next());
+            ColumnRef added = columnGraph.column(columnId);
+            if (current != null && added != null && !current.tableNodeId().equals(added.tableNodeId())) {
+                selectedColumnIds.clear();
+            }
+        }
+        if (!selectedColumnIds.remove(columnId)) selectedColumnIds.add(columnId);
+        fire();
+    }
+
+    public void clearColumnSelection() {
+        selectedColumnIds.clear();
+        fire();
+    }
+
+    /**
+     * Ids to highlight: every selected column plus its full upstream and downstream column
+     * lineage. Empty when no column is selected or no graph is set.
+     */
+    public @NotNull Set<String> highlightColumnLineage() {
+        if (columnGraph == null || selectedColumnIds.isEmpty()) return Set.of();
+        Set<String> result = new LinkedHashSet<>();
+        for (String id : selectedColumnIds) {
+            if (columnGraph.column(id) == null) continue;
+            result.add(id);
+            result.addAll(columnGraph.upstream(id));
+            result.addAll(columnGraph.downstream(id));
+        }
+        return result;
+    }
+
+    // ---------------------------------------------------------------------
     // View state
     // ---------------------------------------------------------------------
 
@@ -314,7 +387,23 @@ public final class LineageModel {
             scope.addAll(descendants(focusId));
             visible.retainAll(scope);
         }
+        Set<String> columnScope = columnTableScope();
+        if (columnScope != null) visible.retainAll(columnScope);
         return visible;
+    }
+
+    /**
+     * When a column is selected, the table node ids that participate in its column lineage;
+     * {@code null} when no column is selected so the whole graph stays visible.
+     */
+    private @Nullable Set<String> columnTableScope() {
+        if (selectedColumnIds.isEmpty() || columnGraph == null) return null;
+        Set<String> tables = new LinkedHashSet<>();
+        for (String columnId : highlightColumnLineage()) {
+            ColumnRef ref = columnGraph.column(columnId);
+            if (ref != null) tables.add(ref.tableNodeId());
+        }
+        return tables.isEmpty() ? null : tables;
     }
 
     private boolean matches(@NotNull LineageNode node, @NotNull String needle) {
@@ -330,25 +419,11 @@ public final class LineageModel {
     }
 
     public @NotNull Set<String> ancestors(@NotNull String id) {
-        return traverse(id, true);
+        return graph.ancestors(id);
     }
 
     public @NotNull Set<String> descendants(@NotNull String id) {
-        return traverse(id, false);
-    }
-
-    private @NotNull Set<String> traverse(@NotNull String id, boolean upstream) {
-        Set<String> result = new LinkedHashSet<>();
-        Deque<String> queue = new ArrayDeque<>();
-        queue.add(id);
-        while (!queue.isEmpty()) {
-            String current = queue.poll();
-            Set<String> next = upstream ? graph.predecessors(current) : graph.successors(current);
-            for (String n : next) {
-                if (result.add(n)) queue.add(n);
-            }
-        }
-        return result;
+        return graph.descendants(id);
     }
 
     /**

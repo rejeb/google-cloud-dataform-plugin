@@ -33,7 +33,7 @@ public class RunSqlxHelper {
 
     /**
      * Creates a tag based run configuration for the given file and opens the run configuration
-     * dialog before launching.
+     * editor before launching, so the prefilled tags can be reviewed.
      */
     public static void launchFromTags(@NotNull Project project,
                                       @NotNull VirtualFile file) {
@@ -60,8 +60,11 @@ public class RunSqlxHelper {
         runManager.addConfiguration(settings);
         runManager.setSelectedConfiguration(settings);
         settings.setTemporary(true);
-        settings.setEditBeforeRun(true);
+        settings.setEditBeforeRun(false);
         settings.setActivateToolWindowBeforeRun(true);
+        if (!DataformRunConfigurationPrompt.confirmContextRun(project, settings)) {
+            return;
+        }
         Executor executorById = ExecutorRegistry.getInstance()
                 .getExecutorById(DefaultRunExecutor.EXECUTOR_ID);
         ProgramRunnerUtil.executeConfiguration(settings,

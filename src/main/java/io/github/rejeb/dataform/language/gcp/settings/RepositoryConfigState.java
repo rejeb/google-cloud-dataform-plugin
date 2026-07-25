@@ -27,6 +27,7 @@ public class RepositoryConfigState {
     private @Nullable String projectId;
     private @Nullable String repositoryId;
     private @Nullable String location;
+    private @Nullable String serviceAccount;
     private @Nullable String selectedWorkspaceId;
 
     public RepositoryConfigState() {
@@ -36,12 +37,14 @@ public class RepositoryConfigState {
                                  @NotNull String label,
                                  @NotNull String projectId,
                                  @NotNull String repositoryId,
-                                 @NotNull String location) {
+                                 @NotNull String location,
+                                 @Nullable String serviceAccount) {
         this.repositoryConfigId = repositoryConfigId;
         this.label = label;
         this.projectId = projectId;
         this.repositoryId = repositoryId;
         this.location = location;
+        this.serviceAccount = serviceAccount;
     }
 
     public @Nullable String getRepositoryConfigId() {
@@ -82,6 +85,14 @@ public class RepositoryConfigState {
 
     public void setLocation(@NotNull String location) {
         this.location = location;
+    }
+
+    public @Nullable String getServiceAccount() {
+        return serviceAccount;
+    }
+
+    public void setServiceAccount(@Nullable String serviceAccount) {
+        this.serviceAccount = serviceAccount;
     }
 
     public @Nullable String getSelectedWorkspaceId() {

@@ -17,6 +17,7 @@
 package io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig;
 
 import com.intellij.execution.Location;
+import com.intellij.execution.RunnerAndConfigurationSettings;
 import com.intellij.execution.actions.ConfigurationContext;
 import com.intellij.execution.actions.ConfigurationFromContext;
 import com.intellij.execution.actions.LazyRunConfigurationProducer;
@@ -107,7 +108,8 @@ public class DataformSqlxRunConfigurationProducer
     }
 
     /**
-     * Opens the run configuration dialog before launching, so run options are always reviewed.
+     * Resolves the workspace to run against, then opens the run configuration editor so the options
+     * prefilled from the source location are reviewed before the workflow is launched.
      */
     @Override
     public void onFirstRun(@NotNull ConfigurationFromContext configFromContext,
@@ -123,7 +125,12 @@ public class DataformSqlxRunConfigurationProducer
         DataformWorkflowRunConfiguration config =
                 (DataformWorkflowRunConfiguration) configFromContext.getConfiguration();
         config.setWorkspaceId(resolveWorkspaceId(config, context));
-        configFromContext.getConfigurationSettings().setEditBeforeRun(true);
+
+        RunnerAndConfigurationSettings settings = configFromContext.getConfigurationSettings();
+        settings.setEditBeforeRun(false);
+        if (!DataformRunConfigurationPrompt.confirmContextRun(context.getProject(), settings)) {
+            return;
+        }
 
         startRunnable.run();
     }

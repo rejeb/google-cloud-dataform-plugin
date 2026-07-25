@@ -38,6 +38,8 @@ public final class LineageGraph {
     private final Map<String, LineageNode> nodes;
     private final Map<String, Set<String>> predecessors;
     private final Map<String, Set<String>> successors;
+    private final Map<String, Set<String>> ancestorsCache = new java.util.concurrent.ConcurrentHashMap<>();
+    private final Map<String, Set<String>> descendantsCache = new java.util.concurrent.ConcurrentHashMap<>();
 
     private LineageGraph(Map<String, LineageNode> nodes,
                          Map<String, Set<String>> predecessors,
@@ -63,6 +65,30 @@ public final class LineageGraph {
     /** Nodes that depend on {@code id}. */
     public @NotNull Set<String> successors(@NotNull String id) {
         return successors.getOrDefault(id, Set.of());
+    }
+
+    /** Transitive upstream closure of {@code id} (cycle-guarded, memoized). */
+    public @NotNull Set<String> ancestors(@NotNull String id) {
+        return ancestorsCache.computeIfAbsent(id, k -> traverse(k, true));
+    }
+
+    /** Transitive downstream closure of {@code id} (cycle-guarded, memoized). */
+    public @NotNull Set<String> descendants(@NotNull String id) {
+        return descendantsCache.computeIfAbsent(id, k -> traverse(k, false));
+    }
+
+    private @NotNull Set<String> traverse(@NotNull String id, boolean upstream) {
+        Set<String> result = new java.util.LinkedHashSet<>();
+        java.util.Deque<String> queue = new java.util.ArrayDeque<>();
+        queue.add(id);
+        while (!queue.isEmpty()) {
+            String current = queue.poll();
+            Set<String> next = upstream ? predecessors(current) : successors(current);
+            for (String n : next) {
+                if (result.add(n)) queue.add(n);
+            }
+        }
+        return result;
     }
 
     public boolean isEmpty() {

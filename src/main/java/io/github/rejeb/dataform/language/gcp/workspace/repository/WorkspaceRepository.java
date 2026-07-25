@@ -118,7 +118,8 @@ public interface WorkspaceRepository {
     void createRepository(
             @NotNull String projectId,
             @NotNull String location,
-            @NotNull String repositoryId
+            @NotNull String repositoryId,
+            @NotNull String serviceAccount
     );
 
     /**

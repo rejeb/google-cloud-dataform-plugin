@@ -48,7 +48,8 @@ public final class GcpRepositorySettingsImpl
                         r.getLabel(),
                         r.getProjectId(),
                         r.getRepositoryId(),
-                        r.getLocation());
+                        r.getLocation(),
+                        r.getServiceAccount() != null ? r.getServiceAccount() : "");
                 result.add(c);
             }
 
@@ -65,7 +66,9 @@ public final class GcpRepositorySettingsImpl
                     c.label(),
                     c.projectId(),
                     c.repositoryId(),
-                    c.location());
+                    c.location(),
+                    c.serviceAccount());
+            r.setServiceAccount(c.serviceAccount());
             updated.add(r);
         }
         state.setRepositories(updated);

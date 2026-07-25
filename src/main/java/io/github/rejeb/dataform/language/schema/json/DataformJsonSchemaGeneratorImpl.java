@@ -84,6 +84,7 @@ public final class DataformJsonSchemaGeneratorImpl implements DataformJsonSchema
         if (!protoParser.configProtoFileExists()) {
             return Optional.empty();
         } else if (configSchema.isEmpty()) {
+            init();
             this.configSchema = Optional.ofNullable(buildSqlxConfigSchema());
         }
         return this.configSchema;

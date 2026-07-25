@@ -17,8 +17,13 @@
 package io.github.rejeb.dataform.language.completion;
 
 import com.intellij.codeInsight.completion.CompletionContributor;
+import com.intellij.codeInsight.completion.CompletionParameters;
+import com.intellij.codeInsight.completion.CompletionResultSet;
 import com.intellij.codeInsight.completion.CompletionType;
 import com.intellij.patterns.PlatformPatterns;
+import org.jetbrains.annotations.NotNull;
+
+import java.util.Set;
 
 public class DataformJsSymbolCompletionContributor extends CompletionContributor {
 
@@ -30,4 +35,23 @@ public class DataformJsSymbolCompletionContributor extends CompletionContributor
         );
     }
 
+    @Override
+    public void fillCompletionVariants(@NotNull CompletionParameters parameters,
+                                       @NotNull CompletionResultSet result) {
+        super.fillCompletionVariants(parameters, result);
+
+        if (result.isStopped() || !DataformJsSymbolCompletionContributorProvider.appliesTo(parameters)) {
+            return;
+        }
+        Set<String> shadowed = DataformJsSymbolCompletionContributorProvider
+                .shadowedIncludeNames(parameters.getPosition().getProject());
+        if (shadowed.isEmpty()) {
+            return;
+        }
+        result.runRemainingContributors(parameters, completionResult -> {
+            if (!shadowed.contains(completionResult.getLookupElement().getLookupString())) {
+                result.passResult(completionResult);
+            }
+        });
+    }
 }

@@ -36,6 +36,13 @@ public interface WorkflowSettingsService {
     @NotNull
     Collection<String> getPropertiesForPrefix(@Nullable String prefix);
 
+    /**
+     * Returns the dot-separated paths of every leaf property below the given prefix,
+     * relative to that prefix.
+     */
+    @NotNull
+    Collection<String> getLeafPathsForPrefix(@Nullable String prefix);
+
     @Nullable
     WorkflowSettingsYamlFileWrapper findWorkflowSettingsFile();
 

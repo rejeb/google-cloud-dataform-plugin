@@ -41,7 +41,6 @@ import io.github.rejeb.dataform.language.index.DataformJsFileIndex;
 import io.github.rejeb.dataform.language.psi.SqlxFile;
 import io.github.rejeb.dataform.language.service.DataformCoreIndexService;
 import io.github.rejeb.dataform.language.service.DataformFunctionCompletionObject;
-import io.github.rejeb.dataform.language.service.WorkflowSettingsProperty;
 import io.github.rejeb.dataform.language.service.WorkflowSettingsService;
 import org.jetbrains.annotations.NotNull;
 
@@ -52,36 +51,58 @@ public class DataformJsSymbolCompletionContributorProvider extends CompletionPro
     @Override
     protected void addCompletions(@NotNull CompletionParameters parameters, @NotNull ProcessingContext context, @NotNull CompletionResultSet result) {
 
+        if (!appliesTo(parameters)) {
+            return;
+        }
+
+        PsiElement position = parameters.getPosition();
+        PsiFile topLevelFile = InjectedLanguageManager.getInstance(position.getProject()).getTopLevelFile(position);
+
+        Project project = position.getProject();
+        result.addAllElements(handleJsBlockContent(topLevelFile));
+        result.addAllElements(handleIncludeExports(project));
+        result.addAllElements(handleBuiltinFunctions(project));
+        result.addAllElements(handleBuiltinVariables(project));
+    }
+
+    /**
+     * Tells whether Dataform symbols apply to the given completion position.
+     */
+    static boolean appliesTo(@NotNull CompletionParameters parameters) {
         PsiElement position = parameters.getPosition();
         PsiFile originalFile = parameters.getOriginalFile();
 
         if (!(originalFile instanceof JSFile)) {
-            return;
+            return false;
         }
 
         PsiFile topLevelFile = InjectedLanguageManager.getInstance(position.getProject()).getTopLevelFile(position);
 
         if (!(topLevelFile instanceof SqlxFile) && !(topLevelFile instanceof JSFile)) {
-            return;
+            return false;
         }
 
         if (topLevelFile instanceof JSFile && topLevelFile == originalFile) {
-            return;
+            return false;
         }
 
-        if (isAfterDot(position)) {
-            return;
-        }
-
-        Project project = position.getProject();
-        result.addAllElements(handleJsBlockContent(topLevelFile));
-        result.addAllElements(handleFileNameCompletion(project));
-        result.addAllElements(handleBuiltinFunctions(project));
-        result.addAllElements(handleBuiltinVariables(project));
-        result.addAllElements(handleDataformWorkflowSettings(project));
+        return !isAfterDot(position);
     }
 
-    private boolean isAfterDot(PsiElement position) {
+    /**
+     * Returns the names proposed as qualified include paths, which must not also be
+     * proposed on their own by the JavaScript contributors.
+     */
+    static Set<String> shadowedIncludeNames(@NotNull Project project) {
+        Set<String> names = new HashSet<>();
+        DataformJsFileIndex.getAllExports(project).forEach((fileName, exports) -> {
+            names.add(fileName);
+            exports.forEach(export -> names.add(export.exportName()));
+        });
+        return names;
+    }
+
+    private static boolean isAfterDot(PsiElement position) {
         PsiElement prevLeaf = PsiTreeUtil.prevLeaf(position);
         while (prevLeaf != null && prevLeaf.getText().trim().isEmpty()) {
             prevLeaf = PsiTreeUtil.prevLeaf(prevLeaf);
@@ -113,24 +134,36 @@ public class DataformJsSymbolCompletionContributorProvider extends CompletionPro
         return resultElements;
     }
 
-    private List<LookupElement> handleFileNameCompletion(Project project) {
+    private List<LookupElement> handleIncludeExports(Project project) {
 
         Map<String, List<DataformJsFileIndex.IncludeExport>> exportsByFile = DataformJsFileIndex.getAllExports(project);
 
         List<LookupElement> resultElements = new ArrayList<>();
-        for (String fileName : exportsByFile.keySet()) {
-            resultElements.add(LookupElementBuilder.create(fileName)
-                    .withTypeText("include")
-                    .withIcon(AllIcons.FileTypes.JavaScript)
-                    .withInsertHandler((ctx, item) -> {
-                        Editor editor = ctx.getEditor();
-                        int offset = editor.getCaretModel().getOffset();
-                        editor.getDocument().insertString(offset, ".");
-                        editor.getCaretModel().moveToOffset(offset + 1);
-                        AutoPopupController.getInstance(ctx.getProject()).scheduleAutoPopup(editor);
-                    }));
-        }
+        exportsByFile.forEach((fileName, exports) -> exports.stream()
+                .map(export -> buildIncludeExportElemLookup(fileName, export))
+                .forEach(resultElements::add));
         return resultElements;
+    }
+
+    private LookupElement buildIncludeExportElemLookup(String fileName,
+                                                       DataformJsFileIndex.IncludeExport export) {
+        LookupElementBuilder element = LookupElementBuilder
+                .create(fileName + "." + export.exportName())
+                .withLookupString(export.exportName())
+                .withTypeText("include")
+                .withIcon(export.isFunction() ? AllIcons.Nodes.Function : AllIcons.Nodes.Variable);
+
+        if (!export.isFunction()) {
+            return element;
+        }
+        return element.withTailText("()", true)
+                .withInsertHandler((ctx, item) -> {
+                    Editor editor = ctx.getEditor();
+                    int offset = editor.getCaretModel().getOffset();
+                    editor.getDocument().insertString(offset, "()");
+                    editor.getCaretModel().moveToOffset(offset + 1);
+                    AutoPopupController.getInstance(ctx.getProject()).scheduleAutoPopup(editor);
+                });
     }
 
     private List<LookupElement> handleBuiltinFunctions(Project project) {
@@ -147,31 +180,6 @@ public class DataformJsSymbolCompletionContributorProvider extends CompletionPro
                 .stream()
                 .filter(variable -> variable.getName() != null && wfService.isWorkflowSettingProperty(variable.getName()))
                 .map(this::buildJsVarElemLookup).toList();
-    }
-
-    private List<LookupElement> handleDataformWorkflowSettings(Project project) {
-        List<LookupElement> resultElements = new ArrayList<>();
-        WorkflowSettingsService service = WorkflowSettingsService.getInstance(project);
-        Collection<String> properties = service.getPropertiesForPrefix(null);
-
-        for (String property : properties) {
-            LookupElementBuilder element = LookupElementBuilder.create(property).withTypeText("workflow_settings.yaml").withIcon(AllIcons.Json.Object);
-            WorkflowSettingsProperty prop = service.getWorkflowProperties().get(property);
-
-            if (prop != null && prop.hasChildren()) {
-                element = element.withInsertHandler((ctx, item) -> {
-                    Editor editor = ctx.getEditor();
-                    int offset = editor.getCaretModel().getOffset();
-                    editor.getDocument().insertString(offset, ".");
-                    editor.getCaretModel().moveToOffset(offset + 1);
-                    AutoPopupController.getInstance(ctx.getProject()).scheduleAutoPopup(editor);
-                });
-            }
-
-
-            resultElements.add(element);
-        }
-        return resultElements;
     }
 
     private List<PsiFile> findJsBlock(PsiFile file) {
@@ -198,15 +206,7 @@ public class DataformJsSymbolCompletionContributorProvider extends CompletionPro
                 .create(variable.getName())
                 .withTypeText("Dataform")
                 .withIcon(AllIcons.Nodes.Variable)
-                .withInsertHandler((ctx, item) -> {
-                    if (variable.getQualifiedName() != null) {
-                        Editor editor = ctx.getEditor();
-                        int offset = editor.getCaretModel().getOffset();
-                        editor.getDocument().insertString(offset, ".");
-                        editor.getCaretModel().moveToOffset(offset + 1);
-                        AutoPopupController.getInstance(ctx.getProject()).scheduleAutoPopup(editor);
-                    }
-                }).withBoldness(true);
+                .withBoldness(true);
     }
 
     private LookupElement buildJsFunctionElemLookup(DataformFunctionCompletionObject function) {

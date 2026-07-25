@@ -306,14 +306,19 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository, Disp
     public void createRepository(
             @NotNull String projectId,
             @NotNull String location,
-            @NotNull String repositoryId
+            @NotNull String repositoryId,
+            @NotNull String serviceAccount
     ) {
         try (DataformClient client = GcpClientsUtils.dataformClient(projectId)) {
             String parent = LocationName.of(projectId, location).toString();
+            Repository.Builder repository = Repository.newBuilder();
+            if (!serviceAccount.isBlank()) {
+                repository.setServiceAccount(serviceAccount.trim());
+            }
             CreateRepositoryRequest request = CreateRepositoryRequest.newBuilder()
                     .setParent(parent)
                     .setRepositoryId(repositoryId)
-                    .setRepository(Repository.newBuilder().build())
+                    .setRepository(repository.build())
                     .build();
             client.createRepository(request);
         } catch (Exception e) {

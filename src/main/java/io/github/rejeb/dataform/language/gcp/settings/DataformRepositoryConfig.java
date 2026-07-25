@@ -23,18 +23,33 @@ import java.util.UUID;
 /**
  * Immutable snapshot of the Dataform GCP repository configuration.
  *
- * @param label        User-defined display name for this repository (optional)
- * @param projectId    GCP project ID hosting the Dataform repository
- * @param repositoryId Dataform repository name
- * @param location     GCP location (e.g. "europe-west1")
+ * @param label          User-defined display name for this repository (optional)
+ * @param projectId      GCP project ID hosting the Dataform repository
+ * @param repositoryId   Dataform repository name
+ * @param location       GCP location (e.g. "europe-west1")
+ * @param serviceAccount Service account email used by the repository (optional, may be blank)
  */
 public record DataformRepositoryConfig(
         @NotNull String repositoryConfigId,
         @NotNull String label,
         @NotNull String projectId,
         @NotNull String repositoryId,
-        @NotNull String location
+        @NotNull String location,
+        @NotNull String serviceAccount
 ) {
+
+    /**
+     * Backward-compatible constructor for configurations without a service account.
+     */
+    public DataformRepositoryConfig(
+            @NotNull String repositoryConfigId,
+            @NotNull String label,
+            @NotNull String projectId,
+            @NotNull String repositoryId,
+            @NotNull String location
+    ) {
+        this(repositoryConfigId, label, projectId, repositoryId, location, "");
+    }
 
     /**
      * @return the label if set and non-blank, otherwise the repositoryId

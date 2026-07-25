@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "io.github.rejeb"
-version = "0.2.15"
+version = "0.2.16"
 
 repositories {
     mavenCentral()
@@ -46,10 +46,11 @@ intellijPlatform {
 
         changeNotes = """
                 <ul>
-                    <li>Add lineage view.</li>
-                    <li>Fix resolve tables having preOperations.</li>
-                    <li>Fix run query for tables having preOperations.</li>
-                    <li>Fix renew google credentials.</li>
+                    <li>Add column level lineage view.</li>
+                    <li>Add on hover table informations</li>
+                    <li>Add autocomplete templates.</li>
+                    <li>Enhance config autocompletion.</li>
+                    <li>Fix issues.</li>
                 </ul>
         """.trimIndent()
     }
@@ -77,5 +78,6 @@ sourceSets{
 
 tasks.test {
     useJUnitPlatform()
+    systemProperty("idea.suppressed.plugins.id", "org.jetbrains.plugins.vue")
 }
 

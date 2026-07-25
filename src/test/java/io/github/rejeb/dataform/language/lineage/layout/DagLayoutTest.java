@@ -81,6 +81,42 @@ class DagLayoutTest {
     }
 
     @Test
+    void perNodeExtraHeightOffsetsOnlyNodesBelowIt() {
+        LineageGraph g = chain();
+        Set<String> visible = Set.of(LineageNode.idOf("p.s.a"), LineageNode.idOf("p.s.d"));
+
+        LayoutResult base = DagLayout.compute(g, visible, Direction.LR, Density.COMFORTABLE, 180);
+        LayoutResult withExtra = DagLayout.compute(g, visible, Direction.LR, Density.COMFORTABLE, 180,
+                id -> id.equals(LineageNode.idOf("p.s.a")) ? 100 : 0);
+
+        double baseAY = base.positions().get(LineageNode.idOf("p.s.a")).y();
+        double baseDY = base.positions().get(LineageNode.idOf("p.s.d")).y();
+        double extraAY = withExtra.positions().get(LineageNode.idOf("p.s.a")).y();
+        double extraDY = withExtra.positions().get(LineageNode.idOf("p.s.d")).y();
+
+        assertEquals(baseAY, extraAY, 0.001, "node with the reserved space keeps its own position");
+        assertEquals(baseDY + 100, extraDY, 0.001, "node below is pushed down by exactly the reserved height");
+    }
+
+    @Test
+    void eachLayerTakesTheWidthOfItsOwnWidestNode() {
+        LineageGraph g = chain();
+        String a = LineageNode.idOf("p.s.a");
+        String b = LineageNode.idOf("p.s.b");
+        String c = LineageNode.idOf("p.s.c");
+        LayoutResult r = DagLayout.compute(g, Set.of(a, b, c), Direction.LR, Density.COMFORTABLE,
+                id -> id.equals(b) ? 400 : 100, id -> 0);
+
+        assertEquals(100, r.positions().get(a).width());
+        assertEquals(400, r.positions().get(b).width());
+        assertEquals(100, r.positions().get(c).width());
+        assertEquals(r.positions().get(a).x() + 100 + 90, r.positions().get(b).x(), 0.001,
+                "the next layer starts after this layer's own width");
+        assertEquals(r.positions().get(b).x() + 400 + 90, r.positions().get(c).x(), 0.001,
+                "a wide layer pushes the following layer further right");
+    }
+
+    @Test
     void boundsEncloseAllNodes() {
         LineageGraph g = chain();
         LayoutResult r = DagLayout.compute(g, Set.of(
@@ -90,7 +126,7 @@ class DagLayoutTest {
         for (NodePosition p : r.positions().values()) {
             assertTrue(p.x() >= r.bounds().x - 0.001);
             assertTrue(p.y() >= r.bounds().y - 0.001);
-            assertTrue(p.x() + r.nodeW() <= r.bounds().x + r.bounds().width + 0.001);
+            assertTrue(p.x() + p.width() <= r.bounds().x + r.bounds().width + 0.001);
             assertTrue(p.y() + r.nodeH() <= r.bounds().y + r.bounds().height + 0.001);
         }
     }

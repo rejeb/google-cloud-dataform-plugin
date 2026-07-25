@@ -88,6 +88,10 @@
                 serviceImplementation="io.github.rejeb.dataform.language.settings.DataformToolsSettingsImpl"/>
 
         <applicationService
+                serviceInterface="io.github.rejeb.dataform.language.documentation.bigquery.BigQueryFunctionDocService"
+                serviceImplementation="io.github.rejeb.dataform.language.documentation.bigquery.BigQueryFunctionDocServiceImpl"/>
+
+        <applicationService
                 serviceInterface="io.github.rejeb.dataform.language.gcp.auth.DataformAuthState"
                 serviceImplementation="io.github.rejeb.dataform.language.gcp.auth.DataformAuthStateImpl"/>
         <applicationService
@@ -105,6 +109,8 @@
                 icon="/icons/dataform-panel.png"/>
         <sql.resolveExtension
                 implementation="io.github.rejeb.dataform.language.schema.sql.DataformSqlResolveExtension"/>
+        <sql.resolveExtension
+                implementation="io.github.rejeb.dataform.language.schema.sql.DataformSqlVariableResolveExtension"/>
 
         <daemon.highlightInfoFilter
                 implementation="io.github.rejeb.dataform.language.highlight.SqlxHighlightInfoFilter"/>
@@ -155,8 +161,32 @@
         <multiHostInjector
                 implementation="io.github.rejeb.dataform.language.injection.SqlxTemplateInjector"/>
 
+        <multiHostInjector order="first" id="dataformJsQueryInjector"
+                implementation="io.github.rejeb.dataform.language.injection.SqlxJsQueryInjector"/>
+
         <completion.contributor
-                language="JavaScript"
+                language="JavaScript" order="first"
+                id="dataformConfigTagCompletion"
+                implementationClass="io.github.rejeb.dataform.language.completion.DataformConfigTagCompletionContributor"/>
+
+        <completion.contributor
+                language="JavaScript" order="first"
+                id="dataformConfigValueCompletion"
+                implementationClass="io.github.rejeb.dataform.language.completion.DataformConfigValueCompletionContributor"/>
+
+        <completion.contributor
+                language="JavaScript" order="first"
+                id="dataformConfigPropertyCompletion"
+                implementationClass="io.github.rejeb.dataform.language.completion.DataformConfigPropertyCompletionContributor"/>
+
+        <completion.contributor
+                language="JavaScript" order="first"
+                id="dataformRefCompletion"
+                implementationClass="io.github.rejeb.dataform.language.completion.DataformRefCompletionContributor"/>
+
+        <completion.contributor
+                language="JavaScript" order="first"
+                id="dataformJsSymbolCompletion"
                 implementationClass="io.github.rejeb.dataform.language.completion.DataformJsSymbolCompletionContributor"/>
 
         <completion.contributor
@@ -166,6 +196,26 @@
         <completion.contributor
                 language="SQL"
                 implementationClass="io.github.rejeb.dataform.language.completion.SqlxKeywordCompletionContributor"/>
+
+        <completion.contributor
+                language="SQL"
+                implementationClass="io.github.rejeb.dataform.language.completion.SqlxTemplateExpressionCompletionContributor"/>
+
+        <completion.contributor
+                language="JavaScript"
+                implementationClass="io.github.rejeb.dataform.language.completion.SqlxTemplateExpressionCompletionContributor"/>
+
+        <typedHandler
+                implementation="io.github.rejeb.dataform.language.completion.SqlxDollarTypedHandler"/>
+
+        <platform.backend.documentation.targetProvider
+                implementation="io.github.rejeb.dataform.language.documentation.DataformRefDocumentationTargetProvider"/>
+
+        <platform.backend.documentation.targetProvider order="first"
+                implementation="io.github.rejeb.dataform.language.documentation.bigquery.BigQueryFunctionDocumentationTargetProvider"/>
+
+        <platform.backend.documentation.psiTargetProvider
+                implementation="io.github.rejeb.dataform.language.documentation.DataformDasDocumentationTargetProvider"/>
 
         <psi.referenceContributor
                 language="JavaScript"
@@ -221,11 +271,6 @@
         <runConfigurationProducer
                 implementation="io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.DataformSqlxRunConfigurationProducer"/>
     </extensions>
-
-    <projectListeners>
-        <listener class="io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.DataformRunConfigurationEditPolicy"
-                  topic="com.intellij.execution.RunManagerListener"/>
-    </projectListeners>
 
     <actions>
         <action id="Dataform.CompareFileWithRemote"
