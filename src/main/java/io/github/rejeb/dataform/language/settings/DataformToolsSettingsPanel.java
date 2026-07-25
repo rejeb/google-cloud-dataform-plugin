@@ -23,6 +23,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectManager;
 import com.intellij.openapi.ui.TextFieldWithBrowseButton;
 import com.intellij.openapi.util.SystemInfo;
+import com.intellij.ui.components.JBCheckBox;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBScrollPane;
 import com.intellij.util.ui.FormBuilder;
@@ -45,6 +46,8 @@ public final class DataformToolsSettingsPanel {
     private final TextFieldWithBrowseButton sqlfluffExecutableField = new TextFieldWithBrowseButton();
     private final TextFieldWithBrowseButton sqlfluffConfigField = new TextFieldWithBrowseButton();
     private final JTextField sqlfluffArgsField = new JTextField();
+    private final JBCheckBox foldTemplateExpressionsBox =
+            new JBCheckBox("Fold Dataform expressions to their evaluated value");
     private final JButton    installButton    = new JButton("Install Dataform CLI & Core");
     private final JTextPane  statusPane       = buildStatusPane();
     private final JScrollPane statusScrollPane = buildStatusScrollPane();
@@ -91,6 +94,8 @@ public final class DataformToolsSettingsPanel {
                 .addVerticalGap(10)
                 .addLabeledComponent(new JBLabel("SQLFluff extra args"), new JSeparator())
                 .addComponent(sqlfluffArgsField, 10)
+                .addVerticalGap(10)
+                .addComponent(foldTemplateExpressionsBox)
                 .addVerticalGap(10)
                 .addComponent(buttonRow)
                 .addVerticalGap(5)
@@ -259,4 +264,6 @@ public final class DataformToolsSettingsPanel {
     public void    setSqlfluffExecutablePath(String path) { sqlfluffExecutableField.setText(path); }
     public void    setSqlfluffConfigPath(String path) { sqlfluffConfigField.setText(path); }
     public void    setSqlfluffExtraArgs(String args) { sqlfluffArgsField.setText(args); }
+    public boolean isFoldTemplateExpressions() { return foldTemplateExpressionsBox.isSelected(); }
+    public void    setFoldTemplateExpressions(boolean value) { foldTemplateExpressionsBox.setSelected(value); }
 }

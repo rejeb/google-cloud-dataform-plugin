@@ -16,7 +16,6 @@
  */
 package io.github.rejeb.dataform.language.lineage.column;
 
-import io.github.rejeb.dataform.language.compilation.model.CompiledAssertion;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.compilation.model.CompiledOperation;
 import io.github.rejeb.dataform.language.compilation.model.CompiledTable;
@@ -56,10 +55,6 @@ public final class ColumnLineageExtractorImpl implements ColumnLineageExtractor 
         for (CompiledTable table : graph.getTables()) {
             units.add(new Analyzable(table.getTarget(), table.getQuery(), table.getDependencyTargets()));
         }
-        for (CompiledAssertion assertion : graph.getAssertions()) {
-            units.add(new Analyzable(assertion.getTarget(), queryOf(assertion),
-                    assertion.getDependencyTargets()));
-        }
 
         List<TableAnalysis> analyses = units.parallelStream()
                 .map(this::analyzeUnit)
@@ -96,19 +91,16 @@ public final class ColumnLineageExtractorImpl implements ColumnLineageExtractor 
     }
 
     /**
-     * Fully qualified names of everything that can carry columns: tables, assertions, operations
-     * with an output, declared sources, and the dependency targets of all of them (upstream
-     * tables that are not themselves actions of this project).
+     * Fully qualified names of everything that can carry columns: tables, operations with an
+     * output, declared sources, and the dependency targets of all of them (upstream tables that
+     * are not themselves actions of this project). Assertions are deliberately excluded from
+     * column lineage.
      */
     private @NotNull Set<String> collectActionFullNames(@NotNull CompiledGraph graph) {
         Set<String> names = new LinkedHashSet<>();
         graph.getTables().forEach(t -> {
             addFullName(names, t.getTarget());
             t.getDependencyTargets().forEach(d -> addFullName(names, d));
-        });
-        graph.getAssertions().forEach(a -> {
-            addFullName(names, a.getTarget());
-            a.getDependencyTargets().forEach(d -> addFullName(names, d));
         });
         graph.getOperations().stream()
                 .filter(CompiledOperation::isHasOutput)
@@ -384,15 +376,7 @@ public final class ColumnLineageExtractorImpl implements ColumnLineageExtractor 
         return target.getFullName();
     }
 
-    private @Nullable String queryOf(@NotNull CompiledAssertion assertion) {
-        try {
-            return assertion.getQuery();
-        } catch (RuntimeException e) {
-            return null;
-        }
-    }
-
-    /** A compiled action (table or assertion) whose SQL can be analyzed for column lineage. */
+    /** A compiled table whose SQL can be analyzed for column lineage. */
     private record Analyzable(@Nullable Target target,
                               @Nullable String sql,
                               @NotNull List<Target> deps) {

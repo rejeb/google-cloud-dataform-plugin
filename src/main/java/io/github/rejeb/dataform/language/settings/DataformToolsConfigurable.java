@@ -16,7 +16,12 @@
  */
 package io.github.rejeb.dataform.language.settings;
 
+import com.intellij.codeInsight.folding.CodeFoldingManager;
+import com.intellij.openapi.editor.Editor;
+import com.intellij.openapi.editor.EditorFactory;
 import com.intellij.openapi.options.Configurable;
+import com.intellij.openapi.project.Project;
+import io.github.rejeb.dataform.language.folding.DataformMultilineFoldManager;
 
 import javax.swing.*;
 
@@ -41,17 +46,35 @@ public class DataformToolsConfigurable implements Configurable {
         return !panel.getCoreInstallPath().equals(service.getCoreInstallPath())
                 || !panel.getSqlfluffExecutablePath().equals(service.getSqlfluffExecutablePath())
                 || !panel.getSqlfluffConfigPath().equals(service.getSqlfluffConfigPath())
-                || !panel.getSqlfluffExtraArgs().equals(service.getSqlfluffExtraArgs());
+                || !panel.getSqlfluffExtraArgs().equals(service.getSqlfluffExtraArgs())
+                || panel.isFoldTemplateExpressions() != service.isFoldTemplateExpressions();
     }
 
     @Override
     public void apply() {
-        DataformToolsSettings.getInstance().update(
+        DataformToolsSettings settings = DataformToolsSettings.getInstance();
+        boolean foldChanged = panel.isFoldTemplateExpressions() != settings.isFoldTemplateExpressions();
+        settings.update(
                 panel.getCoreInstallPath(),
                 panel.getSqlfluffExecutablePath(),
                 panel.getSqlfluffConfigPath(),
                 panel.getSqlfluffExtraArgs()
         );
+        settings.setFoldTemplateExpressions(panel.isFoldTemplateExpressions());
+        if (foldChanged) {
+            refreshFoldingInOpenEditors();
+        }
+    }
+
+    private static void refreshFoldingInOpenEditors() {
+        for (Editor editor : EditorFactory.getInstance().getAllEditors()) {
+            Project project = editor.getProject();
+            if (project == null || project.isDisposed()) {
+                continue;
+            }
+            DataformMultilineFoldManager.clear(editor);
+            CodeFoldingManager.getInstance(project).scheduleAsyncFoldingUpdate(editor);
+        }
     }
 
     @Override
@@ -61,5 +84,6 @@ public class DataformToolsConfigurable implements Configurable {
         panel.setSqlfluffExecutablePath(service.getSqlfluffExecutablePath());
         panel.setSqlfluffConfigPath(service.getSqlfluffConfigPath());
         panel.setSqlfluffExtraArgs(service.getSqlfluffExtraArgs());
+        panel.setFoldTemplateExpressions(service.isFoldTemplateExpressions());
     }
 }

@@ -21,4 +21,5 @@ public final class DataformToolsSettingsState {
     public String sqlfluffExecutablePath = "";
     public String sqlfluffConfigPath = "";
     public String sqlfluffExtraArgs = "";
+    public boolean foldTemplateExpressions = true;
 }

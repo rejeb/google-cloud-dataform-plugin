@@ -123,8 +123,11 @@ public class SqlxJsQueryInjector implements MultiHostInjector {
         return "NULL";
     }
 
+    /**
+     * Returns the substitution expressions of the given template literal, in source order.
+     */
     @NotNull
-    private static List<JSExpression> collectHoles(@NotNull JSStringTemplateExpression template) {
+    public static List<JSExpression> collectHoles(@NotNull JSStringTemplateExpression template) {
         List<JSExpression> holes = new ArrayList<>();
         for (PsiElement child = template.getFirstChild(); child != null; child = child.getNextSibling()) {
             if (child instanceof JSExpression expression) {

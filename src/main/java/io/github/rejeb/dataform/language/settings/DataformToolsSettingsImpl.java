@@ -62,6 +62,16 @@ public final class DataformToolsSettingsImpl
     }
 
     @Override
+    public boolean isFoldTemplateExpressions() {
+        return state.foldTemplateExpressions;
+    }
+
+    @Override
+    public void setFoldTemplateExpressions(boolean value) {
+        state.foldTemplateExpressions = value;
+    }
+
+    @Override
     public void update(@NotNull String coreInstallPath,
                        @NotNull String sqlfluffExecutablePath,
                        @NotNull String sqlfluffConfigPath,

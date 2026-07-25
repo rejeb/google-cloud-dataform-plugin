@@ -71,6 +71,10 @@
                         serviceImplementation="io.github.rejeb.dataform.language.service.WorkflowSettingsServiceImpl"
         />
         <projectService
+                serviceInterface="io.github.rejeb.dataform.language.evaluation.DataformExpressionEvaluationService"
+                serviceImplementation="io.github.rejeb.dataform.language.evaluation.DataformExpressionEvaluationServiceImpl"
+        />
+        <projectService
                 serviceInterface="io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings"
                 serviceImplementation="io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettingsImpl"/>
         <projectService
@@ -148,6 +152,17 @@
         <lang.formatter
                 language="SQLX"
                 implementationClass="io.github.rejeb.dataform.language.formatting.SqlxFormattingModelBuilder"/>
+
+        <lang.foldingBuilder
+                language="SQLX"
+                implementationClass="io.github.rejeb.dataform.language.folding.SqlxTemplateFoldingBuilder"/>
+
+        <lang.foldingBuilder
+                language="JavaScript"
+                implementationClass="io.github.rejeb.dataform.language.folding.DataformJsFoldingBuilder"/>
+
+        <vfs.asyncListener
+                implementation="io.github.rejeb.dataform.language.evaluation.DataformEvaluationInvalidator"/>
         <formattingService implementation="io.github.rejeb.dataform.language.formatting.SqlxFormattingService"/>
 
         <multiHostInjector implementation="io.github.rejeb.dataform.language.injection.SqlxSqlBlockInjector"/>
@@ -210,6 +225,9 @@
 
         <platform.backend.documentation.targetProvider
                 implementation="io.github.rejeb.dataform.language.documentation.DataformRefDocumentationTargetProvider"/>
+
+        <platform.backend.documentation.targetProvider
+                implementation="io.github.rejeb.dataform.language.documentation.DataformExpressionValueDocumentationTargetProvider"/>
 
         <platform.backend.documentation.targetProvider order="first"
                 implementation="io.github.rejeb.dataform.language.documentation.bigquery.BigQueryFunctionDocumentationTargetProvider"/>

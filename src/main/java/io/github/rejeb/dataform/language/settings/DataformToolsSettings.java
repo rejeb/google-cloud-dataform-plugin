@@ -56,4 +56,14 @@ public interface DataformToolsSettings {
      * Returns additional SQLFluff CLI arguments.
      */
     @NotNull String getSqlfluffExtraArgs();
+
+    /**
+     * Tells whether Dataform expressions are folded to their evaluated value in the editor.
+     */
+    boolean isFoldTemplateExpressions();
+
+    /**
+     * Enables or disables folding Dataform expressions to their evaluated value.
+     */
+    void setFoldTemplateExpressions(boolean value);
 }

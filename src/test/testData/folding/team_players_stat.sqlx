@@ -1,0 +1,135 @@
+config {
+  type: "table",
+  description: "Description of the table.",
+  columns: team_player_stat_columns_descriptions.columns_descriptions,
+  bigquery: {
+    partitionBy: {
+      field: "ingestionDate",
+      dataType: "timestamp",
+      granularity: "day"
+    },
+    clusterBy: ["teamName"]
+  }
+}
+
+WITH
+
+team_players_stat_raw AS (
+    SELECT * FROM ${ref("team_players_stat_raw_cleaned")}
+),
+
+goalKeepersStats AS (
+    SELECT
+        nationality,
+        STRUCT(
+            playerName,
+            appearances,
+            savePercentage,
+            cleanSheets
+        ) AS goalKeeperStatsStruct
+    FROM team_players_stat_raw
+    WHERE isGoalKeeperStatsExist IS TRUE
+),
+
+goalKeeperStatsPerTeam AS (
+    SELECT
+        nationality,
+        ARRAY_AGG(goalKeeperStatsStruct ORDER BY goalKeeperStatsStruct.savePercentage DESC LIMIT 1)[OFFSET(0)] AS stats
+    FROM goalKeepersStats
+    GROUP BY
+        nationality
+)
+
+SELECT
+    statRaw.nationality AS teamName,
+    nationalTeamKitSponsor,
+    fifaRanking,
+    SUM(goalsScored) AS teamTotalGoals,
+    CURRENT_TIMESTAMP() AS ingestionDate,
+
+    goalKeeperStatsPerTeam.stats AS goalKeeper,
+
+    ${team_players_stat_functions.build_player_stats(
+      "goalsScored",
+      "appearances",
+      "brandSponsorAndUsed",
+      "club",
+      "position",
+      "playerDob",
+      "playerName"
+    )}
+    AS topScorers,
+
+    ${team_players_stat_functions.build_player_stats(
+      "assistsProvided",
+      "appearances",
+      "brandSponsorAndUsed",
+      "club",
+      "position",
+      "playerDob",
+      "playerName"
+    )}
+    AS bestPassers,
+
+    ${team_players_stat_functions.build_player_stats(
+      "dribblesPerNinety",
+      "appearances",
+      "brandSponsorAndUsed",
+      "club",
+      "position",
+      "playerDob",
+      "playerName"
+    )}
+    AS bestDribblers,
+
+    ${team_players_stat_functions.build_player_stats(
+      "appearances",
+      "appearances",
+      "brandSponsorAndUsed",
+      "club",
+      "position",
+      "playerDob",
+      "playerName"
+    )}
+    AS playersMostAppearances,
+
+    ${team_players_stat_functions.build_player_stats(
+      "totalDuelsWonPerNinety",
+      "appearances",
+      "brandSponsorAndUsed",
+      "club",
+      "position",
+      "playerDob",
+      "playerName"
+    )}
+    AS playersMostDuelsWon,
+
+    ${team_players_stat_functions.build_player_stats(
+      "interceptionsPerNinety",
+      "appearances",
+      "brandSponsorAndUsed",
+      "club",
+      "position",
+      "playerDob",
+      "playerName"
+    )}
+    AS playersMostInterception,
+
+    ${team_players_stat_functions.build_player_stats(
+      "tacklesPerNinety",
+      "appearances",
+      "brandSponsorAndUsed",
+      "club",
+      "position",
+      "playerDob",
+      "playerName"
+    )}
+    AS playersMostSuccessfulTackles
+
+FROM ${ref("team_players_stat_raw_cleaned")} statRaw
+JOIN goalKeeperStatsPerTeam ON statRaw.nationality = goalKeeperStatsPerTeam.nationality
+GROUP BY
+    statRaw.nationality,
+    nationalTeamKitSponsor,
+    fifaRanking,
+    goalKeeperStatsPerTeam.stats

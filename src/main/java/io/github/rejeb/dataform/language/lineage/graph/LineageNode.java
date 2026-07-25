@@ -28,7 +28,7 @@ import java.util.List;
  * @param name         short name of the action (last segment of the FQN).
  * @param fullName     fully qualified name {@code project.dataset.table}.
  * @param schema       dataset/schema the action belongs to.
- * @param dataformType Dataform action type: table, view, incremental, operation, assertion, declaration, external…
+ * @param dataformType Dataform action type: table, view, incremental, operation, declaration, external…
  * @param tags         Dataform tags declared on the action; empty when none.
  * @param fileName     project-relative path of the source SQLX file, {@code null} for external nodes.
  */
