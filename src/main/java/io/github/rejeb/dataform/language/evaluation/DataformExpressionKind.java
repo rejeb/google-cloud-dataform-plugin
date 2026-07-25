@@ -14,12 +14,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.rejeb.dataform.language.settings;
+package io.github.rejeb.dataform.language.evaluation;
 
-public final class DataformToolsSettingsState {
-    public String coreInstallPath = "";
-    public String sqlfluffExecutablePath = "";
-    public String sqlfluffConfigPath = "";
-    public String sqlfluffExtraArgs = "";
-    public boolean foldTemplateExpressions = true;
+public enum DataformExpressionKind {
+    SQLX_TEMPLATE,
+    JS_TEMPLATE_SUBSTITUTION,
+    WORKFLOW_SETTINGS_REFERENCE,
+    INCLUDES_REFERENCE
 }

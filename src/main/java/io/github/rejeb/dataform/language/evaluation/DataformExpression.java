@@ -14,12 +14,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.rejeb.dataform.language.settings;
+package io.github.rejeb.dataform.language.evaluation;
 
-public final class DataformToolsSettingsState {
-    public String coreInstallPath = "";
-    public String sqlfluffExecutablePath = "";
-    public String sqlfluffConfigPath = "";
-    public String sqlfluffExtraArgs = "";
-    public boolean foldTemplateExpressions = true;
+import com.intellij.openapi.util.TextRange;
+import org.jetbrains.annotations.NotNull;
+
+/**
+ * A single Dataform expression occurrence collected from a file.
+ *
+ * @param source    the JavaScript source to evaluate, without the surrounding <code>${</code> and <code>}</code>
+ * @param hostText  the exact text of the element that will be folded
+ * @param hostRange the range of that element in the document it belongs to
+ * @param kind      the surface the occurrence was collected from
+ */
+public record DataformExpression(@NotNull String source,
+                                 @NotNull String hostText,
+                                 @NotNull TextRange hostRange,
+                                 @NotNull DataformExpressionKind kind) {
 }

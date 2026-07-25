@@ -17,6 +17,7 @@
 package io.github.rejeb.dataform.language.service;
 
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.vfs.VirtualFile;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.yaml.psi.YAMLKeyValue;
@@ -45,6 +46,20 @@ public interface WorkflowSettingsService {
 
     @Nullable
     WorkflowSettingsYamlFileWrapper findWorkflowSettingsFile();
+
+    /**
+     * Returns the {@code workflow_settings.yaml} file of the project, or {@code null} when it cannot be
+     * located without index access on the EDT.
+     */
+    @Nullable
+    VirtualFile findWorkflowSettingsVirtualFile();
+
+    /**
+     * Same as {@link #findWorkflowSettingsVirtualFile()}, starting the search at the given file so a
+     * Dataform project nested in a larger repository resolves its own settings.
+     */
+    @Nullable
+    VirtualFile findWorkflowSettingsVirtualFile(@Nullable VirtualFile context);
 
     @Nullable
     WorkflowSettingsProperty getProperty(@Nullable String prop);

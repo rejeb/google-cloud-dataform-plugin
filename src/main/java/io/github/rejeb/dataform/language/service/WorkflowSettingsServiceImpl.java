@@ -16,7 +16,10 @@
  */
 package io.github.rejeb.dataform.language.service;
 
+import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ReadAction;
+import com.intellij.openapi.project.ProjectUtil;
+import com.intellij.openapi.util.Computable;
 import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -38,8 +41,12 @@ import static io.github.rejeb.dataform.language.service.WorkflowSettingsYamlFile
 
 public final class WorkflowSettingsServiceImpl implements WorkflowSettingsService {
     private final Project project;
+    private static final String WORKFLOW_SETTINGS_FILE_NAME = "workflow_settings.yaml";
+
     private Map<String, WorkflowSettingsProperty> cachedProperties;
     private long lastModificationStamp = -1;
+    private String lastFileUrl;
+    private volatile VirtualFile cachedSettingsFile;
 
     public WorkflowSettingsServiceImpl(Project project) {
         this.project = project;
@@ -49,20 +56,114 @@ public final class WorkflowSettingsServiceImpl implements WorkflowSettingsServic
         return project.getService(WorkflowSettingsServiceImpl.class);
     }
 
-    public @NotNull Map<String, WorkflowSettingsProperty> getWorkflowProperties() {
-        WorkflowSettingsYamlFileWrapper yamlFile = findWorkflowSettingsFile();
-        if (yamlFile == null) {
+    public synchronized @NotNull Map<String, WorkflowSettingsProperty> getWorkflowProperties() {
+        YAMLFile originalFile = findOriginalWorkflowSettingsFile();
+        if (originalFile == null) {
+            cachedProperties = null;
+            lastModificationStamp = -1;
+            lastFileUrl = null;
             return Collections.emptyMap();
         }
 
-        long currentModStamp = yamlFile.getModificationStamp();
-        if (cachedProperties != null && lastModificationStamp == currentModStamp) {
+        long currentModStamp = originalFile.getModificationStamp();
+        String currentUrl = fileUrlOf(originalFile);
+        if (cachedProperties != null
+                && lastModificationStamp == currentModStamp
+                && Objects.equals(lastFileUrl, currentUrl)) {
             return cachedProperties;
         }
 
-        cachedProperties = parseWorkflowSettings(yamlFile);
+        cachedProperties = parseWorkflowSettings(WorkflowSettingsYamlFileWrapper.create(originalFile, project));
         lastModificationStamp = currentModStamp;
+        lastFileUrl = currentUrl;
         return cachedProperties;
+    }
+
+    @Nullable
+    private YAMLFile findOriginalWorkflowSettingsFile() {
+        if (DumbService.isDumb(project)) {
+            return null;
+        }
+        VirtualFile file = findWorkflowSettingsVirtualFile();
+        if (file == null) {
+            return null;
+        }
+        PsiFile psiFile = ApplicationManager.getApplication()
+                .runReadAction((Computable<PsiFile>) () -> PsiManager.getInstance(project).findFile(file));
+        return psiFile instanceof YAMLFile yamlFile ? yamlFile : null;
+    }
+
+    @Override
+    @Nullable
+    public VirtualFile findWorkflowSettingsVirtualFile() {
+        return findWorkflowSettingsVirtualFile(null);
+    }
+
+    /**
+     * Locates {@code workflow_settings.yaml} by walking up from the given file, then from the project
+     * directory, and only as a last resort through the filename index.
+     *
+     * <p>The directory walk keeps the lookup free of index access, which is prohibited on the EDT
+     * where code folding may be computed.</p>
+     */
+    @Override
+    @Nullable
+    public VirtualFile findWorkflowSettingsVirtualFile(@Nullable VirtualFile context) {
+        VirtualFile fromContext = walkUp(context);
+        if (fromContext != null) {
+            cachedSettingsFile = fromContext;
+            return fromContext;
+        }
+
+        VirtualFile cached = cachedSettingsFile;
+        if (cached != null && cached.isValid()) {
+            return cached;
+        }
+
+        VirtualFile fromProjectDir = walkDown(ProjectUtil.guessProjectDir(project));
+        if (fromProjectDir != null) {
+            cachedSettingsFile = fromProjectDir;
+            return fromProjectDir;
+        }
+
+        if (ApplicationManager.getApplication().isDispatchThread()) {
+            return null;
+        }
+        VirtualFile indexed = ReadAction.nonBlocking(() -> {
+            Collection<VirtualFile> files = FilenameIndex.getVirtualFilesByName(
+                    WORKFLOW_SETTINGS_FILE_NAME, GlobalSearchScope.projectScope(project));
+            return files.isEmpty() ? null : files.iterator().next();
+        }).executeSynchronously();
+        cachedSettingsFile = indexed;
+        return indexed;
+    }
+
+    @Nullable
+    private VirtualFile walkUp(@Nullable VirtualFile context) {
+        VirtualFile directory = context == null || context.isDirectory() ? context : context.getParent();
+        while (directory != null) {
+            VirtualFile candidate = directory.findChild(WORKFLOW_SETTINGS_FILE_NAME);
+            if (candidate != null && !candidate.isDirectory()) {
+                return candidate;
+            }
+            directory = directory.getParent();
+        }
+        return null;
+    }
+
+    @Nullable
+    private VirtualFile walkDown(@Nullable VirtualFile directory) {
+        if (directory == null) {
+            return null;
+        }
+        VirtualFile candidate = directory.findChild(WORKFLOW_SETTINGS_FILE_NAME);
+        return candidate != null && !candidate.isDirectory() ? candidate : null;
+    }
+
+    @Nullable
+    private static String fileUrlOf(@NotNull YAMLFile file) {
+        VirtualFile virtualFile = file.getVirtualFile();
+        return virtualFile == null ? null : virtualFile.getUrl();
     }
 
     @NotNull
@@ -149,22 +250,8 @@ public final class WorkflowSettingsServiceImpl implements WorkflowSettingsServic
 
     @Nullable
     public WorkflowSettingsYamlFileWrapper findWorkflowSettingsFile() {
-        if (DumbService.isDumb(project)) {
-            return null;
-        }
-
-        return ReadAction.nonBlocking(() -> {
-            Collection<VirtualFile> files = FilenameIndex.getVirtualFilesByName("workflow_settings.yaml", GlobalSearchScope.projectScope(project));
-
-            if (files.isEmpty()) {
-                return null;
-            }
-
-            VirtualFile file = files.iterator().next();
-            PsiFile psiFile = PsiManager.getInstance(project).findFile(file);
-
-            return psiFile instanceof YAMLFile ? WorkflowSettingsYamlFileWrapper.create((YAMLFile) psiFile, project) : null;
-        }).executeSynchronously();
+        YAMLFile originalFile = findOriginalWorkflowSettingsFile();
+        return originalFile == null ? null : WorkflowSettingsYamlFileWrapper.create(originalFile, project);
     }
 
     @NotNull

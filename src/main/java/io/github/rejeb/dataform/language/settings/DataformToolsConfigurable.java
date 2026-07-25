@@ -41,7 +41,8 @@ public class DataformToolsConfigurable implements Configurable {
         return !panel.getCoreInstallPath().equals(service.getCoreInstallPath())
                 || !panel.getSqlfluffExecutablePath().equals(service.getSqlfluffExecutablePath())
                 || !panel.getSqlfluffConfigPath().equals(service.getSqlfluffConfigPath())
-                || !panel.getSqlfluffExtraArgs().equals(service.getSqlfluffExtraArgs());
+                || !panel.getSqlfluffExtraArgs().equals(service.getSqlfluffExtraArgs())
+                || panel.isFoldTemplateExpressions() != service.isFoldTemplateExpressions();
     }
 
     @Override
@@ -52,6 +53,7 @@ public class DataformToolsConfigurable implements Configurable {
                 panel.getSqlfluffConfigPath(),
                 panel.getSqlfluffExtraArgs()
         );
+        DataformToolsSettings.getInstance().setFoldTemplateExpressions(panel.isFoldTemplateExpressions());
     }
 
     @Override
@@ -61,5 +63,6 @@ public class DataformToolsConfigurable implements Configurable {
         panel.setSqlfluffExecutablePath(service.getSqlfluffExecutablePath());
         panel.setSqlfluffConfigPath(service.getSqlfluffConfigPath());
         panel.setSqlfluffExtraArgs(service.getSqlfluffExtraArgs());
+        panel.setFoldTemplateExpressions(service.isFoldTemplateExpressions());
     }
 }

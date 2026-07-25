@@ -14,12 +14,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.rejeb.dataform.language.settings;
+package io.github.rejeb.dataform.language.evaluation;
 
-public final class DataformToolsSettingsState {
-    public String coreInstallPath = "";
-    public String sqlfluffExecutablePath = "";
-    public String sqlfluffConfigPath = "";
-    public String sqlfluffExtraArgs = "";
-    public boolean foldTemplateExpressions = true;
+import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.util.messages.Topic;
+import org.jetbrains.annotations.NotNull;
+
+/**
+ * Project message-bus event published when new expression values become available for a file.
+ */
+public interface DataformEvaluationEvent {
+
+    Topic<DataformEvaluationEvent> TOPIC = Topic.create("DataformEvaluationEvent", DataformEvaluationEvent.class);
+
+    /** Fired after an evaluation pass produced at least one new value for the given file. */
+    void onValuesUpdated(@NotNull VirtualFile file);
 }

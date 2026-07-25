@@ -1,0 +1,33 @@
+config {
+  type: "incremental",
+  schema: dataform.projectConfig.vars.silver_dataset,
+  description: "Silver layer: deduplicated orders, reloaded on sliding window.",
+  tags: ["silver", "orders"],
+  uniqueKey: ["order_id"],
+  bigquery: {
+    partitionBy: "DATE(order_ts)"
+  },
+
+}
+
+-- Dataform Feature: pre_operations in incremental mode, delete+insert pattern
+-- to guarantee idempotence on the reloaded window.
+pre_operations {
+  ${when(incremental(), `
+    DELETE FROM ${self()}
+    WHERE ${schema_helpers.incrementalWhereClause("order_ts", 3)}
+  `)}
+}
+
+SELECT
+  order_id,
+  customer_id,
+  order_ts,
+  order_status
+FROM ${ref("bronze_orders")}
+
+${when(incremental(), `WHERE ${schema_helpers.incrementalWhereClause("order_ts", 3)}`)}
+
+post_operations {
+  ASSERT (SELECT COUNT(*) FROM ${self()}) > 0 AS "silver_orders must never be empty"
+}

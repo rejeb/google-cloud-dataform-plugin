@@ -29,6 +29,31 @@ A comprehensive IntelliJ IDEA plugin that provides advanced language support for
 - **BigQuery Functions**: Built-in documentation for the BigQuery function catalog, with signature,
   description and examples
 
+### Inline Expression Values
+Dataform expressions are folded to their evaluated value in the editor, the way IntelliJ shows
+`.properties` values instead of their key. `Ctrl+.` expands a fold back to the source.
+- **`${...}` in SQL and `pre/post_operations` blocks**, and in query template literals of `.js` /
+  `.ts` definition files: `FROM ${ref("users")}` reads as `FROM my-project.my_dataset.users`
+- **`workflow_settings.yaml` references** in `config { }` and `js { }` blocks:
+  `dataform.projectConfig.vars.env` reads as its YAML value
+- **`includes/` exports** used in `config { }` and `js { }` blocks, such as
+  `columns: my_descriptions.columns_descriptions`, read as the exported value
+- An expression whose value is long or multi-line is painted **over several lines**, in place,
+  keeping the value's own formatting. Code sharing the line, such as `columns: ` and the trailing
+  comma of a config property, is repainted around it. The gutter icon brings the source back
+- Shorter values fold to a single line; `Ctrl+Q` on any expression shows the full value
+- Only expressions with a single deterministic value are folded: the Dataform graph functions
+  (`ref()`, `resolve()`, `self()`, `name()`, `schema()`, `database()`), workflow settings, and your
+  own `includes/` code. Expressions depending on the run mode (`when()`, `incremental()`) or defining
+  actions (`publish()`, `operate()`, `assert()`, `declare()`) stay visible — but the deterministic
+  `${...}` nested inside them, at any depth, are still folded
+- Values are computed by running the expression with the Node.js interpreter configured for the
+  project, so `includes/` helper functions, string building and any other JavaScript resolve exactly
+  as Dataform would evaluate them. `ref()` and `self()` use the last compiled graph, so they resolve
+  after a build; nothing is folded when a value cannot be computed.
+- Because project JavaScript is executed as you type, the feature can be turned off under
+  **Settings ▸ Tools ▸ Dataform Tools ▸ Fold Dataform expressions to their evaluated value**.
+
 ### Multi-Language Injection
 - **SQL Injection**: BigQuery SQL support within SQLX SQL blocks with template expression handling
 - **JavaScript Injection**: Full JavaScript/TypeScript support in JS blocks
