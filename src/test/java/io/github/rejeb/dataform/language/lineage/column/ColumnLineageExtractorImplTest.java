@@ -290,7 +290,7 @@ class ColumnLineageExtractorImplTest {
     }
 
     @Test
-    void assertionColumnsAreIncludedInLineage() {
+    void assertionColumnsAreExcludedFromLineage() {
         String sql = "SELECT id AS invalid_id FROM p.d.src";
         CompiledGraph graph = graph("[]",
                 "[" + tableJson("p", "d", "assert_src", sql, "[" + targetJson("p", "d", "src") + "]") + "]");
@@ -305,9 +305,10 @@ class ColumnLineageExtractorImplTest {
 
         ColumnLineageGraph result = new ColumnLineageExtractorImpl(analyzer).extract(graph, schemas);
 
-        assertTrue(result.upstream(new ColumnRef("p.d.assert_src", "invalid_id").id())
-                        .contains(new ColumnRef("p.d.src", "id").id()),
-                "assertion columns must be part of the column lineage graph");
+        assertNull(result.column(new ColumnRef("p.d.assert_src", "invalid_id").id()),
+                "assertion columns must not be seeded into the column lineage graph");
+        assertTrue(result.upstream(new ColumnRef("p.d.assert_src", "invalid_id").id()).isEmpty(),
+                "no column edge must be built for an assertion");
     }
 
     @Test

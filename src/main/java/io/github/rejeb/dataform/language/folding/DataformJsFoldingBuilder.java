@@ -35,6 +35,7 @@ import io.github.rejeb.dataform.language.evaluation.DataformExpressionEvaluation
 import io.github.rejeb.dataform.language.evaluation.DataformWorkflowSettingsValueResolver;
 import io.github.rejeb.dataform.language.psi.SqlxJsLiteralExpression;
 import io.github.rejeb.dataform.language.settings.DataformToolsSettings;
+import io.github.rejeb.dataform.language.util.DataformProjectLayout;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -48,7 +49,9 @@ import java.util.List;
  *
  * <p>Regions built for injected roots carry no folding group: the platform drops a grouped region
  * of an injected file when the folding pass of the host file runs, which would make the fold
- * disappear on the next daemon pass.</p>
+ * disappear on the next daemon pass. Grouped regions are therefore only built for real definition
+ * files. Files outside a Dataform project layout are skipped entirely, so ordinary JavaScript
+ * projects never pay for the collection work.</p>
  */
 public class DataformJsFoldingBuilder extends FoldingBuilderEx {
 
@@ -70,11 +73,15 @@ public class DataformJsFoldingBuilder extends FoldingBuilderEx {
         if (hostFile == null) {
             return DataformFoldingPlaceholder.none();
         }
+        VirtualFile hostVirtualFile = hostFile.getVirtualFile();
+        if (hostVirtualFile == null || !DataformProjectLayout.isInDataformProject(hostVirtualFile)) {
+            return DataformFoldingPlaceholder.none();
+        }
 
         List<FoldingDescriptor> descriptors = new ArrayList<>();
-        addWorkflowSettingsRegions(project, root, descriptors, false);
-        addIncludesReferenceRegions(project, hostFile, root, descriptors, !injected, injected, document);
-        addTemplateSubstitutionRegions(project, hostFile, root, descriptors, injected, document);
+        addWorkflowSettingsRegions(project, root, descriptors);
+        addIncludesReferenceRegions(project, hostFile, root, descriptors, !injected);
+        addTemplateSubstitutionRegions(project, hostFile, root, descriptors, !injected);
         return descriptors.toArray(FoldingDescriptor.EMPTY_ARRAY);
     }
 
@@ -90,8 +97,7 @@ public class DataformJsFoldingBuilder extends FoldingBuilderEx {
 
     private void addWorkflowSettingsRegions(@NotNull Project project,
                                             @NotNull PsiElement root,
-                                            @NotNull List<FoldingDescriptor> descriptors,
-                                            boolean grouped) {
+                                            @NotNull List<FoldingDescriptor> descriptors) {
         DataformExpressionCollector.collectWorkflowSettingsReferenceElements(root)
                 .forEach(part -> {
                     PsiElement element = part.element();
@@ -100,7 +106,7 @@ public class DataformJsFoldingBuilder extends FoldingBuilderEx {
                     if (value == null || renderedOverMultipleLines(project, element, expression, value)) {
                         return;
                     }
-                    addDescriptor(descriptors, element, expression, value, grouped);
+                    addDescriptor(descriptors, element, expression, value, false);
                 });
     }
 
@@ -131,9 +137,7 @@ public class DataformJsFoldingBuilder extends FoldingBuilderEx {
                                              @NotNull PsiFile hostFile,
                                              @NotNull PsiElement root,
                                              @NotNull List<FoldingDescriptor> descriptors,
-                                             boolean grouped,
-                                             boolean injected,
-                                             @NotNull Document document) {
+                                             boolean grouped) {
         DataformExpressionEvaluationService service = DataformExpressionEvaluationService.getInstance(project);
         List<DataformExpressionCollector.FoldablePart> expressions =
                 DataformExpressionCollector.collectIncludesReferenceElements(root, service.includeNames(hostFile.getVirtualFile()));
@@ -144,12 +148,11 @@ public class DataformJsFoldingBuilder extends FoldingBuilderEx {
                                                 @NotNull PsiFile hostFile,
                                                 @NotNull PsiElement root,
                                                 @NotNull List<FoldingDescriptor> descriptors,
-                                                boolean injected,
-                                                @NotNull Document document) {
+                                                boolean grouped) {
         DataformExpressionEvaluationService service = DataformExpressionEvaluationService.getInstance(project);
         List<DataformExpressionCollector.FoldablePart> expressions =
                 DataformExpressionCollector.collectJsTemplateSubstitutionElements(root);
-        addEvaluatedRegions(service, hostFile, expressions, descriptors, true);
+        addEvaluatedRegions(service, hostFile, expressions, descriptors, grouped);
     }
 
     private void addEvaluatedRegions(@NotNull DataformExpressionEvaluationService service,
@@ -178,10 +181,9 @@ public class DataformJsFoldingBuilder extends FoldingBuilderEx {
                                @NotNull DataformExpression expression,
                                @Nullable String value,
                                boolean grouped) {
-        String placeholder = value == null ? null : DataformFoldingPlaceholder.of(value, expression.hostText());
-        if (placeholder != null) {
-            descriptors.add(new FoldingDescriptor(element.getNode(), expression.hostRange(),
-                    grouped ? DataformFoldingPlaceholder.newGroup() : null, placeholder));
+        FoldingDescriptor descriptor = DataformFoldDescriptors.of(element, expression, value, grouped);
+        if (descriptor != null) {
+            descriptors.add(descriptor);
         }
     }
 

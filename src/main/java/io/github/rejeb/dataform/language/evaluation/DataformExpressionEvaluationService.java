@@ -52,13 +52,6 @@ public interface DataformExpressionEvaluationService extends ModificationTracker
     void requestEvaluation(@NotNull PsiFile file);
 
     /**
-     * Evaluates the given expressions and returns the resolved values, keyed by expression source.
-     * Blocks until the Node process completes, so it must only be called from a background thread.
-     */
-    @NotNull
-    Map<String, String> evaluateNow(@NotNull PsiFile file, @NotNull List<DataformExpression> expressions);
-
-    /**
      * Returns the global names of the {@code includes/*.js} files of the Dataform project the given
      * file belongs to, looked up through the virtual file system so it is safe on any thread.
      */

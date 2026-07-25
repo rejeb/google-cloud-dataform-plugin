@@ -62,6 +62,24 @@ public class DataformJsFoldingBuilderTest extends DataformFoldingTestCase {
         assertEquals("expected one fold region", 1, regionsWithPlaceholder("prod").size());
     }
 
+    public void testPlainJavaScriptFileOutsideDataformLayoutBuildsNoRegions() {
+        PsiFile file = myFixture.addFileToProject("standalone/app.js",
+                "const env = dataform.projectConfig.vars.env;\n");
+        myFixture.configureFromExistingVirtualFile(file.getVirtualFile());
+        myFixture.doHighlighting();
+
+        assertEquals("a JS file outside a Dataform layout must not be processed",
+                0, myFixture.getEditor().getFoldingModel().getAllFoldRegions().length);
+    }
+
+    public void testDefinitionFileWithoutSettingsFileStillFolds() {
+        PsiFile file = configureDefinition("mart.js",
+                "publish(\"mart\").query(ctx => `SELECT * FROM ${ctx.ref(\"users\")}`);\n");
+        seed(file, "ctx.ref(\"users\")", "proj.dataset.users");
+
+        assertEquals(1, dataformRegions().size());
+    }
+
     public void testWorkflowSettingsFoldSurvivesFurtherHighlightingPasses() {
         myFixture.addFileToProject("workflow_settings.yaml", """
                 defaultProject: my-project

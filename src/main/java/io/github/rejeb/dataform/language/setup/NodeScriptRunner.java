@@ -26,10 +26,15 @@ import com.intellij.openapi.util.SystemInfo;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.Optional;
 
 /**
@@ -81,12 +86,32 @@ public final class NodeScriptRunner {
     }
 
     private static Path writeScript(@NotNull String scriptName, @NotNull String script) throws Exception {
-        Path scriptFile = Paths.get(PathManager.getTempPath())
-                .resolve(scriptName + "-" + Integer.toHexString(script.hashCode()) + ".js");
-        if (!Files.exists(scriptFile)) {
-            Files.createDirectories(scriptFile.getParent());
-            Files.writeString(scriptFile, script, StandardCharsets.UTF_8);
+        Path directory = Paths.get(PathManager.getTempPath());
+        Path scriptFile = directory.resolve(scriptName + "-" + contentHash(script) + ".js");
+        if (Files.exists(scriptFile)) {
+            return scriptFile;
+        }
+        Files.createDirectories(directory);
+        Path temp = Files.createTempFile(directory, scriptName, ".js.tmp");
+        Files.writeString(temp, script, StandardCharsets.UTF_8);
+        try {
+            Files.move(temp, scriptFile, StandardCopyOption.ATOMIC_MOVE);
+        } catch (IOException raceOrUnsupported) {
+            Files.deleteIfExists(temp);
+            if (!Files.exists(scriptFile)) {
+                Files.writeString(scriptFile, script, StandardCharsets.UTF_8);
+            }
         }
         return scriptFile;
+    }
+
+    static String contentHash(@NotNull String content) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(content.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash, 0, 8);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 unavailable", e);
+        }
     }
 }

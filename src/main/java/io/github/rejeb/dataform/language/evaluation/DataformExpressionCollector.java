@@ -21,14 +21,10 @@ import com.intellij.lang.javascript.psi.JSExpression;
 import com.intellij.lang.javascript.psi.JSReferenceExpression;
 import com.intellij.lang.javascript.psi.ecma6.JSStringTemplateExpression;
 import com.intellij.openapi.util.TextRange;
-import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.psi.PsiElement;
-import com.intellij.psi.PsiFile;
 import com.intellij.psi.util.PsiTreeUtil;
 import io.github.rejeb.dataform.language.injection.SqlxJsQueryInjector;
 import io.github.rejeb.dataform.language.psi.SharedTokenTypes;
-import io.github.rejeb.dataform.language.psi.SqlxConfigBlock;
-import io.github.rejeb.dataform.language.psi.SqlxJsBlock;
 import io.github.rejeb.dataform.language.psi.SqlxJsLiteralExpression;
 import io.github.rejeb.dataform.language.psi.SqlxSqlBlock;
 import org.jetbrains.annotations.NotNull;
@@ -36,7 +32,6 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -176,27 +171,6 @@ public final class DataformExpressionCollector {
         return expressions;
     }
 
-    /**
-     * Collects the includes references of the JavaScript injected in the {@code config} and
-     * {@code js} blocks of a SQLX file. Only the expression sources are meaningful, since the ranges
-     * belong to the injected documents.
-     */
-    @NotNull
-    public static List<DataformExpression> collectInjectedIncludesReferences(@NotNull PsiFile sqlxFile,
-                                                                             @NotNull Set<String> includeNames) {
-        if (includeNames.isEmpty()) {
-            return List.of();
-        }
-        InjectedLanguageManager manager = InjectedLanguageManager.getInstance(sqlxFile.getProject());
-        List<DataformExpression> expressions = new ArrayList<>();
-        for (PsiElement block : PsiTreeUtil.findChildrenOfAnyType(sqlxFile, SqlxConfigBlock.class, SqlxJsBlock.class)) {
-            manager.enumerate(block, (injectedFile, places) ->
-                    expressions.addAll(collectIncludesReferenceElements(injectedFile, includeNames).stream()
-                            .map(FoldablePart::expression).toList()));
-        }
-        return expressions;
-    }
-
     private static boolean isIncludesReference(@NotNull JSReferenceExpression reference,
                                                @NotNull Set<String> includeNames) {
         if (reference.getParent() instanceof JSReferenceExpression) {
@@ -252,14 +226,5 @@ public final class DataformExpressionCollector {
         return element instanceof SqlxJsLiteralExpression
                 && element.getNode() != null
                 && SharedTokenTypes.TEMPLATE_EXPRESSION.equals(element.getNode().getElementType());
-    }
-
-    @Nullable
-    private static String unwrap(@NotNull String text) {
-        if (!text.startsWith(TEMPLATE_PREFIX) || !text.endsWith(TEMPLATE_SUFFIX)) {
-            return null;
-        }
-        String source = text.substring(TEMPLATE_PREFIX.length(), text.length() - TEMPLATE_SUFFIX.length());
-        return source.isBlank() || source.length() > MAX_SOURCE_LENGTH ? null : source;
     }
 }

@@ -62,7 +62,7 @@ import java.util.Set;
 public final class FiltersPanel extends JPanel {
 
     private static final List<String> CANONICAL_TYPES = List.of(
-            "declaration", "view", "incremental", "table", "operation", "assertion");
+            "declaration", "view", "incremental", "table", "operation");
     private static final int MIN_WIDTH = 210;
     private static final int MAX_WIDTH = 360;
 

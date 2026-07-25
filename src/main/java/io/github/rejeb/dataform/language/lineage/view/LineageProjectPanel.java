@@ -200,7 +200,6 @@ public final class LineageProjectPanel extends JPanel {
     private @NotNull Set<String> actionFullNames(@NotNull CompiledGraph compiled) {
         Set<String> names = new LinkedHashSet<>();
         compiled.getTables().forEach(t -> addFullName(names, t.getTarget()));
-        compiled.getAssertions().forEach(a -> addFullName(names, a.getTarget()));
         compiled.getOperations().forEach(o -> addFullName(names, o.getTarget()));
         compiled.getDeclarations().forEach(d -> addFullName(names, d.getTarget()));
         return names;

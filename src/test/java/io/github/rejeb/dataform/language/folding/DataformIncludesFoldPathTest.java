@@ -47,7 +47,7 @@ public class DataformIncludesFoldPathTest extends DataformFoldingTestCase {
     public void testInjectedReferencesAreFoundWithoutPriorHighlighting() {
         PsiFile file = configure();
 
-        List<DataformExpression> cold = DataformExpressionCollector.collectInjectedIncludesReferences(
+        List<DataformExpression> cold = DataformInjectedExpressions.includesReferences(
                 file, Set.of("descriptions"));
 
         assertEquals("injections must be enumerable without a highlighting pass, got " + cold, 1, cold.size());

@@ -116,7 +116,9 @@ class LineageExtractorImplTest {
 
         assertTrue(lg.predecessors(LineageNode.idOf("proj.ds.tbl"))
                 .contains(LineageNode.idOf("proj.ds.decl")), "decl feeds tbl");
-        assertTrue(lg.predecessors(LineageNode.idOf("proj.ds.assert"))
-                .contains(LineageNode.idOf("proj.ds.tbl")), "tbl feeds assertion");
+        assertNull(lg.node(LineageNode.idOf("proj.ds.assert")),
+                "assertions must not appear in the lineage graph");
+        assertTrue(lg.predecessors(LineageNode.idOf("proj.ds.assert")).isEmpty(),
+                "no edge must be created for an assertion");
     }
 }

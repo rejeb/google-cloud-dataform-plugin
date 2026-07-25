@@ -18,14 +18,19 @@ package io.github.rejeb.dataform.language.documentation;
 
 import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.Key;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.platform.backend.documentation.DocumentationTarget;
 import com.intellij.platform.backend.documentation.DocumentationTargetProvider;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
+import com.intellij.psi.util.CachedValue;
+import com.intellij.psi.util.CachedValueProvider;
+import com.intellij.psi.util.CachedValuesManager;
 import io.github.rejeb.dataform.language.evaluation.DataformExpression;
 import io.github.rejeb.dataform.language.evaluation.DataformExpressionCollector;
 import io.github.rejeb.dataform.language.evaluation.DataformExpressionEvaluationService;
+import io.github.rejeb.dataform.language.folding.DataformInjectedExpressions;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -35,6 +40,9 @@ import java.util.List;
  * Offers the evaluated value of the Dataform expression under the caret as quick documentation.
  */
 public class DataformExpressionValueDocumentationTargetProvider implements DocumentationTargetProvider {
+
+    private static final Key<CachedValue<List<DataformExpression>>> HOST_EXPRESSIONS =
+            Key.create("dataform.documentation.hostExpressions");
 
     @Override
     public @NotNull List<? extends DocumentationTarget> documentationTargets(@NotNull PsiFile file, int offset) {
@@ -66,22 +74,26 @@ public class DataformExpressionValueDocumentationTargetProvider implements Docum
     private List<DataformExpression> expressionsOf(@NotNull PsiFile file,
                                                    @NotNull PsiFile hostFile,
                                                    @NotNull DataformExpressionEvaluationService service) {
-        List<DataformExpression> expressions =
-                new ArrayList<>(DataformExpressionCollector.collectSqlxTemplates(hostFile));
-        expressions.addAll(DataformExpressionCollector.collectJsTemplateSubstitutions(hostFile));
-        addHostRanges(DataformExpressionCollector.collectIncludesReferenceElements(file, service.includeNames(hostFile.getVirtualFile())),
-                file, expressions);
+        List<DataformExpression> expressions = new ArrayList<>(hostExpressions(hostFile, service));
+        expressions.addAll(DataformInjectedExpressions.toHostCoordinates(
+                InjectedLanguageManager.getInstance(file.getProject()),
+                DataformExpressionCollector.collectIncludesReferenceElements(
+                        file, service.includeNames(hostFile.getVirtualFile()))));
         return expressions;
     }
 
-    private void addHostRanges(@NotNull List<DataformExpressionCollector.FoldablePart> parts,
-                               @NotNull PsiFile file,
-                               @NotNull List<DataformExpression> target) {
-        InjectedLanguageManager manager = InjectedLanguageManager.getInstance(file.getProject());
-        parts.forEach(part -> target.add(new DataformExpression(
-                part.expression().source(),
-                part.expression().hostText(),
-                manager.injectedToHost(part.element(), part.expression().hostRange()),
-                part.expression().kind())));
+    @NotNull
+    private static List<DataformExpression> hostExpressions(@NotNull PsiFile hostFile,
+                                                            @NotNull DataformExpressionEvaluationService service) {
+        return CachedValuesManager.getManager(hostFile.getProject()).getCachedValue(hostFile,
+                HOST_EXPRESSIONS,
+                () -> {
+                    List<DataformExpression> collected =
+                            new ArrayList<>(DataformExpressionCollector.collectSqlxTemplates(hostFile));
+                    collected.addAll(DataformExpressionCollector.collectJsTemplateSubstitutions(hostFile));
+                    return CachedValueProvider.Result.create(collected, hostFile, service);
+                },
+                false);
     }
+
 }

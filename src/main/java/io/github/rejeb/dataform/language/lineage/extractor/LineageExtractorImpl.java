@@ -16,7 +16,6 @@
  */
 package io.github.rejeb.dataform.language.lineage.extractor;
 
-import io.github.rejeb.dataform.language.compilation.model.CompiledAssertion;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.compilation.model.CompiledOperation;
 import io.github.rejeb.dataform.language.compilation.model.CompiledTable;
@@ -31,7 +30,8 @@ import java.util.List;
 /**
  * Builds a table-level {@link LineageGraph} from a {@link CompiledGraph}.
  *
- * <p>Registers nodes for declarations, tables (all types), operations, and assertions.
+ * <p>Registers nodes for declarations, tables (all types), and operations with an output.
+ * Assertions are deliberately excluded from the graph.
  * For each dependency that does not correspond to a known action, a placeholder
  * node of type {@code "external"} is created. Edges go from dependency to dependent
  * (A → B means "A feeds B").</p>
@@ -45,11 +45,9 @@ public final class LineageExtractorImpl implements LineageExtractor {
         registerDeclarations(builder, compiledGraph);
         registerTables(builder, compiledGraph);
         registerOperations(builder, compiledGraph);
-        registerAssertions(builder, compiledGraph);
 
         addTableEdges(builder, compiledGraph);
         addOperationEdges(builder, compiledGraph);
-        addAssertionEdges(builder, compiledGraph);
 
         return builder.build();
     }
@@ -103,22 +101,6 @@ public final class LineageExtractorImpl implements LineageExtractor {
         }
     }
 
-    private void registerAssertions(@NotNull LineageGraph.Builder builder,
-                                    @NotNull CompiledGraph graph) {
-        for (CompiledAssertion a : graph.getAssertions()) {
-            Target t = a.getTarget();
-            if (t == null || t.getFullName() == null) continue;
-            builder.addNode(new LineageNode(
-                    LineageNode.idOf(t.getFullName()),
-                    t.getName(),
-                    t.getFullName(),
-                    schemaOf(t),
-                    "assertion",
-                    tagsOf(a.getTags()),
-                    a.getFileName()));
-        }
-    }
-
     private void addTableEdges(@NotNull LineageGraph.Builder builder,
                                @NotNull CompiledGraph graph) {
         for (CompiledTable table : graph.getTables()) {
@@ -131,13 +113,6 @@ public final class LineageExtractorImpl implements LineageExtractor {
         for (CompiledOperation operation : graph.getOperations()) {
             if (!operation.isHasOutput()) continue;
             addEdges(builder, operation.getTarget(), operation.getDependencyTargets());
-        }
-    }
-
-    private void addAssertionEdges(@NotNull LineageGraph.Builder builder,
-                                   @NotNull CompiledGraph graph) {
-        for (CompiledAssertion assertion : graph.getAssertions()) {
-            addEdges(builder, assertion.getTarget(), assertion.getDependencyTargets());
         }
     }
 

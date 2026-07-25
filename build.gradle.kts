@@ -49,6 +49,7 @@ intellijPlatform {
                     <li>Add column level lineage view.</li>
                     <li>Add on hover table informations</li>
                     <li>Add autocomplete templates.</li>
+                    <li>Add expression evaluation hint/<li>
                     <li>Enhance config autocompletion.</li>
                     <li>Fix issues.</li>
                 </ul>
@@ -63,14 +64,14 @@ tasks {
     }
 }
 
-sourceSets{
-    main{
-        java{
-            srcDirs("src/main/gen","src/main/java")
+sourceSets {
+    main {
+        java {
+            srcDirs("src/main/gen", "src/main/java")
         }
     }
-    test{
-        java{
+    test {
+        java {
             srcDirs("src/test/java")
         }
     }

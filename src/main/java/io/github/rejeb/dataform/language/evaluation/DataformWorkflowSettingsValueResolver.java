@@ -26,6 +26,7 @@ import com.intellij.psi.util.CachedValueProvider;
 import com.intellij.psi.util.CachedValuesManager;
 import io.github.rejeb.dataform.language.service.WorkflowSettingsProperty;
 import io.github.rejeb.dataform.language.service.WorkflowSettingsService;
+import io.github.rejeb.dataform.language.util.DataformProjectLayout;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -35,12 +36,13 @@ import java.util.Map;
 /**
  * Resolves dotted workflow-settings paths to their YAML leaf value, synchronously.
  *
- * <p>{@code WorkflowSettingsService.getWorkflowProperties()} rebuilds a wrapper PSI file on every
- * call, so the property map is cached per file to keep it off the folding hot path.</p>
+ * <p>{@code WorkflowSettingsService.getWorkflowProperties(context)} rebuilds a wrapper PSI file
+ * when its snapshot is stale, so the property map is cached per file to keep it off the folding
+ * hot path.</p>
  */
 public final class DataformWorkflowSettingsValueResolver {
 
-    public static final String WORKFLOW_SETTINGS_FILE_NAME = "workflow_settings.yaml";
+    public static final String WORKFLOW_SETTINGS_FILE_NAME = DataformProjectLayout.WORKFLOW_SETTINGS_YAML;
 
     private DataformWorkflowSettingsValueResolver() {
     }
@@ -73,12 +75,13 @@ public final class DataformWorkflowSettingsValueResolver {
             return Collections.emptyMap();
         }
         return CachedValuesManager.getCachedValue(file, () -> CachedValueProvider.Result.create(
-                WorkflowSettingsService.getInstance(project).getWorkflowProperties(), file, settingsFile));
+                WorkflowSettingsService.getInstance(project).getWorkflowProperties(file.getVirtualFile()),
+                file, settingsFile));
     }
 
     /**
-     * Resolves the settings file relative to the given file, which also warms the lookup cache the
-     * property map relies on.
+     * Resolves the settings file relative to the given file, providing the PSI dependency the
+     * cached property map is invalidated by.
      */
     @Nullable
     private static PsiFile findSettingsFile(@NotNull Project project, @NotNull PsiFile context) {

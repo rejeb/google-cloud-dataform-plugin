@@ -67,7 +67,7 @@ public final class DataformEvaluationContextBuilder {
     public static DataformEvaluationContext build(@NotNull Project project, @NotNull PsiFile file) {
         CompiledGraph graph = DataformCompilationService.getInstance(project).getCompiledGraph();
         return new DataformEvaluationContext(
-                projectConfig(project, graph),
+                projectConfig(project, graph, file),
                 refTargets(graph),
                 selfTarget(graph, file),
                 includeSources(project),
@@ -76,8 +76,10 @@ public final class DataformEvaluationContextBuilder {
     }
 
     @NotNull
-    private static Map<String, Object> projectConfig(@NotNull Project project, @Nullable CompiledGraph graph) {
-        Map<String, Object> config = new HashMap<>(fromWorkflowSettings(project));
+    private static Map<String, Object> projectConfig(@NotNull Project project,
+                                                     @Nullable CompiledGraph graph,
+                                                     @NotNull PsiFile file) {
+        Map<String, Object> config = new HashMap<>(fromWorkflowSettings(project, file));
         ProjectConfig compiled = graph == null ? null : graph.getProjectConfig();
         if (compiled != null) {
             putIfNotNull(config, "defaultDatabase", compiled.getDefaultDatabase());
@@ -114,10 +116,10 @@ public final class DataformEvaluationContextBuilder {
     }
 
     @NotNull
-    private static Map<String, Object> fromWorkflowSettings(@NotNull Project project) {
+    private static Map<String, Object> fromWorkflowSettings(@NotNull Project project, @NotNull PsiFile file) {
         Map<String, Object> config = new HashMap<>();
         Map<String, WorkflowSettingsProperty> properties =
-                WorkflowSettingsService.getInstance(project).getWorkflowProperties();
+                WorkflowSettingsService.getInstance(project).getWorkflowProperties(file.getVirtualFile());
         WorkflowSettingsProperty dataform = properties.get("dataform");
         Map<String, WorkflowSettingsProperty> settings =
                 dataform == null || dataform.children() == null ? Map.of() : dataform.children();

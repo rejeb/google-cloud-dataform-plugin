@@ -22,11 +22,13 @@ import com.intellij.openapi.project.ProjectUtil;
 import com.intellij.openapi.util.Computable;
 import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiManager;
 import com.intellij.psi.search.FilenameIndex;
 import com.intellij.psi.search.GlobalSearchScope;
+import io.github.rejeb.dataform.language.util.DataformProjectLayout;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.yaml.psi.YAMLDocument;
@@ -41,11 +43,13 @@ import static io.github.rejeb.dataform.language.service.WorkflowSettingsYamlFile
 
 public final class WorkflowSettingsServiceImpl implements WorkflowSettingsService {
     private final Project project;
-    private static final String WORKFLOW_SETTINGS_FILE_NAME = "workflow_settings.yaml";
 
-    private Map<String, WorkflowSettingsProperty> cachedProperties;
-    private long lastModificationStamp = -1;
-    private String lastFileUrl;
+    private record Snapshot(@NotNull Map<String, WorkflowSettingsProperty> properties,
+                            long stamp,
+                            @NotNull String url) {
+    }
+
+    private volatile Snapshot snapshot;
     private volatile VirtualFile cachedSettingsFile;
 
     public WorkflowSettingsServiceImpl(Project project) {
@@ -56,35 +60,38 @@ public final class WorkflowSettingsServiceImpl implements WorkflowSettingsServic
         return project.getService(WorkflowSettingsServiceImpl.class);
     }
 
-    public synchronized @NotNull Map<String, WorkflowSettingsProperty> getWorkflowProperties() {
-        YAMLFile originalFile = findOriginalWorkflowSettingsFile();
+    @Override
+    public @NotNull Map<String, WorkflowSettingsProperty> getWorkflowProperties() {
+        return getWorkflowProperties(null);
+    }
+
+    @Override
+    public @NotNull Map<String, WorkflowSettingsProperty> getWorkflowProperties(@Nullable VirtualFile context) {
+        YAMLFile originalFile = findOriginalWorkflowSettingsFile(context);
         if (originalFile == null) {
-            cachedProperties = null;
-            lastModificationStamp = -1;
-            lastFileUrl = null;
+            snapshot = null;
             return Collections.emptyMap();
         }
 
-        long currentModStamp = originalFile.getModificationStamp();
-        String currentUrl = fileUrlOf(originalFile);
-        if (cachedProperties != null
-                && lastModificationStamp == currentModStamp
-                && Objects.equals(lastFileUrl, currentUrl)) {
-            return cachedProperties;
+        long stamp = originalFile.getModificationStamp();
+        String url = fileUrlOf(originalFile);
+        Snapshot current = snapshot;
+        if (current != null && current.stamp() == stamp && current.url().equals(url)) {
+            return current.properties();
         }
 
-        cachedProperties = parseWorkflowSettings(WorkflowSettingsYamlFileWrapper.create(originalFile, project));
-        lastModificationStamp = currentModStamp;
-        lastFileUrl = currentUrl;
-        return cachedProperties;
+        Map<String, WorkflowSettingsProperty> properties =
+                parseWorkflowSettings(WorkflowSettingsYamlFileWrapper.create(originalFile, project));
+        snapshot = url == null ? null : new Snapshot(properties, stamp, url);
+        return properties;
     }
 
     @Nullable
-    private YAMLFile findOriginalWorkflowSettingsFile() {
+    private YAMLFile findOriginalWorkflowSettingsFile(@Nullable VirtualFile context) {
         if (DumbService.isDumb(project)) {
             return null;
         }
-        VirtualFile file = findWorkflowSettingsVirtualFile();
+        VirtualFile file = findWorkflowSettingsVirtualFile(context);
         if (file == null) {
             return null;
         }
@@ -109,14 +116,14 @@ public final class WorkflowSettingsServiceImpl implements WorkflowSettingsServic
     @Override
     @Nullable
     public VirtualFile findWorkflowSettingsVirtualFile(@Nullable VirtualFile context) {
-        VirtualFile fromContext = walkUp(context);
+        VirtualFile fromContext = DataformProjectLayout.findWorkflowSettings(context);
         if (fromContext != null) {
             cachedSettingsFile = fromContext;
             return fromContext;
         }
 
         VirtualFile cached = cachedSettingsFile;
-        if (cached != null && cached.isValid()) {
+        if (cached != null && cached.isValid() && isConsistentWith(cached, context)) {
             return cached;
         }
 
@@ -131,24 +138,19 @@ public final class WorkflowSettingsServiceImpl implements WorkflowSettingsServic
         }
         VirtualFile indexed = ReadAction.nonBlocking(() -> {
             Collection<VirtualFile> files = FilenameIndex.getVirtualFilesByName(
-                    WORKFLOW_SETTINGS_FILE_NAME, GlobalSearchScope.projectScope(project));
+                    DataformProjectLayout.WORKFLOW_SETTINGS_YAML, GlobalSearchScope.projectScope(project));
             return files.isEmpty() ? null : files.iterator().next();
         }).executeSynchronously();
         cachedSettingsFile = indexed;
         return indexed;
     }
 
-    @Nullable
-    private VirtualFile walkUp(@Nullable VirtualFile context) {
-        VirtualFile directory = context == null || context.isDirectory() ? context : context.getParent();
-        while (directory != null) {
-            VirtualFile candidate = directory.findChild(WORKFLOW_SETTINGS_FILE_NAME);
-            if (candidate != null && !candidate.isDirectory()) {
-                return candidate;
-            }
-            directory = directory.getParent();
+    private static boolean isConsistentWith(@NotNull VirtualFile cached, @Nullable VirtualFile context) {
+        if (context == null) {
+            return true;
         }
-        return null;
+        VirtualFile root = cached.getParent();
+        return root != null && VfsUtilCore.isAncestor(root, context, false);
     }
 
     @Nullable
@@ -156,7 +158,7 @@ public final class WorkflowSettingsServiceImpl implements WorkflowSettingsServic
         if (directory == null) {
             return null;
         }
-        VirtualFile candidate = directory.findChild(WORKFLOW_SETTINGS_FILE_NAME);
+        VirtualFile candidate = directory.findChild(DataformProjectLayout.WORKFLOW_SETTINGS_YAML);
         return candidate != null && !candidate.isDirectory() ? candidate : null;
     }
 
@@ -250,7 +252,7 @@ public final class WorkflowSettingsServiceImpl implements WorkflowSettingsServic
 
     @Nullable
     public WorkflowSettingsYamlFileWrapper findWorkflowSettingsFile() {
-        YAMLFile originalFile = findOriginalWorkflowSettingsFile();
+        YAMLFile originalFile = findOriginalWorkflowSettingsFile(null);
         return originalFile == null ? null : WorkflowSettingsYamlFileWrapper.create(originalFile, project);
     }
 

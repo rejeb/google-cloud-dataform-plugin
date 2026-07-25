@@ -71,12 +71,9 @@ public class SqlxTemplateFoldingBuilder extends FoldingBuilderEx {
             if (value != null && DataformMultilineFoldPolicy.qualifies(document, expression.hostRange(), value)) {
                 return;
             }
-            String placeholder = value == null
-                    ? null
-                    : DataformFoldingPlaceholder.of(value, expression.hostText());
-            if (placeholder != null) {
-                descriptors.add(new FoldingDescriptor(element.getNode(), expression.hostRange(),
-                        DataformFoldingPlaceholder.newGroup(), placeholder));
+            FoldingDescriptor descriptor = DataformFoldDescriptors.of(element, expression, value, true);
+            if (descriptor != null) {
+                descriptors.add(descriptor);
             }
         });
         return descriptors.toArray(FoldingDescriptor.EMPTY_ARRAY);

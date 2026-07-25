@@ -34,6 +34,13 @@ public interface WorkflowSettingsService {
     @NotNull
     Map<String, WorkflowSettingsProperty> getWorkflowProperties();
 
+    /**
+     * Same as {@link #getWorkflowProperties()}, resolving the settings file relative to the given
+     * file so a Dataform project nested in a larger repository reads its own settings.
+     */
+    @NotNull
+    Map<String, WorkflowSettingsProperty> getWorkflowProperties(@Nullable VirtualFile context);
+
     @NotNull
     Collection<String> getPropertiesForPrefix(@Nullable String prefix);
 

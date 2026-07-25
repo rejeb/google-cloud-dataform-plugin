@@ -51,22 +51,50 @@ public final class DataformInjectedExpressions {
         List<DataformExpression> expressions = new ArrayList<>();
         for (PsiElement block : PsiTreeUtil.findChildrenOfAnyType(sqlxFile, SqlxConfigBlock.class, SqlxJsBlock.class)) {
             manager.enumerate(block, (injectedFile, places) -> {
-                collect(manager, DataformExpressionCollector
-                        .collectIncludesReferenceElements(injectedFile, includeNames), expressions);
-                collect(manager, DataformExpressionCollector
-                        .collectWorkflowSettingsReferenceElements(injectedFile), expressions);
+                expressions.addAll(toHostCoordinates(manager, DataformExpressionCollector
+                        .collectIncludesReferenceElements(injectedFile, includeNames)));
+                expressions.addAll(toHostCoordinates(manager, DataformExpressionCollector
+                        .collectWorkflowSettingsReferenceElements(injectedFile)));
             });
         }
         return expressions;
     }
 
-    private static void collect(@NotNull InjectedLanguageManager manager,
-                                @NotNull List<DataformExpressionCollector.FoldablePart> injected,
-                                @NotNull List<DataformExpression> target) {
-        injected.forEach(part -> target.add(new DataformExpression(
-                part.expression().source(),
-                part.expression().hostText(),
-                manager.injectedToHost(part.element(), part.expression().hostRange()),
-                part.expression().kind())));
+    /**
+     * Returns the includes references of the JavaScript injected in the {@code config} and
+     * {@code js} blocks of a SQLX file, in host coordinates.
+     */
+    @NotNull
+    public static List<DataformExpression> includesReferences(@NotNull PsiFile sqlxFile,
+                                                              @NotNull Set<String> includeNames) {
+        if (includeNames.isEmpty()) {
+            return List.of();
+        }
+        InjectedLanguageManager manager = InjectedLanguageManager.getInstance(sqlxFile.getProject());
+        List<DataformExpression> expressions = new ArrayList<>();
+        for (PsiElement block : PsiTreeUtil.findChildrenOfAnyType(sqlxFile, SqlxConfigBlock.class, SqlxJsBlock.class)) {
+            manager.enumerate(block, (injectedFile, places) ->
+                    expressions.addAll(toHostCoordinates(manager, DataformExpressionCollector
+                            .collectIncludesReferenceElements(injectedFile, includeNames))));
+        }
+        return expressions;
+    }
+
+    /**
+     * Maps collected parts to host coordinates. Identity for the parts of a non-injected root.
+     */
+    @NotNull
+    public static List<DataformExpression> toHostCoordinates(
+            @NotNull InjectedLanguageManager manager,
+            @NotNull List<DataformExpressionCollector.FoldablePart> parts) {
+        List<DataformExpression> mapped = new ArrayList<>(parts.size());
+        for (DataformExpressionCollector.FoldablePart part : parts) {
+            mapped.add(new DataformExpression(
+                    part.expression().source(),
+                    part.expression().hostText(),
+                    manager.injectedToHost(part.element(), part.expression().hostRange()),
+                    part.expression().kind()));
+        }
+        return mapped;
     }
 }

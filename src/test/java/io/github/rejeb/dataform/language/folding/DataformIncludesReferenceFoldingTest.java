@@ -41,7 +41,7 @@ public class DataformIncludesReferenceFoldingTest extends DataformFoldingTestCas
         myFixture.configureFromExistingVirtualFile(file.getVirtualFile());
         myFixture.doHighlighting();
 
-        List<DataformExpression> expressions = DataformExpressionCollector.collectInjectedIncludesReferences(
+        List<DataformExpression> expressions = DataformInjectedExpressions.includesReferences(
                 file, Set.of("team_player_stat_columns_descriptions"));
 
         assertEquals("got " + expressions, 1, expressions.size());

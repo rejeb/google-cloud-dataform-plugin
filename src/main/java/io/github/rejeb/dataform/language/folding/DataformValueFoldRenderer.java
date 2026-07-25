@@ -17,6 +17,8 @@
 package io.github.rejeb.dataform.language.folding;
 
 import com.intellij.icons.AllIcons;
+import com.intellij.openapi.actionSystem.AnAction;
+import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.editor.CustomFoldRegion;
 import com.intellij.openapi.editor.CustomFoldRegionRenderer;
 import com.intellij.openapi.editor.Editor;
@@ -142,7 +144,7 @@ public final class DataformValueFoldRenderer implements CustomFoldRegionRenderer
 
         @Override
         public @NotNull Icon getIcon() {
-            return AllIcons.General.InlineRefresh;
+            return AllIcons.Actions.Rollback;
         }
 
         @Override
@@ -151,10 +153,10 @@ public final class DataformValueFoldRenderer implements CustomFoldRegionRenderer
         }
 
         @Override
-        public @Nullable com.intellij.openapi.actionSystem.AnAction getClickAction() {
-            return new com.intellij.openapi.actionSystem.AnAction("Show Dataform Expression Source") {
+        public @Nullable AnAction getClickAction() {
+            return new AnAction("Show Dataform Expression Source") {
                 @Override
-                public void actionPerformed(@NotNull com.intellij.openapi.actionSystem.AnActionEvent event) {
+                public void actionPerformed(@NotNull AnActionEvent event) {
                     showSource.run();
                 }
             };

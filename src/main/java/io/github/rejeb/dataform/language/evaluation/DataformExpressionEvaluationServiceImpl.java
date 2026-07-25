@@ -33,21 +33,21 @@ import com.intellij.psi.PsiManager;
 import com.intellij.psi.PsiTreeChangeAdapter;
 import com.intellij.psi.PsiTreeChangeEvent;
 import com.intellij.util.concurrency.AppExecutorUtil;
-import com.intellij.util.concurrency.ThreadingAssertions;
 import io.github.rejeb.dataform.language.SqlxFileType;
 import io.github.rejeb.dataform.language.folding.DataformFoldingRefresher;
+import io.github.rejeb.dataform.language.folding.DataformInjectedExpressions;
 import io.github.rejeb.dataform.language.index.DataformJsFileIndex;
 import io.github.rejeb.dataform.language.schema.sql.DataformSchemaEvent;
 import io.github.rejeb.dataform.language.setup.NodeScriptRunner;
+import io.github.rejeb.dataform.language.util.DataformProjectLayout;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.TestOnly;
 
 import java.lang.reflect.Type;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -67,16 +67,18 @@ public final class DataformExpressionEvaluationServiceImpl
     private static final int DEBOUNCE_MS = 400;
     private static final int NODE_TIMEOUT_MS = 5_000;
     private static final int MAX_EXPRESSIONS_PER_FILE = 200;
-    private static final String INCLUDES_DIRECTORY = "includes";
-    private static final String JS_EXTENSION = "js";
+    private static final long FAILURE_COOLDOWN_MS = 30_000;
+
+    private enum PassOutcome { UP_TO_DATE, STORED, UPDATED, HARNESS_FAILURE }
 
     private final Project project;
     private final Map<String, Map<String, DataformEvaluationResult>> cache = new ConcurrentHashMap<>();
     private final Map<String, AtomicLong> generations = new ConcurrentHashMap<>();
     private final Map<String, AtomicBoolean> running = new ConcurrentHashMap<>();
     private final Map<String, Boolean> pending = new ConcurrentHashMap<>();
+    private final Map<String, long[]> completedPasses = new ConcurrentHashMap<>();
     private final AtomicLong modificationCount = new AtomicLong();
-    private volatile Set<String> includeNames = Set.of();
+    private volatile long failedUntil;
 
     public DataformExpressionEvaluationServiceImpl(@NotNull Project project) {
         this.project = project;
@@ -105,35 +107,7 @@ public final class DataformExpressionEvaluationServiceImpl
 
     @Override
     public @NotNull Set<String> includeNames(@Nullable VirtualFile context) {
-        Set<String> fromDirectory = scanIncludesDirectory(context);
-        if (!fromDirectory.isEmpty()) {
-            includeNames = fromDirectory;
-            return fromDirectory;
-        }
-        return includeNames;
-    }
-
-    /**
-     * Lists {@code includes/*.js} by walking up from the given file, so a Dataform project nested in a
-     * larger repository finds its own includes without touching the index.
-     */
-    @NotNull
-    private Set<String> scanIncludesDirectory(@Nullable VirtualFile context) {
-        VirtualFile directory = context == null || context.isDirectory() ? context : context.getParent();
-        while (directory != null) {
-            VirtualFile includes = directory.findChild(INCLUDES_DIRECTORY);
-            if (includes != null && includes.isDirectory()) {
-                Set<String> names = new HashSet<>();
-                for (VirtualFile child : includes.getChildren()) {
-                    if (!child.isDirectory() && JS_EXTENSION.equals(child.getExtension())) {
-                        names.add(child.getNameWithoutExtension());
-                    }
-                }
-                return names;
-            }
-            directory = directory.getParent();
-        }
-        return Set.of();
+        return DataformProjectLayout.includeNames(context);
     }
 
     @Override
@@ -165,34 +139,19 @@ public final class DataformExpressionEvaluationServiceImpl
     }
 
     @Override
-    public @NotNull Map<String, String> evaluateNow(@NotNull PsiFile file,
-                                                    @NotNull List<DataformExpression> expressions) {
-        ThreadingAssertions.assertBackgroundThread();
-        VirtualFile virtualFile = file.getVirtualFile();
-        if (virtualFile == null || expressions.isEmpty()) {
-            return Map.of();
-        }
-        evaluateMissing(virtualFile, file, expressions);
-
-        Map<String, String> values = new LinkedHashMap<>();
-        for (DataformExpression expression : expressions) {
-            String value = getCachedValue(virtualFile, expression.source());
-            if (value != null) {
-                values.put(expression.source(), value);
-            }
-        }
-        return values;
-    }
-
-    @Override
     public void invalidate(@NotNull VirtualFile file) {
-        if (cache.remove(file.getUrl()) != null) {
+        String url = file.getUrl();
+        completedPasses.remove(url);
+        pending.remove(url);
+        if (cache.remove(url) != null) {
             modificationCount.incrementAndGet();
         }
     }
 
     @Override
     public void invalidateAll() {
+        completedPasses.clear();
+        failedUntil = 0;
         if (!cache.isEmpty()) {
             cache.clear();
             modificationCount.incrementAndGet();
@@ -203,6 +162,9 @@ public final class DataformExpressionEvaluationServiceImpl
     public void dispose() {
         generations.clear();
         cache.clear();
+        completedPasses.clear();
+        pending.clear();
+        running.clear();
     }
 
     private void runPass(@NotNull VirtualFile file) {
@@ -224,9 +186,23 @@ public final class DataformExpressionEvaluationServiceImpl
             if (psiFile == null || !isFileOpen(file)) {
                 return;
             }
+            long psiStamp = ReadAction.nonBlocking(psiFile::getModificationStamp).executeSynchronously();
+            long[] last = completedPasses.get(url);
+            if (last != null && last[0] == psiStamp && last[1] == modificationCount.get()) {
+                return;
+            }
+            if (System.currentTimeMillis() < failedUntil) {
+                return;
+            }
             List<DataformExpression> expressions = ReadAction.nonBlocking(
                     () -> collect(psiFile)).executeSynchronously();
-            if (evaluateMissing(file, psiFile, expressions)) {
+            PassOutcome outcome = evaluateMissing(file, psiFile, expressions);
+            if (outcome == PassOutcome.HARNESS_FAILURE) {
+                failedUntil = System.currentTimeMillis() + FAILURE_COOLDOWN_MS;
+                return;
+            }
+            completedPasses.put(url, new long[]{psiStamp, modificationCount.get()});
+            if (outcome == PassOutcome.UPDATED) {
                 project.getMessageBus().syncPublisher(DataformEvaluationEvent.TOPIC).onValuesUpdated(file);
                 DataformFoldingRefresher.refresh(project, file);
             }
@@ -253,14 +229,13 @@ public final class DataformExpressionEvaluationServiceImpl
         if (virtualFile == null) {
             return List.of();
         }
-        Set<String> names = new HashSet<>(includeNames(virtualFile));
-        names.addAll(refreshIncludeNames());
-        includeNames = names;
+        Set<String> names = new HashSet<>(DataformProjectLayout.includeNames(virtualFile));
+        names.addAll(indexedIncludeNames());
 
         List<DataformExpression> expressions = new ArrayList<>();
         if (SqlxFileType.INSTANCE.equals(virtualFile.getFileType())) {
             expressions.addAll(DataformExpressionCollector.collectSqlxTemplates(psiFile));
-            expressions.addAll(DataformExpressionCollector.collectInjectedIncludesReferences(psiFile, names));
+            expressions.addAll(DataformInjectedExpressions.includesReferences(psiFile, names));
         } else {
             expressions.addAll(DataformExpressionCollector.collectJsTemplateSubstitutions(psiFile));
             expressions.addAll(
@@ -271,7 +246,7 @@ public final class DataformExpressionEvaluationServiceImpl
     }
 
     @NotNull
-    private Set<String> refreshIncludeNames() {
+    private Set<String> indexedIncludeNames() {
         Set<String> names = new HashSet<>();
         for (PsiFile include : DataformJsFileIndex.findDataformJsFiles(project)) {
             VirtualFile file = include == null ? null : include.getVirtualFile();
@@ -284,21 +259,19 @@ public final class DataformExpressionEvaluationServiceImpl
 
     /**
      * Evaluates the expressions of the file that have no cached result yet.
-     *
-     * @return whether at least one new value was cached
      */
-    private boolean evaluateMissing(@NotNull VirtualFile file,
-                                    @NotNull PsiFile psiFile,
-                                    @NotNull List<DataformExpression> expressions) {
+    private PassOutcome evaluateMissing(@NotNull VirtualFile file,
+                                        @NotNull PsiFile psiFile,
+                                        @NotNull List<DataformExpression> expressions) {
         Map<String, DataformEvaluationResult> values =
                 cache.computeIfAbsent(file.getUrl(), key -> new ConcurrentHashMap<>());
 
-        List<String> missing = new ArrayList<>();
+        Set<String> missing = new LinkedHashSet<>();
         for (DataformExpression expression : expressions) {
             if (!DataformTemplateSyntax.isDeterministic(expression.source())) {
                 continue;
             }
-            if (!values.containsKey(expression.source()) && !missing.contains(expression.source())) {
+            if (!values.containsKey(expression.source())) {
                 missing.add(expression.source());
             }
             if (missing.size() >= MAX_EXPRESSIONS_PER_FILE) {
@@ -306,12 +279,12 @@ public final class DataformExpressionEvaluationServiceImpl
             }
         }
         if (missing.isEmpty()) {
-            return false;
+            return PassOutcome.UP_TO_DATE;
         }
 
-        List<DataformEvaluationResult> results = evaluate(psiFile, missing);
+        List<DataformEvaluationResult> results = evaluate(psiFile, List.copyOf(missing));
         if (results.isEmpty()) {
-            return false;
+            return PassOutcome.HARNESS_FAILURE;
         }
 
         boolean resolvedAny = false;
@@ -324,7 +297,7 @@ public final class DataformExpressionEvaluationServiceImpl
             }
         }
         modificationCount.incrementAndGet();
-        return resolvedAny;
+        return resolvedAny ? PassOutcome.UPDATED : PassOutcome.STORED;
     }
 
     @NotNull
@@ -365,12 +338,4 @@ public final class DataformExpressionEvaluationServiceImpl
         modificationCount.incrementAndGet();
     }
 
-    /**
-     * Exposes the cached results of a file, for tests and diagnostics.
-     */
-    @NotNull
-    public Map<String, DataformEvaluationResult> cachedResults(@NotNull VirtualFile file) {
-        Map<String, DataformEvaluationResult> values = cache.get(file.getUrl());
-        return values == null ? Map.of() : new HashMap<>(values);
-    }
 }

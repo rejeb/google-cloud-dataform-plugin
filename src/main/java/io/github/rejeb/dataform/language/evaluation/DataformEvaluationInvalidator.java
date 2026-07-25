@@ -22,6 +22,7 @@ import com.intellij.openapi.vfs.AsyncFileListener;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent;
 import io.github.rejeb.dataform.language.index.DataformJsFileIndex;
+import io.github.rejeb.dataform.language.util.DataformProjectLayout;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -32,8 +33,6 @@ import java.util.List;
  * Drops cached expression values when the files they were computed from change.
  */
 public final class DataformEvaluationInvalidator implements AsyncFileListener {
-
-    private static final String DATAFORM_JSON = "dataform.json";
 
     @Override
     public @Nullable ChangeApplier prepareChange(@NotNull List<? extends VFileEvent> events) {
@@ -76,8 +75,8 @@ public final class DataformEvaluationInvalidator implements AsyncFileListener {
 
     private boolean affectsEnvironment(@NotNull VirtualFile file) {
         String name = file.getName();
-        return DataformWorkflowSettingsValueResolver.WORKFLOW_SETTINGS_FILE_NAME.equals(name)
-                || DATAFORM_JSON.equals(name)
+        return DataformProjectLayout.WORKFLOW_SETTINGS_YAML.equals(name)
+                || DataformProjectLayout.DATAFORM_JSON.equals(name)
                 || DataformJsFileIndex.isDataformJsFile(file);
     }
 }

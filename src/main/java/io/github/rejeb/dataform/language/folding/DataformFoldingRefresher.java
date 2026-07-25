@@ -71,9 +71,11 @@ public final class DataformFoldingRefresher {
         }
 
         restartDaemon(project, file);
-        List<DataformMultilineFoldManager.MultilineValue> multilineValues =
-                ReadAction.nonBlocking(() -> DataformMultilineValues.of(project, file, document))
-                        .executeSynchronously();
+        MultilineSnapshot snapshot = ReadAction.nonBlocking(
+                        () -> new MultilineSnapshot(
+                                DataformMultilineValues.of(project, file, document),
+                                document.getModificationStamp()))
+                .executeSynchronously();
 
         for (Editor editor : editorsOf(project, document)) {
             Runnable applyFolding = ReadAction.nonBlocking(
@@ -81,11 +83,21 @@ public final class DataformFoldingRefresher {
                     .executeSynchronously();
             ApplicationManager.getApplication().invokeLater(() -> {
                 applyAndCollapse(editor, applyFolding);
-                if (!editor.isDisposed()) {
-                    DataformMultilineFoldManager.apply(editor, multilineValues);
+                if (!editor.isDisposed()
+                        && document.getModificationStamp() == snapshot.documentStamp()) {
+                    DataformMultilineFoldManager.apply(editor, snapshot.values());
                 }
             }, project.getDisposed());
         }
+    }
+
+    /**
+     * Multiline values together with the document stamp they were computed against. The values are
+     * only applied when the document is still at that stamp, since custom fold regions are placed
+     * by line numbers and would be painted at stale positions otherwise.
+     */
+    private record MultilineSnapshot(@NotNull List<DataformMultilineFoldManager.MultilineValue> values,
+                                     long documentStamp) {
     }
 
     private static List<Editor> editorsOf(@NotNull Project project, @NotNull Document document) {

@@ -72,7 +72,6 @@ public final class LineageTheme {
             case "table" -> new JBColor(new Color(0x2A8A35), new Color(0x3FA84A));
             case "materialized_view" -> new JBColor(new Color(0x2A8A35), new Color(0x3FA84A));
             case "operation" -> new JBColor(new Color(0xC97A32), new Color(0xD19A66));
-            case "assertion" -> new JBColor(new Color(0xC04148), new Color(0xE06C75));
             default -> new JBColor(new Color(0x6B7280), new Color(0x9CA0A4));
         };
     }
@@ -86,7 +85,6 @@ public final class LineageTheme {
             case "table" -> "T";
             case "materialized_view" -> "M";
             case "operation" -> "O";
-            case "assertion" -> "A";
             default -> "?";
         };
     }
