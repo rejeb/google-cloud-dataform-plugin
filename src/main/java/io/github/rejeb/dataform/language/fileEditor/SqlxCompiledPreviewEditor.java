@@ -45,6 +45,7 @@ import com.intellij.sql.SqlFileType;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
 import icons.DatabaseIcons;
+import io.github.rejeb.dataform.language.compilation.CompilationFailures;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.compilation.model.CompiledQuery;
@@ -129,9 +130,9 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
                     lineageGraphs = LineageGraphHelper.buildGraph(graph, path);
                     fileLineage = new LineageExtractorImpl().extract(graph);
                 }
-                if (graph != null && (graph.getGraphErrors() == null
-                        || graph.getGraphErrors().getCompilationErrors().isEmpty())) {
-                    DataformTableSchemaService.getInstance(project).refreshAsync(graph, false);
+                if (graph != null) {
+                    DataformTableSchemaService.getInstance(project)
+                            .refreshAsync(graph, false, CompilationFailures.fileNamesOf(graph));
                 }
                 indicator.checkCanceled();
             }
@@ -239,10 +240,8 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
         if (queries == null || queries.isEmpty()) return;
 
         if (queries.size() == 1) {
-            // Cas simple : une seule table, on exécute directement
             runQueries(List.of(queries.getFirst()));
         } else {
-            // Plusieurs tables : popup bulle ancrée sur le bouton
             List<String> tableNames = queries.stream()
                     .map(FormattedCompiledQuery::tableName)
                     .toList();

@@ -302,8 +302,9 @@ public final class DataformExpressionEvaluationServiceImpl
 
     @NotNull
     private List<DataformEvaluationResult> evaluate(@NotNull PsiFile psiFile, @NotNull List<String> sources) {
+        List<String> nodePaths = DataformEvaluationContextBuilder.nodePaths(project);
         DataformEvaluationContext context = ReadAction.nonBlocking(
-                () -> DataformEvaluationContextBuilder.build(project, psiFile)).executeSynchronously();
+                () -> DataformEvaluationContextBuilder.build(project, psiFile, nodePaths)).executeSynchronously();
         String payload = DataformEvalScriptBuilder.payload(context, sources);
 
         ProcessOutput output = NodeScriptRunner.run(project,

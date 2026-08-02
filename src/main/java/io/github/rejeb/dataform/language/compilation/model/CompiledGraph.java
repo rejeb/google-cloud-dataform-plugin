@@ -64,7 +64,7 @@ public class CompiledGraph {
 
         List<CompiledQuery> assertionQueries = findAssertionByFileName(fileName)
                 .stream()
-                .map(ca -> new CompiledQuery(ca.getTarget().getFullName(), ca.getQuery()))
+                .map(ca -> new CompiledQuery(ca.getTarget().getFullName(), ca.getQuery(),ca.isDisabled()))
                 .toList();
 
         List<CompiledQuery> operationQueries = findOperationByFileName(fileName)
@@ -79,7 +79,7 @@ public class CompiledGraph {
                 ))
                 .entrySet()
                 .stream()
-                .map(ce -> new CompiledQuery(ce.getKey(), ce.getValue()))
+                .map(ce -> new CompiledQuery(ce.getKey(), ce.getValue(),false))
                 .toList();
         List<CompiledQuery> queries = new ArrayList<>();
         queries.addAll(tableQueries);

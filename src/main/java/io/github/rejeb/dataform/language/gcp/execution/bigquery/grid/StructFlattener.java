@@ -35,8 +35,6 @@ public final class StructFlattener {
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSS z")
                     .withZone(ZoneId.systemDefault());
 
-    private static final DateTimeFormatter DATETIME_FMT =
-            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSS");
     private StructFlattener() {
     }
 

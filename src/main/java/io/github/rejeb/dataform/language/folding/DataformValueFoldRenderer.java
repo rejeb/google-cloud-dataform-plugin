@@ -16,20 +16,14 @@
  */
 package io.github.rejeb.dataform.language.folding;
 
-import com.intellij.icons.AllIcons;
-import com.intellij.openapi.actionSystem.AnAction;
-import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.editor.CustomFoldRegion;
 import com.intellij.openapi.editor.CustomFoldRegionRenderer;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.colors.EditorColors;
 import com.intellij.openapi.editor.colors.EditorFontType;
-import com.intellij.openapi.editor.markup.GutterIconRenderer;
 import com.intellij.openapi.editor.markup.TextAttributes;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
-import javax.swing.Icon;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.FontMetrics;
@@ -38,7 +32,6 @@ import java.awt.RenderingHints;
 import java.awt.geom.Rectangle2D;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * Paints the evaluated value of a Dataform expression over as many lines as it needs.
@@ -56,6 +49,14 @@ public final class DataformValueFoldRenderer implements CustomFoldRegionRenderer
                                      @NotNull Runnable showSource) {
         this.lines = paintedLines(value, prefix, suffix);
         this.showSource = showSource;
+    }
+
+    /**
+     * Replaces the painted value with the expression source it was computed from. Called when the
+     * user clicks the value.
+     */
+    public void showSource() {
+        showSource.run();
     }
 
     /**
@@ -110,11 +111,6 @@ public final class DataformValueFoldRenderer implements CustomFoldRegionRenderer
         }
     }
 
-    @Override
-    public @Nullable GutterIconRenderer calcGutterIconRenderer(@NotNull CustomFoldRegion region) {
-        return new ShowSourceGutterIcon(lines, showSource);
-    }
-
     @NotNull
     private static Color foreground(@NotNull Editor editor, @NotNull TextAttributes textAttributes) {
         TextAttributes folded = editor.getColorsScheme().getAttributes(EditorColors.FOLDED_TEXT_ATTRIBUTES);
@@ -130,46 +126,5 @@ public final class DataformValueFoldRenderer implements CustomFoldRegionRenderer
     private static FontMetrics metricsOf(@NotNull Editor editor) {
         return editor.getContentComponent()
                 .getFontMetrics(editor.getColorsScheme().getFont(EditorFontType.PLAIN));
-    }
-
-    private static final class ShowSourceGutterIcon extends GutterIconRenderer {
-
-        private final List<String> lines;
-        private final Runnable showSource;
-
-        private ShowSourceGutterIcon(@NotNull List<String> lines, @NotNull Runnable showSource) {
-            this.lines = lines;
-            this.showSource = showSource;
-        }
-
-        @Override
-        public @NotNull Icon getIcon() {
-            return AllIcons.Actions.Rollback;
-        }
-
-        @Override
-        public @Nullable String getTooltipText() {
-            return "Show the Dataform expression source";
-        }
-
-        @Override
-        public @Nullable AnAction getClickAction() {
-            return new AnAction("Show Dataform Expression Source") {
-                @Override
-                public void actionPerformed(@NotNull AnActionEvent event) {
-                    showSource.run();
-                }
-            };
-        }
-
-        @Override
-        public boolean equals(Object other) {
-            return other instanceof ShowSourceGutterIcon icon && lines.equals(icon.lines);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(lines);
-        }
     }
 }

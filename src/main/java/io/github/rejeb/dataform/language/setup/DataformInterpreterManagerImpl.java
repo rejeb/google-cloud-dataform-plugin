@@ -37,6 +37,7 @@ import static io.github.rejeb.dataform.language.setup.DataformInstaller.findData
 
 public final class DataformInterpreterManagerImpl implements DataformInterpreterManager {
     private static final Logger LOGGER = Logger.getInstance(DataformInterpreterManagerImpl.class);
+    private static final String COMPILE_TIMEOUT = "5m";
     private final Project project;
 
     public DataformInterpreterManagerImpl(@NotNull Project project) {
@@ -74,12 +75,20 @@ public final class DataformInterpreterManagerImpl implements DataformInterpreter
 
     @Override
     public Optional<GeneralCommandLine> buildDataformCompileCommand() {
-        Path nodeBinDir = NodeInterpreterManager.getInstance(project).nodeBinDir();
+        NodeInterpreterManager nodeInterpreterManager = NodeInterpreterManager.getInstance(project);
+        Path nodeBinDir = nodeInterpreterManager.nodeBinDir();
         if (nodeBinDir == null) return Optional.empty();
 
         String pathEnv = nodeBinDir.toAbsolutePath() +
                 File.pathSeparator +
                 System.getenv("PATH");
+
+        Optional<GeneralCommandLine> nodeCommand =
+                buildNodeCompileCommand(nodeBinDir, nodeInterpreterManager.nodeModulesDir(), pathEnv);
+        if (nodeCommand.isPresent()) {
+            LOGGER.info("Run compile using node : " + nodeCommand.get().getCommandLineString());
+            return nodeCommand;
+        }
 
         if (SystemInfo.isWindows) {
             Optional<String> gitBashPath = findGitBash();
@@ -101,10 +110,55 @@ public final class DataformInterpreterManagerImpl implements DataformInterpreter
 
     }
 
+    private Optional<GeneralCommandLine> buildNodeCompileCommand(@NotNull Path nodeBinDir,
+                                                                 Path nodeModulesDir,
+                                                                 @NotNull String pathEnv) {
+        if (nodeModulesDir == null) return Optional.empty();
+
+        Path nodeExecutable = nodeBinDir.resolve(SystemInfo.isWindows ? "node.exe" : "node");
+        if (!nodeExecutable.toFile().isFile()) return Optional.empty();
+
+        Optional<Path> cliEntry = resolveCliEntryPoint(nodeModulesDir.resolve("@dataform").resolve("cli"));
+        return cliEntry.map(entry -> {
+            GeneralCommandLine cmd = new GeneralCommandLine()
+                    .withExePath(nodeExecutable.toAbsolutePath().toString())
+                    .withParameters(entry.toAbsolutePath().toString(), "compile", "--json",
+                            "--timeout=" + COMPILE_TIMEOUT)
+                    .withWorkDirectory(project.getBasePath());
+            cmd.getEnvironment().put("PATH", pathEnv);
+            return cmd;
+        });
+    }
+
+    private Optional<Path> resolveCliEntryPoint(@NotNull Path cliPackageDir) {
+        File packageJson = cliPackageDir.resolve("package.json").toFile();
+        if (!packageJson.isFile()) return Optional.empty();
+        try {
+            JsonObject json = JsonParser.parseString(
+                    java.nio.file.Files.readString(packageJson.toPath())).getAsJsonObject();
+            String bin = readCliBin(json);
+            if (bin == null) return Optional.empty();
+            Path entry = cliPackageDir.resolve(bin).normalize();
+            return entry.toFile().isFile() ? Optional.of(entry) : Optional.empty();
+        } catch (Exception e) {
+            LOGGER.warn("Unable to read the @dataform/cli entry point", e);
+            return Optional.empty();
+        }
+    }
+
+    private static String readCliBin(@NotNull JsonObject packageJson) {
+        if (!packageJson.has("bin")) return null;
+        if (packageJson.get("bin").isJsonPrimitive()) {
+            return packageJson.get("bin").getAsString();
+        }
+        JsonObject bin = packageJson.getAsJsonObject("bin");
+        return bin.has("dataform") ? bin.get("dataform").getAsString() : null;
+    }
+
     private GeneralCommandLine buildDefaultCommand(String configuredCliCmd) {
         return new GeneralCommandLine()
                 .withExePath(configuredCliCmd)
-                .withParameters("compile", "--json")
+                .withParameters("compile", "--json", "--timeout=" + COMPILE_TIMEOUT)
                 .withWorkDirectory(project.getBasePath());
     }
 
@@ -131,7 +185,7 @@ public final class DataformInterpreterManagerImpl implements DataformInterpreter
         GeneralCommandLine generalCommandLine = new GeneralCommandLine(
                 bashExe.toAbsolutePath().toString(),
                 "-c",
-                "dataform compile --json"
+                "dataform compile --json --timeout=" + COMPILE_TIMEOUT
         ).withWorkDirectory(project.getBasePath());
         generalCommandLine.getEnvironment().put("PATH", posixPathEnv);
         return generalCommandLine;

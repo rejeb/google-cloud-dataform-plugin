@@ -23,6 +23,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -384,5 +385,339 @@ class ColumnLineageExtractorImplTest {
         ColumnLineageGraph result = new ColumnLineageExtractorImpl(analyzer).extract(graph, schemas);
         assertNotNull(result.column(new ColumnRef("p.d.src", "id").id()));
         assertNotNull(result.column(new ColumnRef("p.d.src", "amount").id()));
+    }
+
+    @Test
+    void unqualifiedColumnIsAttributedToTheFromTableThatOwnsIt() {
+        String sql = "SELECT CONCAT(a, b) AS v FROM p.d.t1 JOIN p.d.t2 ON TRUE";
+        CompiledGraph graph = graph("["
+                + tableJson("p", "d", "fin", sql,
+                "[" + targetJson("p", "d", "t1") + "," + targetJson("p", "d", "t2") + "]") + "]");
+
+        SelectAnalyzer analyzer = analyzer(
+                Map.of(sql, Map.of("v", List.of(
+                        new InputColumn(null, "a", Confidence.DERIVED, false),
+                        new InputColumn(null, "b", Confidence.DERIVED, false)))),
+                Map.of(sql, Map.of("p.d.t1", "p.d.t1", "p.d.t2", "p.d.t2")));
+
+        Map<String, List<ColumnInfo>> schemas = Map.of(
+                "p.d.t1", List.of(new ColumnInfo("a", "STRING", "NULLABLE", null)),
+                "p.d.t2", List.of(new ColumnInfo("b", "STRING", "NULLABLE", null)),
+                "p.d.fin", List.of(new ColumnInfo("v", "STRING", "NULLABLE", null)));
+
+        ColumnLineageGraph result = new ColumnLineageExtractorImpl(analyzer).extract(graph, schemas);
+
+        String v = new ColumnRef("p.d.fin", "v").id();
+        assertTrue(result.predecessors(v).contains(new ColumnRef("p.d.t1", "a").id()));
+        assertTrue(result.predecessors(v).contains(new ColumnRef("p.d.t2", "b").id()));
+        assertEquals(2, result.predecessors(v).size());
+    }
+
+    @Test
+    void dependenciesOutsideTheFromClauseDoNotReceiveEdges() {
+        String sql = "SELECT id FROM p.d.t1";
+        CompiledGraph graph = graph("["
+                + tableJson("p", "d", "fin", sql,
+                "[" + targetJson("p", "d", "t1") + "," + targetJson("p", "d", "other") + "]") + "]");
+
+        SelectAnalyzer analyzer = analyzer(
+                Map.of(sql, Map.of("id", List.of(new InputColumn(null, "id", Confidence.DIRECT, false)))),
+                Map.of(sql, Map.of("p.d.t1", "p.d.t1")));
+
+        Map<String, List<ColumnInfo>> schemas = Map.of(
+                "p.d.t1", List.of(new ColumnInfo("id", "INT64", "NULLABLE", null)),
+                "p.d.other", List.of(new ColumnInfo("id", "INT64", "NULLABLE", null)),
+                "p.d.fin", List.of(new ColumnInfo("id", "INT64", "NULLABLE", null)));
+
+        ColumnLineageGraph result = new ColumnLineageExtractorImpl(analyzer).extract(graph, schemas);
+
+        String id = new ColumnRef("p.d.fin", "id").id();
+        assertTrue(result.predecessors(id).contains(new ColumnRef("p.d.t1", "id").id()));
+        assertFalse(result.predecessors(id).contains(new ColumnRef("p.d.other", "id").id()),
+                "a dependency that the query does not read must not become a column source");
+    }
+
+    @Test
+    void unresolvableColumnIsNotAttributedToAnUnreadDependency() {
+        String sql = "SELECT missing AS v FROM p.d.t1";
+        CompiledGraph graph = graph("["
+                + tableJson("p", "d", "fin", sql,
+                "[" + targetJson("p", "d", "t1") + "," + targetJson("p", "d", "other") + "]") + "]");
+
+        SelectAnalyzer analyzer = analyzer(
+                Map.of(sql, Map.of("v", List.of(new InputColumn(null, "missing", Confidence.RENAME, false)))),
+                Map.of(sql, Map.of("p.d.t1", "p.d.t1")));
+
+        Map<String, List<ColumnInfo>> schemas = Map.of(
+                "p.d.t1", List.of(new ColumnInfo("id", "INT64", "NULLABLE", null)),
+                "p.d.other", List.of(new ColumnInfo("missing", "STRING", "NULLABLE", null)),
+                "p.d.fin", List.of(new ColumnInfo("v", "STRING", "NULLABLE", null)));
+
+        ColumnLineageGraph result = new ColumnLineageExtractorImpl(analyzer).extract(graph, schemas);
+
+        assertTrue(result.predecessors(new ColumnRef("p.d.fin", "v").id()).isEmpty(),
+                "a column the read table does not expose must not be sourced from an unread dependency");
+    }
+
+    @Test
+    void ambiguousUnqualifiedColumnKeepsEveryCandidateSource() {
+        String sql = "SELECT id FROM p.d.t1 JOIN p.d.t2 ON TRUE";
+        CompiledGraph graph = graph("["
+                + tableJson("p", "d", "fin", sql,
+                "[" + targetJson("p", "d", "t1") + "," + targetJson("p", "d", "t2") + "]") + "]");
+
+        SelectAnalyzer analyzer = analyzer(
+                Map.of(sql, Map.of("id", List.of(new InputColumn(null, "id", Confidence.DIRECT, false)))),
+                Map.of(sql, Map.of("p.d.t1", "p.d.t1", "p.d.t2", "p.d.t2")));
+
+        Map<String, List<ColumnInfo>> schemas = Map.of(
+                "p.d.t1", List.of(new ColumnInfo("id", "INT64", "NULLABLE", null)),
+                "p.d.t2", List.of(new ColumnInfo("id", "INT64", "NULLABLE", null)),
+                "p.d.fin", List.of(new ColumnInfo("id", "INT64", "NULLABLE", null)));
+
+        ColumnLineageGraph result = new ColumnLineageExtractorImpl(analyzer).extract(graph, schemas);
+
+        assertEquals(2, result.predecessors(new ColumnRef("p.d.fin", "id").id()).size(),
+                "a genuinely ambiguous column must keep every candidate source");
+    }
+
+    private String disabledTableJson(String name, String query, String depsJson) {
+        return "{\"target\":" + targetJson("p", "d", name) + ",\"query\":\"" + query + "\","
+                + "\"disabled\":true,\"dependencyTargets\":" + depsJson + "}";
+    }
+
+    @Test
+    void disabledTableGetsNoColumnEdges() {
+        String sql = "SELECT amount AS amt FROM p.d.src";
+        CompiledGraph graph = graph("["
+                + disabledTableJson("off", sql, "[" + targetJson("p", "d", "src") + "]") + "]");
+
+        SelectAnalyzer analyzer = analyzer(
+                Map.of(sql, Map.of("amt", List.of(new InputColumn(null, "amount", Confidence.RENAME, false)))),
+                Map.of(sql, Map.of("p.d.src", "p.d.src")));
+
+        Map<String, List<ColumnInfo>> schemas = Map.of(
+                "p.d.src", List.of(new ColumnInfo("amount", "NUMERIC", "NULLABLE", null)),
+                "p.d.off", List.of(new ColumnInfo("amt", "NUMERIC", "NULLABLE", null)));
+
+        ColumnLineageGraph result = new ColumnLineageExtractorImpl(analyzer).extract(graph, schemas);
+
+        assertTrue(result.predecessors(new ColumnRef("p.d.off", "amt").id()).isEmpty(),
+                "a disabled action is never executed, so no column lineage is computed for it");
+    }
+
+    @Test
+    void disabledTableWithoutSchemaIsNotReportedAsUnresolved() {
+        String sql = "SELECT amount AS amt FROM p.d.src";
+        CompiledGraph graph = graph("["
+                + disabledTableJson("off", sql, "[" + targetJson("p", "d", "src") + "]") + "]");
+
+        SelectAnalyzer analyzer = analyzer(Map.of(), Map.of());
+        Map<String, List<ColumnInfo>> schemas = Map.of(
+                "p.d.src", List.of(new ColumnInfo("amount", "NUMERIC", "NULLABLE", null)));
+
+        ColumnLineageGraph result = new ColumnLineageExtractorImpl(analyzer).extract(graph, schemas);
+
+        assertFalse(result.unresolvedTables().contains("p.d.off"),
+                "a disabled action has no schema by design and must not raise a lineage warning");
+    }
+
+    @Test
+    void dependentsOfADisabledTableAreNotReportedAsUnresolved() {
+        String offSql = "SELECT a AS v FROM p.d.src";
+        String midSql = "SELECT v FROM p.d.off";
+        String finSql = "SELECT v FROM p.d.mid";
+        CompiledGraph graph = graph("["
+                + disabledTableJson("off", offSql, "[" + targetJson("p", "d", "src") + "]") + ","
+                + tableJson("p", "d", "mid", midSql, "[" + targetJson("p", "d", "off") + "]") + ","
+                + tableJson("p", "d", "fin", finSql, "[" + targetJson("p", "d", "mid") + "]") + "]");
+
+        SelectAnalyzer analyzer = analyzer(Map.of(), Map.of());
+        Map<String, List<ColumnInfo>> schemas = Map.of(
+                "p.d.src", List.of(new ColumnInfo("a", "INT64", "NULLABLE", null)));
+
+        ColumnLineageGraph result = new ColumnLineageExtractorImpl(analyzer).extract(graph, schemas);
+
+        assertFalse(result.unresolvedTables().contains("p.d.mid"),
+                "a direct dependent of a disabled action must not raise a lineage warning");
+        assertFalse(result.unresolvedTables().contains("p.d.fin"),
+                "the warning suppression must propagate transitively downstream");
+    }
+
+    @Test
+    void unrelatedTableWithoutSchemaIsStillReportedAsUnresolved() {
+        String offSql = "SELECT a AS v FROM p.d.src";
+        String otherSql = "SELECT a AS v FROM p.d.src";
+        CompiledGraph graph = graph("["
+                + disabledTableJson("off", offSql, "[" + targetJson("p", "d", "src") + "]") + ","
+                + tableJson("p", "d", "other", otherSql, "[" + targetJson("p", "d", "src") + "]") + "]");
+
+        SelectAnalyzer analyzer = analyzer(Map.of(), Map.of());
+        Map<String, List<ColumnInfo>> schemas = Map.of(
+                "p.d.src", List.of(new ColumnInfo("a", "INT64", "NULLABLE", null)));
+
+        ColumnLineageGraph result = new ColumnLineageExtractorImpl(analyzer).extract(graph, schemas);
+
+        assertTrue(result.unresolvedTables().contains("p.d.other"),
+                "an action unrelated to the disabled one must still be reported");
+    }
+
+    @Test
+    void disabledOperationGetsNoColumnEdges() {
+        String sql = "SELECT amount AS amt FROM p.d.src";
+        CompiledGraph graph = GSON.fromJson("{\"operations\":[{"
+                + "\"target\":" + targetJson("p", "d", "op") + ","
+                + "\"hasOutput\":true,\"disabled\":true,\"queries\":[\"" + sql + "\"],"
+                + "\"dependencyTargets\":[" + targetJson("p", "d", "src") + "]}]}", CompiledGraph.class);
+
+        SelectAnalyzer analyzer = analyzer(
+                Map.of(sql, Map.of("amt", List.of(new InputColumn(null, "amount", Confidence.RENAME, false)))),
+                Map.of(sql, Map.of("p.d.src", "p.d.src")));
+
+        Map<String, List<ColumnInfo>> schemas = Map.of(
+                "p.d.src", List.of(new ColumnInfo("amount", "NUMERIC", "NULLABLE", null)),
+                "p.d.op", List.of(new ColumnInfo("amt", "NUMERIC", "NULLABLE", null)));
+
+        ColumnLineageGraph result = new ColumnLineageExtractorImpl(analyzer).extract(graph, schemas);
+
+        assertTrue(result.predecessors(new ColumnRef("p.d.op", "amt").id()).isEmpty(),
+                "a disabled operation must not produce column lineage either");
+    }
+
+    @Test
+    void ambiguousUnqualifiedColumnIsMarkedAmbiguous() {
+        String sql = "SELECT id FROM p.d.t1 JOIN p.d.t2 ON TRUE";
+        CompiledGraph graph = graph("["
+                + tableJson("p", "d", "fin", sql,
+                "[" + targetJson("p", "d", "t1") + "," + targetJson("p", "d", "t2") + "]") + "]");
+
+        SelectAnalyzer analyzer = analyzer(
+                Map.of(sql, Map.of("id", List.of(new InputColumn(null, "id", Confidence.DIRECT, false)))),
+                Map.of(sql, Map.of("p.d.t1", "p.d.t1", "p.d.t2", "p.d.t2")));
+
+        Map<String, List<ColumnInfo>> schemas = Map.of(
+                "p.d.t1", List.of(new ColumnInfo("id", "INT64", "NULLABLE", null)),
+                "p.d.t2", List.of(new ColumnInfo("id", "INT64", "NULLABLE", null)),
+                "p.d.fin", List.of(new ColumnInfo("id", "INT64", "NULLABLE", null)));
+
+        ColumnLineageGraph result = new ColumnLineageExtractorImpl(analyzer).extract(graph, schemas);
+
+        assertTrue(result.edges().stream().allMatch(e -> e.kind() == Confidence.AMBIGUOUS),
+                "an edge kept only because the column owner is ambiguous must say so");
+    }
+
+    @Test
+    void unambiguousColumnKeepsItsOriginalConfidence() {
+        String sql = "SELECT amount AS amt FROM p.d.src";
+        CompiledGraph graph = graph("["
+                + tableJson("p", "d", "fin", sql, "[" + targetJson("p", "d", "src") + "]") + "]");
+
+        SelectAnalyzer analyzer = analyzer(
+                Map.of(sql, Map.of("amt", List.of(new InputColumn(null, "amount", Confidence.RENAME, false)))),
+                Map.of(sql, Map.of("p.d.src", "p.d.src")));
+
+        Map<String, List<ColumnInfo>> schemas = Map.of(
+                "p.d.src", List.of(new ColumnInfo("amount", "NUMERIC", "NULLABLE", null)),
+                "p.d.fin", List.of(new ColumnInfo("amt", "NUMERIC", "NULLABLE", null)));
+
+        ColumnLineageGraph result = new ColumnLineageExtractorImpl(analyzer).extract(graph, schemas);
+
+        assertTrue(result.edges().stream().allMatch(e -> e.kind() == Confidence.RENAME),
+                "a single resolved source must not be downgraded to ambiguous");
+    }
+
+    @Test
+    void tableTokenMatchesDependencyCaseInsensitively() {
+        String sql = "SELECT amount AS amt FROM P.D.SRC";
+        CompiledGraph graph = graph("["
+                + tableJson("p", "d", "fin", sql, "[" + targetJson("p", "d", "src") + "]") + "]");
+
+        SelectAnalyzer analyzer = analyzer(
+                Map.of(sql, Map.of("amt", List.of(new InputColumn("P.D.SRC", "amount", Confidence.RENAME, false)))),
+                Map.of(sql, Map.of("P.D.SRC", "P.D.SRC")));
+
+        Map<String, List<ColumnInfo>> schemas = Map.of(
+                "p.d.src", List.of(new ColumnInfo("amount", "NUMERIC", "NULLABLE", null)),
+                "p.d.fin", List.of(new ColumnInfo("amt", "NUMERIC", "NULLABLE", null)));
+
+        ColumnLineageGraph result = new ColumnLineageExtractorImpl(analyzer).extract(graph, schemas);
+
+        assertTrue(result.upstream(new ColumnRef("p.d.fin", "amt").id())
+                        .contains(new ColumnRef("p.d.src", "amount").id()),
+                "a table token written in a different case must still resolve to its dependency");
+    }
+
+    @Test
+    void operationWithOutputGetsColumnEdges() {
+        String sql = "SELECT amount AS amt FROM p.d.src";
+        CompiledGraph graph = GSON.fromJson("{\"operations\":[{"
+                + "\"target\":" + targetJson("p", "d", "op") + ","
+                + "\"hasOutput\":true,\"queries\":[\"" + sql + "\"],"
+                + "\"dependencyTargets\":[" + targetJson("p", "d", "src") + "]}]}", CompiledGraph.class);
+
+        SelectAnalyzer analyzer = analyzer(
+                Map.of(sql, Map.of("amt", List.of(new InputColumn(null, "amount", Confidence.RENAME, false)))),
+                Map.of(sql, Map.of("p.d.src", "p.d.src")));
+
+        Map<String, List<ColumnInfo>> schemas = Map.of(
+                "p.d.src", List.of(new ColumnInfo("amount", "NUMERIC", "NULLABLE", null)),
+                "p.d.op", List.of(new ColumnInfo("amt", "NUMERIC", "NULLABLE", null)));
+
+        ColumnLineageGraph result = new ColumnLineageExtractorImpl(analyzer).extract(graph, schemas);
+
+        assertTrue(result.upstream(new ColumnRef("p.d.op", "amt").id())
+                        .contains(new ColumnRef("p.d.src", "amount").id()),
+                "an operation with output must receive column edges, not only seeded columns");
+    }
+
+    @Test
+    void operationWithoutOutputIsNotAnalyzed() {
+        String sql = "SELECT amount AS amt FROM p.d.src";
+        CompiledGraph graph = GSON.fromJson("{\"operations\":[{"
+                + "\"target\":" + targetJson("p", "d", "op") + ","
+                + "\"hasOutput\":false,\"queries\":[\"" + sql + "\"],"
+                + "\"dependencyTargets\":[" + targetJson("p", "d", "src") + "]}]}", CompiledGraph.class);
+
+        SelectAnalyzer analyzer = analyzer(
+                Map.of(sql, Map.of("amt", List.of(new InputColumn(null, "amount", Confidence.RENAME, false)))),
+                Map.of(sql, Map.of("p.d.src", "p.d.src")));
+
+        Map<String, List<ColumnInfo>> schemas = Map.of(
+                "p.d.src", List.of(new ColumnInfo("amount", "NUMERIC", "NULLABLE", null)),
+                "p.d.op", List.of(new ColumnInfo("amt", "NUMERIC", "NULLABLE", null)));
+
+        ColumnLineageGraph result = new ColumnLineageExtractorImpl(analyzer).extract(graph, schemas);
+
+        assertNull(result.column(new ColumnRef("p.d.op", "amt").id()),
+                "an operation without output produces no table and must stay out of the graph");
+    }
+
+    @Test
+    void incrementalQueryContributesItsOwnInputs() {
+        String main = "SELECT a AS v FROM p.d.src";
+        String incremental = "SELECT b AS v FROM p.d.src";
+        CompiledGraph graph = GSON.fromJson("{\"tables\":[{"
+                + "\"target\":" + targetJson("p", "d", "t") + ","
+                + "\"query\":\"" + main + "\",\"incrementalQuery\":\"" + incremental + "\","
+                + "\"dependencyTargets\":[" + targetJson("p", "d", "src") + "]}]}", CompiledGraph.class);
+
+        SelectAnalyzer analyzer = analyzer(
+                Map.of(main, Map.of("v", List.of(new InputColumn(null, "a", Confidence.RENAME, false))),
+                        incremental, Map.of("v", List.of(new InputColumn(null, "b", Confidence.RENAME, false)))),
+                Map.of(main, Map.of("p.d.src", "p.d.src"),
+                        incremental, Map.of("p.d.src", "p.d.src")));
+
+        Map<String, List<ColumnInfo>> schemas = Map.of(
+                "p.d.src", List.of(new ColumnInfo("a", "INT64", "NULLABLE", null),
+                        new ColumnInfo("b", "INT64", "NULLABLE", null)),
+                "p.d.t", List.of(new ColumnInfo("v", "INT64", "NULLABLE", null)));
+
+        ColumnLineageGraph result = new ColumnLineageExtractorImpl(analyzer).extract(graph, schemas);
+
+        Set<String> upstream = result.upstream(new ColumnRef("p.d.t", "v").id());
+        assertTrue(upstream.contains(new ColumnRef("p.d.src", "a").id()),
+                "the main query input must be tracked");
+        assertTrue(upstream.contains(new ColumnRef("p.d.src", "b").id()),
+                "the incremental query input must be tracked too");
     }
 }

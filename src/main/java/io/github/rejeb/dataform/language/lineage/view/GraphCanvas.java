@@ -78,10 +78,10 @@ public final class GraphCanvas extends JComponent {
     private @Nullable Point lastHoverPoint;
 
     private LayoutResult layout;
-    private Object lastGraph;
-    private String lastLayoutKey;
-    private boolean lastColumnSelected;
-    private boolean needsFit = true;
+    private String lastStructureKey;
+    private String lastColumnKey;
+    private boolean needsRecenter = true;
+    private @Nullable String anchorNodeId;
     private Point lastDragPoint;
     private boolean panning;
 
@@ -124,7 +124,6 @@ public final class GraphCanvas extends JComponent {
                     model.clearColumnSelection();
                 } else if (model.focusId() != null) {
                     model.exitFocus();
-                    fitToView();
                 } else if (model.selectedId() != null) {
                     model.select(null);
                 }
@@ -138,45 +137,63 @@ public final class GraphCanvas extends JComponent {
 
     private void onModelChanged() {
         Set<String> visible = model.visibleIds();
-        String key = layoutKey(visible);
-        boolean graphChanged = model.graph() != lastGraph;
-        if (!key.equals(lastLayoutKey) || layout == null) {
-            lastLayoutKey = key;
-            needsFit = true;
+        String structureKey = structureKey(visible);
+        String columnKey = columnKey();
+        boolean firstLayout = layout == null;
+        boolean structureChanged = !structureKey.equals(lastStructureKey);
+        boolean columnChanged = !columnKey.equals(lastColumnKey);
+        lastStructureKey = structureKey;
+        lastColumnKey = columnKey;
+        boolean recenter = firstLayout || (structureChanged && !columnChanged);
+        if (firstLayout || structureChanged || columnChanged) {
+            String anchorId = recenter ? null : anchorNodeId();
+            NodePosition before = anchorId == null ? null : layout.positions().get(anchorId);
             relayout(visible);
+            if (before != null) holdAnchorInPlace(before, layout.positions().get(anchorId));
         }
-        if (graphChanged) {
-            lastGraph = model.graph();
-            needsFit = true;
-            maybeFit();
-        }
-        boolean columnSelected = model.selectedColumnId() != null;
-        if (columnSelected != lastColumnSelected) {
-            lastColumnSelected = columnSelected;
-            needsFit = true;
-            maybeFit();
+        anchorNodeId = null;
+        if (recenter) {
+            needsRecenter = true;
+            maybeRecenter();
         }
         repaint();
     }
 
-    private @NotNull String layoutKey(@NotNull Set<String> visible) {
-        return System.identityHashCode(model.graph()) + "|"
-                + System.identityHashCode(model.columnGraph()) + "|"
-                + new TreeSet<>(model.selectedColumnIds())
+    private @NotNull String structureKey(@NotNull Set<String> visible) {
+        return System.identityHashCode(model.graph())
                 + "|" + model.direction() + "|" + model.density() + "|" + new TreeSet<>(visible);
+    }
+
+    private @NotNull String columnKey() {
+        return System.identityHashCode(model.columnGraph()) + "|"
+                + new TreeSet<>(model.selectedColumnIds());
+    }
+
+    /**
+     * Node to keep pinned under the pointer when a column selection re-flows the layout: the node
+     * whose column list was clicked, else the expanded one, else the selected node.
+     */
+    private @Nullable String anchorNodeId() {
+        if (anchorNodeId != null) return anchorNodeId;
+        if (hoverExpandedNodeId != null) return hoverExpandedNodeId;
+        return model.selectedId();
+    }
+
+    private void holdAnchorInPlace(@NotNull NodePosition before, @Nullable NodePosition after) {
+        if (after == null) return;
+        viewport.panByWorld(before.x() - after.x(), before.y() - after.y());
     }
 
     private void relayout(@NotNull Set<String> visible) {
         this.layout = DagLayout.compute(model.graph(), visible, model.direction(), model.density(),
                 nodeRenderer::measureWidth, columnRenderer::reservedHeightFor);
-        maybeFit();
     }
 
-    private void maybeFit() {
-        if (needsFit && getWidth() > 0 && getHeight() > 0 && layout != null
+    private void maybeRecenter() {
+        if (needsRecenter && getWidth() > 0 && getHeight() > 0 && layout != null
                 && !layout.positions().isEmpty()) {
-            fitToView();
-            needsFit = false;
+            centerOnView();
+            needsRecenter = false;
         }
     }
 
@@ -185,10 +202,16 @@ public final class GraphCanvas extends JComponent {
         viewport.fit(layout.bounds(), getWidth(), getHeight());
     }
 
+    /** Centres the layout in the viewport, keeping the current zoom level unchanged. */
+    public void centerOnView() {
+        if (layout == null || layout.positions().isEmpty()) return;
+        viewport.centerKeepingZoom(layout.bounds(), getWidth(), getHeight());
+    }
+
     @Override
     public void setBounds(int x, int y, int width, int height) {
         super.setBounds(x, y, width, height);
-        maybeFit();
+        maybeRecenter();
     }
 
     // ------------------------------------------------------------------
@@ -350,6 +373,7 @@ public final class GraphCanvas extends JComponent {
     private void handleLeftClick(@NotNull MouseEvent e) {
         String columnId = columnAt(e.getPoint());
         if (columnId != null) {
+            anchorNodeId = columnListNodeAt(e.getPoint());
             if (e.isControlDown() || e.isMetaDown()) {
                 model.toggleColumn(columnId);
             } else {
@@ -389,7 +413,6 @@ public final class GraphCanvas extends JComponent {
             } else {
                 model.focusOn(id);
             }
-            fitToView();
         }));
         menu.add(item("Select node", () -> model.select(id)));
         if (node.fileName() != null) {

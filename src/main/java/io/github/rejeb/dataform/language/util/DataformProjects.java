@@ -14,28 +14,31 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.rejeb.dataform.language.gcp.workspace;
+package io.github.rejeb.dataform.language.util;
 
+import com.intellij.openapi.project.Project;
+import com.intellij.openapi.project.ProjectManager;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
-import java.util.List;
+import java.util.function.Consumer;
 
 /**
- * Parameters for a commit + push operation on a Dataform workspace.
- *
- * @param workspaceId   the target workspace ID
- * @param authorName    Git author display name
- * @param authorEmail   Git author email
- * @param commitMessage optional commit message
- * @param paths         file paths to commit; if empty, all uncommitted files are committed
- * @param remoteBranch  remote branch to push to; if null, the repository default branch is used
+ * Reaches the open projects from application-level listeners, which are notified once for the
+ * whole IDE and have to dispatch the event themselves.
  */
-public record PushCodeRequest(
-        @NotNull String workspaceId,
-        @NotNull String authorName,
-        @NotNull String authorEmail,
-        @Nullable String commitMessage,
-        @NotNull List<String> paths,
-        @Nullable String remoteBranch
-) {}
+public final class DataformProjects {
+
+    private DataformProjects() {
+    }
+
+    /**
+     * Runs the action on every open project that is still alive.
+     */
+    public static void forEachOpen(@NotNull Consumer<Project> action) {
+        for (Project project : ProjectManager.getInstance().getOpenProjects()) {
+            if (!project.isDisposed()) {
+                action.accept(project);
+            }
+        }
+    }
+}

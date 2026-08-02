@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "io.github.rejeb"
-version = "0.2.16"
+version = "0.2.17"
 
 repositories {
     mavenCentral()
@@ -15,7 +15,7 @@ repositories {
 }
 
 dependencies {
-    implementation(platform("com.google.cloud:libraries-bom:26.80.0"))
+    implementation(platform("com.google.cloud:libraries-bom:26.85.0"))
     implementation("com.google.cloud:google-cloud-dataform")
     implementation("com.google.cloud:google-cloud-bigquery")
     testImplementation("org.mockito:mockito-core:5.11.0")
@@ -46,11 +46,9 @@ intellijPlatform {
 
         changeNotes = """
                 <ul>
-                    <li>Add column level lineage view.</li>
-                    <li>Add on hover table informations</li>
-                    <li>Add autocomplete templates.</li>
-                    <li>Add expression evaluation hint/<li>
-                    <li>Enhance config autocompletion.</li>
+                    <li>Add compilation failure hints.</li>
+                    <li>Add autocompletion for columns in config properties</li>
+                    <li>Enhance column lineage resolve.</li>
                     <li>Fix issues.</li>
                 </ul>
         """.trimIndent()

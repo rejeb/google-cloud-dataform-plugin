@@ -44,7 +44,6 @@ public class CompareFileWithRemoteAction extends AnAction {
 
     @Override
     public @NotNull ActionUpdateThread getActionUpdateThread() {
-        // update() doit tourner sur BGT pour ne pas bloquer l'EDT
         return ActionUpdateThread.BGT;
     }
 

@@ -53,7 +53,7 @@ public class DataformInstaller implements ProjectActivity {
     public @Nullable Object execute(@NotNull Project project,
                                     @NotNull Continuation<? super Unit> continuation) {
 
-        ApplicationManager.getApplication().invokeLater(() -> {
+        ApplicationManager.getApplication().executeOnPooledThread(() -> {
             checkAndSetup(project);
             MessageBusConnection connection = ApplicationManager.getApplication()
                     .getMessageBus()
@@ -68,7 +68,8 @@ public class DataformInstaller implements ProjectActivity {
                                 connection.disconnect();
                                 return;
                             }
-                            checkAndSetup(project);
+                            ApplicationManager.getApplication()
+                                    .executeOnPooledThread(() -> checkAndSetup(project));
                             connection.disconnect();
                             connection.dispose();
                         }

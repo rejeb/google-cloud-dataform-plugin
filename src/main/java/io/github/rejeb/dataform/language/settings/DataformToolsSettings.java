@@ -66,4 +66,24 @@ public interface DataformToolsSettings {
      * Enables or disables folding Dataform expressions to their evaluated value.
      */
     void setFoldTemplateExpressions(boolean value);
+
+    /**
+     * Tells whether compilation errors are shown inline in the editor.
+     */
+    boolean isShowInlineCompilationErrors();
+
+    /**
+     * Enables or disables showing compilation errors inline in the editor.
+     */
+    void setShowInlineCompilationErrors(boolean value);
+
+    /**
+     * Tells whether the project is recompiled in the background when a source file is saved.
+     */
+    boolean isCompileOnSave();
+
+    /**
+     * Enables or disables recompiling the project when a source file is saved.
+     */
+    void setCompileOnSave(boolean value);
 }

@@ -14,13 +14,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.rejeb.dataform.language.gcp.service;
+package io.github.rejeb.dataform.language.validation;
 
-import com.google.cloud.bigquery.BigQuery;
-import com.google.cloud.dataform.v1.DataformClient;
+import com.intellij.psi.PsiFile;
+import org.jetbrains.annotations.NotNull;
 
-public interface GcpClientService {
-    BigQuery bigQuery(String projectId);
+import java.util.List;
 
-    DataformClient dataformClient();
+/**
+ * Produces validation problems for a SQLX file.
+ */
+public interface SqlxValidator {
+
+    /**
+     * Returns the problems found in the given file, with ranges in host coordinates.
+     */
+    @NotNull List<SqlxValidationProblem> validate(@NotNull PsiFile file);
 }

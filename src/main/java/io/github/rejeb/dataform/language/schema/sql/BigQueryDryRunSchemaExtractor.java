@@ -16,16 +16,17 @@
  */
 package io.github.rejeb.dataform.language.schema.sql;
 
-import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.List;
-
 public interface BigQueryDryRunSchemaExtractor {
 
+    /**
+     * Runs the query as a BigQuery dry-run and returns the resolved schema, or the message the
+     * query was rejected with when the dry-run failed.
+     */
     @NotNull
-    List<ColumnInfo> extractSchema(@NotNull String projectId,
-                                   @Nullable String location,
-                                   @NotNull String dryRunQuery);
+    DryRunResult extractSchema(@NotNull String projectId,
+                               @Nullable String location,
+                               @NotNull String dryRunQuery);
 }

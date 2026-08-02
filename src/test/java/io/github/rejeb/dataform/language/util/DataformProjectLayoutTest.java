@@ -60,4 +60,42 @@ public class DataformProjectLayoutTest extends BasePlatformTestCase {
 
         assertFalse(DataformProjectLayout.isInDataformProject(file.getVirtualFile()));
     }
+
+    public void testActionAndIncludeFilesAreDataformSources() {
+        assertTrue(DataformProjectLayout.isDataformSourceName("model.sqlx", "sqlx"));
+        assertTrue(DataformProjectLayout.isDataformSourceName("util.js", "js"));
+        assertTrue(DataformProjectLayout.isDataformSourceName("util.ts", "ts"));
+    }
+
+    public void testProjectConfigurationFilesAreDataformSources() {
+        assertTrue(DataformProjectLayout.isDataformSourceName("workflow_settings.yaml", "yaml"));
+        assertTrue(DataformProjectLayout.isDataformSourceName("dataform.json", "json"));
+    }
+
+    public void testUnrelatedFilesAreNotDataformSources() {
+        assertFalse(DataformProjectLayout.isDataformSourceName("other.yaml", "yaml"));
+        assertFalse(DataformProjectLayout.isDataformSourceName("README.md", "md"));
+        assertFalse(DataformProjectLayout.isDataformSourceName("notes.txt", "txt"));
+        assertFalse(DataformProjectLayout.isDataformSourceName("Makefile", null));
+    }
+
+    public void testASourceOutsideADataformProjectIsNotADataformSource() {
+        PsiFile file = myFixture.addFileToProject("plain/src/app.js", "const a = 1;");
+
+        assertFalse(DataformProjectLayout.isDataformSource(file.getVirtualFile()));
+    }
+
+    public void testASourceInsideADataformProjectIsADataformSource() {
+        PsiFile file = myFixture.addFileToProject("definitions/mart.sqlx", "SELECT 1");
+
+        assertTrue(DataformProjectLayout.isDataformSource(file.getVirtualFile()));
+    }
+
+    public void testTheProjectConfigurationCountsAsASource() {
+        myFixture.addFileToProject("proj/workflow_settings.yaml", "defaultProject: p\n");
+        PsiFile file = myFixture.addFileToProject("proj/dataform.json", "{}");
+
+        assertTrue("dataform.json must reach every listener, not only the compiler",
+                DataformProjectLayout.isDataformSource(file.getVirtualFile()));
+    }
 }

@@ -31,11 +31,13 @@ import io.github.rejeb.dataform.language.compilation.model.CompilationError;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.compilation.model.GraphErrors;
 import io.github.rejeb.dataform.language.setup.DataformInterpreterManager;
+import io.github.rejeb.dataform.language.util.DataformProjectLayout;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static io.github.rejeb.dataform.language.util.Utils.flushFiles;
 
@@ -48,6 +50,8 @@ public final class DataformCompilationServiceImpl
 
     private static final Logger LOG = Logger.getInstance(DataformCompilationServiceImpl.class);
     private static final Gson GSON = new GsonBuilder().create();
+    private static final Set<String> IGNORED_DIRECTORIES =
+            Set.of("node_modules", ".git", ".idea", ".df", "build", "dist");
 
     private final Project project;
 
@@ -85,7 +89,10 @@ public final class DataformCompilationServiceImpl
         if (project.isDisposed()) {
             return null;
         }
+        long flushStartedAt = System.currentTimeMillis();
         flushFiles(project);
+        LOG.info("Dataform compile: documents flushed in "
+                + (System.currentTimeMillis() - flushStartedAt) + " ms");
         if (compiledGraph != null
                 && currentState.lastCompileTimestamp > 0
                 && !hasSourcesChangedSince(currentState.lastCompileTimestamp)
@@ -98,23 +105,30 @@ public final class DataformCompilationServiceImpl
 
 
     private CompiledGraph runCompilation() {
+        LOG.warn("Running compilation");
         try {
             Optional<GeneralCommandLine> cmd = project.getService(DataformInterpreterManager.class)
                     .buildDataformCompileCommand();
             if (cmd.isPresent()) {
+                long processStartedAt = System.currentTimeMillis();
                 ProcessOutput output = ExecUtil.execAndGetOutput(cmd.get(), 300000);
                 String compilationResult = output.getStdout();
+                LOG.info("Dataform compile: '" + cmd.get().getExePath() + "' returned "
+                        + compilationResult.length() + " chars in "
+                        + (System.currentTimeMillis() - processStartedAt) + " ms");
 
                 if (compilationResult.isBlank()) {
                     CompilationError compilationError = new CompilationError(output.getStderr());
                     GraphErrors graphErrors = new GraphErrors();
                     graphErrors.setCompilationErrors(List.of(compilationError));
-                    this.compiledGraph = new CompiledGraph();
+                    if (this.compiledGraph == null) {
+                        this.compiledGraph = new CompiledGraph();
+                    }
                     this.compiledGraph.setGraphErrors(graphErrors);
                 } else {
                     this.compiledGraph = GSON.fromJson(compilationResult, CompiledGraph.class);
                     currentState.compiledGraphJson = GSON.toJson(this.compiledGraph);
-                    currentState.lastCompileTimestamp = System.currentTimeMillis();
+                    currentState.lastCompileTimestamp = processStartedAt;
                 }
 
                 return this.compiledGraph;
@@ -141,29 +155,20 @@ public final class DataformCompilationServiceImpl
     private boolean hasSourcesChangedSince(long referenceTime) {
         VirtualFile projectDir = ProjectUtil.guessProjectDir(project);
         if (projectDir == null) return true;
-
-        for (String dirName : List.of("definitions", "includes")) {
-            VirtualFile dir = projectDir.findChild(dirName);
-            if (dir != null && isModifiedAfter(dir, referenceTime)) return true;
-        }
-
-        for (String fileName : List.of("dataform.json", "workflow_settings.yaml")) {
-            VirtualFile file = projectDir.findChild(fileName);
-            if (file != null && file.getTimeStamp() > referenceTime) return true;
-        }
-
-        return false;
+        return isModifiedAfter(projectDir, referenceTime);
     }
 
-    private boolean isModifiedAfter(@NotNull VirtualFile dir, long referenceTime) {
+    static boolean isModifiedAfter(@NotNull VirtualFile dir, long referenceTime) {
         for (VirtualFile child : dir.getChildren()) {
             if (child.isDirectory()) {
-                if (isModifiedAfter(child, referenceTime)) return true;
-            } else {
-                String ext = child.getExtension();
-                if ("sqlx".equals(ext) || "js".equals(ext) || "yaml".equals(ext)) {
-                    if (child.getTimeStamp() > referenceTime) return true;
+                if (!IGNORED_DIRECTORIES.contains(child.getName())
+                        && isModifiedAfter(child, referenceTime)) {
+                    return true;
                 }
+            } else if (DataformProjectLayout.isDataformSourceName(
+                    child.getName(), child.getExtension())
+                    && child.getTimeStamp() > referenceTime) {
+                return true;
             }
         }
         return false;

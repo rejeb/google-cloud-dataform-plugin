@@ -16,12 +16,17 @@
  */
 package io.github.rejeb.dataform.language.fileEditor;
 
+import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.editor.ex.EditorEx;
 import com.intellij.openapi.fileTypes.FileType;
 import com.intellij.openapi.project.Project;
 import com.intellij.ui.components.JBScrollPane;
+import com.intellij.util.messages.MessageBusConnection;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
+import io.github.rejeb.dataform.language.schema.sql.DataformSchemaEvent;
+import io.github.rejeb.dataform.language.schema.sql.DryRunErrorRegistry;
 
 import javax.swing.*;
 import java.awt.*;
@@ -33,6 +38,8 @@ public class QueryPanel extends JPanel {
     private final Project project;
     private final FileType fileType;
     private final JPanel sectionsPanel;
+    private final QueryDryRunErrorBanner errorBanner;
+    private final MessageBusConnection connection;
     private final List<TableQuerySection> sections = new ArrayList<>();
 
     public QueryPanel(Project project, FileType fileType) {
@@ -47,9 +54,35 @@ public class QueryPanel extends JPanel {
         sectionsPanel.setOpaque(false);
         sectionsPanel.setBorder(JBUI.Borders.empty(8, 10));
 
+        errorBanner = new QueryDryRunErrorBanner();
+        add(errorBanner, BorderLayout.NORTH);
+
         JBScrollPane scroll = new JBScrollPane(sectionsPanel);
         scroll.setBorder(JBUI.Borders.empty());
         add(scroll, BorderLayout.CENTER);
+
+        connection = project.getMessageBus().connect();
+        connection.subscribe(DataformSchemaEvent.TOPIC,
+                (DataformSchemaEvent) this::refreshErrorsLater);
+    }
+
+    /**
+     * Reports the dry-run errors of the displayed actions. The extraction publishes its results
+     * from a background thread, so the banner is always updated on the EDT.
+     */
+    private void refreshErrorsLater() {
+        ApplicationManager.getApplication().invokeLater(() -> {
+            if (project.isDisposed()) return;
+            refreshErrors();
+        }, ModalityState.nonModal());
+    }
+
+    private void refreshErrors() {
+        List<String> displayedActions = sections.stream()
+                .map(s -> s.getQuery().tableName())
+                .toList();
+        errorBanner.update(QueryDryRunErrorBanner.errorsOf(
+                displayedActions, DryRunErrorRegistry.getInstance(project).getErrors()));
     }
 
     public void setContent(List<FormattedCompiledQuery> queries) {
@@ -58,6 +91,7 @@ public class QueryPanel extends JPanel {
         sectionsPanel.removeAll();
 
         if (queries == null || queries.isEmpty()) {
+            refreshErrors();
             sectionsPanel.revalidate();
             sectionsPanel.repaint();
             return;
@@ -69,6 +103,7 @@ public class QueryPanel extends JPanel {
             sectionsPanel.add(section);
         }
 
+        refreshErrors();
         sectionsPanel.revalidate();
         sectionsPanel.repaint();
     }
@@ -80,6 +115,7 @@ public class QueryPanel extends JPanel {
     }
 
     public void dispose() {
+        connection.disconnect();
         sections.forEach(TableQuerySection::dispose);
         sections.clear();
     }

@@ -39,7 +39,7 @@ public class CompiledOperation {
 
     public CompiledQuery getCompiledQueries() {
         String queries = String.join(";\n", this.getQueries());
-        return new CompiledQuery(this.getTarget().getFullName(),queries);
+        return new CompiledQuery(this.getTarget().getFullName(),queries,this.isDisabled());
     }
 
     public List<Target> getDependencyTargets() {

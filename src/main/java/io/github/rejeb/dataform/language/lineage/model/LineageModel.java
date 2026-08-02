@@ -388,13 +388,19 @@ public final class LineageModel {
             visible.retainAll(scope);
         }
         Set<String> columnScope = columnTableScope();
-        if (columnScope != null) visible.retainAll(columnScope);
+        if (columnScope != null) {
+            visible.clear();
+            for (String id : columnScope) {
+                if (graph.node(id) != null) visible.add(id);
+            }
+        }
         return visible;
     }
 
     /**
-     * When a column is selected, the table node ids that participate in its column lineage;
-     * {@code null} when no column is selected so the whole graph stays visible.
+     * When a column is selected, the table node ids that participate in its column lineage. They
+     * become the visible set on their own, so tables excluded by the active filters still show up
+     * when they carry the selected lineage; {@code null} when no column is selected.
      */
     private @Nullable Set<String> columnTableScope() {
         if (selectedColumnIds.isEmpty() || columnGraph == null) return null;

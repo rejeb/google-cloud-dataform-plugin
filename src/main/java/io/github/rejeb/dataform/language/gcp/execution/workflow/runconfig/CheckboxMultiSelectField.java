@@ -68,7 +68,6 @@ public class CheckboxMultiSelectField extends JPanel {
         arrowButton.setPreferredSize(new Dimension(20, 0));
         arrowButton.setCursor(Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR));
         displayField.setColumns(1);
-        // Padding droit dans le textfield pour que le texte ne passe pas sous le bouton
         displayField.setBorder(BorderFactory.createCompoundBorder(UIManager.getBorder("TextField.border"), JBUI.Borders.emptyRight(22)));
 
         // Superposition bouton sur le champ via JLayeredPane

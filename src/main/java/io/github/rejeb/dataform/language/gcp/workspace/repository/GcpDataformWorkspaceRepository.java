@@ -28,15 +28,20 @@ import io.github.rejeb.dataform.language.gcp.common.GcpApiException;
 import io.github.rejeb.dataform.language.gcp.workspace.UncommittedChange;
 import io.github.rejeb.dataform.language.gcp.workspace.Workspace;
 import io.github.rejeb.dataform.language.util.GcpClientsUtils;
+import static io.github.rejeb.dataform.language.gcp.workspace.repository.DataformResourceNames.isEmptyRepoException;
+import static io.github.rejeb.dataform.language.gcp.workspace.repository.DataformResourceNames.workspaceName;
+import static io.github.rejeb.dataform.language.gcp.workspace.repository.WorkspaceFileReader.listAllRepositoryPaths;
+import static io.github.rejeb.dataform.language.gcp.workspace.repository.WorkspaceFileReader.listAllWorkspacePaths;
+import static io.github.rejeb.dataform.language.gcp.workspace.repository.WorkspaceFileReader.readAllRepositoryFiles;
+import static io.github.rejeb.dataform.language.gcp.workspace.repository.WorkspaceFileReader.readAllWorkspaceFiles;
+import static io.github.rejeb.dataform.language.gcp.workspace.repository.WorkspaceFileReader.readRepositoryFile;
+import static io.github.rejeb.dataform.language.gcp.workspace.repository.WorkspaceFileReader.readWorkspaceFile;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 public class GcpDataformWorkspaceRepository implements WorkspaceRepository, Disposable {
 
@@ -413,185 +418,16 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository, Disp
         }
     }
 
-    @NotNull
-    private Map<String, String> readAllRepositoryFiles(
-            @NotNull String projectId,
-            @NotNull String location,
-            @NotNull String repositoryId,
-            @NotNull DataformClient client
-    ) {
-        Stream<String> paths = listAllRepositoryPaths(projectId, location, repositoryId, "", client);
-        return paths.collect(Collectors.toMap(path -> path, path ->
-                readRepositoryFile(projectId, location, repositoryId, path, client)));
-    }
 
-    @NotNull
-    private Map<String, String> readAllWorkspaceFiles(
-            @NotNull String projectId,
-            @NotNull String location,
-            @NotNull String repositoryId,
-            @NotNull String workspaceId,
-            @NotNull DataformClient client
-    ) {
-        Stream<String> paths = listAllWorkspacePaths(projectId, location, repositoryId, workspaceId, "", client);
-        return paths.collect(Collectors.toMap(path -> path, path ->
-                readWorkspaceFile(projectId, location, repositoryId, workspaceId, path, client)));
-    }
 
-    @NotNull
-    private String readRepositoryFile(
-            @NotNull String projectId,
-            @NotNull String location,
-            @NotNull String repositoryId,
-            @NotNull String path,
-            @NotNull DataformClient client
-    ) {
-        ReadRepositoryFileRequest request = ReadRepositoryFileRequest.newBuilder()
-                .setName(repositoryName(projectId, location, repositoryId))
-                .setPath(path)
-                .build();
-        ReadRepositoryFileResponse response = client.readRepositoryFile(request);
-        return response.getContents().toStringUtf8();
-    }
 
-    @NotNull
-    private String readWorkspaceFile(
-            @NotNull String projectId,
-            @NotNull String location,
-            @NotNull String repositoryId,
-            @NotNull String workspaceId,
-            @NotNull String path,
-            @NotNull DataformClient client
-    ) {
-        ReadFileRequest request = ReadFileRequest.newBuilder()
-                .setWorkspace(workspaceName(projectId, location, repositoryId, workspaceId))
-                .setPath(path)
-                .build();
-        ReadFileResponse response = client.readFile(request);
-        return response.getFileContents().toStringUtf8();
-    }
 
-    @NotNull
-    private Stream<String> listAllRepositoryPaths(
-            @NotNull String projectId,
-            @NotNull String location,
-            @NotNull String repositoryId,
-            @NotNull String directoryPath,
-            @NotNull DataformClient client
-    ) {
-        QueryRepositoryDirectoryContentsRequest request =
-                QueryRepositoryDirectoryContentsRequest.newBuilder()
-                        .setName(repositoryName(projectId, location, repositoryId))
-                        .setPath(directoryPath)
-                        .build();
-        try {
-            DataformClient.QueryRepositoryDirectoryContentsPagedResponse response =
-                    client.queryRepositoryDirectoryContents(request);
-            return StreamSupport.stream(response.iterateAll().spliterator(), false)
-                    .parallel()
-                    .flatMap(entry -> resolveRepositoryEntry(
-                            entry, projectId, location, repositoryId, directoryPath, client));
-        } catch (Exception e) {
-            if (isEmptyRepoException(e)) {
-                LOG.info("Repository \"" + repositoryId + "\" is empty, skipping directory listing.");
-                return Stream.empty();
-            }
-            throw e;
-        }
-    }
 
-    @NotNull
-    private Stream<String> resolveRepositoryEntry(
-            @NotNull DirectoryEntry entry,
-            @NotNull String projectId,
-            @NotNull String location,
-            @NotNull String repositoryId,
-            @NotNull String directoryPath,
-            @NotNull DataformClient client
-    ) {
-        if (entry.hasFile()) {
-            String fullPath = directoryPath.isEmpty()
-                    ? entry.getFile()
-                    : directoryPath + "/" + entry.getFile();
-            return Stream.of(fullPath);
-        }
-        if (entry.hasDirectory() && !entry.getDirectory().equals("node_modules")) {
-            String subDir = directoryPath.isEmpty()
-                    ? entry.getDirectory()
-                    : directoryPath + "/" + entry.getDirectory();
-            return listAllRepositoryPaths(projectId, location, repositoryId, subDir, client);
-        }
-        return Stream.empty();
-    }
 
-    @NotNull
-    private Stream<String> listAllWorkspacePaths(
-            @NotNull String projectId,
-            @NotNull String location,
-            @NotNull String repositoryId,
-            @NotNull String workspaceId,
-            @NotNull String directoryPath,
-            @NotNull DataformClient client
-    ) {
-        QueryDirectoryContentsRequest request = QueryDirectoryContentsRequest.newBuilder()
-                .setWorkspace(workspaceName(projectId, location, repositoryId, workspaceId))
-                .setPath(directoryPath)
-                .build();
-        DataformClient.QueryDirectoryContentsPagedResponse response =
-                client.queryDirectoryContents(request);
-        return StreamSupport.stream(response.iterateAll().spliterator(), false)
-                .parallel()
-                .flatMap(entry -> resolveWorkspaceEntry(
-                        entry, projectId, location, repositoryId, workspaceId, client));
-    }
 
-    @NotNull
-    private Stream<String> resolveWorkspaceEntry(
-            @NotNull DirectoryEntry entry,
-            @NotNull String projectId,
-            @NotNull String location,
-            @NotNull String repositoryId,
-            @NotNull String workspaceId,
-            @NotNull DataformClient client
-    ) {
-        if (entry.hasFile()) return Stream.of(entry.getFile());
-        if (entry.hasDirectory() && !entry.getDirectory().equals("node_modules")) {
-            return listAllWorkspacePaths(
-                    projectId, location, repositoryId, workspaceId, entry.getDirectory(), client);
-        }
-        return Stream.empty();
-    }
 
-    private static String workspaceName(
-            @NotNull String projectId,
-            @NotNull String location,
-            @NotNull String repositoryId,
-            @NotNull String workspaceId
-    ) {
-        return WorkspaceName.of(projectId, location, repositoryId, workspaceId).toString();
-    }
 
-    @NotNull
-    private static String repositoryName(
-            @NotNull String projectId,
-            @NotNull String location,
-            @NotNull String repositoryId
-    ) {
-        return "projects/" + projectId
-                + "/locations/" + location
-                + "/repositories/" + repositoryId;
-    }
 
-    private static boolean isEmptyRepoException(@NotNull Throwable t) {
-        Throwable current = t;
-        while (current != null) {
-            String msg = current.getMessage();
-            if (msg != null && msg.contains("Reading from empty repo")) return true;
-            if (current instanceof com.google.api.gax.rpc.FailedPreconditionException) return true;
-            current = current.getCause();
-        }
-        return false;
-    }
 
     private static UncommittedChange.ChangeState mapState(
             @NotNull FetchFileGitStatusesResponse.UncommittedFileChange.State state

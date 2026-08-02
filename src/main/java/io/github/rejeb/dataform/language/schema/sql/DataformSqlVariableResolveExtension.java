@@ -16,6 +16,7 @@
  */
 package io.github.rejeb.dataform.language.schema.sql;
 
+import com.intellij.codeInsight.completion.CompletionUtilCore;
 import com.intellij.database.model.ObjectKind;
 import com.intellij.database.symbols.DasSymbol;
 import com.intellij.lang.injection.InjectedLanguageManager;
@@ -38,6 +39,12 @@ import java.util.Map;
  * Resolves references to BigQuery scripting variables declared with {@code DECLARE} in a SQLX
  * {@code pre_operations} or {@code post_operations} block. Those blocks are injected as separate
  * SQL documents, so the main query cannot see the declaration through the SQL scope on its own.
+ *
+ * <p>Only the variable actually named by the reference is contributed. Offering every declared
+ * variable for any reference makes a qualified field access such as {@code bounds.lo} reachable
+ * both natively and through the injected variable, which yields the same field twice and makes
+ * the platform resolve cache non-idempotent. Completion asks with a dummy identifier instead of a
+ * real name, and then every variable is a candidate.
  */
 public class DataformSqlVariableResolveExtension implements SqlResolveExtension {
 
@@ -71,7 +78,14 @@ public class DataformSqlVariableResolveExtension implements SqlResolveExtension 
             return true;
         }
 
+        String refName = ref.getReferenceName();
+        boolean collectingCandidates = refName == null
+                || refName.contains(CompletionUtilCore.DUMMY_IDENTIFIER_TRIMMED);
+
         for (ColumnInfo info : variables.values()) {
+            if (!collectingCandidates && !info.name().equalsIgnoreCase(refName)) {
+                continue;
+            }
             DataformDasColumn variable =
                     new DataformDasColumn(place.getManager(), null, info, topLevel);
             DasSymbol symbol = DasSymbolUtil.wrapObjectToSymbol(variable, processor);

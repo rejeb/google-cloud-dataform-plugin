@@ -29,6 +29,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Key;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiManager;
 import com.intellij.util.concurrency.ThreadingAssertions;
@@ -78,11 +79,13 @@ public final class DataformFoldingRefresher {
                 .executeSynchronously();
 
         for (Editor editor : editorsOf(project, document)) {
-            Runnable applyFolding = ReadAction.nonBlocking(
-                            () -> CodeFoldingManager.getInstance(project).updateFoldRegionsAsync(editor, false))
+            FoldingSnapshot folding = ReadAction.nonBlocking(
+                            () -> new FoldingSnapshot(foldingUpdate(project, editor, document),
+                                    document.getModificationStamp()))
                     .executeSynchronously();
             ApplicationManager.getApplication().invokeLater(() -> {
-                applyAndCollapse(editor, applyFolding);
+                boolean unchanged = document.getModificationStamp() == folding.documentStamp();
+                applyAndCollapse(editor, unchanged ? folding.applyFolding() : null);
                 if (!editor.isDisposed()
                         && document.getModificationStamp() == snapshot.documentStamp()) {
                     DataformMultilineFoldManager.apply(editor, snapshot.values());
@@ -92,12 +95,36 @@ public final class DataformFoldingRefresher {
     }
 
     /**
+     * A pending folding update together with the document stamp it was computed against. The
+     * platform rejects an update whose document changed in between, so an edit landing before the
+     * update reaches the EDT discards it; the daemon restarted above recomputes the regions.
+     */
+    private record FoldingSnapshot(@Nullable Runnable applyFolding, long documentStamp) {
+    }
+
+    /**
      * Multiline values together with the document stamp they were computed against. The values are
      * only applied when the document is still at that stamp, since custom fold regions are placed
      * by line numbers and would be painted at stale positions otherwise.
      */
     private record MultilineSnapshot(@NotNull List<DataformMultilineFoldManager.MultilineValue> values,
                                      long documentStamp) {
+    }
+
+    /**
+     * Computes the folding update of an editor, or {@code null} when the document has been edited
+     * since the last commit. The platform requires a committed document: it folds the PSI, which
+     * still holds the previous text, so the regions would carry offsets the document no longer has.
+     * The check belongs inside the read action, since an edit may land right after it otherwise.
+     * The daemon restarted above rebuilds the regions once the commit happens.
+     */
+    private static @Nullable Runnable foldingUpdate(@NotNull Project project,
+                                                    @NotNull Editor editor,
+                                                    @NotNull Document document) {
+        if (!PsiDocumentManager.getInstance(project).isCommitted(document)) {
+            return null;
+        }
+        return CodeFoldingManager.getInstance(project).updateFoldRegionsAsync(editor, false);
     }
 
     private static List<Editor> editorsOf(@NotNull Project project, @NotNull Document document) {

@@ -102,6 +102,44 @@ public final class DataformDocumentationRenderer {
     }
 
     /**
+     * Renders the documentation popup content of a SQLX config block key: what the schema says
+     * about it, how it is filled in, and the columns available to it when it names one.
+     */
+    @NotNull
+    public static String renderConfigKey(@NotNull String key,
+                                         @Nullable String type,
+                                         @Nullable String description,
+                                         @Nullable String usage,
+                                         @NotNull List<ColumnInfo> availableColumns) {
+        StringBuilder builder = new StringBuilder();
+
+        builder.append(DocumentationMarkup.DEFINITION_START)
+                .append("<b>").append(escape(key)).append("</b>");
+        if (isNotBlank(type)) {
+            builder.append(" ").append(DocumentationMarkup.GRAYED_START)
+                    .append(escape(type)).append(DocumentationMarkup.GRAYED_END);
+        }
+        builder.append(DocumentationMarkup.DEFINITION_END);
+
+        if (isNotBlank(description)) {
+            builder.append(DocumentationMarkup.CONTENT_START)
+                    .append(escape(description))
+                    .append(DocumentationMarkup.CONTENT_END);
+        }
+
+        StringBuilder sections = new StringBuilder();
+        if (isNotBlank(usage)) {
+            appendSection(sections, "Usage", "<pre>" + escape(usage) + "</pre>");
+        }
+        if (!availableColumns.isEmpty()) {
+            appendSection(sections, "Columns", renderColumnTable(availableColumns));
+        }
+        appendSections(builder, sections);
+
+        return builder.toString();
+    }
+
+    /**
      * Renders the documentation popup content of a BigQuery builtin function.
      */
     @NotNull

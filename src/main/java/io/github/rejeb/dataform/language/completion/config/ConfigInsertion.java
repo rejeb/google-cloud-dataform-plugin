@@ -18,11 +18,11 @@ package io.github.rejeb.dataform.language.completion.config;
 
 import com.intellij.codeInsight.AutoPopupController;
 import com.intellij.codeInsight.completion.InsertionContext;
-import com.intellij.injected.editor.EditorWindow;
 import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.psi.PsiDocumentManager;
+import io.github.rejeb.dataform.language.util.SqlxEditors;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -35,9 +35,7 @@ final class ConfigInsertion {
     }
 
     static Editor hostEditor(@NotNull InsertionContext context) {
-        return context.getEditor() instanceof EditorWindow window
-                ? window.getDelegate()
-                : context.getEditor();
+        return SqlxEditors.host(context.getEditor());
     }
 
     static int hostOffset(@NotNull InsertionContext context, int injectedOffset) {
@@ -61,15 +59,22 @@ final class ConfigInsertion {
     }
 
     static boolean needsComma(@NotNull Document document, int offset) {
+        return nextNonBlank(document, offset) != ',';
+    }
+
+    /**
+     * The first character after the offset that is neither a space nor a tab, {@code '\0'} when the
+     * line, and everything after it, holds none.
+     */
+    static char nextNonBlank(@NotNull Document document, int offset) {
         CharSequence text = document.getCharsSequence();
         for (int i = offset; i < text.length(); i++) {
             char c = text.charAt(i);
-            if (c == ' ' || c == '\t') {
-                continue;
+            if (c != ' ' && c != '\t') {
+                return c;
             }
-            return c != ',';
         }
-        return true;
+        return '\0';
     }
 
     static String lineIndent(@NotNull Document document, int offset) {

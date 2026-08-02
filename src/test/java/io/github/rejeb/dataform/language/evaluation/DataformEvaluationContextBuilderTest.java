@@ -23,6 +23,7 @@ import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.compilation.model.ProjectConfig;
 
 import java.lang.reflect.Field;
+import java.util.List;
 import java.util.Map;
 
 public class DataformEvaluationContextBuilderTest extends BasePlatformTestCase {
@@ -37,7 +38,7 @@ public class DataformEvaluationContextBuilderTest extends BasePlatformTestCase {
         PsiFile file = myFixture.addFileToProject("definitions/mart.sqlx", "SELECT 1 AS one\n");
 
         DataformEvaluationContext context =
-                DataformEvaluationContextBuilder.build(getProject(), file);
+                DataformEvaluationContextBuilder.build(getProject(), file, List.of());
 
         assertEquals("my-project", context.projectConfig().get("defaultDatabase"));
         assertEquals("my_dataset", context.projectConfig().get("defaultSchema"));
@@ -59,7 +60,7 @@ public class DataformEvaluationContextBuilderTest extends BasePlatformTestCase {
         set(getProject().getService(DataformCompilationService.class), "compiledGraph", graph);
 
         DataformEvaluationContext context =
-                DataformEvaluationContextBuilder.build(getProject(), file);
+                DataformEvaluationContextBuilder.build(getProject(), file, List.of());
 
         assertEquals("compiled-project", context.projectConfig().get("defaultDatabase"));
         assertEquals("the compiled config must not drop settings-only keys",
@@ -70,7 +71,7 @@ public class DataformEvaluationContextBuilderTest extends BasePlatformTestCase {
         PsiFile file = myFixture.addFileToProject("definitions/mart.sqlx", "SELECT 1 AS one\n");
 
         DataformEvaluationContext context =
-                DataformEvaluationContextBuilder.build(getProject(), file);
+                DataformEvaluationContextBuilder.build(getProject(), file, List.of());
 
         assertNotNull("vars must exist so vars.x yields undefined instead of a type error",
                 context.projectConfig().get("vars"));
@@ -89,7 +90,7 @@ public class DataformEvaluationContextBuilderTest extends BasePlatformTestCase {
                 """);
 
         DataformEvaluationContext context =
-                DataformEvaluationContextBuilder.build(getProject(), file);
+                DataformEvaluationContextBuilder.build(getProject(), file, List.of());
 
         assertNotNull(context.fileScript());
         assertTrue(context.fileScript(), context.fileScript().contains("const SUFFIX = \"_v1\";"));
@@ -100,7 +101,7 @@ public class DataformEvaluationContextBuilderTest extends BasePlatformTestCase {
         PsiFile file = myFixture.addFileToProject("definitions/mart.sqlx",
                 "config { type: \"table\" }\n\nSELECT 1 AS one\n");
 
-        assertNull(DataformEvaluationContextBuilder.build(getProject(), file).fileScript());
+        assertNull(DataformEvaluationContextBuilder.build(getProject(), file, List.of()).fileScript());
     }
 
     @SuppressWarnings("unchecked")

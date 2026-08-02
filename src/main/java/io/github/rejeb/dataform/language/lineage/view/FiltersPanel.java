@@ -16,7 +16,6 @@
  */
 package io.github.rejeb.dataform.language.lineage.view;
 
-import com.intellij.ui.JBColor;
 import com.intellij.ui.components.JBCheckBox;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBScrollPane;
@@ -26,6 +25,11 @@ import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
 import io.github.rejeb.dataform.language.lineage.graph.LineageNode;
 import io.github.rejeb.dataform.language.lineage.model.LineageModel;
+import static io.github.rejeb.dataform.language.lineage.view.FilterWidgets.accent;
+import static io.github.rejeb.dataform.language.lineage.view.FilterWidgets.dim;
+import static io.github.rejeb.dataform.language.lineage.view.FilterWidgets.glyphLabel;
+import static io.github.rejeb.dataform.language.lineage.view.FilterWidgets.link;
+import static io.github.rejeb.dataform.language.lineage.view.FilterWidgets.monospace;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -279,19 +283,7 @@ public final class FiltersPanel extends JPanel {
         return button;
     }
 
-    private static JBLabel glyphLabel(@NotNull String glyph, @NotNull Color color) {
-        JBLabel label = new JBLabel(glyph);
-        label.setForeground(color);
-        label.setFont(new Font(Font.MONOSPACED, Font.BOLD, JBUIScale.scaleFontSize(11f)));
-        return label;
-    }
 
-    private static JBLabel dim(@NotNull String text) {
-        JBLabel label = new JBLabel(text);
-        label.setForeground(UIUtil.getLabelDisabledForeground());
-        label.setFont(label.getFont().deriveFont(JBUIScale.scale(10f)));
-        return label;
-    }
 
     private JBLabel hint(@NotNull String text) {
         int wrap = Math.max(JBUIScale.scale(120), contentWidth - JBUIScale.scale(44));
@@ -301,26 +293,8 @@ public final class FiltersPanel extends JPanel {
         return label;
     }
 
-    private static JComponent link(@NotNull String text, @NotNull Runnable action) {
-        JBLabel label = new JBLabel(text);
-        label.setForeground(accent());
-        label.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        label.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                action.run();
-            }
-        });
-        return label;
-    }
 
-    private static Font monospace(@NotNull Font base) {
-        return new Font(Font.MONOSPACED, Font.PLAIN, base.getSize());
-    }
 
-    private static Color accent() {
-        return new JBColor(new Color(0x3574F0), new Color(0x548AF7));
-    }
 
     private void enableAllTypes() {
         for (String type : model.typeCounts().keySet()) {

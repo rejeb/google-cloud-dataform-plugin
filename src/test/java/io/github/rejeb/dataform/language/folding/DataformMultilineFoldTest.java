@@ -78,10 +78,22 @@ public class DataformMultilineFoldTest extends DataformFoldingTestCase {
         seed(file, expression.source(), MULTILINE_VALUE);
 
         CustomFoldRegion region = customRegions().getFirst();
-        region.getRenderer().calcGutterIconRenderer(region).getClickAction()
-                .actionPerformed(com.intellij.testFramework.TestActionEvent.createTestEvent());
+        ((DataformValueFoldRenderer) region.getRenderer()).showSource();
 
-        assertEmpty("the gutter action must bring the source back", customRegions());
+        assertEmpty("showing the source must bring the expression back", customRegions());
+    }
+
+    public void testValueCarriesNoGutterIcon() {
+        PsiFile file = configureDefinition("mart.sqlx", WHOLE_LINE_EXPRESSION);
+        DataformExpression expression = DataformExpressionCollector.collectSqlxTemplates(file).getFirst();
+        seed(file, expression.source(), MULTILINE_VALUE);
+
+        CustomFoldRegion region = customRegions().getFirst();
+
+        assertNull("the value is clicked directly, so it must not add a gutter icon",
+                region.getGutterIconRenderer());
+        assertNull("the renderer must not offer a gutter icon either",
+                region.getRenderer().calcGutterIconRenderer(region));
     }
 
     public void testInlineExpressionKeepsTheCodeSharingItsLine() {

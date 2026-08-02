@@ -18,6 +18,7 @@ package io.github.rejeb.dataform.language.lineage.view;
 
 import com.intellij.util.ui.UIUtil;
 import io.github.rejeb.dataform.language.lineage.column.ColumnEdge;
+import io.github.rejeb.dataform.language.lineage.column.Confidence;
 import io.github.rejeb.dataform.language.lineage.column.ColumnLineageGraph;
 import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
 import io.github.rejeb.dataform.language.lineage.layout.LayoutResult;
@@ -192,7 +193,7 @@ final class ColumnListRenderer {
             Color color = edgeOwnerColor(edge.from().id(), edge.to().id(),
                     selectedIds, lineageBySelected, colorBySelected);
             if (color == null) continue;
-            drawColumnEdge(g2, from, to, color);
+            drawColumnEdge(g2, from, to, color, edge.kind() == Confidence.AMBIGUOUS);
         }
     }
 
@@ -333,7 +334,7 @@ final class ColumnListRenderer {
     }
 
     private void drawColumnEdge(@NotNull Graphics2D g2, @NotNull Rectangle from,
-                                @NotNull Rectangle to, @NotNull Color color) {
+                                @NotNull Rectangle to, @NotNull Color color, boolean ambiguous) {
         double x1 = from.x + from.width;
         double y1 = from.y + from.height / 2.0;
         double x2 = to.x;
@@ -343,8 +344,9 @@ final class ColumnListRenderer {
         path.moveTo(x1, y1);
         path.curveTo(cx, y1, cx, y2, x2, y2);
         g2.setColor(color);
-        g2.setStroke(new BasicStroke(1.4f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_ROUND,
-                1f, new float[]{4f, 3f}, 0f));
+        float[] dash = ambiguous ? new float[]{1.5f, 4f} : new float[]{4f, 3f};
+        g2.setStroke(new BasicStroke(ambiguous ? 1f : 1.4f, BasicStroke.CAP_BUTT,
+                BasicStroke.JOIN_ROUND, 1f, dash, 0f));
         g2.draw(path);
         g2.setStroke(new BasicStroke(1f));
         EdgeRenderer.drawArrowHead(g2, x2, y2, Direction.LR);

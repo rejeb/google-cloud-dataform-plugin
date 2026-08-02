@@ -16,6 +16,7 @@
  */
 package io.github.rejeb.dataform.language.lineage.column;
 
+import com.intellij.openapi.diagnostic.Logger;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.compilation.model.CompiledOperation;
 import io.github.rejeb.dataform.language.compilation.model.CompiledTable;
@@ -42,6 +43,8 @@ import java.util.Set;
  */
 public final class ColumnLineageExtractorImpl implements ColumnLineageExtractor {
 
+    private static final Logger LOG = Logger.getInstance(ColumnLineageExtractorImpl.class);
+
     private final SelectAnalyzer analyzer;
 
     public ColumnLineageExtractorImpl(@NotNull SelectAnalyzer analyzer) {
@@ -51,10 +54,7 @@ public final class ColumnLineageExtractorImpl implements ColumnLineageExtractor 
     @Override
     public @NotNull ColumnLineageGraph extract(@NotNull CompiledGraph graph,
                                                @NotNull Map<String, List<ColumnInfo>> schemas) {
-        List<Analyzable> units = new ArrayList<>();
-        for (CompiledTable table : graph.getTables()) {
-            units.add(new Analyzable(table.getTarget(), table.getQuery(), table.getDependencyTargets()));
-        }
+        List<Analyzable> units = collectAnalyzables(graph);
 
         List<TableAnalysis> analyses = units.parallelStream()
                 .map(this::analyzeUnit)
@@ -62,12 +62,83 @@ public final class ColumnLineageExtractorImpl implements ColumnLineageExtractor 
                 .toList();
 
         ColumnLineageGraph.Builder builder = ColumnLineageGraph.builder();
-        seedColumns(builder, graph, schemas);
+        seedColumns(builder, graph, schemas, unreportableFullNames(graph));
         for (TableAnalysis analysis : analyses) {
             if (!hasSchema(schemas, analysis.tableFullName())) continue;
             processTable(builder, analysis, schemas);
         }
         return builder.build();
+    }
+
+    /**
+     * Every query that can produce column lineage. A table contributes its main query and, when it
+     * is incremental, its incremental query too: a column built differently on the incremental
+     * branch reads inputs the main query never names. An operation contributes its last query,
+     * which is the one that defines the columns of its output, mirroring how its schema is
+     * extracted. Several units may share a target; their edges accumulate.
+     */
+    private @NotNull List<Analyzable> collectAnalyzables(@NotNull CompiledGraph graph) {
+        List<Analyzable> units = new ArrayList<>();
+        for (CompiledTable table : graph.getTables()) {
+            if (table.isDisabled()) continue;
+            units.add(new Analyzable(table.getTarget(), table.getQuery(), table.getDependencyTargets()));
+            String incremental = table.getIncrementalQuery();
+            if (incremental != null && !incremental.isBlank()) {
+                units.add(new Analyzable(table.getTarget(), incremental, table.getDependencyTargets()));
+            }
+        }
+        for (CompiledOperation operation : graph.getOperations()) {
+            if (operation.isDisabled() || !operation.isHasOutput()) continue;
+            List<String> queries = operation.getQueries();
+            if (queries.isEmpty()) continue;
+            units.add(new Analyzable(operation.getTarget(), queries.getLast(),
+                    operation.getDependencyTargets()));
+        }
+        return units;
+    }
+
+    /**
+     * Actions whose missing schema must not be reported as a column lineage gap: the ones declaring
+     * {@code disabled: true} and everything downstream of them. A disabled action is never executed,
+     * so neither it nor anything reading it has a schema to resolve, and warning about that would
+     * describe a deliberate choice as an error.
+     */
+    private @NotNull Set<String> unreportableFullNames(@NotNull CompiledGraph graph) {
+        Set<String> excluded = new LinkedHashSet<>();
+        graph.getTables().stream().filter(CompiledTable::isDisabled)
+                .forEach(t -> addFullName(excluded, t.getTarget()));
+        graph.getOperations().stream().filter(CompiledOperation::isDisabled)
+                .forEach(o -> addFullName(excluded, o.getTarget()));
+        if (excluded.isEmpty()) return excluded;
+
+        boolean grown = true;
+        while (grown) {
+            grown = false;
+            for (Dependent dependent : dependents(graph)) {
+                if (excluded.contains(dependent.fullName())) continue;
+                if (dependent.dependencies().stream().anyMatch(excluded::contains)) {
+                    excluded.add(dependent.fullName());
+                    grown = true;
+                }
+            }
+        }
+        return excluded;
+    }
+
+    private @NotNull List<Dependent> dependents(@NotNull CompiledGraph graph) {
+        List<Dependent> dependents = new ArrayList<>();
+        graph.getTables().forEach(t -> addDependent(dependents, t.getTarget(), t.getDependencyTargets()));
+        graph.getOperations().forEach(o -> addDependent(dependents, o.getTarget(), o.getDependencyTargets()));
+        return dependents;
+    }
+
+    private void addDependent(@NotNull List<Dependent> dependents,
+                              @Nullable Target target,
+                              @NotNull List<Target> dependencies) {
+        if (target == null || target.getFullName() == null) return;
+        Set<String> names = new LinkedHashSet<>();
+        dependencies.forEach(d -> addFullName(names, d));
+        dependents.add(new Dependent(target.getFullName(), names));
     }
 
     /**
@@ -77,11 +148,12 @@ public final class ColumnLineageExtractorImpl implements ColumnLineageExtractor 
      */
     private void seedColumns(@NotNull ColumnLineageGraph.Builder builder,
                              @NotNull CompiledGraph graph,
-                             @NotNull Map<String, List<ColumnInfo>> schemas) {
+                             @NotNull Map<String, List<ColumnInfo>> schemas,
+                             @NotNull Set<String> unreportable) {
         for (String fullName : collectActionFullNames(graph)) {
             List<ColumnInfo> columns = schemas.get(fullName);
             if (columns == null || columns.isEmpty()) {
-                builder.addUnresolvedTable(fullName);
+                if (!unreportable.contains(fullName)) builder.addUnresolvedTable(fullName);
                 continue;
             }
             for (String path : leafPaths(columns, "")) {
@@ -151,6 +223,8 @@ public final class ColumnLineageExtractorImpl implements ColumnLineageExtractor 
             return new TableAnalysis(target.getFullName(), analysis.outputs(),
                     analysis.aliases(), unit.deps());
         } catch (RuntimeException e) {
+            LOG.warn("Column lineage analysis failed for "
+                    + (unit.target() != null ? unit.target().getFullName() : "an unnamed action"), e);
             return null;
         }
     }
@@ -179,7 +253,8 @@ public final class ColumnLineageExtractorImpl implements ColumnLineageExtractor 
                           @NotNull List<Target> deps,
                           @NotNull Map<String, List<ColumnInfo>> schemas,
                           @Nullable List<ColumnInfo> targetSchema) {
-        List<String> depTables = resolveDependencies(input.sourceAlias(), aliases, deps);
+        List<String> depTables = resolveDependencies(input, aliases, deps, schemas);
+        Confidence kind = depTables.size() > 1 && !input.star() ? Confidence.AMBIGUOUS : input.kind();
         for (String depFullName : depTables) {
             if (!hasSchema(schemas, depFullName)) continue;
             if (input.star()) {
@@ -188,7 +263,7 @@ public final class ColumnLineageExtractorImpl implements ColumnLineageExtractor 
                 ColumnInfo sourceColumn = resolveColumnInfo(schemas.get(depFullName), input.columnName());
                 ColumnInfo targetColumn = resolveColumnInfo(targetSchema, outputName);
                 addColumnEdges(builder, depFullName, input.columnName(),
-                        tableFullName, outputName, sourceColumn, targetColumn, input.kind());
+                        tableFullName, outputName, sourceColumn, targetColumn, kind);
             }
         }
     }
@@ -335,20 +410,53 @@ public final class ColumnLineageExtractorImpl implements ColumnLineageExtractor 
         }
     }
 
-    private @NotNull List<String> resolveDependencies(@Nullable String sourceAlias,
+    /**
+     * Dependencies that can supply an input column. A qualified input resolves through its alias
+     * to a single dependency. An unqualified one is narrowed to the dependencies the query
+     * actually reads, then to those whose schema declares the column: an unqualified name is
+     * unambiguous in valid SQL, so a single owner among the read tables identifies the source.
+     * A name owned by several read tables is genuinely ambiguous and keeps every candidate.
+     */
+    private @NotNull List<String> resolveDependencies(@NotNull InputColumn input,
                                                       @NotNull Map<String, String> aliases,
-                                                      @NotNull List<Target> deps) {
+                                                      @NotNull List<Target> deps,
+                                                      @NotNull Map<String, List<ColumnInfo>> schemas) {
         if (deps.isEmpty()) return List.of();
-        if (sourceAlias == null) {
-            return deps.size() == 1 ? List.of(fullName(deps.get(0))) : allFullNames(deps);
-        }
-        String tableToken = aliases.getOrDefault(sourceAlias, sourceAlias);
-        for (Target dep : deps) {
-            if (matches(dep, tableToken) || matches(dep, sourceAlias)) {
-                return List.of(fullName(dep));
+        String sourceAlias = input.sourceAlias();
+        if (sourceAlias != null) {
+            String tableToken = aliases.getOrDefault(sourceAlias, sourceAlias);
+            for (Target dep : deps) {
+                if (matches(dep, tableToken) || matches(dep, sourceAlias)) {
+                    return List.of(fullName(dep));
+                }
             }
         }
-        return deps.size() == 1 ? List.of(fullName(deps.get(0))) : allFullNames(deps);
+        List<String> candidates = readDependencies(aliases, deps);
+        if (candidates.isEmpty()) candidates = allFullNames(deps);
+        if (candidates.size() == 1 || input.star()) return candidates;
+        List<String> owners = candidates.stream()
+                .filter(fullName -> resolveColumnInfo(schemas.get(fullName), input.columnName()) != null)
+                .toList();
+        return owners.isEmpty() ? candidates : owners;
+    }
+
+    /**
+     * Dependencies named in the FROM/JOIN clauses of the query, including those reached through
+     * CTEs and derived tables. Dependencies declared elsewhere, such as through the action
+     * configuration, expose no column to this query and are excluded.
+     */
+    private @NotNull List<String> readDependencies(@NotNull Map<String, String> aliases,
+                                                   @NotNull List<Target> deps) {
+        List<String> read = new ArrayList<>();
+        for (Target dep : deps) {
+            for (String token : aliases.values()) {
+                if (matches(dep, token)) {
+                    read.add(fullName(dep));
+                    break;
+                }
+            }
+        }
+        return read;
     }
 
     private @NotNull List<String> allFullNames(@NotNull List<Target> deps) {
@@ -358,9 +466,21 @@ public final class ColumnLineageExtractorImpl implements ColumnLineageExtractor 
     private boolean matches(@NotNull Target dep, @NotNull String token) {
         String normalized = unquote(token);
         String full = dep.getFullName();
-        if (full != null && (full.equals(normalized) || full.endsWith("." + normalized))) return true;
+        if (full != null && (full.equalsIgnoreCase(normalized) || endsWithSegment(full, normalized))) {
+            return true;
+        }
         String name = dep.getName();
-        return name != null && name.equals(normalized);
+        return name != null && name.equalsIgnoreCase(normalized);
+    }
+
+    /**
+     * Whether a fully qualified name ends with the given dot-separated suffix, comparing without
+     * case. BigQuery project and dataset identifiers are matched case-insensitively, so a token
+     * written with a different case than the compiled target must still resolve to it.
+     */
+    private boolean endsWithSegment(@NotNull String fullName, @NotNull String suffix) {
+        int offset = fullName.length() - suffix.length() - 1;
+        return offset >= 0 && fullName.regionMatches(true, offset, "." + suffix, 0, suffix.length() + 1);
     }
 
     /**
@@ -383,6 +503,10 @@ public final class ColumnLineageExtractorImpl implements ColumnLineageExtractor 
     }
 
     /** Immutable per-table analysis result produced in the parallel phase. */
+    /** An action and the fully qualified names it reads, used to propagate disabled state. */
+    private record Dependent(@NotNull String fullName, @NotNull Set<String> dependencies) {
+    }
+
     private record TableAnalysis(@NotNull String tableFullName,
                                  @NotNull Map<String, List<InputColumn>> outputs,
                                  @NotNull Map<String, String> aliases,

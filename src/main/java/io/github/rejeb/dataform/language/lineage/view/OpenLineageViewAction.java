@@ -22,6 +22,7 @@ import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.project.DumbAware;
 import com.intellij.openapi.project.Project;
+import io.github.rejeb.dataform.language.util.Utils;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -39,7 +40,9 @@ public final class OpenLineageViewAction extends AnAction implements DumbAware {
 
     @Override
     public void update(@NotNull AnActionEvent e) {
-        e.getPresentation().setEnabled(e.getProject() != null);
+        Project project = e.getProject();
+        boolean available = project != null && Utils.isDataformProject(project);
+        e.getPresentation().setEnabledAndVisible(available);
     }
 
     @Override

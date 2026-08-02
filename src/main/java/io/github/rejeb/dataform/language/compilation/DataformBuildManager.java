@@ -39,6 +39,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Future;
 
 public final class DataformBuildManager {
@@ -117,6 +118,10 @@ public final class DataformBuildManager {
                                             .withGroup(TASK_NAME).build());
                         }
                     }
+                    if (!CompilationFailures.isTotalFailure(compiledGraph)) {
+                        DataformTableSchemaService.getInstance(project).refreshAsync(
+                                compiledGraph, true, CompilationFailures.fileNamesOf(compiledGraph));
+                    }
                     finishBuild(buildViewManager, context, context, false,
                             "Dataform compile failed with " + errors.size() + " error(s)");
                     showNotification(project, "Dataform compile failed",
@@ -125,10 +130,10 @@ public final class DataformBuildManager {
                 }
 
                 DataformTableSchemaService.getInstance(project)
-                        .refreshAsync(compiledGraph, true);
+                        .refreshAsync(compiledGraph, true, Set.of());
 
-                String durationMsg = NlsMessages.formatDuration(context.getDuration());
                 finishBuild(buildViewManager, context, context, true, "Dataform compile succeeded");
+                String durationMsg = NlsMessages.formatDuration(context.getDuration());
                 showNotification(project, "Dataform compile succeeded",
                         "Completed in " + durationMsg, NotificationType.INFORMATION);
 

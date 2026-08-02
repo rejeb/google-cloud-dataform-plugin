@@ -21,22 +21,34 @@ import com.intellij.psi.PsiFile;
 import com.intellij.sql.inspections.SqlResolveInspection;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class DataformDeclaredVariableResolveTest extends BasePlatformTestCase {
 
-    private boolean hasUnresolved(String sqlx, String name) {
+    /**
+     * Names flagged unresolved by the SQL resolve inspection. The file is configured once per
+     * call, so a test asserting on several names must call this once and query the result:
+     * configuring the same file name repeatedly leaves more than one declaration visible to the
+     * resolver and makes struct-field resolution non-idempotent.
+     */
+    private Set<String> unresolvedNames(String sqlx) {
         myFixture.enableInspections(new SqlResolveInspection());
         PsiFile file = myFixture.configureByText("test_create.sqlx", sqlx);
+        Set<String> unresolved = new HashSet<>();
         for (HighlightInfo hi : myFixture.doHighlighting()) {
             String desc = hi.getDescription();
             if (desc == null) continue;
-            String t = file.getText().substring(hi.getStartOffset(), hi.getEndOffset());
-            if (name.equals(t) && desc.toLowerCase().contains("unable to resolve")) {
-                return true;
+            if (desc.toLowerCase().contains("unable to resolve")) {
+                unresolved.add(file.getText().substring(hi.getStartOffset(), hi.getEndOffset()));
             }
         }
-        return false;
+        return unresolved;
+    }
+
+    private boolean hasUnresolved(String sqlx, String name) {
+        return unresolvedNames(sqlx).contains(name);
     }
 
     public void testSimpleDeclaredVariableResolves() {
@@ -51,17 +63,19 @@ public class DataformDeclaredVariableResolveTest extends BasePlatformTestCase {
         String sqlx = "config { type: \"table\" }\n"
                 + "pre_operations {\nDECLARE lo, hi INT64;\n}\n"
                 + "SELECT 1 FROM t WHERE x BETWEEN lo AND hi";
-        assertFalse("first name of a multi-name DECLARE must resolve", hasUnresolved(sqlx, "lo"));
-        assertFalse("second name of a multi-name DECLARE must resolve", hasUnresolved(sqlx, "hi"));
+        Set<String> unresolved = unresolvedNames(sqlx);
+        assertFalse("first name of a multi-name DECLARE must resolve", unresolved.contains("lo"));
+        assertFalse("second name of a multi-name DECLARE must resolve", unresolved.contains("hi"));
     }
 
     public void testStructVariableFieldResolves() {
         String sqlx = "config { type: \"table\" }\n"
                 + "pre_operations {\nDECLARE bounds STRUCT<lo INT64, hi INT64>;\n}\n"
                 + "SELECT 1 FROM t WHERE x BETWEEN bounds.lo AND bounds.hi";
-        assertFalse("struct variable 'bounds' must resolve", hasUnresolved(sqlx, "bounds"));
-        assertFalse("struct field 'bounds.lo' must resolve", hasUnresolved(sqlx, "lo"));
-        assertFalse("struct field 'bounds.hi' must resolve", hasUnresolved(sqlx, "hi"));
+        Set<String> unresolved = unresolvedNames(sqlx);
+        assertFalse("struct variable 'bounds' must resolve", unresolved.contains("bounds"));
+        assertFalse("struct field 'bounds.lo' must resolve", unresolved.contains("lo"));
+        assertFalse("struct field 'bounds.hi' must resolve", unresolved.contains("hi"));
     }
 
     public void testUndeclaredNameStillFlagged() {

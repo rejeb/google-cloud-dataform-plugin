@@ -31,6 +31,7 @@ import java.awt.Color;
 import java.awt.Composite;
 import java.awt.Font;
 import java.awt.Graphics2D;
+import java.awt.geom.Line2D;
 
 /** Measures and paints a single node box: type stripe, glyph badge, name and subtitle. */
 final class NodeRenderer {
@@ -40,6 +41,7 @@ final class NodeRenderer {
     private static final int TEXT_GAP = 8;
     private static final int RIGHT_PAD = 10;
     private static final float DIM_ALPHA = 0.28f;
+    private static final int MARKER = 12;
 
     private final JComponent host;
     private final LineageModel model;
@@ -113,6 +115,10 @@ final class NodeRenderer {
 
         int textX = bx + BADGE + TEXT_GAP;
         int textAvail = (x + w - RIGHT_PAD) - textX;
+        if (node.disabled()) {
+            textAvail -= MARKER + TEXT_GAP;
+            paintDisabledMarker(g2, x + w - RIGHT_PAD - MARKER, y + (nodeH - MARKER) / 2);
+        }
         if (model.density() == Density.COMFORTABLE) {
             g2.setColor(UIUtil.getLabelForeground());
             g2.setFont(LineageTheme.monospace(12f));
@@ -130,5 +136,19 @@ final class NodeRenderer {
         }
 
         g2.setComposite(oldComposite);
+    }
+
+    /**
+     * Draws the "no entry" marker of a disabled action: a circle crossed by a diagonal bar. The
+     * action keeps its place in the flow, so the node is still painted; the marker is what tells
+     * the reader nothing is executed and no column lineage is computed for it.
+     */
+    private void paintDisabledMarker(@NotNull Graphics2D g2, int x, int y) {
+        g2.setColor(UIUtil.getLabelDisabledForeground());
+        g2.setStroke(new BasicStroke(1.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g2.drawOval(x, y, MARKER, MARKER);
+        double inset = MARKER * 0.5 - MARKER * 0.5 / Math.sqrt(2);
+        g2.draw(new Line2D.Double(x + inset, y + MARKER - inset, x + MARKER - inset, y + inset));
+        g2.setStroke(new BasicStroke(1f));
     }
 }

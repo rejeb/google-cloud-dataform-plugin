@@ -36,6 +36,8 @@ public final class DataformProjectLayout {
     public static final String DEFINITIONS_DIR = "definitions";
 
     private static final String JS_EXTENSION = "js";
+    private static final String TS_EXTENSION = "ts";
+    private static final String SQLX_EXTENSION = "sqlx";
 
     private DataformProjectLayout() {
     }
@@ -103,6 +105,30 @@ public final class DataformProjectLayout {
             directory = directory.getParent();
         }
         return false;
+    }
+
+    /**
+     * Whether the file is a source of a Dataform project: an action, an include, or one of the two
+     * project configuration files. Everything that reacts to a Dataform source changing — the
+     * compilation, the diagnostics and the schema extraction — must agree on this, so they all ask
+     * here rather than matching extensions themselves.
+     */
+    public static boolean isDataformSource(@Nullable VirtualFile file) {
+        return file != null
+                && isInDataformProject(file)
+                && isDataformSourceName(file.getName(), file.getExtension());
+    }
+
+    /**
+     * Whether a file name denotes a Dataform source, for callers holding no virtual file.
+     */
+    public static boolean isDataformSourceName(@NotNull String name, @Nullable String extension) {
+        if (WORKFLOW_SETTINGS_YAML.equals(name) || DATAFORM_JSON.equals(name)) {
+            return true;
+        }
+        return SQLX_EXTENSION.equals(extension)
+                || JS_EXTENSION.equals(extension)
+                || TS_EXTENSION.equals(extension);
     }
 
     @Nullable

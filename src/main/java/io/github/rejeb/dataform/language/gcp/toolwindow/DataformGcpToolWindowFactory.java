@@ -27,11 +27,20 @@ import io.github.rejeb.dataform.language.gcp.toolwindow.action.ManageRepositorie
 import io.github.rejeb.dataform.language.gcp.toolwindow.action.RefreshAction;
 import io.github.rejeb.dataform.language.gcp.toolwindow.dispatcher.GcpPanelActionDispatcher;
 import io.github.rejeb.dataform.language.gcp.toolwindow.dispatcher.GcpPanelActionDispatcherImpl;
+import io.github.rejeb.dataform.language.util.Utils;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
 
 public class DataformGcpToolWindowFactory implements ToolWindowFactory {
+
+    /**
+     * Keeps the Dataform Tools tool window hidden in projects that are not Dataform projects.
+     */
+    @Override
+    public boolean shouldBeAvailable(@NotNull Project project) {
+        return Utils.isDataformProject(project);
+    }
 
     @Override
     public void createToolWindowContent(@NotNull Project project, @NotNull ToolWindow toolWindow) {

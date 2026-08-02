@@ -14,15 +14,30 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.rejeb.dataform.language.compilation;
+package io.github.rejeb.dataform.language.validation;
 
-import com.intellij.task.ProjectTask;
-import org.jetbrains.annotations.NotNull;
+import java.util.concurrent.atomic.AtomicLong;
 
-/** Marker task pour que DataformBuildTaskRunner puisse filtrer via canRun(). */
-public final class DataformBuildableTask implements ProjectTask {
+public final class DataformEditActivityServiceImpl implements DataformEditActivityService {
+
+    private final AtomicLong lastEditAt = new AtomicLong();
+
     @Override
-    public @NotNull String getPresentableName() {
-        return "Dataform Compile";
+    public void noteEdit() {
+        lastEditAt.set(System.currentTimeMillis());
+    }
+
+    @Override
+    public boolean isEditing() {
+        return remainingQuietPeriodMs() > 0;
+    }
+
+    @Override
+    public long remainingQuietPeriodMs() {
+        long last = lastEditAt.get();
+        if (last == 0) {
+            return 0;
+        }
+        return Math.max(0, QUIET_PERIOD_MS - (System.currentTimeMillis() - last));
     }
 }
