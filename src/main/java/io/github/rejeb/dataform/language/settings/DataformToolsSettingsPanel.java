@@ -48,6 +48,10 @@ public final class DataformToolsSettingsPanel {
     private final JTextField sqlfluffArgsField = new JTextField();
     private final JBCheckBox foldTemplateExpressionsBox =
             new JBCheckBox("Fold Dataform expressions to their evaluated value");
+    private final JBCheckBox showInlineCompilationErrorsBox =
+            new JBCheckBox("Show Dataform compilation errors inline in the editor");
+    private final JBCheckBox compileOnSaveBox =
+            new JBCheckBox("Recompile the Dataform project when a source file is saved");
     private final JButton    installButton    = new JButton("Install Dataform CLI & Core");
     private final JTextPane  statusPane       = buildStatusPane();
     private final JScrollPane statusScrollPane = buildStatusScrollPane();
@@ -96,6 +100,8 @@ public final class DataformToolsSettingsPanel {
                 .addComponent(sqlfluffArgsField, 10)
                 .addVerticalGap(10)
                 .addComponent(foldTemplateExpressionsBox)
+                .addComponent(showInlineCompilationErrorsBox)
+                .addComponent(compileOnSaveBox)
                 .addVerticalGap(10)
                 .addComponent(buttonRow)
                 .addVerticalGap(5)
@@ -231,6 +237,11 @@ public final class DataformToolsSettingsPanel {
                     nim.nodeBinDir().toFile(),
                     nim.nodeInstallDir().toFile());
 
+            NodeInterpreterManager.invalidate();
+            Optional<Path> dataformRoot = coreResult.success()
+                    ? DataformInstaller.findDataformLibRootDir(NodeInterpreterManager.getInstance(project))
+                    : Optional.empty();
+
             ApplicationManager.getApplication().invokeLater(() -> {
                 installButton.setEnabled(true);
                 installButton.setText("Install Dataform CLI & Core");
@@ -241,8 +252,6 @@ public final class DataformToolsSettingsPanel {
                     return;
                 }
 
-                NodeInterpreterManager nimRefreshed = NodeInterpreterManager.getInstance(project);
-                Optional<Path> dataformRoot = DataformInstaller.findDataformLibRootDir(nimRefreshed);
                 dataformRoot.ifPresent(root -> {
                     coreInstallField.setText(root.resolve("core").toAbsolutePath().toString());
                 });
@@ -266,4 +275,10 @@ public final class DataformToolsSettingsPanel {
     public void    setSqlfluffExtraArgs(String args) { sqlfluffArgsField.setText(args); }
     public boolean isFoldTemplateExpressions() { return foldTemplateExpressionsBox.isSelected(); }
     public void    setFoldTemplateExpressions(boolean value) { foldTemplateExpressionsBox.setSelected(value); }
+
+    public boolean isShowInlineCompilationErrors() { return showInlineCompilationErrorsBox.isSelected(); }
+    public void    setShowInlineCompilationErrors(boolean value) { showInlineCompilationErrorsBox.setSelected(value); }
+
+    public boolean isCompileOnSave() { return compileOnSaveBox.isSelected(); }
+    public void    setCompileOnSave(boolean value) { compileOnSaveBox.setSelected(value); }
 }

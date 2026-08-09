@@ -22,4 +22,6 @@ public final class DataformToolsSettingsState {
     public String sqlfluffConfigPath = "";
     public String sqlfluffExtraArgs = "";
     public boolean foldTemplateExpressions = true;
+    public boolean showInlineCompilationErrors = true;
+    public boolean compileOnSave = true;
 }

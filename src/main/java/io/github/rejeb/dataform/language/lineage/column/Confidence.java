@@ -21,5 +21,5 @@ public enum Confidence {
     RENAME,
     DERIVED,
     STAR,
-    TABLE_FALLBACK
+    AMBIGUOUS
 }

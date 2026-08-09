@@ -22,7 +22,6 @@ import com.intellij.codeInsight.completion.CompletionResultSet;
 import com.intellij.codeInsight.completion.InsertionContext;
 import com.intellij.codeInsight.completion.PlainPrefixMatcher;
 import com.intellij.codeInsight.lookup.LookupElementBuilder;
-import com.intellij.injected.editor.EditorWindow;
 import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.lang.javascript.psi.JSFunctionExpression;
 import com.intellij.lang.javascript.psi.JSParameter;
@@ -35,6 +34,7 @@ import com.intellij.sql.psi.SqlFile;
 import com.intellij.util.ProcessingContext;
 import io.github.rejeb.dataform.language.injection.SqlxJsQueryInjector;
 import io.github.rejeb.dataform.language.psi.SqlxFile;
+import io.github.rejeb.dataform.language.util.SqlxEditors;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -137,7 +137,7 @@ public class SqlxTemplateExpressionCompletionProvider extends CompletionProvider
                                         int hostDollarOffset) {
         int caretShift = template.text().length() - template.caretOffsetFromEnd();
         Editor editor = ctx.getEditor();
-        Editor hostEditor = editor instanceof EditorWindow window ? window.getDelegate() : editor;
+        Editor hostEditor = SqlxEditors.host(editor);
         int hostCaret = hostDollarOffset + caretShift;
         ctx.setLaterRunnable(() -> hostEditor.getCaretModel().moveToOffset(hostCaret));
     }

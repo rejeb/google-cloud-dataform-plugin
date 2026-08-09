@@ -56,7 +56,6 @@ class QuerySection extends JPanel {
                 EditorHighlighterFactory.getInstance().createEditorHighlighter(project, ft)
         );
 
-        // Hauteur fixe pour ne pas écraser les autres sections
         JPanel editorWrap = new JPanel(new BorderLayout());
         editorWrap.setOpaque(false);
         editorWrap.setPreferredSize(new Dimension(-1, 150));

@@ -103,6 +103,32 @@ public final class ConfigSchemaLookup {
     }
 
     /**
+     * Returns the schema of the given property.
+     */
+    public Optional<ObjectNode> schemaOf(@NotNull JSProperty property) {
+        return propertySchema(property);
+    }
+
+    /**
+     * Renders the type a property accepts, as shown next to its name.
+     */
+    public String typeText(@NotNull ObjectNode propertySchema) {
+        if (!enumValues(propertySchema).isEmpty()) {
+            return String.join(" | ", enumValues(propertySchema));
+        }
+        String type = propertySchema.path(TYPE_PROPERTY).asText("");
+        if ("array".equals(type)) {
+            ObjectNode items = deref(propertySchema.get("items"));
+            String itemType = items == null ? "" : items.path(TYPE_PROPERTY).asText("object");
+            return itemType.isEmpty() ? "array" : itemType + "[]";
+        }
+        if (!type.isEmpty()) {
+            return type;
+        }
+        return propertySchema.has("oneOf") || propertySchema.has("$ref") ? "object" : "";
+    }
+
+    /**
      * Returns the property names declared by the given object schema.
      */
     public Map<String, ObjectNode> properties(@NotNull ObjectNode objectSchema) {

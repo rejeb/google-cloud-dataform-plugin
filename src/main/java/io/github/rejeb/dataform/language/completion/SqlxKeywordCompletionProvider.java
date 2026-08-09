@@ -19,8 +19,13 @@ package io.github.rejeb.dataform.language.completion;
 import com.intellij.codeInsight.completion.CompletionParameters;
 import com.intellij.codeInsight.completion.CompletionProvider;
 import com.intellij.codeInsight.completion.CompletionResultSet;
+import com.intellij.codeInsight.completion.InsertionContext;
+import com.intellij.codeInsight.completion.PrioritizedLookupElement;
+import com.intellij.codeInsight.lookup.LookupElement;
 import com.intellij.codeInsight.lookup.LookupElementBuilder;
 import com.intellij.lang.injection.InjectedLanguageManager;
+import com.intellij.openapi.editor.Document;
+import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.sql.psi.SqlFile;
@@ -35,6 +40,11 @@ public class SqlxKeywordCompletionProvider extends CompletionProvider<Completion
             "pre_operations",
             "post_operations"
     };
+
+    private static final String BLOCK_TEMPLATE = " {\n  \n}";
+    private static final int CARET_IN_BLOCK = " {\n  ".length();
+    private static final int BLOCK_LOOKAHEAD = 4;
+    private static final double KEYWORD_PRIORITY = 100;
 
     @Override
     protected void addCompletions(@NotNull CompletionParameters parameters,
@@ -55,14 +65,31 @@ public class SqlxKeywordCompletionProvider extends CompletionProvider<Completion
         for (String keyword : SQLX_KEYWORDS) {
             LookupElementBuilder element = LookupElementBuilder.create(keyword)
                     .withTypeText("SQLX keyword")
+                    .withTailText(" { … }", true)
                     .withBoldness(true)
-                    .withInsertHandler((ctx, item) -> {
-                        ctx.getDocument().insertString(ctx.getTailOffset(), " { \n }");
-                        ctx.getEditor().getCaretModel().moveToOffset(ctx.getTailOffset());
-                    });
+                    .withInsertHandler(SqlxKeywordCompletionProvider::insertBlock);
 
-            result.addElement(element);
+            result.addElement(PrioritizedLookupElement.withPriority(element, KEYWORD_PRIORITY));
         }
+    }
+
+    /**
+     * Completes the keyword into the block it introduces and leaves the caret on its empty body,
+     * so the user types the content instead of the braces.
+     */
+    private static void insertBlock(@NotNull InsertionContext ctx, @NotNull LookupElement item) {
+        int keywordEnd = ctx.getTailOffset();
+        Document document = ctx.getDocument();
+        String alreadyOpen = document.getTextLength() > keywordEnd
+                ? document.getText(TextRange.from(keywordEnd,
+                        Math.min(BLOCK_LOOKAHEAD, document.getTextLength() - keywordEnd)))
+                : "";
+        if (alreadyOpen.stripLeading().startsWith("{")) {
+            ctx.getEditor().getCaretModel().moveToOffset(keywordEnd);
+            return;
+        }
+        document.insertString(keywordEnd, BLOCK_TEMPLATE);
+        ctx.getEditor().getCaretModel().moveToOffset(keywordEnd + CARET_IN_BLOCK);
     }
 
 

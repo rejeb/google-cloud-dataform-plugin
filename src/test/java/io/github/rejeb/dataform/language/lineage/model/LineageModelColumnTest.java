@@ -55,7 +55,7 @@ class LineageModelColumnTest {
     }
 
     @Test
-    void selectingColumnScopesVisibleTablesToItsLineage() {
+    void selectingColumnShowsItsLineageTablesEvenWhenFilteredOut() {
         LineageNode src = node("p.d.src");
         LineageNode mid = node("p.d.mid");
         LineageNode other = node("p.d.other");
@@ -78,8 +78,11 @@ class LineageModelColumnTest {
         model.selectColumn(b.id());
         assertEquals(Set.of(src.id(), mid.id()), model.visibleIds());
 
+        model.setSearchQuery("mid");
+        assertEquals(Set.of(src.id(), mid.id()), model.visibleIds());
+
         model.clearColumnSelection();
-        assertEquals(Set.of(src.id(), mid.id(), other.id()), model.visibleIds());
+        assertEquals(Set.of(mid.id()), model.visibleIds());
     }
 
     private LineageNode node(String fullName) {

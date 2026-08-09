@@ -21,7 +21,10 @@ import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.EditorFactory;
 import com.intellij.openapi.options.Configurable;
 import com.intellij.openapi.project.Project;
+import io.github.rejeb.dataform.language.diagnostics.DataformEditorRefresher;
+import io.github.rejeb.dataform.language.diagnostics.ValidationProblemInlayManager;
 import io.github.rejeb.dataform.language.folding.DataformMultilineFoldManager;
+import io.github.rejeb.dataform.language.util.DataformProjects;
 
 import javax.swing.*;
 
@@ -47,7 +50,9 @@ public class DataformToolsConfigurable implements Configurable {
                 || !panel.getSqlfluffExecutablePath().equals(service.getSqlfluffExecutablePath())
                 || !panel.getSqlfluffConfigPath().equals(service.getSqlfluffConfigPath())
                 || !panel.getSqlfluffExtraArgs().equals(service.getSqlfluffExtraArgs())
-                || panel.isFoldTemplateExpressions() != service.isFoldTemplateExpressions();
+                || panel.isFoldTemplateExpressions() != service.isFoldTemplateExpressions()
+                || panel.isShowInlineCompilationErrors() != service.isShowInlineCompilationErrors()
+                || panel.isCompileOnSave() != service.isCompileOnSave();
     }
 
     @Override
@@ -61,9 +66,23 @@ public class DataformToolsConfigurable implements Configurable {
                 panel.getSqlfluffExtraArgs()
         );
         settings.setFoldTemplateExpressions(panel.isFoldTemplateExpressions());
+        boolean inlineErrorsChanged =
+                panel.isShowInlineCompilationErrors() != settings.isShowInlineCompilationErrors();
+        settings.setShowInlineCompilationErrors(panel.isShowInlineCompilationErrors());
+        settings.setCompileOnSave(panel.isCompileOnSave());
         if (foldChanged) {
             refreshFoldingInOpenEditors();
         }
+        if (inlineErrorsChanged) {
+            refreshHighlightingInOpenProjects();
+        }
+    }
+
+    private static void refreshHighlightingInOpenProjects() {
+        DataformProjects.forEachOpen(project -> {
+            DataformEditorRefresher.refresh(project);
+            ValidationProblemInlayManager.getInstance(project).refreshAll();
+        });
     }
 
     private static void refreshFoldingInOpenEditors() {
@@ -85,5 +104,7 @@ public class DataformToolsConfigurable implements Configurable {
         panel.setSqlfluffConfigPath(service.getSqlfluffConfigPath());
         panel.setSqlfluffExtraArgs(service.getSqlfluffExtraArgs());
         panel.setFoldTemplateExpressions(service.isFoldTemplateExpressions());
+        panel.setShowInlineCompilationErrors(service.isShowInlineCompilationErrors());
+        panel.setCompileOnSave(service.isCompileOnSave());
     }
 }

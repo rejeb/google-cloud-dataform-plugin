@@ -23,6 +23,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.nio.file.Path;
+import java.util.Objects;
 import java.util.Optional;
 
 public class NodeInterpreterManager {
@@ -43,11 +44,28 @@ public class NodeInterpreterManager {
     }
 
 
+    /**
+     * Returns the cached Node.js installation info, re-running the detection only when the project
+     * changed or when the configured npm executable is no longer the one previously detected.
+     */
     public synchronized static NodeInterpreterManager getInstance(@NotNull Project project) {
-        if (INSTANCE == null || INSTANCE.nodeInstallDir == null) {
+        NodeInterpreterManager cached = INSTANCE;
+        if (cached == null || cached.project != project || cached.isOutdated(project)) {
             INSTANCE = new NodeInterpreterManager(project);
         }
         return INSTANCE;
+    }
+
+    /**
+     * Discards the cached detection so that the next {@link #getInstance(Project)} call re-runs it.
+     */
+    public synchronized static void invalidate() {
+        INSTANCE = null;
+    }
+
+    private boolean isOutdated(@NotNull Project project) {
+        Path currentNpm = NodeJsNpmUtils.findValidNpmPath(project).orElse(null);
+        return !Objects.equals(currentNpm, npmExecutable);
     }
 
     @Nullable
@@ -57,25 +75,16 @@ public class NodeInterpreterManager {
 
     @Nullable
     public Path npmExecutable() {
-        if (npmExecutable == null) {
-            loadNodeInstallInfo();
-        }
         return npmExecutable;
     }
 
     @Nullable
     public Path nodeModulesDir() {
-        if (npmExecutable == null) {
-            loadNodeInstallInfo();
-        }
         return nodeModulesDir;
     }
 
     @Nullable
     public Path nodeBinDir() {
-        if (npmExecutable == null) {
-            loadNodeInstallInfo();
-        }
         return nodeBinDir;
     }
 

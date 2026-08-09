@@ -47,7 +47,6 @@ import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.awt.*;
-import java.text.DecimalFormat;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -59,7 +58,6 @@ public class QueryExecutionPanel extends JPanel {
 
     private static final DateTimeFormatter DATE_FMT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault());
-    private static final DecimalFormat BYTES_FMT = new DecimalFormat("#,###");
 
     public QueryExecutionPanel(@NotNull Project project, @NotNull BigQueryJobResult result) {
         super(new BorderLayout());

@@ -30,6 +30,7 @@ import java.lang.reflect.Field;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -120,5 +121,50 @@ class LineageExtractorImplTest {
                 "assertions must not appear in the lineage graph");
         assertTrue(lg.predecessors(LineageNode.idOf("proj.ds.assert")).isEmpty(),
                 "no edge must be created for an assertion");
+    }
+
+    @Test
+    void disabledActionsStayInTheGraphAndAreFlagged() {
+        Target srcTarget = target("ds", "src", "proj");
+        Target offTarget = target("ds", "off", "proj");
+        Target opTarget = target("ds", "op", "proj");
+
+        Declaration source = new Declaration();
+        set(source, "target", srcTarget);
+        set(source, "fileName", "definitions/src.sqlx");
+
+        CompiledTable disabled = new CompiledTable();
+        set(disabled, "target", offTarget);
+        set(disabled, "enumType", "table");
+        set(disabled, "tags", List.of());
+        set(disabled, "fileName", "definitions/off.sqlx");
+        set(disabled, "dependencyTargets", List.of(srcTarget));
+        set(disabled, "disabled", true);
+
+        CompiledOperation disabledOperation = new CompiledOperation();
+        set(disabledOperation, "target", opTarget);
+        set(disabledOperation, "tags", List.of());
+        set(disabledOperation, "fileName", "definitions/op.sqlx");
+        set(disabledOperation, "dependencyTargets", List.of(offTarget));
+        set(disabledOperation, "hasOutput", true);
+        set(disabledOperation, "disabled", true);
+
+        CompiledGraph graph = new CompiledGraph();
+        set(graph, "declarations", List.of(source));
+        set(graph, "tables", List.of(disabled));
+        set(graph, "operations", List.of(disabledOperation));
+
+        LineageGraph lg = new LineageExtractorImpl().extract(graph);
+
+        LineageNode offNode = lg.node(LineageNode.idOf("proj.ds.off"));
+        assertNotNull(offNode, "a disabled action keeps its place in the flow");
+        assertTrue(offNode.disabled(), "a disabled table must be flagged so the view can mark it");
+        assertTrue(lg.node(LineageNode.idOf("proj.ds.op")).disabled(),
+                "a disabled operation must be flagged too");
+        assertTrue(lg.predecessors(LineageNode.idOf("proj.ds.off"))
+                        .contains(LineageNode.idOf("proj.ds.src")),
+                "edges of a disabled action are kept");
+        assertFalse(lg.node(LineageNode.idOf("proj.ds.src")).disabled(),
+                "an enabled action must not be flagged");
     }
 }

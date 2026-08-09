@@ -58,11 +58,32 @@
         <projectService serviceInterface="io.github.rejeb.dataform.language.schema.sql.BigQueryDryRunSchemaExtractor"
                         serviceImplementation="io.github.rejeb.dataform.language.schema.sql.BigQueryDryRunSchemaExtractorImpl"
         />
+        <projectService serviceInterface="io.github.rejeb.dataform.language.schema.sql.DryRunErrorRegistry"
+                        serviceImplementation="io.github.rejeb.dataform.language.schema.sql.DryRunErrorRegistryImpl"
+        />
         <projectService serviceInterface="io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService"
                         serviceImplementation="io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaServiceImpl"
         />
         <projectService serviceInterface="io.github.rejeb.dataform.language.compilation.DataformCompilationService"
                         serviceImplementation="io.github.rejeb.dataform.language.compilation.DataformCompilationServiceImpl"
+        />
+        <projectService serviceInterface="io.github.rejeb.dataform.language.diagnostics.CompilationDiagnosticService"
+                        serviceImplementation="io.github.rejeb.dataform.language.diagnostics.CompilationDiagnosticServiceImpl"
+        />
+        <projectService serviceInterface="io.github.rejeb.dataform.language.validation.DataformEditActivityService"
+                        serviceImplementation="io.github.rejeb.dataform.language.validation.DataformEditActivityServiceImpl"
+        />
+        <projectService serviceInterface="io.github.rejeb.dataform.language.validation.SqlxValidationService"
+                        serviceImplementation="io.github.rejeb.dataform.language.validation.SqlxValidationServiceImpl"
+        />
+        <projectService serviceInterface="io.github.rejeb.dataform.language.diagnostics.ValidationProblemInlayManager"
+                        serviceImplementation="io.github.rejeb.dataform.language.diagnostics.ValidationProblemInlayManagerImpl"
+        />
+        <projectService serviceInterface="io.github.rejeb.dataform.language.compilation.DataformAutoCompileService"
+                        serviceImplementation="io.github.rejeb.dataform.language.compilation.DataformAutoCompileServiceImpl"
+        />
+        <projectService serviceInterface="io.github.rejeb.dataform.language.compilation.DataformDisabledActions"
+                        serviceImplementation="io.github.rejeb.dataform.language.compilation.DataformDisabledActionsImpl"
         />
         <projectService serviceInterface="io.github.rejeb.dataform.language.service.DataformCoreIndexService"
                         serviceImplementation="io.github.rejeb.dataform.language.service.DataformCoreIndexServiceImpl"
@@ -103,6 +124,8 @@
                 serviceImplementation="io.github.rejeb.dataform.language.gcp.auth.DataformCredentialsServiceImpl"/>
         <editorNotificationProvider
                 implementation="io.github.rejeb.dataform.language.gcp.auth.DataformAuthEditorNotificationProvider"/>
+        <editorNotificationProvider
+                implementation="io.github.rejeb.dataform.language.diagnostics.UnlocatedErrorsNotificationProvider"/>
 
         <serviceViewContributor
                 implementation="io.github.rejeb.dataform.language.gcp.execution.bigquery.serviceview.DataformQueryContributor"/>
@@ -116,8 +139,19 @@
         <sql.resolveExtension
                 implementation="io.github.rejeb.dataform.language.schema.sql.DataformSqlVariableResolveExtension"/>
 
-        <daemon.highlightInfoFilter
-                implementation="io.github.rejeb.dataform.language.highlight.SqlxHighlightInfoFilter"/>
+        <editorFactoryListener
+                implementation="io.github.rejeb.dataform.language.folding.DataformValueFoldClickListener"/>
+        <editorFactoryListener
+                implementation="io.github.rejeb.dataform.language.diagnostics.ValidationProblemInlayEditorListener"/>
+        <editorFactoryListener
+                implementation="io.github.rejeb.dataform.language.compilation.DataformCompileOnEditListener"/>
+
+        <highlightErrorFilter
+                implementation="io.github.rejeb.dataform.language.highlight.SqlxSyntaxErrorFilter"/>
+        <lang.inspectionSuppressor
+                language="SQL"
+                implementationClass="io.github.rejeb.dataform.language.highlight.SqlxSqlResolveSuppressor"/>
+
         <facetType implementation="io.github.rejeb.dataform.language.projectWizard.DataformFacetType"/>
         <framework.detector implementation="io.github.rejeb.dataform.language.projectWizard.DataformFrameworkDetector"/>
         <projectTaskRunner
@@ -135,6 +169,9 @@
         <fileEditorProvider implementation="io.github.rejeb.dataform.language.fileEditor.SqlxSplitEditorProvider"/>
         <fileEditorProvider implementation="io.github.rejeb.dataform.language.lineage.view.LineageFileEditorProvider"/>
         <fileIconProvider implementation="io.github.rejeb.dataform.language.lineage.view.LineageFileIconProvider"/>
+
+        <projectViewNodeDecorator
+                implementation="io.github.rejeb.dataform.language.projectView.DisabledActionNodeDecorator"/>
         <fileType name="SQLX"
                   implementationClass="io.github.rejeb.dataform.language.SqlxFileType"
                   fieldName="INSTANCE"
@@ -157,12 +194,22 @@
                 language="SQLX"
                 implementationClass="io.github.rejeb.dataform.language.folding.SqlxTemplateFoldingBuilder"/>
 
+        <annotator
+                language="SQLX"
+                implementationClass="io.github.rejeb.dataform.language.validation.DataformValidationAnnotator"/>
+
+        <annotator
+                language="SQL"
+                implementationClass="io.github.rejeb.dataform.language.highlight.SqlxSqlProblemAnnotator"/>
+
         <lang.foldingBuilder
                 language="JavaScript"
                 implementationClass="io.github.rejeb.dataform.language.folding.DataformJsFoldingBuilder"/>
 
         <vfs.asyncListener
                 implementation="io.github.rejeb.dataform.language.evaluation.DataformEvaluationInvalidator"/>
+        <vfs.asyncListener
+                implementation="io.github.rejeb.dataform.language.diagnostics.DiagnosticsRefreshListener"/>
         <formattingService implementation="io.github.rejeb.dataform.language.formatting.SqlxFormattingService"/>
 
         <multiHostInjector implementation="io.github.rejeb.dataform.language.injection.SqlxSqlBlockInjector"/>
@@ -188,6 +235,15 @@
                 language="JavaScript" order="first"
                 id="dataformConfigValueCompletion"
                 implementationClass="io.github.rejeb.dataform.language.completion.DataformConfigValueCompletionContributor"/>
+
+        <completion.confidence
+                language="JavaScript" order="first"
+                implementationClass="io.github.rejeb.dataform.language.completion.config.ConfigColumnCompletionConfidence"/>
+
+        <completion.contributor
+                language="JavaScript" order="first"
+                id="dataformConfigColumnCompletion"
+                implementationClass="io.github.rejeb.dataform.language.completion.DataformConfigColumnCompletionContributor"/>
 
         <completion.contributor
                 language="JavaScript" order="first"
@@ -228,6 +284,9 @@
 
         <platform.backend.documentation.targetProvider
                 implementation="io.github.rejeb.dataform.language.documentation.DataformExpressionValueDocumentationTargetProvider"/>
+
+        <platform.backend.documentation.targetProvider order="first"
+                implementation="io.github.rejeb.dataform.language.documentation.DataformConfigKeyDocumentationTargetProvider"/>
 
         <platform.backend.documentation.targetProvider order="first"
                 implementation="io.github.rejeb.dataform.language.documentation.bigquery.BigQueryFunctionDocumentationTargetProvider"/>
@@ -289,6 +348,13 @@
         <runConfigurationProducer
                 implementation="io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.DataformSqlxRunConfigurationProducer"/>
     </extensions>
+
+    <applicationListeners>
+        <listener class="io.github.rejeb.dataform.language.compilation.DataformCompileOnSaveListener"
+                  topic="com.intellij.openapi.fileEditor.FileDocumentManagerListener"/>
+        <listener class="io.github.rejeb.dataform.language.lineage.view.LineageTabCloseListener"
+                  topic="com.intellij.openapi.project.ProjectCloseListener"/>
+    </applicationListeners>
 
     <actions>
         <action id="Dataform.CompareFileWithRemote"

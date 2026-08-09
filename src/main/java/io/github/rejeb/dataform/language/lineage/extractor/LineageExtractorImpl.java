@@ -80,7 +80,8 @@ public final class LineageExtractorImpl implements LineageExtractor {
                     schemaOf(t),
                     tableType(table),
                     tagsOf(table.getTags()),
-                    table.getFileName()));
+                    table.getFileName(),
+                    table.isDisabled()));
         }
     }
 
@@ -97,7 +98,8 @@ public final class LineageExtractorImpl implements LineageExtractor {
                     schemaOf(t),
                     "operation",
                     tagsOf(operation.getTags()),
-                    operation.getFileName()));
+                    operation.getFileName(),
+                    operation.isDisabled()));
         }
     }
 

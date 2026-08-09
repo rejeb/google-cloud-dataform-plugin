@@ -60,7 +60,7 @@ public class CompiledTable {
     }
 
     public CompiledQuery getQueries() {
-        return new CompiledQuery(this.getTarget().getFullName(), preOps, incrementalPreOps, query, postOps, null);
+        return new CompiledQuery(this.getTarget().getFullName(), preOps, incrementalPreOps, query, postOps, null,disabled);
     }
 
     public boolean isDisabled() {

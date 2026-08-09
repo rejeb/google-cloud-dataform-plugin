@@ -78,6 +78,14 @@ final class CanvasViewport {
         onChanged.run();
     }
 
+    /** Pans by a distance expressed in world units, so a moved point stays under the pointer. */
+    void panByWorld(double dx, double dy) {
+        if (dx == 0 && dy == 0) return;
+        offsetX += dx * zoom;
+        offsetY += dy * zoom;
+        onChanged.run();
+    }
+
     /** Zooms by {@code factor} keeping the world point under the cursor in place. */
     void zoomAt(@NotNull Point cursor, double factor) {
         double newZoom = clamp(zoom * factor, MIN_ZOOM, MAX_ZOOM);
@@ -101,6 +109,14 @@ final class CanvasViewport {
         offsetX = (viewWidth - bounds.width * zoom) / 2.0 - bounds.x * zoom;
         offsetY = (viewHeight - bounds.height * zoom) / 2.0 - bounds.y * zoom;
         notifyZoom();
+        onChanged.run();
+    }
+
+    /** Centres {@code bounds} in a viewport of the given size, never changing the zoom level. */
+    void centerKeepingZoom(@NotNull Rectangle2D.Double bounds, int viewWidth, int viewHeight) {
+        if (bounds.width <= 0 || bounds.height <= 0 || viewWidth <= 0 || viewHeight <= 0) return;
+        offsetX = (viewWidth - bounds.width * zoom) / 2.0 - bounds.x * zoom;
+        offsetY = (viewHeight - bounds.height * zoom) / 2.0 - bounds.y * zoom;
         onChanged.run();
     }
 

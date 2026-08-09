@@ -35,6 +35,16 @@ public interface DataformTableSchemaService extends PersistentStateComponent<Dat
 
     void refreshAsync(@NotNull CompiledGraph graph, boolean forceRefresh);
 
+    /**
+     * Refreshes the schemas of the compiled graph, skipping the actions declared in the given
+     * source files. Callers pass the files the last compilation reported as failing so that the
+     * actions that did compile are still refreshed, while the failing ones keep their last known
+     * schema instead of being re-extracted from stale or absent SQL.
+     */
+    void refreshAsync(@NotNull CompiledGraph graph,
+                      boolean forceRefresh,
+                      @NotNull java.util.Set<String> failedFileNames);
+
     @NotNull
     Map<String, DataformDasTable> getAllTables();
 

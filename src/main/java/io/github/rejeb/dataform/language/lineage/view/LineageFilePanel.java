@@ -110,7 +110,7 @@ public final class LineageFilePanel extends JPanel {
         model.setScopeIds(null);
         model.setGraph(graph);
         model.setScopeIds(computeScope(model.graph()));
-        canvas.fitToView();
+        canvas.centerOnView();
     }
 
     private @NotNull Set<String> computeScope(@NotNull LineageGraph graph) {

@@ -16,9 +16,6 @@
  */
 package io.github.rejeb.dataform.language.schema.sql;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.google.gson.reflect.TypeToken;
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.components.State;
 import com.intellij.openapi.components.Storage;
@@ -26,31 +23,30 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.vfs.LocalFileSystem;
-import com.intellij.openapi.vfs.VirtualFile;
-import com.intellij.psi.PsiManager;
 import io.github.rejeb.dataform.language.compilation.model.*;
-import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
-import io.github.rejeb.dataform.language.schema.sql.model.DataformDasTable;
 import io.github.rejeb.dataform.language.gcp.auth.AuthTrigger;
 import io.github.rejeb.dataform.language.gcp.auth.DataformAuthState;
-import io.github.rejeb.dataform.language.util.GcpClientsUtils;
+import io.github.rejeb.dataform.language.gcp.auth.DataformCredentialsService;
+import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
+import io.github.rejeb.dataform.language.schema.sql.model.DataformDasTable;
 import io.github.rejeb.dataform.language.util.PreOperationsFilter;
 import io.github.rejeb.dataform.language.util.Utils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.lang.reflect.Type;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.*;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
 
+/**
+ * Default {@link DataformTableSchemaService}. Runs one extraction at a time, asking
+ * {@link SchemaRefreshPlanner} what to dry-run and {@link SchemaCacheStore} to hold the results.
+ */
 @State(
         name = "DataformTableSchemaService",
         storages = @Storage(value = "dataform-table-schema.xml")
@@ -58,34 +54,28 @@ import java.util.stream.Collectors;
 public final class DataformTableSchemaServiceImpl implements DataformTableSchemaService {
 
     private static final Logger LOG = Logger.getInstance(DataformTableSchemaServiceImpl.class);
-    private static final Gson GSON = new GsonBuilder().create();
-    private static final Type CACHE_TYPE = new TypeToken<Map<String, SchemaCacheEntry>>() {
-    }.getType();
 
     private final Project project;
-    private final ConcurrentHashMap<String, DataformDasTable> tableCache = new ConcurrentHashMap<>();
-    private final Map<String, Long> fileModificationTimes = new ConcurrentHashMap<>();
-    private final Map<String, String> fileNames = new ConcurrentHashMap<>();
+    private final SchemaCacheStore cache;
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicLong modificationCount = new AtomicLong(0);
 
     private volatile boolean pendingRefresh = false;
     private volatile CompiledGraph pendingGraph = null;
-    private State currentState = new State();
 
     public DataformTableSchemaServiceImpl(@NotNull Project project) {
         this.project = project;
+        this.cache = new SchemaCacheStore(project);
     }
 
     @Override
-    public @Nullable State getState() {
-        return currentState;
+    public @Nullable DataformTableSchemaService.State getState() {
+        return cache.state();
     }
 
     @Override
-    public void loadState(@NotNull State state) {
-        this.currentState = state;
-        restoreCacheFromState(state);
+    public void loadState(@NotNull DataformTableSchemaService.State state) {
+        cache.load(state);
         modificationCount.incrementAndGet();
     }
 
@@ -95,15 +85,23 @@ public final class DataformTableSchemaServiceImpl implements DataformTableSchema
     }
 
     public void refreshAsync(@NotNull CompiledGraph graph) {
-        refreshAsync(graph, false);
+        refreshAsync(graph, false, Set.of());
     }
 
+    @Override
     public void refreshAsync(@NotNull CompiledGraph graph, boolean forceRefresh) {
+        refreshAsync(graph, forceRefresh, Set.of());
+    }
+
+    @Override
+    public void refreshAsync(@NotNull CompiledGraph graph,
+                             boolean forceRefresh,
+                             @NotNull Set<String> failedFileNames) {
         if (running.compareAndSet(false, true)) {
             pendingRefresh = false;
             pendingGraph = null;
-            if (forceRefresh) tableCache.clear();
-            startTask(graph, forceRefresh);
+            evictStaleEntries(graph);
+            startTask(graph, forceRefresh, failedFileNames);
         } else {
             pendingGraph = graph;
             pendingRefresh = true;
@@ -113,16 +111,38 @@ public final class DataformTableSchemaServiceImpl implements DataformTableSchema
 
     @NotNull
     public Map<String, DataformDasTable> getAllTables() {
-        return Collections.unmodifiableMap(tableCache);
+        return cache.published();
     }
 
-    private void startTask(@NotNull CompiledGraph graph, boolean forceRefresh) {
+    /**
+     * Drops cached schemas of actions the compiled graph no longer declares. A forced refresh
+     * re-extracts every remaining action but must not empty the cache first: an action whose
+     * dry-run fails during that run has to keep the schema it already had.
+     */
+    private void evictStaleEntries(@NotNull CompiledGraph graph) {
+        Set<String> known = new HashSet<>();
+        graph.getTables().forEach(t -> addFullName(known, t.getTarget()));
+        graph.getOperations().forEach(o -> addFullName(known, o.getTarget()));
+        graph.getDeclarations().forEach(d -> addFullName(known, d.getTarget()));
+        if (known.isEmpty()) return;
+        cache.retainOnly(known);
+        DryRunErrorRegistry.getInstance(project).retainOnly(known);
+        cache.publish();
+    }
+
+    private void addFullName(@NotNull Set<String> names, @Nullable Target target) {
+        if (target != null && target.getFullName() != null) names.add(target.getFullName());
+    }
+
+    private void startTask(@NotNull CompiledGraph graph,
+                           boolean forceRefresh,
+                           @NotNull Set<String> failedFileNames) {
         new Task.Backgroundable(project, "Extracting Dataform table schemas…", false) {
             @Override
             public void run(@NotNull ProgressIndicator indicator) {
                 try {
                     indicator.setIndeterminate(false);
-                    runExtraction(graph, indicator, forceRefresh);
+                    runExtraction(graph, indicator, forceRefresh, failedFileNames);
                 } catch (Exception e) {
                     LOG.warn("Schema extraction failed: " + e);
                 } finally {
@@ -133,6 +153,7 @@ public final class DataformTableSchemaServiceImpl implements DataformTableSchema
     }
 
     private void onTaskFinished() {
+        cache.publish();
         running.set(false);
         modificationCount.incrementAndGet();
         if (pendingRefresh && pendingGraph != null) {
@@ -147,15 +168,14 @@ public final class DataformTableSchemaServiceImpl implements DataformTableSchema
 
     private void runExtraction(@NotNull CompiledGraph graph,
                                @NotNull ProgressIndicator indicator,
-                               boolean forceRefresh) {
+                               boolean forceRefresh,
+                               @NotNull Set<String> failedFileNames) {
         ExtractionContext ctx = buildContext(graph);
         if (ctx == null) return;
 
-        List<SortableAction> sorted = DataformTopologicalSorter.sort(graph);
-        List<SortableAction> toRefresh = identifyActionsToRefresh(sorted, forceRefresh);
-        logSkipped(sorted.size(), toRefresh.size());
-        if (!toRefresh.isEmpty()) {
-            List<List<SortableAction>> waves = computeWaves(toRefresh);
+        List<List<SortableAction>> waves = new SchemaRefreshPlanner(project.getBasePath(), cache)
+                .planWaves(DataformTopologicalSorter.sort(graph), forceRefresh, failedFileNames);
+        if (!waves.isEmpty()) {
             processAllWaves(waves, ctx, indicator);
         }
     }
@@ -189,14 +209,15 @@ public final class DataformTableSchemaServiceImpl implements DataformTableSchema
         for (List<SortableAction> wave : waves) {
             if (indicator.isCanceled()) {
                 LOG.debug("Schema extraction cancelled");
-                persistStateFromCache();
+                cache.persist();
                 return;
             }
             waveExtraction(ctx, indicator, resolvedInThisRun, wave, processed, total);
         }
         indicator.setFraction(1d);
-        persistStateFromCache();
-        LOG.warn("Schema extraction complete: " + resolvedInThisRun.size() + "/" + processed.get() + " actions resolved");
+        cache.persist();
+        LOG.warn("Schema extraction complete: " + resolvedInThisRun.size() + "/" + processed.get()
+                + " actions resolved");
     }
 
     private void waveExtraction(ExtractionContext ctx,
@@ -209,7 +230,6 @@ public final class DataformTableSchemaServiceImpl implements DataformTableSchema
             extractSchema(ctx, resolvedInThisRun, action);
             indicator.setFraction((double) processed.incrementAndGet() / total);
         });
-
     }
 
     private void extractSchema(ExtractionContext ctx,
@@ -217,29 +237,43 @@ public final class DataformTableSchemaServiceImpl implements DataformTableSchema
                                @NotNull SortableAction action) {
         String fqn = action.target().getFullName();
         LOG.info("Resolving schema for: " + fqn);
-        Optional<List<ColumnInfo>> result = computeSchema(action, ctx, resolvedInThisRun);
-        result.ifPresent(columns -> publishResult(action, columns, resolvedInThisRun));
+        DryRunResult result = computeSchema(action, ctx, resolvedInThisRun);
+        recordDryRunOutcome(fqn, result);
+        if (!result.columns().isEmpty()) publishResult(action, result.columns(), resolvedInThisRun);
     }
 
+    /**
+     * Keeps the dry-run failure of an action, or drops the previous one once it runs clean, so the
+     * query view can report why a schema is missing.
+     */
+    private void recordDryRunOutcome(@NotNull String fqn, @NotNull DryRunResult result) {
+        DryRunErrorRegistry registry = DryRunErrorRegistry.getInstance(project);
+        if (result.hasError()) {
+            registry.report(fqn, result.errorMessage());
+        } else {
+            registry.clear(fqn);
+        }
+    }
 
     @NotNull
-    private Optional<List<ColumnInfo>> computeSchema(@NotNull SortableAction action,
-                                                     @NotNull ExtractionContext ctx,
-                                                     @NotNull Map<String, List<ColumnInfo>> resolvedInThisRun) {
+    private DryRunResult computeSchema(@NotNull SortableAction action,
+                                       @NotNull ExtractionContext ctx,
+                                       @NotNull Map<String, List<ColumnInfo>> resolvedInThisRun) {
         try {
             if (action.isTable()) return extractTableSchema(action.table(), ctx, resolvedInThisRun);
             if (action.isOperation()) return extractOperationSchema(action.operation(), ctx);
             if (action.isDeclaration()) return extractDeclarationSchema(action.target().getFullName(), ctx);
         } catch (Exception e) {
             LOG.warn("Schema extraction failed for " + action.target().getFullName() + ": " + e.getMessage());
+            return DryRunResult.failure(e.getMessage() != null ? e.getMessage() : e.toString());
         }
-        return Optional.empty();
+        return DryRunResult.empty();
     }
 
     @NotNull
-    private Optional<List<ColumnInfo>> extractTableSchema(@NotNull CompiledTable table,
-                                                          @NotNull ExtractionContext ctx,
-                                                          @NotNull Map<String, List<ColumnInfo>> resolvedInThisRun) {
+    private DryRunResult extractTableSchema(@NotNull CompiledTable table,
+                                            @NotNull ExtractionContext ctx,
+                                            @NotNull Map<String, List<ColumnInfo>> resolvedInThisRun) {
         String mainQuery = ReadAction.computeBlocking(() ->
                 DataformCteQueryBuilder.buildDryRunQuery(table.getQuery(), resolvedInThisRun, project)
         );
@@ -249,258 +283,41 @@ public final class DataformTableSchemaServiceImpl implements DataformTableSchema
     }
 
     @NotNull
-    private Optional<List<ColumnInfo>> extractOperationSchema(@NotNull CompiledOperation operation,
-                                                              @NotNull ExtractionContext ctx) {
+    private DryRunResult extractOperationSchema(@NotNull CompiledOperation operation,
+                                                @NotNull ExtractionContext ctx) {
         List<String> queries = operation.getQueries();
-        if (queries.isEmpty()) return Optional.empty();
+        if (queries.isEmpty()) return DryRunResult.empty();
         String lastQuery = queries.getLast();
-        if (lastQuery == null || lastQuery.isBlank()) return Optional.empty();
+        if (lastQuery == null || lastQuery.isBlank()) return DryRunResult.empty();
         return runDryRun(ctx, lastQuery);
     }
 
     @NotNull
-    private Optional<List<ColumnInfo>> extractDeclarationSchema(@NotNull String fqn,
-                                                                @NotNull ExtractionContext ctx) {
+    private DryRunResult extractDeclarationSchema(@NotNull String fqn,
+                                                  @NotNull ExtractionContext ctx) {
         return runDryRun(ctx, "SELECT * FROM `" + fqn + "` LIMIT 0");
     }
 
     @NotNull
-    private Optional<List<ColumnInfo>> runDryRun(@NotNull ExtractionContext ctx, @NotNull String query) {
-        List<ColumnInfo> columns = ctx.extractor().extractSchema(ctx.projectId(), ctx.location(), query);
-        return columns.isEmpty() ? Optional.empty() : Optional.of(columns);
+    private DryRunResult runDryRun(@NotNull ExtractionContext ctx, @NotNull String query) {
+        return ctx.extractor().extractSchema(ctx.projectId(), ctx.location(), query);
     }
 
     private void publishResult(@NotNull SortableAction action,
                                @NotNull List<ColumnInfo> columns,
                                @NotNull Map<String, List<ColumnInfo>> resolvedInThisRun) {
         String fqn = action.target().getFullName();
-        String fileName = getFileNameFromAction(action);
-        DataformDasTable table = buildTable(action.target().getName(), columns, fileName);
-        tableCache.put(fqn, table);
-        if (fileName != null) fileNames.put(fqn, fileName);
+        cache.put(fqn, action.target().getName(), columns, ActionSourceFiles.fileNameOf(action));
         resolvedInThisRun.put(fqn, columns);
         LOG.info("Resolved schema for " + fqn + ": " + columns.size() + " columns");
     }
 
-    @NotNull
-    private DataformDasTable buildTable(@NotNull String tableName,
-                                        @NotNull List<ColumnInfo> columns,
-                                        @Nullable String fileName) {
-        VirtualFile sourceFile = resolveSourceFile(fileName);
-        return new DataformDasTable(PsiManager.getInstance(project), tableName, columns, sourceFile);
-    }
-
-    @Nullable
-    private VirtualFile resolveSourceFile(@Nullable String fileName) {
-        if (fileName == null) return null;
-        String basePath = project.getBasePath();
-        if (basePath == null) return null;
-        return LocalFileSystem.getInstance().findFileByPath(basePath + "/" + fileName);
-    }
-
-    @NotNull
-    private List<List<SortableAction>> computeWaves(@NotNull List<SortableAction> actions) {
-        Map<String, Integer> levelByFqn = computeLevelByFqn(actions);
-        int maxLevel = levelByFqn.values().stream().mapToInt(Integer::intValue).max().orElse(0);
-
-        List<List<SortableAction>> waves = new ArrayList<>(maxLevel + 1);
-        for (int i = 0; i <= maxLevel; i++) waves.add(new ArrayList<>());
-
-        actions.forEach(a -> waves.get(levelByFqn.getOrDefault(a.target().getFullName(), 0)).add(a));
-
-        LOG.info("Computed " + (maxLevel + 1) + " wave(s) for " + actions.size() + " actions");
-        return waves.stream().filter(l -> !l.isEmpty()).collect(Collectors.toList());
-    }
-
-    @NotNull
-    private Map<String, Integer> computeLevelByFqn(@NotNull List<SortableAction> actions) {
-        Map<String, SortableAction> byFqn = actions.stream()
-                .collect(Collectors.toMap(a -> a.target().getFullName(), a -> a, (a, b) -> a));
-        Map<String, Integer> levels = new HashMap<>();
-        Set<String> fqns = byFqn.keySet();
-        actions.forEach(a -> resolveLevel(a, byFqn, fqns, levels, new HashSet<>()));
-        return levels;
-    }
-
-    private int resolveLevel(@NotNull SortableAction action,
-                             @NotNull Map<String, SortableAction> byFqn,
-                             @NotNull Set<String> knownFqns,
-                             @NotNull Map<String, Integer> levels,
-                             @NotNull Set<String> visiting) {
-        String fqn = action.target().getFullName();
-        if (levels.containsKey(fqn)) return levels.get(fqn);
-        if (!visiting.add(fqn)) return 0;
-
-        int maxDepLevel = action.dependencyTargets().stream()
-                .filter(dep -> knownFqns.contains(dep.getFullName()))
-                .mapToInt(dep -> resolveLevel(byFqn.get(dep.getFullName()), byFqn, knownFqns, levels, visiting))
-                .max()
-                .orElse(-1);
-
-        int level = maxDepLevel + 1;
-        levels.put(fqn, level);
-        visiting.remove(fqn);
-        return level;
-    }
-
-    @NotNull
-    private List<SortableAction> identifyActionsToRefresh(@NotNull List<SortableAction> allActions,
-                                                          boolean forceRefresh) {
-        if (forceRefresh) {
-            LOG.info("Force refresh enabled, refreshing all actions");
-            return allActions;
-        }
-        String basePath = project.getBasePath();
-        if (basePath == null) {
-            LOG.warn("Project base path is null, refreshing all actions");
-            return allActions;
-        }
-        Set<String> modifiedFqns = collectModifiedFqns(allActions, basePath);
-        Set<String> affectedFqns = propagateToDependents(modifiedFqns, allActions);
-        return allActions.stream()
-                .filter(a -> affectedFqns.contains(a.target().getFullName()))
-                .collect(Collectors.toList());
-    }
-
-    @NotNull
-    private Set<String> collectModifiedFqns(@NotNull List<SortableAction> actions,
-                                            @NotNull String basePath) {
-        Set<String> modified = new HashSet<>();
-        for (SortableAction action : actions) {
-            String fqn = action.target().getFullName();
-            String fileName = getFileNameFromAction(action);
-            if (isModified(fqn, fileName, basePath)) modified.add(fqn);
-        }
-        return modified;
-    }
-
-    private boolean isModified(@NotNull String fqn, @Nullable String fileName, @NotNull String basePath) {
-        if (fileName == null) return !tableCache.containsKey(fqn);
-        long currentModTime = getFileModificationTime(basePath, fileName);
-        fileModificationTimes.put(fqn, currentModTime);
-        Long cached = getCachedModTime(fqn);
-        return cached == null || cached < currentModTime;
-    }
-
-    @NotNull
-    private Set<String> propagateToDependents(@NotNull Set<String> modifiedFqns,
-                                              @NotNull List<SortableAction> allActions) {
-        Map<String, Set<String>> reverseDeps = buildReverseDependencies(allActions);
-        Set<String> affected = new HashSet<>(modifiedFqns);
-        Queue<String> queue = new LinkedList<>(modifiedFqns);
-
-        while (!queue.isEmpty()) {
-            reverseDeps.getOrDefault(queue.poll(), Set.of()).stream()
-                    .filter(affected::add)
-                    .forEach(queue::add);
-        }
-
-        logPropagation(modifiedFqns.size(), affected.size());
-        return affected;
-    }
-
-    @NotNull
-    private Map<String, Set<String>> buildReverseDependencies(@NotNull List<SortableAction> actions) {
-        Map<String, Set<String>> reverse = new HashMap<>();
-        for (SortableAction action : actions) {
-            String fqn = action.target().getFullName();
-            action.dependencyTargets().forEach(dep ->
-                    reverse.computeIfAbsent(dep.getFullName(), k -> new HashSet<>()).add(fqn)
-            );
-        }
-        return reverse;
-    }
-
-    private void restoreCacheFromState(@NotNull State state) {
-        if (state.schemaCacheJson == null || state.schemaCacheJson.isBlank()) return;
-        try {
-            Map<String, SchemaCacheEntry> loaded = GSON.fromJson(state.schemaCacheJson, CACHE_TYPE);
-            if (loaded == null) return;
-            tableCache.clear();
-            fileNames.clear();
-            loaded.forEach((fqn, entry) -> {
-                String tableName = extractTableName(fqn);
-                tableCache.put(fqn, buildTable(tableName, entry.columns(), entry.fileName()));
-                if (entry.fileName() != null) fileNames.put(fqn, entry.fileName());
-            });
-            LOG.info("Restored " + tableCache.size() + " schemas from persistent state");
-        } catch (Exception e) {
-            LOG.warn("Failed to deserialize schema cache from state: " + e.getMessage());
-            tableCache.clear();
-            fileNames.clear();
-            this.currentState = new State();
-        }
-    }
-
-    @NotNull
-    private static String extractTableName(@NotNull String fqn) {
-        int idx = fqn.lastIndexOf('.');
-        return idx >= 0 ? fqn.substring(idx + 1) : fqn;
-    }
-
-    private void persistStateFromCache() {
-        Map<String, SchemaCacheEntry> toSerialize = tableCache.entrySet().stream()
-                .collect(Collectors.toMap(
-                        Map.Entry::getKey,
-                        e -> new SchemaCacheEntry(
-                                e.getValue().getColumns(),
-                                fileModificationTimes.getOrDefault(e.getKey(), Long.MAX_VALUE),
-                                fileNames.get(e.getKey()))
-                ));
-        currentState.schemaCacheJson = GSON.toJson(toSerialize);
-        LOG.info("Persisted " + toSerialize.size() + " schemas to state");
-    }
-
-    @Nullable
-    private Long getCachedModTime(@NotNull String fqn) {
-        if (currentState.schemaCacheJson == null) return null;
-        try {
-            Map<String, SchemaCacheEntry> parsed = GSON.fromJson(currentState.schemaCacheJson, CACHE_TYPE);
-            if (parsed == null) return null;
-            SchemaCacheEntry entry = parsed.get(fqn);
-            return entry != null ? entry.lastModified() : null;
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    @Nullable
-    private String getFileNameFromAction(@NotNull SortableAction action) {
-        if (action.isTable()) return action.table().getFileName();
-        if (action.isOperation()) return action.operation().getFileName();
-        if (action.isDeclaration()) return action.declaration().getFileName();
-        return null;
-    }
-
-    private long getFileModificationTime(@NotNull String basePath, @NotNull String fileName) {
-        try {
-            Path filePath = Paths.get(basePath, fileName);
-            if (Files.exists(filePath)) return Files.getLastModifiedTime(filePath).toMillis();
-        } catch (Exception e) {
-            LOG.debug("Failed to get modification time for " + fileName + ": " + e.getMessage());
-        }
-        return System.currentTimeMillis();
-    }
-
     private boolean hasValidCredentials() {
         try {
-            return io.github.rejeb.dataform.language.gcp.auth.DataformCredentialsService
-                    .getInstance().isSignedIn();
+            return DataformCredentialsService.getInstance().isSignedIn();
         } catch (Exception e) {
             LOG.warn("Google credentials not available: " + e.getMessage());
             return false;
-        }
-    }
-
-    private void logSkipped(int total, int toRefresh) {
-        int skipped = total - toRefresh;
-        if (skipped > 0) LOG.info("Skipping " + skipped + " unchanged actions, refreshing " + toRefresh);
-    }
-
-    private void logPropagation(int modifiedCount, int affectedCount) {
-        if (affectedCount > modifiedCount) {
-            LOG.info("Propagated refresh to " + (affectedCount - modifiedCount)
-                    + " dependent actions (" + modifiedCount + " directly modified)");
         }
     }
 }

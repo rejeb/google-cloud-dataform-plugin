@@ -31,6 +31,9 @@ import java.util.List;
  * @param dataformType Dataform action type: table, view, incremental, operation, declaration, external…
  * @param tags         Dataform tags declared on the action; empty when none.
  * @param fileName     project-relative path of the source SQLX file, {@code null} for external nodes.
+ * @param disabled     {@code true} when the action declares {@code disabled: true}. It stays in the
+ *                     graph so its place in the flow remains visible, but it is never executed, so
+ *                     no column lineage is computed for it.
  */
 public record LineageNode(
         @NotNull String id,
@@ -39,8 +42,20 @@ public record LineageNode(
         @NotNull String schema,
         @NotNull String dataformType,
         @NotNull List<String> tags,
-        @Nullable String fileName
+        @Nullable String fileName,
+        boolean disabled
 ) {
+    /** Creates an enabled node. */
+    public LineageNode(@NotNull String id,
+                       @NotNull String name,
+                       @NotNull String fullName,
+                       @NotNull String schema,
+                       @NotNull String dataformType,
+                       @NotNull List<String> tags,
+                       @Nullable String fileName) {
+        this(id, name, fullName, schema, dataformType, tags, fileName, false);
+    }
+
     public static @NotNull String idOf(@NotNull String fullName) {
         return "node:" + fullName;
     }

@@ -32,6 +32,11 @@ public class SqlxFileLexer extends LexerBase {
     private static final int PRE_OPERATIONS_BLOCK = 4;
     private static final int POST_OPERATIONS_BLOCK = 5;
 
+    private static final int BLOCK_STATE_MASK = 0x7;
+    private static final int AFTER_OPEN_BRACE_FLAG = 0x8;
+    private static final int BRACE_DEPTH_SHIFT = 4;
+    private static final int MAX_ENCODED_BRACE_DEPTH = 62;
+
     private static final String CONFIG_KEYWORD = "config";
     private static final String JS_KEYWORD = "js";
     private static final String PRE_OPERATIONS_KEYWORD = "pre_operations";
@@ -46,20 +51,23 @@ public class SqlxFileLexer extends LexerBase {
     private int state;
     private int braceDepth;
     private boolean afterOpenBrace;
+    private int tokenEntryState;
 
     @Override
     public void start(@NotNull CharSequence buffer, int startOffset, int endOffset, int initialState) {
         this.buffer = buffer;
         this.endOffset = endOffset;
         this.currentPosition = startOffset;
-        this.state = initialState;
-        this.braceDepth = 0;
-        this.afterOpenBrace = false;
+        this.state = initialState & BLOCK_STATE_MASK;
+        this.braceDepth = initialState >>> BRACE_DEPTH_SHIFT;
+        this.afterOpenBrace = (initialState & AFTER_OPEN_BRACE_FLAG) != 0;
+        this.tokenEntryState = initialState;
         advance();
     }
 
     @Override
     public void advance() {
+        tokenEntryState = encodeState();
         if (currentPosition >= endOffset) {
             currentTokenType = null;
             currentTokenStart = endOffset;
@@ -71,9 +79,25 @@ public class SqlxFileLexer extends LexerBase {
         locateToken();
     }
 
+    /**
+     * Returns the state the lexer was in when it started scanning the current token, so that
+     * {@link #start(CharSequence, int, int, int)} at {@link #getTokenStart()} with this state
+     * re-produces the same token stream. The block state alone is not enough: the brace nesting
+     * depth and the "just opened a brace" flag also decide how the next token is cut, and reporting
+     * the state left behind by the current token would make the closing brace of a block look
+     * restartable when it is not. The depth is capped so that an encoded state never collides with
+     * the reserved states of {@link com.intellij.lexer.LayeredLexer}.
+     */
     @Override
     public int getState() {
-        return state;
+        return tokenEntryState;
+    }
+
+    private int encodeState() {
+        int depth = Math.min(Math.max(braceDepth, 0), MAX_ENCODED_BRACE_DEPTH);
+        return (state & BLOCK_STATE_MASK)
+                | (afterOpenBrace ? AFTER_OPEN_BRACE_FLAG : 0)
+                | (depth << BRACE_DEPTH_SHIFT);
     }
 
     @Nullable
@@ -124,8 +148,8 @@ public class SqlxFileLexer extends LexerBase {
                 locateTokenSqlContent();
                 break;
             default:
-                currentTokenType = TokenType.BAD_CHARACTER;
-                currentTokenEnd = ++currentPosition;
+                state = SQL_CONTENT;
+                locateTokenSqlContent();
                 break;
         }
     }
@@ -420,13 +444,8 @@ public class SqlxFileLexer extends LexerBase {
             }
         }
 
-        if (currentPosition > start) {
-            currentTokenType = SharedTokenTypes.SQL_CONTENT;
-            currentTokenEnd = currentPosition;
-        } else {
-            currentTokenType = TokenType.BAD_CHARACTER;
-            currentTokenEnd = ++currentPosition;
-        }
+        currentTokenType = SharedTokenTypes.SQL_CONTENT;
+        currentTokenEnd = currentPosition > start ? currentPosition : ++currentPosition;
     }
 
     /**

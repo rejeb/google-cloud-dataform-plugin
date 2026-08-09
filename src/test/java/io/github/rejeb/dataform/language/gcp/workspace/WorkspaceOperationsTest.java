@@ -16,14 +16,20 @@
  */
 package io.github.rejeb.dataform.language.gcp.workspace;
 
+import com.intellij.openapi.roots.ProjectRootManager;
+import com.intellij.openapi.vfs.VfsUtilCore;
+import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.psi.PsiFile;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
 import io.github.rejeb.dataform.language.gcp.common.CommitAuthorConfig;
 import io.github.rejeb.dataform.language.gcp.common.GcpApiException;
 import io.github.rejeb.dataform.language.gcp.common.GcpConfigProvider;
 import io.github.rejeb.dataform.language.gcp.workspace.repository.WorkspaceRepository;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.mockito.Mockito.*;
 
@@ -93,11 +99,40 @@ public class WorkspaceOperationsTest extends BasePlatformTestCase {
         assertThrows(GcpApiException.class, () -> handler(fullConfig).listWorkspaces());
     }
 
-    public void testPushCodeCallsRepositoryWithCorrectWorkspaceId() {
-        handlerWithResolver(fullConfig, List.of("definitions/my_table.sqlx"))
-                .pushCode("dev");
+    /**
+     * Creates a real file in the fixture and returns its path relative to the content root,
+     * which is what {@code pushCode} resolves against before reading contents.
+     */
+    private String addProjectFile(String relativePath, String content) {
+        PsiFile file = myFixture.addFileToProject(relativePath, content);
+        VirtualFile contentRoot = ProjectRootManager.getInstance(getProject()).getContentRoots()[0];
+        return VfsUtilCore.getRelativePath(file.getVirtualFile(), contentRoot);
+    }
 
-        verify(repository).push("test-project", "europe-west1", "test-repo", "dev",any(),any());
+    public void testPushCodeCallsRepositoryWithCorrectWorkspaceId() {
+        String path = addProjectFile("definitions/my_table.sqlx", "SELECT 1");
+
+        handlerWithResolver(fullConfig, List.of(path)).pushCode("dev");
+
+        verify(repository).push(eq("test-project"), eq("europe-west1"), eq("test-repo"),
+                eq("dev"), eq(Map.of(path, "SELECT 1")), anySet());
+    }
+
+    public void testPushCodeDeletesRemotePathsNoLongerPresentLocally() {
+        String path = addProjectFile("definitions/kept.sqlx", "SELECT 1");
+        when(repository.listAllPaths("test-project", "europe-west1", "test-repo", "dev"))
+                .thenReturn(List.of(path, "definitions/removed.sqlx"));
+
+        handlerWithResolver(fullConfig, List.of(path)).pushCode("dev");
+
+        verify(repository).push(eq("test-project"), eq("europe-west1"), eq("test-repo"),
+                eq("dev"), eq(Map.of(path, "SELECT 1")), eq(Set.of("definitions/removed.sqlx")));
+    }
+
+    public void testPushCodeSkipsWhenResolvedFilesDoNotExistLocally() {
+        handlerWithResolver(fullConfig, List.of("definitions/absent.sqlx")).pushCode("dev");
+
+        verify(repository, never()).push(any(), any(), any(), any(), any(), any());
     }
 
     public void testPushCodeSkipsWhenNoDataformFilesPresent() {
@@ -114,13 +149,12 @@ public class WorkspaceOperationsTest extends BasePlatformTestCase {
     }
 
     public void testPushCodePropagatesGcpApiException() {
+        String path = addProjectFile("definitions/failing.sqlx", "SELECT 1");
         doThrow(new GcpApiException("failure", new RuntimeException()))
-                .when(repository).push(any(), any(), any(), any(),any(),any());
+                .when(repository).push(any(), any(), any(), any(), any(), any());
 
         assertThrows(GcpApiException.class,
-                () -> handlerWithResolver(fullConfig, List.of("definitions/my_table.sqlx"))
-                        .pushCode("dev")
-        );
+                () -> handlerWithResolver(fullConfig, List.of(path)).pushCode("dev"));
     }
 
     public void testWorkspaceFromResourceNameExtractsId() {
@@ -137,105 +171,74 @@ public class WorkspaceOperationsTest extends BasePlatformTestCase {
         assertEquals("my-workspace", workspace.workspaceId());
     }
 
-    public void testFetchCodeWithWorkspaceIdCallsRepository() {
+    public void testFetchCodeWithWorkspaceIdReadsAllWorkspaceFiles() {
         handler(fullConfig).fetchCode("dev");
 
-        verify(repository).pull(
-                "test-project", "europe-west1", "test-repo", "dev",
-                new CommitAuthorConfig("Test User", "test@example.com")
-        );
+        verify(repository).readAllFiles("test-project", "europe-west1", "test-repo", "dev");
     }
 
-    public void testFetchCodeWithWorkspaceIdReturnsEmptyMap() {
-        Map<String, String> result = handler(fullConfig).fetchCode("dev");
+    public void testFetchCodeWithoutWorkspaceIdReadsTheRepositoryMainBranch() {
+        handler(fullConfig).fetchCode(null);
 
-        assertTrue(result.isEmpty());
+        verify(repository).readAllFiles("test-project", "europe-west1", "test-repo", null);
     }
 
-    public void testFetchCodeWithWorkspaceIdSkipsWhenConfigMissing() {
-        handler(emptyConfig).fetchCode("dev");
-
-        verifyNoInteractions(repository);
-    }
-
-    public void testFetchCodeWithWorkspaceIdPropagatesGcpApiException() {
-        doThrow(new GcpApiException("failure", new RuntimeException()))
-                .when(repository).pull(any(), any(), any(), any(),any());
-
-        assertThrows(GcpApiException.class, () -> handler(fullConfig).fetchCode("dev"));
-    }
-
-    public void testFetchCodeFromRepositoryReturnsFileContents() {
-        List<String> paths = List.of("definitions/my_table.sqlx", "workflow_settings.yaml");
+    public void testFetchCodeReturnsTheFilesReadFromTheRepository() {
         Map<String, String> expected = Map.of(
                 "definitions/my_table.sqlx", "SELECT 1",
                 "workflow_settings.yaml", "defaultProject: test"
         );
-        when(repository.readFilesFromRepository(
-                "test-project", "europe-west1", "test-repo", paths))
+        when(repository.readAllFiles("test-project", "europe-west1", "test-repo", null))
                 .thenReturn(expected);
 
-        Map<String, String> result = handlerWithResolver(fullConfig, paths).fetchCode(null);
-
-        assertEquals(expected, result);
+        assertEquals(expected, handler(fullConfig).fetchCode(null));
     }
 
-    public void testFetchCodeFromRepositorySkipsWhenNoFiles() {
-        Map<String, String> result = handlerWithResolver(fullConfig, List.of()).fetchCode(null);
+    public void testFetchCodeReturnsEmptyMapWhenTheRepositoryHasNoFile() {
+        assertTrue(handler(fullConfig).fetchCode("dev").isEmpty());
+    }
 
-        assertTrue(result.isEmpty());
+    public void testFetchCodeSkipsWhenConfigMissing() {
+        assertTrue(handler(emptyConfig).fetchCode("dev").isEmpty());
         verifyNoInteractions(repository);
     }
 
-    public void testFetchCodeFromRepositorySkipsWhenConfigMissing() {
-        Map<String, String> result = handlerWithResolver(
-                emptyConfig, List.of("definitions/my_table.sqlx")
-        ).fetchCode(null);
-
-        assertTrue(result.isEmpty());
-        verifyNoInteractions(repository);
-    }
-
-    public void testFetchCodeFromRepositoryPropagatesGcpApiException() {
-        List<String> paths = List.of("definitions/my_table.sqlx");
+    public void testFetchCodePropagatesGcpApiException() {
         doThrow(new GcpApiException("failure", new RuntimeException()))
-                .when(repository).readFilesFromRepository(any(), any(), any(), any());
+                .when(repository).readAllFiles(any(), any(), any(), any());
 
-        assertThrows(GcpApiException.class,
-                () -> handlerWithResolver(fullConfig, paths).fetchCode(null));
+        assertThrows(GcpApiException.class, () -> handler(fullConfig).fetchCode("dev"));
     }
 
-    public void testPullCodeCallsReadFilesFromRepository() {
-        List<String> paths = List.of("definitions/my_table.sqlx");
-        when(repository.readFilesFromRepository(
-                "test-project", "europe-west1", "test-repo", paths))
-                .thenReturn(Map.of("definitions/my_table.sqlx", "SELECT 1"));
+    public void testPullCodeReadsAllFilesFromTheRepository() {
+        handler(fullConfig).pullCode(null);
 
-        handlerWithResolver(fullConfig, paths).pullCode(null);
-
-        verify(repository).readFilesFromRepository(
-                "test-project", "europe-west1", "test-repo", paths);
+        verify(repository).readAllFiles("test-project", "europe-west1", "test-repo", null);
     }
 
-    public void testPullCodeSkipsWhenNoFiles() {
-        handlerWithResolver(fullConfig, List.of()).pullCode(null);
+    public void testPullCodeWritesPulledFilesToTheProject() throws IOException {
+        when(repository.readAllFiles("test-project", "europe-west1", "test-repo", "dev"))
+                .thenReturn(Map.of("definitions/pulled.sqlx", "SELECT 42"));
 
-        verifyNoInteractions(repository);
+        handler(fullConfig).pullCode("dev");
+
+        VirtualFile contentRoot = ProjectRootManager.getInstance(getProject()).getContentRoots()[0];
+        VirtualFile pulled = contentRoot.findFileByRelativePath("definitions/pulled.sqlx");
+        assertNotNull("the pulled file must be written to the content root", pulled);
+        assertEquals("SELECT 42", VfsUtilCore.loadText(pulled));
     }
 
     public void testPullCodeSkipsWhenConfigMissing() {
-        handlerWithResolver(emptyConfig, List.of("definitions/my_table.sqlx")).pullCode(null);
+        handler(emptyConfig).pullCode(null);
 
         verifyNoInteractions(repository);
     }
 
     public void testPullCodePropagatesGcpApiException() {
-        List<String> paths = List.of("definitions/my_table.sqlx");
         doThrow(new GcpApiException("failure", new RuntimeException()))
-                .when(repository).readFilesFromRepository(any(), any(), any(), any());
+                .when(repository).readAllFiles(any(), any(), any(), any());
 
-        assertThrows(GcpApiException.class,
-                () -> handlerWithResolver(fullConfig, paths).pullCode(null));
+        assertThrows(GcpApiException.class, () -> handler(fullConfig).pullCode(null));
     }
 
 

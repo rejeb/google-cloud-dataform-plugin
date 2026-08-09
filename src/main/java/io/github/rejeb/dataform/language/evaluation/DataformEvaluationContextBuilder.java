@@ -61,10 +61,15 @@ public final class DataformEvaluationContextBuilder {
     }
 
     /**
-     * Builds the evaluation context for the given file.
+     * Builds the evaluation context for the given file. The node module roots are taken as a
+     * parameter because resolving them may spawn npm, which is forbidden inside a read action.
+     *
+     * @see #nodePaths(Project)
      */
     @NotNull
-    public static DataformEvaluationContext build(@NotNull Project project, @NotNull PsiFile file) {
+    public static DataformEvaluationContext build(@NotNull Project project,
+                                                  @NotNull PsiFile file,
+                                                  @NotNull List<String> nodePaths) {
         CompiledGraph graph = DataformCompilationService.getInstance(project).getCompiledGraph();
         return new DataformEvaluationContext(
                 projectConfig(project, graph, file),
@@ -72,7 +77,7 @@ public final class DataformEvaluationContextBuilder {
                 selfTarget(graph, file),
                 includeSources(project),
                 fileScript(file),
-                nodePaths(project));
+                nodePaths);
     }
 
     @NotNull
@@ -194,8 +199,13 @@ public final class DataformEvaluationContextBuilder {
         return sources;
     }
 
+    /**
+     * Module resolution roots for the Node harness: the global {@code node_modules} of the detected
+     * interpreter and the project one. Detecting the interpreter can spawn {@code npm config get
+     * prefix}, so this must be called outside any read action and off the EDT.
+     */
     @NotNull
-    private static List<String> nodePaths(@NotNull Project project) {
+    public static List<String> nodePaths(@NotNull Project project) {
         List<String> paths = new ArrayList<>();
         Path globalModules = NodeInterpreterManager.getInstance(project).nodeModulesDir();
         if (globalModules != null) {

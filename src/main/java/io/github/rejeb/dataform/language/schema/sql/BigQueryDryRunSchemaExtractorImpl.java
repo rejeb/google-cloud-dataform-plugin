@@ -35,19 +35,30 @@ public final class BigQueryDryRunSchemaExtractorImpl implements BigQueryDryRunSc
     private static final Logger LOG = Logger.getInstance(BigQueryDryRunSchemaExtractorImpl.class);
 
     @NotNull
-    public List<ColumnInfo> extractSchema(@NotNull String projectId,
-                                          @Nullable String location,
-                                          @NotNull String dryRunQuery) {
+    public DryRunResult extractSchema(@NotNull String projectId,
+                                      @Nullable String location,
+                                      @NotNull String dryRunQuery) {
         try {
-            return GcpCalls.execute(AuthTrigger.BACKGROUND,
-                    () -> runDryRun(projectId, location, dryRunQuery));
+            return DryRunResult.success(GcpCalls.execute(AuthTrigger.BACKGROUND,
+                    () -> runDryRun(projectId, location, dryRunQuery)));
         } catch (BigQueryException e) {
             LOG.warn("BigQuery dry-run [" + dryRunQuery + "] failed: [" + e.getCode() + "] " + e.getMessage());
-            return Collections.emptyList();
+            return DryRunResult.failure(messageOf(e));
         } catch (Exception e) {
             LOG.warn("Unexpected error during BigQuery dry-run", e);
-            return Collections.emptyList();
+            return DryRunResult.failure(messageOf(e));
         }
+    }
+
+    @NotNull
+    private static String messageOf(@NotNull Exception e) {
+        String message = e.getMessage();
+        if (message != null && !message.isBlank()) return message;
+        Throwable cause = e.getCause();
+        if (cause != null && cause.getMessage() != null && !cause.getMessage().isBlank()) {
+            return cause.getMessage();
+        }
+        return e.getClass().getSimpleName();
     }
 
     @NotNull

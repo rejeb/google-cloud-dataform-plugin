@@ -16,30 +16,40 @@
  */
 package io.github.rejeb.dataform.language.highlight;
 
-import com.intellij.codeInsight.daemon.impl.HighlightInfo;
-import com.intellij.codeInsight.daemon.impl.HighlightInfoFilter;
-import com.intellij.codeInsight.daemon.impl.HighlightInfoType;
-import com.intellij.lang.annotation.HighlightSeverity;
 import com.intellij.lang.injection.InjectedLanguageManager;
+import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
-import org.jetbrains.annotations.NotNull;
+import io.github.rejeb.dataform.language.psi.SqlxFile;
 import org.jetbrains.annotations.Nullable;
 
-public class SqlxHighlightInfoFilter implements HighlightInfoFilter {
+/**
+ * Tells whether a problem was reported inside a SQLX file, injected fragments included.
+ */
+public final class SqlxHighlightScope {
 
-    @Override
-    public boolean accept(@NotNull HighlightInfo info, @Nullable PsiFile file) {
-        if (file == null) return true;
-
-        if (info.getSeverity().compareTo(HighlightSeverity.ERROR) < 0) {
-            return true;
-        }
-
-        PsiFile hostFile = InjectedLanguageManager
-                .getInstance(file.getProject())
-                .getTopLevelFile(file);
-
-        return hostFile == null || !hostFile.getName().endsWith(".sqlx");
+    private SqlxHighlightScope() {
     }
 
+    /**
+     * Returns true when the element belongs to a SQLX file, either directly or through an injected
+     * fragment of one.
+     */
+    public static boolean isInSqlxFile(@Nullable PsiElement element) {
+        return element != null && isInSqlxFile(element.getContainingFile());
+    }
+
+    /**
+     * Returns true when the file is a SQLX file or a fragment injected into one.
+     */
+    public static boolean isInSqlxFile(@Nullable PsiFile file) {
+        if (file == null) {
+            return false;
+        }
+        if (file instanceof SqlxFile) {
+            return true;
+        }
+        PsiFile topLevel = InjectedLanguageManager.getInstance(file.getProject())
+                .getTopLevelFile(file);
+        return topLevel instanceof SqlxFile;
+    }
 }

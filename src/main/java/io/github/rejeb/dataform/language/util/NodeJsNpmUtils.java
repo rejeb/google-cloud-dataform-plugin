@@ -17,6 +17,7 @@
 package io.github.rejeb.dataform.language.util;
 
 import com.intellij.execution.configurations.GeneralCommandLine;
+import com.intellij.execution.process.ProcessOutput;
 import com.intellij.execution.util.ExecUtil;
 import com.intellij.javascript.nodejs.interpreter.NodeJsInterpreter;
 import com.intellij.javascript.nodejs.interpreter.NodeJsInterpreterManager;
@@ -25,6 +26,8 @@ import com.intellij.javascript.nodejs.settings.NodeSettingsConfigurable;
 import com.intellij.javascript.nodejs.util.NodePackage;
 import com.intellij.notification.*;
 import com.intellij.openapi.actionSystem.AnActionEvent;
+import com.intellij.openapi.application.Application;
+import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.options.ShowSettingsUtil;
 import com.intellij.openapi.project.Project;
@@ -41,31 +44,61 @@ import java.util.Optional;
 public class NodeJsNpmUtils {
 
     private static final @NotNull Logger LOGGER = Logger.getInstance(NodeJsNpmUtils.class);
-    private static final String NOTIFICATION_GROUP_ID = "Dataform.Notifications";
+    private static final int NPM_PREFIX_TIMEOUT_MS = 5_000;
 
+    /**
+     * Resolves the Node.js installation directory, querying {@code npm config get prefix} only when
+     * called outside the EDT and outside a read action. In those contexts the interpreter-based
+     * fallback is used instead, because spawning npm can block for several seconds (especially on
+     * Windows) and blocking a read action stalls every write action behind it.
+     */
     public static Optional<Path> findNodeInstallDir(Project project, Path npmExecutable) {
-        GeneralCommandLine cmd = new GeneralCommandLine(npmExecutable.toFile().getAbsolutePath(), "config", "get", "prefix");
-        Optional<Path> systemPath = Optional.ofNullable(ExecUtil.execAndReadLine(cmd))
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .map(Path::of);
-        if (systemPath.isEmpty()) {
-            Optional<File> nodeExecutableDir = Optional
-                    .ofNullable(NodeJsInterpreterManager.getInstance(project).getInterpreter())
-                    .map(NodeJsInterpreter::getReferenceName)
-                    .map(File::new)
-                    .map(File::getParentFile);
-            if (SystemInfo.isWindows) {
-                return nodeExecutableDir
-                        .map(File::toPath);
-            } else {
-                return nodeExecutableDir
-                        .map(File::getParentFile)
-                        .map(File::toPath);
-            }
-        } else {
-            return systemPath;
+        Optional<Path> systemPath = queryNpmPrefix(npmExecutable);
+        return systemPath.isPresent() ? systemPath : interpreterInstallDir(project);
+    }
+
+    private static Optional<Path> queryNpmPrefix(Path npmExecutable) {
+        Application application = ApplicationManager.getApplication();
+        if (application.isDispatchThread()) {
+            LOGGER.warn("Skipping 'npm config get prefix' on EDT, falling back to the configured interpreter");
+            return Optional.empty();
         }
+        if (application.isReadAccessAllowed()) {
+            LOGGER.warn("Skipping 'npm config get prefix' under a read action, "
+                    + "falling back to the configured interpreter");
+            return Optional.empty();
+        }
+        GeneralCommandLine cmd = new GeneralCommandLine(npmExecutable.toFile().getAbsolutePath(), "config", "get", "prefix");
+        try {
+            ProcessOutput output = ExecUtil.execAndGetOutput(cmd, NPM_PREFIX_TIMEOUT_MS);
+            if (output.isTimeout() || output.getExitCode() != 0) {
+                LOGGER.warn("'npm config get prefix' failed (timeout=" + output.isTimeout()
+                        + ", exitCode=" + output.getExitCode() + ")");
+                return Optional.empty();
+            }
+            return output.getStdoutLines().stream()
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .findFirst()
+                    .map(Path::of);
+        } catch (Exception e) {
+            LOGGER.warn("Unable to resolve the npm prefix", e);
+            return Optional.empty();
+        }
+    }
+
+    private static Optional<Path> interpreterInstallDir(Project project) {
+        Optional<File> nodeExecutableDir = Optional
+                .ofNullable(NodeJsInterpreterManager.getInstance(project).getInterpreter())
+                .map(NodeJsInterpreter::getReferenceName)
+                .map(File::new)
+                .map(File::getParentFile);
+        if (SystemInfo.isWindows) {
+            return nodeExecutableDir.map(File::toPath);
+        }
+        return nodeExecutableDir
+                .map(File::getParentFile)
+                .map(File::toPath);
     }
 
 
@@ -151,16 +184,6 @@ public class NodeJsNpmUtils {
                 project,
                 NodeSettingsConfigurable.class
         );
-    }
-
-    private static void showErrorNotification(Project project, String message) {
-        NotificationGroup group = NotificationGroupManager.getInstance().getNotificationGroup(NOTIFICATION_GROUP_ID);
-        Notification notification = group.createNotification(
-                "Error",
-                message,
-                NotificationType.ERROR
-        );
-        notification.notify(project);
     }
 
 }

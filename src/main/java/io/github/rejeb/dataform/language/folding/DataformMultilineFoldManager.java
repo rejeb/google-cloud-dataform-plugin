@@ -33,8 +33,9 @@ import java.util.Set;
 /**
  * Renders long expression values over several editor lines, using custom fold regions.
  *
- * <p>A custom fold region spans whole lines and cannot be expanded, so a gutter icon removes it to
- * bring the expression source back. The region is recreated by the next evaluation pass.</p>
+ * <p>A custom fold region spans whole lines and cannot be expanded, so clicking the painted value
+ * removes it to bring the expression source back. The region is recreated by the next evaluation
+ * pass.</p>
  */
 public final class DataformMultilineFoldManager {
 

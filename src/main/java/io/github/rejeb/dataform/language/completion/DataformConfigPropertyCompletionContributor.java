@@ -86,7 +86,7 @@ public class DataformConfigPropertyCompletionContributor extends CompletionContr
                 LookupElementBuilder element = LookupElementBuilder.create(name)
                         .withIcon(AllIcons.Nodes.Property)
                         .withBoldness(required.contains(name))
-                        .withTypeText(typeText(schemaLookup, resolved))
+                        .withTypeText(schemaLookup.typeText(resolved))
                         .withInsertHandler(
                                 new ConfigPropertyInsertHandler(schemaLookup, resolved));
                 result.addElement(element);
@@ -127,23 +127,6 @@ public class DataformConfigPropertyCompletionContributor extends CompletionContr
             Set<String> names = new HashSet<>();
             objectSchema.path("required").forEach(name -> names.add(name.asText()));
             return names;
-        }
-
-        private static String typeText(@NotNull ConfigSchemaLookup lookup,
-                                       @NotNull ObjectNode propertySchema) {
-            if (!lookup.enumValues(propertySchema).isEmpty()) {
-                return String.join(" | ", lookup.enumValues(propertySchema));
-            }
-            String type = propertySchema.path("type").asText("");
-            if ("array".equals(type)) {
-                ObjectNode items = lookup.deref(propertySchema.get("items"));
-                String itemType = items == null ? "" : items.path("type").asText("object");
-                return itemType.isEmpty() ? "array" : itemType + "[]";
-            }
-            if (!type.isEmpty()) {
-                return type;
-            }
-            return propertySchema.has("oneOf") || propertySchema.has("$ref") ? "object" : "";
         }
     }
 }

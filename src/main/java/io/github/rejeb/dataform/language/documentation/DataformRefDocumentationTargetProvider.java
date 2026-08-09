@@ -23,9 +23,11 @@ import com.intellij.lang.javascript.psi.JSReferenceExpression;
 import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.platform.backend.documentation.DocumentationTarget;
 import com.intellij.platform.backend.documentation.DocumentationTargetProvider;
+import com.intellij.openapi.util.io.FileUtilRt;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.util.PsiTreeUtil;
+import io.github.rejeb.dataform.language.util.DataformProjectLayout;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -37,7 +39,8 @@ public class DataformRefDocumentationTargetProvider implements DocumentationTarg
     public @NotNull List<? extends DocumentationTarget> documentationTargets(@NotNull PsiFile file,
                                                                              int offset) {
         PsiFile topLevel = InjectedLanguageManager.getInstance(file.getProject()).getTopLevelFile(file);
-        if (topLevel == null || !isDataformSourceFile(topLevel.getName())) {
+        if (topLevel == null || !DataformProjectLayout.isDataformSourceName(topLevel.getName(),
+                FileUtilRt.getExtension(topLevel.getName()))) {
             return List.of();
         }
 
@@ -59,10 +62,6 @@ public class DataformRefDocumentationTargetProvider implements DocumentationTarg
         }
 
         return List.of(new DataformTableDocumentationTarget(file.getProject(), tableName));
-    }
-
-    private static boolean isDataformSourceFile(@NotNull String fileName) {
-        return fileName.endsWith(".sqlx") || fileName.endsWith(".js") || fileName.endsWith(".ts");
     }
 
     @Nullable

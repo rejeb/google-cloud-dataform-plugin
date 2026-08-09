@@ -69,7 +69,7 @@ Root package: `src/main/java/io/github/rejeb/dataform/language/`
 | `fileEditor/` | Custom file editors for UI: `SqlxSplitEditor`, `SqlxCompiledPreviewEditor`, panels (query, schema, console, lineage) |
 | `fileEditor/lineage/` | Compose-based lineage graph: `LineagePanel`, `LineageGraphPanel`, `LineageGraph`, `LineageNode` |
 | `formatting/` | SQLX formatting model: `SqlxFormattingModelBuilder`, `SqlxFileBlock`, `SqlxContentBlock`, `SqlxStructuralBlock`, `SqlxInjectedLanguageBlockBuilder`, `SqlxSpacingRules`, `SqlxSqlfluffFormatProcessor` |
-| `highlight/` | Syntax highlighting and semantic annotations (`SqlxHighlightInfoFilter`) |
+| `highlight/` | Severity of the SQL problems reported inside SQLX files: `SqlxHighlightScope`, `SqlxSyntaxErrorFilter`, `SqlxSqlResolveSuppressor`, `SqlxSqlProblemAnnotator` |
 | `index/` | File and symbol indexing (`DataformJsFileIndex`) |
 | `injection/` | Language injection mechanisms: SQL (`SqlxSqlInjector`), JS (`SqlxJsInjector`), Config (`SqlxConfigInjector`), Template (`SqlxTemplateInjector`), helpers (`InjectionHelper`, `SqlxRefSelfResolver`) |
 | `lexer/` | SQLX lexer (`SqlxFileLexer`, `SqlxLexerAdapter`) |

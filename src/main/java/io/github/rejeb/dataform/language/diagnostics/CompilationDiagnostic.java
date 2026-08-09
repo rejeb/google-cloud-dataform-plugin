@@ -14,16 +14,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.rejeb.dataform.language.compilation;
+package io.github.rejeb.dataform.language.diagnostics;
 
-import com.intellij.execution.BeforeRunTask;
-import com.intellij.openapi.util.Key;
+import com.intellij.openapi.vfs.VirtualFile;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
-public final class DataformBuildTask extends BeforeRunTask<DataformBuildTask> {
-
-    public DataformBuildTask(@NotNull Key<DataformBuildTask> providerId) {
-        super(providerId);
-        setEnabled(true);
-    }
+/**
+ * A single Dataform compilation error. Compilation errors carry no trustworthy position, so this
+ * record deliberately has no line.
+ */
+public record CompilationDiagnostic(@NotNull VirtualFile file,
+                                    @NotNull String message,
+                                    @Nullable String actionName) {
 }

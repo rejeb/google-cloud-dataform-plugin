@@ -33,4 +33,7 @@ public class DataformIcons {
             AllIcons.CodeWithMe.CwmShared,
             JBColor.BLUE
     );
+
+    /** Greyed out file icon, used for actions declaring {@code disabled: true}. */
+    public static final Icon FILE_DISABLED = IconLoader.getDisabledIcon(FILE);
 }

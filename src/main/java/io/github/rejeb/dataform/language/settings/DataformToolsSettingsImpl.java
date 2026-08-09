@@ -72,6 +72,26 @@ public final class DataformToolsSettingsImpl
     }
 
     @Override
+    public boolean isShowInlineCompilationErrors() {
+        return state.showInlineCompilationErrors;
+    }
+
+    @Override
+    public void setShowInlineCompilationErrors(boolean value) {
+        state.showInlineCompilationErrors = value;
+    }
+
+    @Override
+    public boolean isCompileOnSave() {
+        return state.compileOnSave;
+    }
+
+    @Override
+    public void setCompileOnSave(boolean value) {
+        state.compileOnSave = value;
+    }
+
+    @Override
     public void update(@NotNull String coreInstallPath,
                        @NotNull String sqlfluffExecutablePath,
                        @NotNull String sqlfluffConfigPath,

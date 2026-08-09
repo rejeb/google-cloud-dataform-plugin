@@ -24,6 +24,8 @@ import org.jetbrains.annotations.Nullable;
 import java.io.Serializable;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 
 public record ColumnInfo(
@@ -33,6 +35,8 @@ public record ColumnInfo(
         @Nullable String description,
         @NotNull List<ColumnInfo> subFields
 ) implements Serializable {
+
+    private static final Map<String, DasType> TYPES = new ConcurrentHashMap<>();
     public ColumnInfo(@NotNull String name, @NotNull String type, @NotNull String mode, @Nullable String description) {
         this(name, type, mode, description, Collections.emptyList());
     }
@@ -41,13 +45,20 @@ public record ColumnInfo(
         return new ColumnInfo(parentName + "." + name, type, mode, description, subFields);
     }
 
+    /**
+     * The database type of this column. Importing a type builds throwaway PSI for it, so the
+     * result is memoised per type specification: a resolve that reaches a struct field must see
+     * the same element every time, otherwise the platform resolve cache is non-idempotent.
+     */
     public DasType dasType() {
-        if (isRecord()) {
-            String dasType = String.format("STRUCT<%s>", String.join(",", subFields.stream().map(child -> child.name() + " " + child.dasType().getDescription()).toList()));
-            return PropertyConverter.importDasType(dasType);
-        } else {
-            return PropertyConverter.importDasType(type);
-        }
+        return TYPES.computeIfAbsent(typeSpecification(), PropertyConverter::importDasType);
+    }
+
+    private String typeSpecification() {
+        if (!isRecord()) return type;
+        return String.format("STRUCT<%s>", String.join(",", subFields.stream()
+                .map(child -> child.name() + " " + child.dasType().getDescription())
+                .toList()));
     }
 
     public boolean isRecord() {
