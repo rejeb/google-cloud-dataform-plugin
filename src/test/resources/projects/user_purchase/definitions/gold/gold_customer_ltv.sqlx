@@ -1,0 +1,46 @@
+config {
+    type: "table",
+    schema: `${dataform.projectConfig.vars.gold_dataset}`,
+    description: "Gold layer: customer lifetime value (LTV) and VIP segmentation.",
+    tags: ["gold", "customers", "ltv"],
+
+}
+
+js {
+    const constants = require("includes/constants.js");
+}
+
+
+WITH customer_orders AS (
+    SELECT
+        o.customer_id,
+        o.order_id,
+        SUM(s.order_amount) AS lifetime_value,
+        COUNT(DISTINCT o.order_id) AS orders_count,
+        MIN(o.order_ts) AS first_order_ts,
+        MAX(o.order_ts) AS last_order_ts
+    FROM ${ref("silver_orders")} AS o
+    INNER JOIN ${ref("gold_customer_purchase_summary")} AS s
+        ON o.order_id = s.order_id
+    WHERE o.order_status = 'PAID'
+    GROUP BY o.customer_id
+)
+
+SELECT
+    c.customer_id,
+    co.order_id,
+    c.full_name,
+    c.email,
+    c.country_code,
+    CONCAT(
+        CAST(co.customer_id AS STRING),
+        CAST(co.customer_id AS STRING)
+    ) AS concatened_id,
+    COALESCE(co.lifetime_value, 0) AS lifetime_value,
+    COALESCE(co.orders_count, 0) AS orders_count,
+    co.first_order_ts,
+    co.last_order_ts,
+    COALESCE(co.lifetime_value, 0) >= ${constants.VIP_LTV_THRESHOLD} AS is_vip
+FROM ${ref("silver_customers")} AS c
+LEFT JOIN customer_orders AS co
+    ON c.customer_id = co.customer_id

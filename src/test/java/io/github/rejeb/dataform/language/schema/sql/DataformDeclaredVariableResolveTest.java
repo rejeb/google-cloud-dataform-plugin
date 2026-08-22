@@ -33,9 +33,18 @@ public class DataformDeclaredVariableResolveTest extends BasePlatformTestCase {
      * configuring the same file name repeatedly leaves more than one declaration visible to the
      * resolver and makes struct-field resolution non-idempotent.
      */
+    /**
+     * A file of its own per test. Configuring one name over and over leaves the declarations of
+     * earlier tests reachable, and a struct field then resolves to one of them as well as to its
+     * own, which the platform reports as a non-idempotent resolve.
+     */
+    private String fileName() {
+        return getName() + ".sqlx";
+    }
+
     private Set<String> unresolvedNames(String sqlx) {
         myFixture.enableInspections(new SqlResolveInspection());
-        PsiFile file = myFixture.configureByText("test_create.sqlx", sqlx);
+        PsiFile file = myFixture.configureByText(fileName(), sqlx);
         Set<String> unresolved = new HashSet<>();
         for (HighlightInfo hi : myFixture.doHighlighting()) {
             String desc = hi.getDescription();
@@ -90,7 +99,7 @@ public class DataformDeclaredVariableResolveTest extends BasePlatformTestCase {
         String sqlx = "config { type: \"table\" }\n"
                 + "pre_operations {\nDECLARE countries ARRAY<STRING>;\n}\n"
                 + "SELECT 1 FROM t WHERE teamName IN UNNEST(countr<caret>)";
-        myFixture.configureByText("test_create.sqlx", sqlx);
+        myFixture.configureByText(fileName(), sqlx);
         assertCompletionOffers("countries");
     }
 
@@ -98,7 +107,7 @@ public class DataformDeclaredVariableResolveTest extends BasePlatformTestCase {
         String sqlx = "config { type: \"table\" }\n"
                 + "pre_operations {\nDECLARE bounds STRUCT<lo INT64, hi INT64>;\n}\n"
                 + "SELECT 1 FROM t WHERE x > boun<caret>";
-        myFixture.configureByText("test_create.sqlx", sqlx);
+        myFixture.configureByText(fileName(), sqlx);
         assertCompletionOffers("bounds");
     }
 

@@ -1,0 +1,14 @@
+config {
+    type: "table",
+    schema: dataform.projectConfig.vars.bronze_dataset,
+    description: "Bronze layer: raw customers, taken as they arrive.",
+    tags: ["bronze", "customers"],
+}
+
+-- The extraction keeps every column of the source as it is, so the query
+-- names none of them: the star is what declares them all.
+SELECT *
+FROM UNNEST([
+  STRUCT(1 AS customer_id, 'Alice Martin' AS full_name, 'alice@example.com' AS email),
+  STRUCT(2 AS customer_id, 'Bram de Vries' AS full_name, 'bram@example.com' AS email)
+])

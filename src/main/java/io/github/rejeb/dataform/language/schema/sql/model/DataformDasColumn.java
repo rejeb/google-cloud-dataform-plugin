@@ -31,12 +31,15 @@ import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiManager;
+import com.intellij.psi.PsiNamedElement;
 import com.intellij.psi.impl.light.LightElement;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.sql.dialects.bigquery.BigQueryDialect;
 import com.intellij.sql.psi.SqlCompositeElementTypes;
+import com.intellij.util.IncorrectOperationException;
 import com.intellij.util.containers.JBIterable;
 import io.github.rejeb.dataform.language.psi.SqlxFile;
+import io.github.rejeb.dataform.language.schema.sql.SqlxOutputColumnLocator;
 import io.github.rejeb.dataform.language.psi.SqlxSqlBlock;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -44,7 +47,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.List;
 
 
-public class DataformDasColumn extends LightElement implements DasColumn, DasSymbol {
+public class DataformDasColumn extends LightElement implements DasColumn, DasSymbol, PsiNamedElement {
     private final DataformDasTable myParent;
     private final ColumnInfo myInfo;
     private final PsiFile containingFile;
@@ -65,6 +68,15 @@ public class DataformDasColumn extends LightElement implements DasColumn, DasSym
     }
 
     /**
+     * A schema column is a read-only declaration: it is derived from the compiled Dataform graph
+     * and has no source of its own to edit.
+     */
+    @Override
+    public PsiElement setName(@NotNull String name) throws IncorrectOperationException {
+        throw new IncorrectOperationException("Dataform schema columns cannot be renamed");
+    }
+
+    /**
      * Returns the schema information backing this column.
      */
     public @NotNull ColumnInfo getColumnInfo() {
@@ -74,6 +86,22 @@ public class DataformDasColumn extends LightElement implements DasColumn, DasSym
     @Override
     public @NotNull String toString() {
         return myInfo.name();
+    }
+
+    /**
+     * Two instances describing the same column of the same table are the same declaration. A new
+     * instance is created on every resolve, so reference matching (Find Usages, highlighting)
+     * must compare the logical identity, not the instance.
+     */
+    @Override
+    public boolean isEquivalentTo(PsiElement another) {
+        if (this == another) return true;
+        if (!(another instanceof DataformDasColumn other)) return false;
+        if (!myInfo.name().equalsIgnoreCase(other.myInfo.name())) return false;
+        if (myParent != null || other.myParent != null) {
+            return myParent != null && myParent.isEquivalentTo(other.myParent);
+        }
+        return containingFile != null && containingFile.equals(other.containingFile);
     }
 
     @Override
@@ -111,6 +139,18 @@ public class DataformDasColumn extends LightElement implements DasColumn, DasSym
         return containingFile;
     }
 
+    /**
+     * The select-list element declaring this column, so navigation lands on real source rather
+     * than on this synthetic element. Falls back to itself when the file does not declare it.
+     */
+    @Override
+    public @NotNull PsiElement getNavigationElement() {
+        if (containingFile == null) return this;
+        PsiElement declaration =
+                SqlxOutputColumnLocator.findOutputColumn(containingFile, myInfo.name());
+        return declaration != null ? declaration : this;
+    }
+
     @Override
     public ItemPresentation getPresentation() {
         return new ItemPresentation() {
@@ -119,6 +159,11 @@ public class DataformDasColumn extends LightElement implements DasColumn, DasSym
                 return myInfo.name();
             }
 
+            /**
+             * No location. SQL completion qualifies an insert as {@code table.column} whenever a
+             * column offers one, so a column of the query's own tables has to offer none to be
+             * inserted under its bare name.
+             */
             @Override
             public String getLocationString() {
                 return null;
@@ -174,9 +219,18 @@ public class DataformDasColumn extends LightElement implements DasColumn, DasSym
 
     private int findColumnOffsetInSqlBlock() {
         if (!(containingFile instanceof SqlxFile)) return -1;
+        InjectedLanguageManager ilm = InjectedLanguageManager.getInstance(containingFile.getProject());
+        PsiElement declaration =
+                SqlxOutputColumnLocator.findOutputColumn(containingFile, myInfo.name());
+        if (declaration != null) {
+            return ilm.injectedToHost(declaration, declaration.getTextOffset());
+        }
+        return findFirstMentionInSqlBlock(ilm);
+    }
+
+    private int findFirstMentionInSqlBlock(@NotNull InjectedLanguageManager ilm) {
         SqlxSqlBlock sqlBlock = PsiTreeUtil.findChildOfType(containingFile, SqlxSqlBlock.class);
         if (sqlBlock == null) return -1;
-        InjectedLanguageManager ilm = InjectedLanguageManager.getInstance(containingFile.getProject());
         List<Pair<PsiElement, TextRange>> injectedFiles = ilm.getInjectedPsiFiles(sqlBlock);
         if (injectedFiles == null || injectedFiles.isEmpty()) return -1;
         for (Pair<PsiElement, TextRange> pair : injectedFiles) {

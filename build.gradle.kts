@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "io.github.rejeb"
-version = "0.2.17"
+version = "0.2.18"
 
 repositories {
     mavenCentral()
@@ -46,9 +46,8 @@ intellijPlatform {
 
         changeNotes = """
                 <ul>
-                    <li>Add compilation failure hints.</li>
-                    <li>Add autocompletion for columns in config properties</li>
-                    <li>Enhance column lineage resolve.</li>
+                    <li>Add columns goto and usage.</li>
+                    <li>Add autocompletion partitionBy expression</li>
                     <li>Fix issues.</li>
                 </ul>
         """.trimIndent()

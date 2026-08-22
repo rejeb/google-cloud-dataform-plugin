@@ -30,16 +30,19 @@ import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiFileFactory;
 import com.intellij.psi.PsiManager;
+import com.intellij.psi.PsiNamedElement;
 import com.intellij.psi.impl.light.LightElement;
 import com.intellij.sql.dialects.bigquery.BigQueryDialect;
+import com.intellij.util.IncorrectOperationException;
 import com.intellij.util.containers.JBIterable;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
-public class DataformDasTable extends LightElement implements DasTable, DasSymbol {
+public class DataformDasTable extends LightElement implements DasTable, DasSymbol, PsiNamedElement {
     private final String myName;
     private final List<ColumnInfo> myColumns;
     @Nullable
@@ -60,6 +63,15 @@ public class DataformDasTable extends LightElement implements DasTable, DasSymbo
         return myName;
     }
 
+    /**
+     * A schema table is a read-only declaration: it is derived from the compiled Dataform graph
+     * and has no source of its own to edit.
+     */
+    @Override
+    public PsiElement setName(@NotNull String name) throws IncorrectOperationException {
+        throw new IncorrectOperationException("Dataform schema tables cannot be renamed");
+    }
+
     public @NotNull List<ColumnInfo> getColumns() {
         return myColumns;
     }
@@ -72,6 +84,19 @@ public class DataformDasTable extends LightElement implements DasTable, DasSymbo
     @Override
     public @NotNull String toString() {
         return myName;
+    }
+
+    /**
+     * Two instances describing the same Dataform table are the same declaration. Instances are
+     * rebuilt on every schema refresh, so reference matching (Find Usages, highlighting) must
+     * compare the logical identity, not the instance.
+     */
+    @Override
+    public boolean isEquivalentTo(PsiElement another) {
+        if (this == another) return true;
+        if (!(another instanceof DataformDasTable other)) return false;
+        return myName.equalsIgnoreCase(other.myName)
+                && Objects.equals(mySourceFile, other.mySourceFile);
     }
 
     @Override

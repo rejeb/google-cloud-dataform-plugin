@@ -70,6 +70,9 @@
         <projectService serviceInterface="io.github.rejeb.dataform.language.lineage.service.LineageGraphService"
                         serviceImplementation="io.github.rejeb.dataform.language.lineage.service.LineageGraphServiceImpl"
         />
+        <projectService serviceInterface="io.github.rejeb.dataform.language.schema.sql.ColumnOriginService"
+                        serviceImplementation="io.github.rejeb.dataform.language.schema.sql.ColumnOriginServiceImpl"
+        />
         <projectService serviceInterface="io.github.rejeb.dataform.language.diagnostics.CompilationDiagnosticService"
                         serviceImplementation="io.github.rejeb.dataform.language.diagnostics.CompilationDiagnosticServiceImpl"
         />
@@ -141,6 +144,12 @@
                 implementation="io.github.rejeb.dataform.language.schema.sql.DataformSqlResolveExtension"/>
         <sql.resolveExtension
                 implementation="io.github.rejeb.dataform.language.schema.sql.DataformSqlVariableResolveExtension"/>
+        <sql.resolveExtension
+                implementation="io.github.rejeb.dataform.language.schema.sql.DataformColumnResolveExtension"/>
+        <findUsagesHandlerFactory
+                implementation="io.github.rejeb.dataform.language.schema.sql.DataformSchemaFindUsagesHandlerFactory"/>
+        <usageTypeProvider
+                implementation="io.github.rejeb.dataform.language.schema.sql.DataformColumnUsageTypeProvider"/>
 
         <editorFactoryListener
                 implementation="io.github.rejeb.dataform.language.folding.DataformValueFoldClickListener"/>
@@ -369,6 +378,16 @@
     </applicationListeners>
 
     <actions>
+        <action id="GotoDeclaration"
+                class="io.github.rejeb.dataform.language.schema.sql.usages.SqlxColumnNavigationAction"
+                overrides="true"/>
+        <action id="Dataform.ShowColumnUsages"
+                class="io.github.rejeb.dataform.language.schema.sql.ShowDataformColumnUsagesAction"
+                text="Show Column Usages"
+                description="Show where the Dataform column under the caret is declared and read">
+            <add-to-group group-id="EditorPopupMenu" anchor="first"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="control alt shift U"/>
+        </action>
         <action id="Dataform.CompareFileWithRemote"
                 class="io.github.rejeb.dataform.language.gcp.action.CompareFileWithRemoteAction"
                 text="Compare File with Remote"

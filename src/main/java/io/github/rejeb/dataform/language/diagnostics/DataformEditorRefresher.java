@@ -26,6 +26,12 @@ import org.jetbrains.annotations.NotNull;
  * Repaints what shows Dataform diagnostics once they have changed: the annotations produced by the
  * daemon and the banners above the editors. Both live on the EDT, so callers can invoke this from
  * any thread.
+ *
+ * <p>The daemon is left alone under a test. Nothing there watches the editor for a repaint: a test
+ * that wants annotations asks for them, and running them itself is what it measures. The restart
+ * would only ever arrive in the middle of that, where the platform refuses a model change and
+ * fails whichever test happened to be highlighting — a file created by one test restarting the
+ * daemon under the next.</p>
  */
 public final class DataformEditorRefresher {
 
@@ -40,7 +46,9 @@ public final class DataformEditorRefresher {
             if (project.isDisposed()) {
                 return;
             }
-            DaemonCodeAnalyzer.getInstance(project).restart();
+            if (!ApplicationManager.getApplication().isUnitTestMode()) {
+                DaemonCodeAnalyzer.getInstance(project).restart();
+            }
             EditorNotifications.getInstance(project).updateAllNotifications();
         });
     }

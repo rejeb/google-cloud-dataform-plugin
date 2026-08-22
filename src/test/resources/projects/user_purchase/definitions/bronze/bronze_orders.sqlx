@@ -1,0 +1,43 @@
+config {
+  type: "table",
+  schema: dataform.projectConfig.vars.bronze_dataset,
+  description: "Bronze layer: raw orders (example), with pre/post operations.",
+  tags: ["bronze", "orders"],
+}
+
+-- Dataform Feature: pre_operations, executed BEFORE table creation/writing.
+-- Here we create a temporary function reusable in the main SELECT.
+pre_operations {
+  CREATE TEMP FUNCTION NormalizeStatus(raw_status STRING)
+  RETURNS STRING
+  AS (
+    CASE
+      WHEN LOWER(raw_status) IN ('paid', 'payee', 'completed') THEN 'PAID'
+      WHEN LOWER(raw_status) IN ('cancelled', 'annulee') THEN 'CANCELLED'
+      ELSE 'PENDING'
+    END
+  );
+}
+
+SELECT
+  order_id,
+  customer_id,
+  order_ts,
+  NormalizeStatus(raw_status) AS order_status,
+  raw_status AS order_status_raw
+FROM UNNEST([
+  STRUCT(9001 AS order_id, 1 AS customer_id, TIMESTAMP('2024-05-01 10:15:00') AS order_ts, 'paid'      AS raw_status),
+  STRUCT(9002 AS order_id, 2 AS customer_id, TIMESTAMP('2024-05-02 14:40:00') AS order_ts, 'paid'      AS raw_status),
+  STRUCT(9003 AS order_id, 1 AS customer_id, TIMESTAMP('2024-05-10 09:05:00') AS order_ts, 'completed' AS raw_status),
+  STRUCT(9004 AS order_id, 3 AS customer_id, TIMESTAMP('2024-05-11 18:22:00') AS order_ts, 'annulee'   AS raw_status),
+  STRUCT(9005 AS order_id, 4 AS customer_id, TIMESTAMP('2024-05-12 11:00:00') AS order_ts, 'pending'   AS raw_status),
+  STRUCT(9006 AS order_id, 5 AS customer_id, TIMESTAMP('2024-05-13 16:47:00') AS order_ts, 'paid'      AS raw_status)
+])
+
+-- Dataform Feature: post_operations, executed AFTER table creation.
+-- Useful for logging, GRANTs, or volume statistics.
+post_operations {
+INSERT INTO ${ref("refresh_log_operation")}
+    (table_name, loaded_at, row_count)
+  SELECT 'bronze_orders', CURRENT_TIMESTAMP(), (SELECT COUNT(*) FROM ${self()})
+}
