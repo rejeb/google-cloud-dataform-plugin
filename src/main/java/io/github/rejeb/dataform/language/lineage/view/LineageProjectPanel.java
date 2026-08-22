@@ -37,26 +37,13 @@ import com.intellij.util.ui.UIUtil;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.DataformIcons;
-import io.github.rejeb.dataform.language.lineage.column.BigQuerySelectAnalyzer;
-import io.github.rejeb.dataform.language.lineage.column.ColumnLineageExtractor;
-import io.github.rejeb.dataform.language.lineage.column.ColumnLineageExtractorImpl;
-import io.github.rejeb.dataform.language.lineage.column.ColumnLineageGraph;
-import io.github.rejeb.dataform.language.lineage.extractor.LineageExtractorImpl;
-import io.github.rejeb.dataform.language.lineage.graph.LineageGraph;
 import io.github.rejeb.dataform.language.lineage.model.Density;
 import io.github.rejeb.dataform.language.lineage.model.Direction;
 import io.github.rejeb.dataform.language.lineage.model.LineageModel;
-import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
-import io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService;
+import io.github.rejeb.dataform.language.lineage.service.LineageGraphService;
 import org.jetbrains.annotations.NotNull;
 
-import io.github.rejeb.dataform.language.compilation.model.Target;
 
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 import javax.swing.AbstractAction;
 import javax.swing.JComponent;
@@ -94,11 +81,6 @@ public final class LineageProjectPanel extends JPanel {
 
     private boolean detailsCollapsed;
     private String lastSelectionKey = "";
-
-    private volatile CompiledGraph cachedCompiled;
-    private volatile long cachedSchemaStamp = Long.MIN_VALUE;
-    private volatile LineageGraph cachedTableGraph;
-    private volatile ColumnLineageGraph cachedColumnGraph;
 
     public LineageProjectPanel(@NotNull Project project, @NotNull LineageModel model) {
         super(new BorderLayout());
@@ -149,64 +131,15 @@ public final class LineageProjectPanel extends JPanel {
             DataformCompilationService svc = DataformCompilationService.getInstance(project);
             CompiledGraph compiled = force ? svc.compile(true) : svc.getCompiledGraph();
 
-            long schemaStamp = DataformTableSchemaService.getInstance(project).getModificationCount();
-            LineageGraph graph = null;
-            ColumnLineageGraph columnGraph = null;
-            if (compiled != null && compiled == cachedCompiled && schemaStamp == cachedSchemaStamp
-                    && cachedColumnGraph != null) {
-                graph = cachedTableGraph;
-                columnGraph = cachedColumnGraph;
-            } else if (compiled != null) {
-                CompiledGraph finalCompiled = compiled;
-                java.util.concurrent.CompletableFuture<LineageGraph> tableFuture =
-                        java.util.concurrent.CompletableFuture.supplyAsync(
-                                () -> new LineageExtractorImpl().extract(finalCompiled),
-                                com.intellij.util.concurrency.AppExecutorUtil.getAppExecutorService());
-                columnGraph = computeColumnGraph(compiled);
-                graph = tableFuture.join();
+            LineageGraphService.Graphs graphs = compiled == null
+                    ? new LineageGraphService.Graphs(null, null)
+                    : LineageGraphService.getInstance(project).graphs(compiled);
 
-                cachedCompiled = compiled;
-                cachedSchemaStamp = schemaStamp;
-                cachedTableGraph = graph;
-                cachedColumnGraph = columnGraph;
-            }
-
-            LineageGraph finalGraph = graph;
-            ColumnLineageGraph finalColumnGraph = columnGraph;
             ApplicationManager.getApplication().invokeLater(() -> {
-                model.setGraph(finalGraph);
-                model.setColumnGraph(finalColumnGraph);
+                model.setGraph(graphs.tableGraph());
+                model.setColumnGraph(graphs.columnGraph());
             }, ModalityState.nonModal());
         });
-    }
-
-    /**
-     * Builds the column graph from the schemas of the actions present in the compiled graph.
-     * Cached schemas of actions that are no longer part of the graph are ignored, so a stale
-     * entry cannot contribute columns to the lineage.
-     */
-    private ColumnLineageGraph computeColumnGraph(@NotNull CompiledGraph compiled) {
-        Set<String> actionNames = actionFullNames(compiled);
-        Map<String, List<ColumnInfo>> schemas = new LinkedHashMap<>();
-        DataformTableSchemaService.getInstance(project).getAllTables()
-                .forEach((fqn, table) -> {
-                    if (actionNames.contains(fqn)) schemas.put(fqn, table.getColumns());
-                });
-        ColumnLineageExtractor extractor =
-                new ColumnLineageExtractorImpl(new BigQuerySelectAnalyzer(project));
-        return extractor.extract(compiled, schemas);
-    }
-
-    private @NotNull Set<String> actionFullNames(@NotNull CompiledGraph compiled) {
-        Set<String> names = new LinkedHashSet<>();
-        compiled.getTables().forEach(t -> addFullName(names, t.getTarget()));
-        compiled.getOperations().forEach(o -> addFullName(names, o.getTarget()));
-        compiled.getDeclarations().forEach(d -> addFullName(names, d.getTarget()));
-        return names;
-    }
-
-    private void addFullName(@NotNull Set<String> names, Target target) {
-        if (target != null && target.getFullName() != null) names.add(target.getFullName());
     }
 
     private JComponent buildToolbar() {

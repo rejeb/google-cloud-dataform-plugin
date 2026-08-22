@@ -88,7 +88,7 @@ public class DataformConfigPropertyCompletionContributor extends CompletionContr
                         .withBoldness(required.contains(name))
                         .withTypeText(schemaLookup.typeText(resolved))
                         .withInsertHandler(
-                                new ConfigPropertyInsertHandler(schemaLookup, resolved));
+                                new ConfigPropertyInsertHandler(schemaLookup, name, resolved));
                 result.addElement(element);
             });
             result.stopHere();

@@ -36,12 +36,22 @@ public class DataformWorkflowConfigurationFactory extends ConfigurationFactory {
         return DataformWorkflowConfigurationType.ID;
     }
 
+    /**
+     * The platform also builds a template configuration for the default project, which carries no
+     * Dataform settings and where the settings service is not available, so the selected workspace
+     * is only read from a real project.
+     */
     @NotNull
     @Override
     public RunConfiguration createTemplateConfiguration(@NotNull Project project) {
         DataformWorkflowRunConfiguration configuration =
                 new DataformWorkflowRunConfiguration(project, this, "Dataform Workflow");
-        configuration.setWorkspaceId(GcpRepositorySettings.getInstance(project).getSelectedWorkspaceId());
+        GcpRepositorySettings settings = project.isDefault()
+                ? null
+                : GcpRepositorySettings.getInstance(project);
+        if (settings != null) {
+            configuration.setWorkspaceId(settings.getSelectedWorkspaceId());
+        }
         return configuration;
     }
 

@@ -34,6 +34,8 @@ import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.ProcessingContext;
 import io.github.rejeb.dataform.language.completion.config.ConfigColumnEntryInsertHandler;
 import io.github.rejeb.dataform.language.completion.config.ConfigColumnSlots;
+import io.github.rejeb.dataform.language.completion.config.partition.PartitionExpressionCursor;
+import io.github.rejeb.dataform.language.completion.config.partition.PartitionFormLookups;
 import io.github.rejeb.dataform.language.schema.sql.DataformActionColumns;
 import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
 import org.jetbrains.annotations.NotNull;
@@ -45,8 +47,11 @@ import java.util.Set;
 
 /**
  * Completes the columns of the action a SQLX file declares wherever its config block names one:
- * the keys of the {@code columns} map and the column names taken by {@code partitionBy},
- * {@code clusterBy}, {@code uniqueKey} and the {@code assertions} block.
+ * the keys of the {@code columns} map and the column names taken by {@code clusterBy},
+ * {@code uniqueKey} and the {@code assertions} block.
+ *
+ * <p>The string form of {@code partitionBy} holds an expression rather than a bare column name and
+ * is completed with the partitioning forms BigQuery accepts for the types the action declares.</p>
  */
 public class DataformConfigColumnCompletionContributor extends CompletionContributor {
 
@@ -67,6 +72,10 @@ public class DataformConfigColumnCompletionContributor extends CompletionContrib
             }
             List<ColumnInfo> columns = DataformActionColumns.descend(
                     DataformActionColumns.in(parameters.getOriginalFile()), slot.get().recordPath());
+            if (slot.get().kind() == ConfigColumnSlots.Kind.PARTITION_EXPRESSION) {
+                addPartitionExpressions(columns, parameters, result);
+                return;
+            }
             if (columns.isEmpty()) {
                 return;
             }
@@ -82,6 +91,30 @@ public class DataformConfigColumnCompletionContributor extends CompletionContrib
             if (added) {
                 result.stopHere();
             }
+        }
+
+        /**
+         * Offers what the caret is editing of the partitioning expression: the expression itself,
+         * the column the function it holds takes, or its truncation unit. Unlike a column name, an
+         * expression is offered even when the schema is unknown, since its shape does not depend on
+         * it.
+         *
+         * <p>The proposals are matched against the argument being edited rather than against the
+         * whole string, which JavaScript takes as the prefix of a literal.</p>
+         */
+        private static void addPartitionExpressions(@NotNull List<ColumnInfo> columns,
+                                                    @NotNull CompletionParameters parameters,
+                                                    @NotNull CompletionResultSet result) {
+            JSLiteralExpression literal = PsiTreeUtil.getParentOfType(
+                    parameters.getPosition(), JSLiteralExpression.class, false);
+            PartitionExpressionCursor cursor = literal == null
+                    ? PartitionExpressionCursor.empty()
+                    : PartitionExpressionCursor.inLiteral(literal.getText(),
+                            parameters.getOffset() - literal.getTextRange().getStartOffset());
+
+            CompletionResultSet sink = result.withPrefixMatcher(cursor.prefix());
+            PartitionFormLookups.of(columns, cursor, literal != null).forEach(sink::addElement);
+            result.stopHere();
         }
 
         @NotNull

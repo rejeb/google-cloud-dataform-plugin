@@ -16,10 +16,10 @@
  */
 package io.github.rejeb.dataform.language.diagnostics;
 
+import io.github.rejeb.dataform.language.util.TextWrapper;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -40,50 +40,8 @@ public final class CompilationErrorChipText {
      * on word boundaries where possible. The first line carries the warning prefix.
      */
     public static @NotNull List<String> wrap(@Nullable String message) {
-        int maxLineLength = MAX_LINE_LENGTH;
-        String prefix = PREFIX;
-        String normalized = normalize(message);
-        List<String> lines = new ArrayList<>();
-        StringBuilder current = new StringBuilder(prefix);
-
-        for (String word : normalized.split("\\s+")) {
-            if (word.isEmpty()) {
-                continue;
-            }
-            if (current.length() > prefix.length()
-                    && current.length() + 1 + word.length() > maxLineLength) {
-                lines.add(current.toString());
-                current = new StringBuilder();
-            }
-            if (current.length() > 0 && current.charAt(current.length() - 1) != ' ') {
-                current.append(' ');
-            }
-            appendWord(lines, current, word, maxLineLength);
-        }
-        if (current.length() > 0 && !current.toString().isBlank()) {
-            lines.add(current.toString());
-        }
-        return lines.isEmpty() ? List.of(prefix + FALLBACK) : lines;
-    }
-
-    private static void appendWord(@NotNull List<String> lines,
-                                   @NotNull StringBuilder current,
-                                   @NotNull String word,
-                                   int maxLineLength) {
-        String remaining = word;
-        while (current.length() + remaining.length() > maxLineLength) {
-            int room = maxLineLength - current.length();
-            if (room <= 0) {
-                lines.add(current.toString());
-                current.setLength(0);
-                continue;
-            }
-            current.append(remaining, 0, room);
-            lines.add(current.toString());
-            current.setLength(0);
-            remaining = remaining.substring(room);
-        }
-        current.append(remaining);
+        List<String> lines = TextWrapper.wrap(normalize(message), MAX_LINE_LENGTH, PREFIX);
+        return lines.isEmpty() ? List.of(PREFIX + FALLBACK) : lines;
     }
 
     private static String normalize(@Nullable String message) {

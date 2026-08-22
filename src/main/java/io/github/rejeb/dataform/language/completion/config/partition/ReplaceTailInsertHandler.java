@@ -14,44 +14,39 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.rejeb.dataform.language.completion.config;
+package io.github.rejeb.dataform.language.completion.config.partition;
 
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.intellij.codeInsight.completion.InsertHandler;
 import com.intellij.codeInsight.completion.InsertionContext;
 import com.intellij.codeInsight.lookup.LookupElement;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
+import com.intellij.psi.PsiDocumentManager;
+import io.github.rejeb.dataform.language.completion.config.ConfigInsertion;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Inserts a config property with a value skeleton matching its schema type.
+ * Drops what the caret left behind of the value being replaced, so that picking a proposal in the
+ * middle of an argument rewrites it whole rather than splicing into it.
  */
-public class ConfigPropertyInsertHandler implements InsertHandler<LookupElement> {
+public class ReplaceTailInsertHandler implements InsertHandler<LookupElement> {
 
-    private final ConfigValueSkeletonBuilder skeletonBuilder;
-    private final String propertyName;
-    private final ObjectNode propertySchema;
+    private final int tailLength;
 
-    public ConfigPropertyInsertHandler(@NotNull ConfigSchemaLookup lookup,
-                                       @NotNull String propertyName,
-                                       @NotNull ObjectNode propertySchema) {
-        this.skeletonBuilder = new ConfigValueSkeletonBuilder(lookup);
-        this.propertyName = propertyName;
-        this.propertySchema = propertySchema;
+    public ReplaceTailInsertHandler(int tailLength) {
+        this.tailLength = tailLength;
     }
 
     @Override
     public void handleInsert(@NotNull InsertionContext context, @NotNull LookupElement item) {
+        if (tailLength <= 0) {
+            return;
+        }
         Editor editor = ConfigInsertion.hostEditor(context);
         Document document = editor.getDocument();
-        int offset = ConfigInsertion.hostOffset(context, context.getTailOffset());
-
-        ConfigValueSkeletonBuilder.Skeleton skeleton = skeletonBuilder
-                .build(propertyName, propertySchema, ConfigInsertion.lineIndent(document, offset));
-
-        boolean comma = !ConfigValueSkeletonBuilder.isValuePending(skeleton)
-                && ConfigInsertion.needsComma(document, offset);
-        ConfigInsertion.applyText(context, editor, offset, skeleton, comma ? "," : "");
+        int tail = ConfigInsertion.hostOffset(context, context.getTailOffset());
+        document.deleteString(tail, Math.min(document.getTextLength(), tail + tailLength));
+        PsiDocumentManager.getInstance(context.getProject()).commitDocument(document);
+        editor.getCaretModel().moveToOffset(tail);
     }
 }

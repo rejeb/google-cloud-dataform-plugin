@@ -23,6 +23,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Builds the value skeleton inserted after a config property name, according to
@@ -32,6 +33,13 @@ public class ConfigValueSkeletonBuilder {
 
     private static final String INDENT_UNIT = "  ";
     private static final String COLON = ": ";
+
+    /**
+     * Properties Dataform declares as a string, whatever other shape the schema also describes for
+     * them. Only the string shape is offered, so that adding one opens an expression rather than a
+     * choice of shapes; the other shape stays completable once its braces have been typed.
+     */
+    private static final Set<String> STRING_ONLY_PROPERTIES = Set.of("partitionBy");
 
     private final ConfigSchemaLookup lookup;
 
@@ -45,12 +53,43 @@ public class ConfigValueSkeletonBuilder {
      * several shapes only get the separator, so the shape can be picked in a new popup.
      */
     public Skeleton build(@NotNull ObjectNode propertySchema, @NotNull String indent) {
-        if (variants(propertySchema).size() > 1) {
+        return build(null, propertySchema, indent);
+    }
+
+    /**
+     * Builds the text inserted after the given property name, the caret offset inside that text and
+     * whether another completion popup should follow. A property accepting several shapes only gets
+     * the separator, so the shape can be picked in a new popup, unless Dataform declares it as a
+     * string, in which case the string is opened straight away.
+     */
+    public Skeleton build(@Nullable String propertyName,
+                          @NotNull ObjectNode propertySchema,
+                          @NotNull String indent) {
+        List<ObjectNode> variants = variantsOf(propertyName, propertySchema);
+        if (variants.size() > 1) {
             return new Skeleton(COLON, COLON.length(), true);
         }
-        Skeleton value = buildValue(preferredVariant(propertySchema), indent);
-        return new Skeleton(COLON + value.text(),
-                COLON.length() + value.caretOffset(), value.autoPopup());
+        ObjectNode chosen = variants.size() == 1 ? variants.getFirst() : preferredVariant(propertySchema);
+        Skeleton value = buildValue(chosen, indent);
+        boolean popup = value.autoPopup() || isStringOnly(propertyName);
+        return new Skeleton(COLON + value.text(), COLON.length() + value.caretOffset(), popup);
+    }
+
+    /**
+     * Returns the shapes offered for the value of the given property, which are the ones its schema
+     * accepts but for a property Dataform declares as a string.
+     */
+    public List<ObjectNode> variantsOf(@Nullable String propertyName, @NotNull ObjectNode schema) {
+        List<ObjectNode> variants = variants(schema);
+        if (!isStringOnly(propertyName) || variants.isEmpty()) {
+            return variants;
+        }
+        List<ObjectNode> strings = variants.stream().filter(variant -> !isObject(variant)).toList();
+        return strings.isEmpty() ? variants : strings;
+    }
+
+    private static boolean isStringOnly(@Nullable String propertyName) {
+        return propertyName != null && STRING_ONLY_PROPERTIES.contains(propertyName);
     }
 
     /**

@@ -31,6 +31,7 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectUtil;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.util.ExceptionUtil;
 import io.github.rejeb.dataform.language.compilation.model.CompilationError;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService;
@@ -87,6 +88,9 @@ public final class DataformBuildManager {
                     context.errors.incrementAndGet();
                     buildViewManager.onEvent(context,
                             MessageEvent.builder("dataform compile returned no output — check stderr", MessageEvent.Kind.ERROR)
+                                    .withDescription(BuildErrorText.details(
+                                            "dataform compile returned no output.\n"
+                                                    + "Run the compile command in a terminal to see what the Dataform CLI reports."))
                                     .withParentId(context)
                                     .withGroup(TASK_NAME).build());
                     finishBuild(buildViewManager, context, context, false, "Dataform compile failed");
@@ -101,19 +105,22 @@ public final class DataformBuildManager {
                 if (!errors.isEmpty()) {
                     for (CompilationError error : errors) {
                         context.errors.incrementAndGet();
-                        String detail = buildErrorDetail(error);
+                        String title = BuildErrorText.title(error);
+                        String description = BuildErrorText.details(error);
                         FilePosition filePosition = resolveFilePosition(project, error);
 
                         if (filePosition != null) {
                             buildViewManager.onEvent(context,
-                                    MessageEvent.builder(detail, MessageEvent.Kind.ERROR)
+                                    MessageEvent.builder(title, MessageEvent.Kind.ERROR)
+                                            .withDescription(description)
                                             .withNavigatable(new FileNavigatable(project, filePosition))
                                             .withParentId(context)
                                             .withGroup(TASK_NAME).build()
                             );
                         } else {
                             buildViewManager.onEvent(context,
-                                    MessageEvent.builder(detail, MessageEvent.Kind.ERROR)
+                                    MessageEvent.builder(title, MessageEvent.Kind.ERROR)
+                                            .withDescription(description)
                                             .withParentId(context)
                                             .withGroup(TASK_NAME).build());
                         }
@@ -140,13 +147,16 @@ public final class DataformBuildManager {
             } catch (Exception e) {
                 LOG.warn("Unexpected error during dataform compile", e);
                 context.errors.incrementAndGet();
-                buildViewManager.onEvent(context, MessageEvent.builder(e.getMessage(), MessageEvent.Kind.ERROR)
+                String title = e.getMessage() != null && !e.getMessage().isBlank()
+                        ? e.getMessage() : e.getClass().getSimpleName();
+                buildViewManager.onEvent(context, MessageEvent.builder(title, MessageEvent.Kind.ERROR)
+                        .withDescription(BuildErrorText.details(ExceptionUtil.getThrowableText(e)))
                         .withParentId(context)
                         .withGroup(
                                 TASK_NAME).build());
                 finishBuild(buildViewManager, context, context, false,
-                        "Dataform compile error: " + e.getMessage());
-                showNotification(project, "Dataform compile error", e.getMessage(), NotificationType.ERROR);
+                        "Dataform compile error: " + title);
+                showNotification(project, "Dataform compile error", title, NotificationType.ERROR);
             }
         });
 
@@ -165,19 +175,6 @@ public final class DataformBuildManager {
                         .withParentId(buildId)
                         .withTime(System.currentTimeMillis())
                         .build());
-    }
-
-    private static String buildErrorDetail(CompilationError error) {
-        StringBuilder sb = new StringBuilder();
-        if (error.getActionName() != null) {
-            sb.append("[").append(error.getActionName()).append("] ");
-        }
-        if (error.getMessage() != null) {
-            sb.append(error.getMessage());
-        } else if (error.getStack() != null) {
-            sb.append(error.getStack());
-        }
-        return sb.toString().isBlank() ? "(no message)" : sb.toString();
     }
 
     @Nullable

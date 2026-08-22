@@ -52,6 +52,32 @@ public class DataformJsFileIndex {
                 .toList();
     }
 
+    /**
+     * Every JavaScript source file of the project, under {@code definitions} as well as under
+     * {@code includes}. Unlike {@link #findDataformJsFiles}, which serves include resolution and so
+     * keeps only the unambiguously named includes, this lists the files as they are: a caller
+     * searching their text must not miss one because another file shares its name.
+     */
+    @NotNull
+    public static List<PsiFile> findAllJsSourceFiles(@NotNull Project project) {
+        PsiManager psiManager = PsiManager.getInstance(project);
+        return FileTypeIndex.getFiles(JavaScriptFileType.INSTANCE, GlobalSearchScope.projectScope(project))
+                .stream()
+                .filter(DataformJsFileIndex::isJsSourceFile)
+                .map(psiManager::findFile)
+                .filter(java.util.Objects::nonNull)
+                .toList();
+    }
+
+    /** Whether the file is a project JavaScript source, that is one Dataform compiles. */
+    public static boolean isJsSourceFile(@NotNull VirtualFile file) {
+        if (!"js".equals(file.getExtension())) {
+            return false;
+        }
+        String normalizedPath = file.getPath().replace('\\', '/');
+        return normalizedPath.contains("/includes/") || normalizedPath.contains("/definitions/");
+    }
+
     public static boolean isDataformJsFile(@NotNull VirtualFile file) {
         if (!"js".equals(file.getExtension())) {
             return false;

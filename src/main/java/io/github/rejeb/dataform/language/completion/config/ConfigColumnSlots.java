@@ -43,7 +43,7 @@ public final class ConfigColumnSlots {
     private static final String ASSERTIONS = "assertions";
 
     private static final Set<String> COLUMN_NAME_KEYS =
-            Set.of("partitionBy", "clusterBy", "uniqueKey", "uniqueKeys", "nonNull");
+            Set.of("clusterBy", "uniqueKey", "uniqueKeys", "nonNull");
 
     private ConfigColumnSlots() {
     }
@@ -55,7 +55,12 @@ public final class ConfigColumnSlots {
         /** A key of a {@code columns} map, which is the name of a described column. */
         ENTRY_KEY,
         /** A string value naming a column, as in {@code clusterBy} or {@code assertions.nonNull}. */
-        NAME_VALUE
+        NAME_VALUE,
+        /**
+         * The string value of {@code partitionBy}, which holds a partitioning expression rather
+         * than a bare column name.
+         */
+        PARTITION_EXPRESSION
     }
 
     /**
@@ -75,6 +80,9 @@ public final class ConfigColumnSlots {
         }
         JSProperty property = PsiTreeUtil.getParentOfType(position, JSProperty.class, false);
         if (property != null && ConfigSchemaLookup.isValuePosition(property, position)) {
+            if (isPartitionExpression(property, position)) {
+                return Optional.of(new Slot(Kind.PARTITION_EXPRESSION, List.of()));
+            }
             return isColumnNameKey(property)
                     ? Optional.of(new Slot(Kind.NAME_VALUE, List.of()))
                     : Optional.empty();
@@ -174,6 +182,20 @@ public final class ConfigColumnSlots {
                     : PsiTreeUtil.getParentOfType(columnsProperty, JSObjectLiteralExpression.class, true);
         }
         return path;
+    }
+
+    /**
+     * Tells whether the position edits the string form of {@code partitionBy}, which takes a
+     * partitioning expression, rather than the object form, whose {@code field} takes a column name.
+     */
+    private static boolean isPartitionExpression(@NotNull JSProperty property,
+                                                 @NotNull PsiElement position) {
+        if (!PARTITION_BY.equals(property.getName())) {
+            return false;
+        }
+        JSObjectLiteralExpression object =
+                PsiTreeUtil.getParentOfType(position, JSObjectLiteralExpression.class, false);
+        return object == null || !PsiTreeUtil.isAncestor(property, object, true);
     }
 
     private static boolean isDeclaredUnder(@NotNull JSProperty property, @NotNull String parentName) {

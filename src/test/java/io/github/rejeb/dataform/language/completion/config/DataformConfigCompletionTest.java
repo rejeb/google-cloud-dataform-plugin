@@ -102,33 +102,28 @@ public class DataformConfigCompletionTest extends BasePlatformTestCase {
         assertTrue("got " + operations, operations.contains("tags"));
     }
 
-    public void testBigqueryPartitionByOpensAShapeChoice() {
+    /**
+     * Dataform declares {@code partition_by} as a string, so adding one opens a string rather than
+     * asking which shape to write it in, under {@code bigquery} as at the top level.
+     */
+    public void testBigqueryPartitionByInsertsAString() {
         if (!protoAvailable) return;
         String inserted = completeAndInsert(
                 "config {\n  type: \"table\",\n  bigquery: {\n    partitionB<caret>\n  }\n}",
                 "partitionBy");
 
-        assertTrue("got [" + inserted + "]", inserted.contains("    partitionBy: \n"));
-
-        List<String> shapes = completeAgain();
-        assertTrue("got " + shapes, shapes.contains("object"));
-        assertTrue("got " + shapes, shapes.contains("string"));
+        assertTrue("got [" + inserted + "]", inserted.contains("    partitionBy: \"\""));
     }
 
-    public void testPickingTheObjectShapeInsertsTheStructuredSkeleton() {
+    public void testTheObjectShapeOfAPartitionByIsNotOffered() {
         if (!protoAvailable) return;
         completeAndInsert(
                 "config {\n  type: \"table\",\n  bigquery: {\n    partitionB<caret>\n  }\n}",
                 "partitionBy");
-        String inserted = insertFromCurrentPosition("object");
 
-        assertTrue("got [" + inserted + "]", inserted.contains(
-                "  bigquery: {\n"
-                        + "    partitionBy: {\n"
-                        + "      field: \"\",\n"
-                        + "      dataType: \"\",\n"
-                        + "    },\n"
-                        + "  }"));
+        List<String> shapes = completeAgain();
+        assertFalse("got " + shapes, shapes.contains("object"));
+        assertFalse("got " + shapes, shapes.contains("string"));
     }
 
     public void testTopLevelPartitionByInsertsAString() {

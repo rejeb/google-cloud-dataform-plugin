@@ -64,6 +64,11 @@ public class DataformDasTable extends LightElement implements DasTable, DasSymbo
         return myColumns;
     }
 
+    /** The SQLX file the action building this table is declared in, {@code null} when unknown. */
+    public @Nullable VirtualFile getSourceFile() {
+        return mySourceFile;
+    }
+
     @Override
     public @NotNull String toString() {
         return myName;

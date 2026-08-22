@@ -67,6 +67,9 @@
         <projectService serviceInterface="io.github.rejeb.dataform.language.compilation.DataformCompilationService"
                         serviceImplementation="io.github.rejeb.dataform.language.compilation.DataformCompilationServiceImpl"
         />
+        <projectService serviceInterface="io.github.rejeb.dataform.language.lineage.service.LineageGraphService"
+                        serviceImplementation="io.github.rejeb.dataform.language.lineage.service.LineageGraphServiceImpl"
+        />
         <projectService serviceInterface="io.github.rejeb.dataform.language.diagnostics.CompilationDiagnosticService"
                         serviceImplementation="io.github.rejeb.dataform.language.diagnostics.CompilationDiagnosticServiceImpl"
         />
@@ -151,6 +154,8 @@
         <lang.inspectionSuppressor
                 language="SQL"
                 implementationClass="io.github.rejeb.dataform.language.highlight.SqlxSqlResolveSuppressor"/>
+        <implicitUsageProvider
+                implementation="io.github.rejeb.dataform.language.highlight.SqlxJsImplicitUsageProvider"/>
 
         <facetType implementation="io.github.rejeb.dataform.language.projectWizard.DataformFacetType"/>
         <framework.detector implementation="io.github.rejeb.dataform.language.projectWizard.DataformFrameworkDetector"/>
@@ -159,8 +164,6 @@
         <directoryProjectGenerator
                 implementation="io.github.rejeb.dataform.language.projectWizard.DataformDirectoryProjectGenerator"/>
         <moduleBuilder builderClass="io.github.rejeb.dataform.language.projectWizard.DataformModuleBuilder"/>
-        <projectOpenProcessor
-                implementation="io.github.rejeb.dataform.language.projectWizard.DataformProjectOpenProcessor"/>
         <postStartupActivity
                 order="first"
                 implementation="io.github.rejeb.dataform.language.setup.DataformInstaller"/>
@@ -201,6 +204,15 @@
         <annotator
                 language="SQL"
                 implementationClass="io.github.rejeb.dataform.language.highlight.SqlxSqlProblemAnnotator"/>
+
+        <localInspection
+                language="JavaScript"
+                shortName="DataformPartitionByObject"
+                displayName="Dataform partitionBy written as an object"
+                groupName="Dataform"
+                enabledByDefault="true"
+                level="WARNING"
+                implementationClass="io.github.rejeb.dataform.language.inspection.PartitionByObjectInspection"/>
 
         <lang.foldingBuilder
                 language="JavaScript"

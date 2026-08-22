@@ -29,16 +29,22 @@ import org.jetbrains.annotations.NotNull;
  * Helpers writing completion results into the SQLX host document, since the config
  * block is edited through an injected JavaScript fragment.
  */
-final class ConfigInsertion {
+public final class ConfigInsertion {
 
     private ConfigInsertion() {
     }
 
-    static Editor hostEditor(@NotNull InsertionContext context) {
+    /**
+     * The editor over the SQLX file, unwrapping the one over the injected config fragment.
+     */
+    public static Editor hostEditor(@NotNull InsertionContext context) {
         return SqlxEditors.host(context.getEditor());
     }
 
-    static int hostOffset(@NotNull InsertionContext context, int injectedOffset) {
+    /**
+     * Translates an offset of the injected config fragment into one of the SQLX file.
+     */
+    public static int hostOffset(@NotNull InsertionContext context, int injectedOffset) {
         return InjectedLanguageManager.getInstance(context.getProject())
                 .injectedToHost(context.getFile(), injectedOffset);
     }

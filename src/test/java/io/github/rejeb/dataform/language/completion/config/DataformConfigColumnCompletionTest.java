@@ -18,6 +18,7 @@ package io.github.rejeb.dataform.language.completion.config;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.intellij.codeInsight.template.impl.TemplateManagerImpl;
 import com.intellij.execution.configurations.GeneralCommandLine;
 import com.intellij.injected.editor.EditorWindow;
 import com.intellij.lang.injection.InjectedLanguageManager;
@@ -102,6 +103,8 @@ public class DataformConfigColumnCompletionTest extends BasePlatformTestCase {
                 List.of(
                         new ColumnInfo("customer_id", "INTEGER", "REQUIRED", "Unique customer id"),
                         new ColumnInfo("signup_date", "DATE", "NULLABLE", null),
+                        new ColumnInfo("order_ts", "TIMESTAMP", "NULLABLE", null),
+                        new ColumnInfo("updated_at", "TIMESTAMP", "NULLABLE", null),
                         new ColumnInfo("address", "RECORD", "NULLABLE", null,
                                 List.of(new ColumnInfo("city", "STRING", "NULLABLE", null),
                                         new ColumnInfo("zip_code", "STRING", "NULLABLE", null)))),
@@ -173,6 +176,245 @@ public class DataformConfigColumnCompletionTest extends BasePlatformTestCase {
                 "config {\n  type: \"table\",\n  partitionBy: \"<caret>\"\n}");
 
         assertTrue("got " + lookups, lookups.contains("signup_date"));
+    }
+
+    public void testPartitionByProposesOnlyTheExpressionsTheColumnTypesAccept() {
+        List<String> lookups = completeIn(
+                "config {\n  type: \"table\",\n  partitionBy: \"<caret>\"\n}");
+
+        assertTrue("got " + lookups, lookups.contains("DATE_TRUNC(..., MONTH)"));
+        assertTrue("got " + lookups, lookups.contains("TIMESTAMP_TRUNC(..., DAY)"));
+        assertTrue("got " + lookups, lookups.contains("DATE(...)"));
+        assertTrue("got " + lookups,
+                lookups.contains("RANGE_BUCKET(..., GENERATE_ARRAY(0, 100, 10))"));
+        assertFalse("no datetime column is declared, got " + lookups,
+                lookups.contains("DATETIME_TRUNC(..., DAY)"));
+    }
+
+    public void testPartitionByProposesEachFormWrittenOnAColumnItAccepts() {
+        List<String> lookups = completeIn(
+                "config {\n  type: \"table\",\n  partitionBy: \"<caret>\"\n}");
+
+        assertTrue("got " + lookups, lookups.contains("DATE(order_ts)"));
+        assertTrue("got " + lookups, lookups.contains("DATE(updated_at)"));
+        assertTrue("got " + lookups, lookups.contains("TIMESTAMP_TRUNC(order_ts, DAY)"));
+        assertTrue("got " + lookups, lookups.contains("DATE_TRUNC(signup_date, MONTH)"));
+        assertTrue("got " + lookups,
+                lookups.contains("RANGE_BUCKET(customer_id, GENERATE_ARRAY(0, 100, 10))"));
+    }
+
+    public void testTypingAColumnNameProposesTheExpressionsItsTypeAllows() {
+        List<String> lookups = completeIn(
+                "config {\n  type: \"table\",\n  partitionBy: \"order<caret>\"\n}");
+
+        assertTrue("got " + lookups, lookups.contains("DATE(order_ts)"));
+        assertTrue("got " + lookups, lookups.contains("TIMESTAMP_TRUNC(order_ts, DAY)"));
+        assertFalse("order_ts is no date column, got " + lookups,
+                lookups.contains("DATE_TRUNC(order_ts, MONTH)"));
+        assertFalse("another column must not match, got " + lookups,
+                lookups.contains("DATE(updated_at)"));
+    }
+
+    public void testTypingADateColumnNameProposesItBareAndTruncated() {
+        List<String> lookups = completeIn(
+                "config {\n  type: \"table\",\n  partitionBy: \"signup<caret>\"\n}");
+
+        assertTrue("a date column partitions on its own, got " + lookups,
+                lookups.contains("signup_date"));
+        assertTrue("got " + lookups, lookups.contains("DATE_TRUNC(signup_date, MONTH)"));
+    }
+
+    public void testATimestampColumnIsNotProposedOnItsOwn() {
+        List<String> lookups = completeIn(
+                "config {\n  type: \"table\",\n  partitionBy: \"<caret>\"\n}");
+
+        assertTrue("a date column partitions on its own, got " + lookups,
+                lookups.contains("signup_date"));
+        assertFalse("BigQuery takes no bare timestamp column, got " + lookups,
+                lookups.contains("order_ts"));
+        assertFalse("BigQuery takes no bare timestamp column, got " + lookups,
+                lookups.contains("updated_at"));
+    }
+
+    public void testIngestionTimePartitioningIsProposedWholeAndTruncated() {
+        List<String> lookups = completeIn(
+                "config {\n  type: \"table\",\n  partitionBy: \"<caret>\"\n}");
+
+        assertTrue("got " + lookups, lookups.contains("_PARTITIONDATE"));
+        assertTrue("got " + lookups, lookups.contains("TIMESTAMP_TRUNC(_PARTITIONTIME, DAY)"));
+        assertFalse("BigQuery takes no bare _PARTITIONTIME, got " + lookups,
+                lookups.contains("_PARTITIONTIME"));
+    }
+
+    public void testTheIngestionTimePseudoColumnIsProposedAsATruncationArgument() {
+        List<String> lookups = completeIn("config {\n  type: \"table\",\n"
+                + "  partitionBy: \"TIMESTAMP_TRUNC(<caret>, DAY)\"\n}");
+
+        assertTrue("got " + lookups, lookups.contains("_PARTITIONTIME"));
+        assertTrue("got " + lookups, lookups.contains("order_ts"));
+    }
+
+    public void testEditingTheGranularityOfAnExpressionProposesTheTruncationUnits() {
+        List<String> lookups = completeIn("config {\n  type: \"table\",\n"
+                + "  partitionBy: \"TIMESTAMP_TRUNC(order_ts, <caret>DAY)\"\n}");
+
+        assertTrue("got " + lookups, lookups.containsAll(List.of("HOUR", "DAY", "MONTH", "YEAR")));
+        assertFalse("a granularity is no column, got " + lookups, lookups.contains("order_ts"));
+    }
+
+    public void testEditingTheColumnOfAnExpressionProposesTheColumnsOfItsType() {
+        List<String> lookups = completeIn("config {\n  type: \"table\",\n"
+                + "  partitionBy: \"TIMESTAMP_TRUNC(<caret>order_ts, DAY)\"\n}");
+
+        assertTrue("got " + lookups, lookups.contains("order_ts"));
+        assertTrue("got " + lookups, lookups.contains("updated_at"));
+        assertFalse("TIMESTAMP_TRUNC takes no date column, got " + lookups,
+                lookups.contains("signup_date"));
+        assertFalse("got " + lookups, lookups.contains("DAY"));
+    }
+
+    public void testPickingAGranularityReplacesTheOneInPlace() {
+        configure("config {\n  type: \"table\",\n"
+                + "  partitionBy: \"TIMESTAMP_TRUNC(order_ts, <caret>DAY)\"\n}");
+        myFixture.completeBasic();
+        pick("MONTH");
+
+        String text = hostEditor().getDocument().getText();
+        assertTrue("got [" + text + "]",
+                text.contains("partitionBy: \"TIMESTAMP_TRUNC(order_ts, MONTH)\""));
+    }
+
+    public void testPickingAColumnReplacesTheOneInPlace() {
+        configure("config {\n  type: \"table\",\n"
+                + "  partitionBy: \"TIMESTAMP_TRUNC(<caret>order_ts, DAY)\"\n}");
+        myFixture.completeBasic();
+        pick("updated_at");
+
+        String text = hostEditor().getDocument().getText();
+        assertTrue("got [" + text + "]",
+                text.contains("partitionBy: \"TIMESTAMP_TRUNC(updated_at, DAY)\""));
+    }
+
+    public void testBoundsDeletedFromARangePartitionAreOfferedBack() {
+        List<String> lookups = completeIn("config {\n  type: \"table\",\n"
+                + "  partitionBy: \"RANGE_BUCKET(customer_id, <caret>)\"\n}");
+
+        assertEquals("BigQuery accepts no other bounds, got " + lookups,
+                List.of("GENERATE_ARRAY(0, 100, 10)"), lookups);
+    }
+
+    public void testPickingTheBoundsBackWritesThemInPlace() {
+        TemplateManagerImpl.setTemplateTesting(getTestRootDisposable());
+        configure("config {\n  type: \"table\",\n"
+                + "  partitionBy: \"RANGE_BUCKET(customer_id, <caret>)\"\n}");
+        myFixture.completeBasic();
+        pick("GENERATE_ARRAY(0, 100, 10)");
+
+        String text = hostEditor().getDocument().getText();
+        assertTrue("got [" + text + "]", text.contains(
+                "partitionBy: \"RANGE_BUCKET(customer_id, GENERATE_ARRAY(0, 100, 10))\""));
+    }
+
+    public void testNothingIsProposedInsideTheBoundsThemselves() {
+        List<String> lookups = completeIn("config {\n  type: \"table\",\n"
+                + "  partitionBy: \"RANGE_BUCKET(customer_id, GENERATE_ARRAY(0, <caret>100, 10))\"\n}");
+
+        assertTrue("a bound is a constant, got " + lookups, lookups.isEmpty());
+    }
+
+    public void testPickingAnotherFormReplacesTheWholeExpression() {
+        TemplateManagerImpl.setTemplateTesting(getTestRootDisposable());
+        configure("config {\n  type: \"table\",\n"
+                + "  partitionBy: \"TIMESTAMP_TR<caret>UNC(order_ts, DAY)\"\n}");
+        myFixture.completeBasic();
+        pick("TIMESTAMP_TRUNC(..., DAY)");
+
+        String text = hostEditor().getDocument().getText();
+        assertTrue("got [" + text + "]",
+                text.contains("partitionBy: \"TIMESTAMP_TRUNC(order_ts, DAY)\"\n"));
+    }
+
+    public void testPartitionByProposesNoColumnThatCannotCarryAPartition() {
+        List<String> lookups = completeIn(
+                "config {\n  type: \"table\",\n  partitionBy: \"<caret>\"\n}");
+
+        assertFalse("a record column partitions nothing, got " + lookups,
+                lookups.contains("address"));
+        assertFalse("an integer column needs RANGE_BUCKET, got " + lookups,
+                lookups.contains("customer_id"));
+        assertFalse("a record column partitions nothing, got " + lookups,
+                lookups.contains("DATE(address)"));
+    }
+
+    public void testPickingAPartitioningFunctionWritesItsExpression() {
+        TemplateManagerImpl.setTemplateTesting(getTestRootDisposable());
+        configure("config {\n  type: \"table\",\n  partitionBy: \"<caret>\"\n}");
+        myFixture.completeBasic();
+        pick("DATE_TRUNC(..., MONTH)");
+
+        String text = hostEditor().getDocument().getText();
+        assertTrue("got [" + text + "]",
+                text.contains("partitionBy: \"DATE_TRUNC(signup_date, MONTH)\""));
+    }
+
+    public void testPickingAnIngestionPseudoColumnWritesItAsIs() {
+        configure("config {\n  type: \"table\",\n  partitionBy: \"<caret>\"\n}");
+        myFixture.completeBasic();
+        pick("_PARTITIONDATE");
+
+        String text = hostEditor().getDocument().getText();
+        assertTrue("got [" + text + "]", text.contains("partitionBy: \"_PARTITIONDATE\""));
+    }
+
+    public void testAPartitioningExpressionPickedOutsideQuotesIsQuoted() {
+        TemplateManagerImpl.setTemplateTesting(getTestRootDisposable());
+        configure("config {\n  type: \"table\",\n  partitionBy: <caret>\n}");
+        myFixture.completeBasic();
+        pick("DATE_TRUNC(..., MONTH)");
+
+        String text = hostEditor().getDocument().getText();
+        assertTrue("got [" + text + "]",
+                text.contains("partitionBy: \"DATE_TRUNC(signup_date, MONTH)\""));
+    }
+
+    private void pick(String lookupString) {
+        List<String> lookups = myFixture.getLookupElementStrings();
+        assertNotNull("no completion popup", lookups);
+        int index = lookups.indexOf(lookupString);
+        assertTrue(lookupString + " not proposed, got " + lookups, index >= 0);
+        myFixture.getLookup().setCurrentItem(myFixture.getLookupElements()[index]);
+        myFixture.finishLookup('\n');
+    }
+
+    public void testAddingAPartitionByOpensAStringRatherThanAChoiceOfShapes() {
+        configure("config {\n  type: \"table\",\n  partitionB<caret>\n}");
+        myFixture.completeBasic();
+        if (myFixture.getLookupElementStrings() != null) {
+            pick("partitionBy");
+        }
+
+        String text = hostEditor().getDocument().getText();
+        assertTrue("got [" + text + "]", text.contains("partitionBy: \"\""));
+        assertFalse("the object shape must not be offered, got [" + text + "]",
+                text.contains("partitionBy: {"));
+    }
+
+    public void testTheShapeOfAPartitionByIsNotAsked() {
+        List<String> lookups = completeIn(
+                "config {\n  type: \"table\",\n  partitionBy: <caret>\n}");
+
+        assertFalse("got " + lookups, lookups.contains("object"));
+        assertTrue("the expressions are proposed straight away, got " + lookups,
+                lookups.contains("\"_PARTITIONDATE\""));
+    }
+
+    public void testAPartitionByObjectStillCompletesOnceItsBracesAreTyped() {
+        List<String> lookups = completeIn("config {\n  type: \"table\",\n  bigquery: {\n"
+                + "    partitionBy: {\n      <caret>\n    }\n  }\n}");
+
+        assertTrue("got " + lookups, lookups.contains("field"));
+        assertTrue("got " + lookups, lookups.contains("dataType"));
+        assertTrue("got " + lookups, lookups.contains("granularity"));
     }
 
     public void testStructuredPartitionFieldProposesTheActionColumns() {
