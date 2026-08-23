@@ -16,12 +16,23 @@
  */
 package io.github.rejeb.dataform.language.psi;
 
+import com.intellij.lang.ASTNode;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.AbstractElementManipulator;
-import com.intellij.psi.PsiElement;
+import com.intellij.psi.PsiFile;
+import com.intellij.psi.PsiFileFactory;
+import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.IncorrectOperationException;
+import io.github.rejeb.dataform.language.SqlxLanguage;
 import org.jetbrains.annotations.NotNull;
 
+/**
+ * Writes a change into the config block of a SQLX file.
+ *
+ * <p>The block is an injection host, so the platform asks it to splice a new piece of text into
+ * itself whenever something inside the injected JavaScript is rewritten. The new content is parsed
+ * as the config block of a throwaway file and put in place of this one.</p>
+ */
 public class SqlxConfigBlockManipulator extends AbstractElementManipulator<SqlxConfigBlock> {
 
     @Override
@@ -29,11 +40,25 @@ public class SqlxConfigBlockManipulator extends AbstractElementManipulator<SqlxC
                                                @NotNull TextRange range,
                                                @NotNull String newContent)
             throws IncorrectOperationException {
+        PsiFile hostFile = element.getContainingFile();
+        if (hostFile == null) {
+            throw new IncorrectOperationException("The config block belongs to no file");
+        }
+        int blockStart = element.getTextRange().getStartOffset();
+        String fileText = hostFile.getText();
+        String newFileText = fileText.substring(0, blockStart + range.getStartOffset())
+                + newContent
+                + fileText.substring(blockStart + range.getEndOffset());
+        PsiFile fileFromText = PsiFileFactory.getInstance(element.getProject())
+                .createFileFromText("dummy.sqlx", SqlxLanguage.INSTANCE, newFileText);
 
-        PsiElement replace = element.replace(
-                element.getContainingFile().copy()
-        );
-        return replace instanceof SqlxConfigBlock ? (SqlxConfigBlock) replace : element;
+        SqlxConfigBlock newElement = PsiTreeUtil.findChildOfType(fileFromText, SqlxConfigBlock.class);
+        if (newElement == null) {
+            throw new IncorrectOperationException("The config block does not parse after the change");
+        }
+        ASTNode newNode = newElement.getNode();
+        element.getNode().getTreeParent().replaceChild(element.getNode(), newNode);
+        return (SqlxConfigBlock) newNode.getPsi();
     }
 
     @Override

@@ -65,12 +65,13 @@ public final class ColumnOriginServiceImpl implements ColumnOriginService {
 
     @Override
     public @Nullable PsiElement declaringElement(@NotNull DataformDasColumn column) {
-        ColumnRef reference = referenceOf(column);
+        ColumnRef reference = reference(column);
         return reference == null ? null : declaringElement(reference);
     }
 
     /** The column reference of a schema column, found by the table it belongs to. */
-    private @Nullable ColumnRef referenceOf(@NotNull DataformDasColumn column) {
+    @Override
+    public @Nullable ColumnRef reference(@NotNull DataformDasColumn column) {
         DasTable table = column.getTable();
         if (table == null) return null;
         for (Map.Entry<String, DataformDasTable> entry : tables().entrySet()) {

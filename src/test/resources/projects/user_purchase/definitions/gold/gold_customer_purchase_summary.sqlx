@@ -1,0 +1,11 @@
+config {
+    type: "table",
+    schema: `${dataform.projectConfig.vars.gold_dataset}`,
+    description: "Gold layer: amount purchased per order.",
+    tags: ["gold", "orders"],
+}
+
+SELECT
+    order_id,
+    1 AS order_amount
+FROM ${ref("silver_orders")}

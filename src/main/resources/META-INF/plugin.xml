@@ -146,6 +146,22 @@
                 implementation="io.github.rejeb.dataform.language.schema.sql.DataformSqlVariableResolveExtension"/>
         <sql.resolveExtension
                 implementation="io.github.rejeb.dataform.language.schema.sql.DataformColumnResolveExtension"/>
+        <completion.contributor
+                language="SQL"
+                implementationClass="io.github.rejeb.dataform.language.completion.DataformColumnInsertContributor"
+                order="first"/>
+        <renameHandler
+                implementation="io.github.rejeb.dataform.language.refactoring.column.DataformColumnRenameHandler"
+                order="first"/>
+        <renamePsiElementProcessor
+                implementation="io.github.rejeb.dataform.language.refactoring.column.DataformColumnRenamePsiElementProcessor"
+                order="first"/>
+        <projectService
+                serviceInterface="io.github.rejeb.dataform.language.refactoring.column.plan.ColumnRenamePlanner"
+                serviceImplementation="io.github.rejeb.dataform.language.refactoring.column.plan.ColumnRenamePlannerImpl"/>
+        <projectService
+                serviceInterface="io.github.rejeb.dataform.language.refactoring.column.ui.StarResolutionChooser"
+                serviceImplementation="io.github.rejeb.dataform.language.refactoring.column.ui.StarResolutionDialog"/>
         <findUsagesHandlerFactory
                 implementation="io.github.rejeb.dataform.language.schema.sql.DataformSchemaFindUsagesHandlerFactory"/>
         <usageTypeProvider
