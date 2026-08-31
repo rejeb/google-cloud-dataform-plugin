@@ -19,11 +19,12 @@ package io.github.rejeb.dataform.language.schema.sql.usages;
 import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.editor.Document;
+import com.intellij.openapi.fileEditor.OpenFileDescriptor;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
-import com.intellij.psi.SmartPointerManager;
 import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.psi.search.searches.ReferencesSearch;
 import com.intellij.sql.psi.SqlCompositeElementTypes;
@@ -152,6 +153,9 @@ public final class ColumnUsageRows {
         Document document = PsiDocumentManager.getInstance(project).getDocument(host);
         if (document == null) return null;
 
+        VirtualFile hostFile = host.getVirtualFile();
+        if (hostFile == null) return null;
+
         PsiElement name = lastIdentifier(element);
         PsiElement anchor = name == null ? element : name;
         int offset = manager.injectedToHost(anchor, anchor.getTextOffset());
@@ -170,7 +174,7 @@ public final class ColumnUsageRows {
 
         return ColumnUsageRow.entry(kind, group, before, shown, after,
                 host.getName() + ":" + (line + 1),
-                SmartPointerManager.getInstance(project).createSmartPsiElementPointer(element));
+                new OpenFileDescriptor(project, hostFile, offset));
     }
 
     /**

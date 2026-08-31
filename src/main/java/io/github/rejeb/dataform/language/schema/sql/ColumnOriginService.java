@@ -72,4 +72,12 @@ public interface ColumnOriginService {
     /** The schema column for a reference, or {@code null} when the schema does not have it. */
     @Nullable
     DataformDasColumn dasColumn(@NotNull ColumnRef column);
+
+    /**
+     * The column reference a schema column stands for, or {@code null} when its table is not in the
+     * schema. The inverse of {@link #dasColumn(ColumnRef)}, needed wherever a resolve result has to
+     * be named again, as the rename does.
+     */
+    @Nullable
+    ColumnRef reference(@NotNull DataformDasColumn column);
 }

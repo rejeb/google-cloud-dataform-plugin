@@ -16,7 +16,12 @@
  */
 package io.github.rejeb.dataform.language.schema.sql;
 
+import com.intellij.openapi.Disposable;
 import com.intellij.openapi.application.ReadAction;
+import com.intellij.openapi.editor.EditorFactory;
+import com.intellij.openapi.editor.event.DocumentEvent;
+import com.intellij.openapi.editor.event.DocumentListener;
+import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.components.State;
 import com.intellij.openapi.components.Storage;
 import com.intellij.openapi.diagnostic.Logger;
@@ -24,9 +29,11 @@ import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
 import io.github.rejeb.dataform.language.compilation.model.*;
+import io.github.rejeb.dataform.language.diagnostics.DataformEditorRefresher;
 import io.github.rejeb.dataform.language.gcp.auth.AuthTrigger;
 import io.github.rejeb.dataform.language.gcp.auth.DataformAuthState;
 import io.github.rejeb.dataform.language.gcp.auth.DataformCredentialsService;
+import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
 import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasTable;
 import io.github.rejeb.dataform.language.util.PreOperationsFilter;
@@ -35,6 +42,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.HashSet;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -51,7 +59,8 @@ import java.util.concurrent.atomic.AtomicLong;
         name = "DataformTableSchemaService",
         storages = @Storage(value = "dataform-table-schema.xml")
 )
-public final class DataformTableSchemaServiceImpl implements DataformTableSchemaService {
+public final class DataformTableSchemaServiceImpl
+        implements DataformTableSchemaService, Disposable {
 
     private static final Logger LOG = Logger.getInstance(DataformTableSchemaServiceImpl.class);
 
@@ -60,6 +69,7 @@ public final class DataformTableSchemaServiceImpl implements DataformTableSchema
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicLong modificationCount = new AtomicLong(0);
 
+    private volatile boolean watchingDocuments = false;
     private volatile boolean pendingRefresh = false;
     private volatile CompiledGraph pendingGraph = null;
 
@@ -114,6 +124,47 @@ public final class DataformTableSchemaServiceImpl implements DataformTableSchema
         return cache.published();
     }
 
+    @Override
+    public void renameColumn(@NotNull Set<ColumnRef> columns,
+                             @NotNull String newName,
+                             @NotNull Collection<VirtualFile> written) {
+        boolean changed = false;
+        for (ColumnRef column : columns) {
+            changed |= cache.rename(column.tableFullName(), column.columnName(), newName);
+        }
+        if (!changed) return;
+        cache.guessedFrom(written);
+        watchWhatWasGuessed();
+        announce();
+    }
+
+    /**
+     * Watches the documents for as long as a schema holds what a rename wrote rather than what an
+     * extraction read, and puts the read answer back as soon as one of those files says something
+     * else. Undoing a rename or rolling it back would otherwise leave the editor resolving against
+     * a name no file carries any more, until the next extraction — or the next IDE run.
+     */
+    private void watchWhatWasGuessed() {
+        if (watchingDocuments || project.isDisposed()) return;
+        watchingDocuments = true;
+        EditorFactory.getInstance().getEventMulticaster().addDocumentListener(
+                new DocumentListener() {
+                    @Override
+                    public void documentChanged(@NotNull DocumentEvent event) {
+                        if (cache.dropStaleGuesses()) announce();
+                    }
+                }, this);
+    }
+
+    /** Publishes what the cache now holds and tells everything reading it that it changed. */
+    private void announce() {
+        cache.publish();
+        modificationCount.incrementAndGet();
+        if (project.isDisposed()) return;
+        project.getMessageBus().syncPublisher(DataformSchemaEvent.TOPIC).onSchemasUpdated();
+        DataformEditorRefresher.refresh(project);
+    }
+
     /**
      * Drops cached schemas of actions the compiled graph no longer declares. A forced refresh
      * re-extracts every remaining action but must not empty the cache first: an action whose
@@ -128,6 +179,10 @@ public final class DataformTableSchemaServiceImpl implements DataformTableSchema
         cache.retainOnly(known);
         DryRunErrorRegistry.getInstance(project).retainOnly(known);
         cache.publish();
+    }
+
+    @Override
+    public void dispose() {
     }
 
     private void addFullName(@NotNull Set<String> names, @Nullable Target target) {

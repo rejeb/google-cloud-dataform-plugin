@@ -21,6 +21,7 @@ import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiReference;
 import com.intellij.psi.tree.IElementType;
+import com.intellij.sql.psi.SqlAsExpression;
 import com.intellij.sql.psi.SqlCompositeElementTypes;
 import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasColumn;
@@ -73,6 +74,24 @@ public final class SqlxColumnAtCaret {
         if (psiReference == null) return null;
         PsiElement resolved = psiReference.resolve();
         return resolved instanceof DataformDasColumn column ? column : null;
+    }
+
+    /**
+     * The schema column an {@code AS} alias declares, or {@code null} when the element is not an
+     * alias of the main select list of a SQLX file.
+     *
+     * <p>An alias of that list is where an output column of the table the file builds is written,
+     * and the files reading that table read the schema column rather than the alias. A name a query
+     * gives itself, inside a common table expression for instance, declares no output column and is
+     * answered {@code null}.</p>
+     */
+    public static @Nullable DataformDasColumn declaredColumnOf(@NotNull PsiElement element) {
+        if (!(element instanceof SqlAsExpression)) return null;
+        PsiFile topLevel = sqlxFileOf(element);
+        if (topLevel == null) return null;
+        ColumnOriginService origins = ColumnOriginService.getInstance(element.getProject());
+        ColumnRef declared = origins.declaredColumn(topLevel, element);
+        return declared == null ? null : origins.dasColumn(declared);
     }
 
     /** The column reference at an offset of a SQLX file, looking through the injected SQL. */

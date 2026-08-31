@@ -18,10 +18,21 @@ package io.github.rejeb.dataform.language.psi;
 
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.AbstractElementManipulator;
-import com.intellij.psi.PsiElement;
+import com.intellij.psi.PsiFile;
+import com.intellij.psi.PsiFileFactory;
+import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.IncorrectOperationException;
+import io.github.rejeb.dataform.language.SqlxLanguage;
 import org.jetbrains.annotations.NotNull;
 
+/**
+ * Writes a change into the config block of a SQLX file.
+ *
+ * <p>The block is an injection host, so the platform asks it to splice a new piece of text into
+ * itself whenever something inside the injected JavaScript is rewritten. Only the block is parsed
+ * again — the platform calls this once per rewritten reference, and re-parsing the whole SQLX file
+ * each time would parse every other block of the file for nothing.</p>
+ */
 public class SqlxConfigBlockManipulator extends AbstractElementManipulator<SqlxConfigBlock> {
 
     @Override
@@ -29,11 +40,18 @@ public class SqlxConfigBlockManipulator extends AbstractElementManipulator<SqlxC
                                                @NotNull TextRange range,
                                                @NotNull String newContent)
             throws IncorrectOperationException {
+        String oldText = element.getText();
+        String newText = oldText.substring(0, range.getStartOffset())
+                + newContent
+                + oldText.substring(range.getEndOffset());
+        PsiFile fileFromText = PsiFileFactory.getInstance(element.getProject())
+                .createFileFromText("dummy.sqlx", SqlxLanguage.INSTANCE, newText);
 
-        PsiElement replace = element.replace(
-                element.getContainingFile().copy()
-        );
-        return replace instanceof SqlxConfigBlock ? (SqlxConfigBlock) replace : element;
+        SqlxConfigBlock newElement = PsiTreeUtil.findChildOfType(fileFromText, SqlxConfigBlock.class);
+        if (newElement == null) {
+            throw new IncorrectOperationException("The config block does not parse after the change");
+        }
+        return (SqlxConfigBlock) element.replace(newElement);
     }
 
     @Override

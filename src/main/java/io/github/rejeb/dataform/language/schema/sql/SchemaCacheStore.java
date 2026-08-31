@@ -20,6 +20,8 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.editor.Document;
+import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -30,8 +32,10 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.lang.reflect.Type;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -48,9 +52,12 @@ final class SchemaCacheStore {
     private static final Type CACHE_TYPE = new TypeToken<Map<String, SchemaCacheEntry>>() {
     }.getType();
     private static final long UNKNOWN_MODIFICATION_TIME = 0L;
+    private static final long NO_DOCUMENT = -1L;
 
     private final Project project;
     private final Map<String, DataformDasTable> tables = new ConcurrentHashMap<>();
+    private final Map<String, List<ColumnInfo>> guesses = new ConcurrentHashMap<>();
+    private final Map<VirtualFile, Long> guessedFrom = new ConcurrentHashMap<>();
     private final Map<String, Long> modificationTimes = new ConcurrentHashMap<>();
     private final Map<String, String> fileNames = new ConcurrentHashMap<>();
 
@@ -91,12 +98,120 @@ final class SchemaCacheStore {
              @NotNull java.util.List<ColumnInfo> columns,
              @Nullable String fileName) {
         tables.put(fqn, buildTable(tableName, columns, fileName));
+        if (guesses.remove(fqn) != null && guesses.isEmpty()) guessedFrom.clear();
         if (fileName == null) return;
         fileNames.put(fqn, fileName);
         String basePath = project.getBasePath();
         if (basePath != null) {
             modificationTimes.put(fqn, ActionSourceFiles.modificationTime(basePath, fileName));
         }
+    }
+
+    /**
+     * Renames a column of a cached schema, leaving everything else about the entry alone.
+     *
+     * <p>The time the schema was read at is deliberately not touched: the source file has just been
+     * written and is now newer than it, which is what makes the next extraction read the action
+     * again and confirm — or correct — what was written here.</p>
+     *
+     * @param columnPath the column to rename, a dotted path for a field of a struct
+     * @return whether the schema held that column
+     */
+    boolean rename(@NotNull String fqn,
+                   @NotNull String columnPath,
+                   @NotNull String newName) {
+        DataformDasTable table = tables.get(fqn);
+        if (table == null) return false;
+        List<ColumnInfo> columns = renamed(table.getColumns(), columnPath, newName);
+        if (columns == null) return false;
+        guesses.putIfAbsent(fqn, table.getColumns());
+        tables.put(fqn, buildTable(table.getName(), columns, fileNames.get(fqn)));
+        return true;
+    }
+
+    /**
+     * Records the state the files a rename wrote were left in, which is what its guesses are worth.
+     */
+    void guessedFrom(@NotNull java.util.Collection<VirtualFile> written) {
+        for (VirtualFile file : written) {
+            guessedFrom.put(file, stampOf(file));
+        }
+    }
+
+    /** Whether any schema currently holds what a rename wrote rather than what was read. */
+    boolean hasGuesses() {
+        return !guesses.isEmpty();
+    }
+
+    /**
+     * Puts back what the last extraction read, once a file the rename wrote no longer holds what it
+     * left there.
+     *
+     * <p>A guess is a claim about files, so the files are what settle it. Saving the rename to disk
+     * leaves the documents it was written in exactly as they were, while anything that puts other
+     * text in one — an undo, a rollback, the next edit — gives it a new stamp. The rename is one
+     * act, so one file disowning it drops the whole of it rather than half.</p>
+     *
+     * @return whether any schema changed
+     */
+    boolean dropStaleGuesses() {
+        if (guesses.isEmpty() || !isDisowned()) return false;
+        for (Map.Entry<String, List<ColumnInfo>> entry : guesses.entrySet()) {
+            tables.put(entry.getKey(),
+                    buildTable(tableNameOf(entry.getKey()), entry.getValue(),
+                            fileNames.get(entry.getKey())));
+        }
+        guesses.clear();
+        guessedFrom.clear();
+        return true;
+    }
+
+    private boolean isDisowned() {
+        return guessedFrom.entrySet().stream()
+                .anyMatch(entry -> stampOf(entry.getKey()) != entry.getValue());
+    }
+
+    /**
+     * The modification stamp of a file's document, or {@link #NO_DOCUMENT} when it has none. The
+     * document is read rather than the file: a rename writes documents, and the save that follows
+     * changes the file on disk without changing what was written.
+     */
+    private static long stampOf(@NotNull VirtualFile file) {
+        Document document = FileDocumentManager.getInstance().getCachedDocument(file);
+        return document == null ? NO_DOCUMENT : document.getModificationStamp();
+    }
+
+    /**
+     * The columns with the one named by {@code path} renamed, or {@code null} when none of them is.
+     */
+    private static @Nullable List<ColumnInfo> renamed(@NotNull List<ColumnInfo> columns,
+                                                      @NotNull String path,
+                                                      @NotNull String newName) {
+        int dot = path.indexOf('.');
+        String head = dot < 0 ? path : path.substring(0, dot);
+        List<ColumnInfo> result = new ArrayList<>(columns.size());
+        boolean found = false;
+        for (ColumnInfo column : columns) {
+            if (!column.name().equalsIgnoreCase(head)) {
+                result.add(column);
+                continue;
+            }
+            if (dot < 0) {
+                result.add(new ColumnInfo(newName, column.type(), column.mode(),
+                        column.description(), column.subFields()));
+                found = true;
+                continue;
+            }
+            List<ColumnInfo> fields = renamed(column.subFields(), path.substring(dot + 1), newName);
+            if (fields == null) {
+                result.add(column);
+                continue;
+            }
+            result.add(new ColumnInfo(column.name(), column.type(), column.mode(),
+                    column.description(), fields));
+            found = true;
+        }
+        return found ? result : null;
     }
 
     /** Drops the schemas of actions the compiled graph no longer declares. */
@@ -193,6 +308,8 @@ final class SchemaCacheStore {
 
     private void clear() {
         tables.clear();
+        guesses.clear();
+        guessedFrom.clear();
         fileNames.clear();
         modificationTimes.clear();
     }

@@ -94,6 +94,29 @@ public abstract class DataformProjectFixture extends BasePlatformTestCase {
         }
     }
 
+    /**
+     * What each action reads, mirroring the {@code FROM} clauses of {@link #queryOf}. Column lineage
+     * resolves an input through these targets, so a graph without them has no edge at all.
+     */
+    private static List<Target> dependenciesOf(String action) {
+        return switch (action) {
+            case "silver_orders" -> List.of(targetOf("bronze_orders"));
+            case "silver_customers" -> List.of(targetOf("bronze_customers"));
+            case "gold_customer_purchase_summary" -> List.of(targetOf("silver_orders"));
+            case "gold_customer_ltv" -> List.of(targetOf("silver_orders"),
+                    targetOf("gold_customer_purchase_summary"), targetOf("silver_customers"));
+            default -> List.of();
+        };
+    }
+
+    private static Target targetOf(String name) {
+        Target target = new Target();
+        set(target, "database", "proj");
+        set(target, "schema", "ds");
+        set(target, "name", name);
+        return target;
+    }
+
     private void installCompiledGraph() {
         List<CompiledTable> tables = new ArrayList<>();
         for (String name : ACTIONS) {
@@ -107,7 +130,7 @@ public abstract class DataformProjectFixture extends BasePlatformTestCase {
             set(table, "query", queryOf(name));
             set(table, "fileName", "definitions/" + name + ".sqlx");
             set(table, "tags", List.of());
-            set(table, "dependencyTargets", List.of());
+            set(table, "dependencyTargets", dependenciesOf(name));
             tables.add(table);
         }
         CompiledGraph graph = new CompiledGraph();

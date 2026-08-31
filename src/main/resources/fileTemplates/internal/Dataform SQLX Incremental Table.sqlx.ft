@@ -1,0 +1,11 @@
+config {
+  type: "incremental",
+  description: "",
+  uniqueKey: ["id"]
+}
+
+SELECT
+  1 AS id,
+  CURRENT_TIMESTAMP() AS updated_at
+
+#[[${when(incremental(), `WHERE updated_at > (SELECT MAX(updated_at) FROM ${self()})`)}]]#

@@ -19,12 +19,9 @@ package io.github.rejeb.dataform.language.highlight;
 import com.intellij.lang.annotation.AnnotationHolder;
 import com.intellij.lang.annotation.Annotator;
 import com.intellij.lang.annotation.HighlightSeverity;
-import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.openapi.project.DumbAware;
-import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiErrorElement;
-import com.intellij.psi.PsiFile;
 import com.intellij.sql.psi.SqlCompositeElementTypes;
 import com.intellij.sql.psi.SqlReferenceElementType;
 import com.intellij.sql.psi.SqlReferenceExpression;
@@ -92,7 +89,7 @@ public final class SqlxSqlProblemAnnotator implements Annotator, DumbAware {
 
     private static void annotateUnresolvedReference(@NotNull SqlReferenceExpression reference,
                                                     @NotNull AnnotationHolder holder) {
-        if (!isTableReference(reference) || isGeneratedText(reference)
+        if (!isTableReference(reference) || SqlxQuerySources.isGenerated(reference)
                 || reference.resolve() != null) {
             return;
         }
@@ -107,17 +104,4 @@ public final class SqlxSqlProblemAnnotator implements Annotator, DumbAware {
                 .create();
     }
 
-    private static boolean isGeneratedText(@NotNull PsiElement element) {
-        PsiFile file = element.getContainingFile();
-        if (file == null) {
-            return false;
-        }
-        InjectedLanguageManager manager = InjectedLanguageManager.getInstance(element.getProject());
-        if (manager.getInjectionHost(file) == null) {
-            return false;
-        }
-        return manager.intersectWithAllEditableFragments(file, element.getTextRange())
-                .stream()
-                .allMatch(TextRange::isEmpty);
-    }
 }

@@ -1,0 +1,11 @@
+config {
+  type: "assertion",
+  description: ""
+}
+
+SELECT
+  *
+FROM
+  #[[${ref("my_table")}]]#
+WHERE
+  id IS NULL

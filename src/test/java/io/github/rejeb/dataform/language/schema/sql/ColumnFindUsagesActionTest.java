@@ -111,6 +111,62 @@ public class ColumnFindUsagesActionTest extends DataformProjectFixture {
                 files.contains("silver_orders.sqlx"));
     }
 
+    /** The {@code AS} expression Find Usages targets when the caret sits on an alias. */
+    private PsiElement aliasAt(com.intellij.psi.PsiFile file, String alias) {
+        int offset = file.getText().indexOf(alias) + alias.length() - 1;
+        PsiElement token = InjectedLanguageManager.getInstance(getProject())
+                .findInjectedElementAt(file, offset);
+        assertNotNull("the alias must sit inside the injected SQL", token);
+        return token.getParent().getParent();
+    }
+
+    private Set<String> actionUsageFilesOf(PsiElement element) {
+        InjectedLanguageManager manager = InjectedLanguageManager.getInstance(getProject());
+        Set<String> files = new TreeSet<>();
+        for (UsageInfo usage : myFixture.findUsages(element)) {
+            PsiElement found = usage.getElement();
+            if (found == null) continue;
+            files.add(manager.getTopLevelFile(found.getContainingFile()).getName());
+        }
+        return files;
+    }
+
+    /**
+     * An alias of the main select list names an output column of the table the file builds, and
+     * Find Usages on it has to reach the files reading that table.
+     */
+    public void testFindUsagesOnAnAliasListsTheFilesReadingTheColumn() throws Exception {
+        open("gold/gold_customer_ltv.sqlx");
+        com.intellij.psi.PsiFile summary = open("gold/gold_customer_purchase_summary.sqlx");
+        PsiElement alias = aliasAt(summary, "AS order_amount");
+        assertNotNull("Find Usages must have a handler for an alias declaring a column",
+                handlerFor(alias));
+        Set<String> files = actionUsageFilesOf(alias);
+        assertTrue("the file reading the column must be listed, got " + files,
+                files.contains("gold_customer_ltv.sqlx"));
+        assertTrue("what the SQL plugin found on the alias alone must be kept, got " + files,
+                files.contains("gold_customer_purchase_summary.sqlx"));
+    }
+
+    /**
+     * A name a query gives itself declares no output column, so the SQL plugin keeps it: claiming
+     * every alias of every SQL file would answer for names this plugin knows nothing about.
+     */
+    public void testAnAliasOfACommonTableExpressionIsLeftToTheSqlPlugin() throws Exception {
+        com.intellij.psi.PsiFile file = myFixture.addFileToProject("definitions/marts.sqlx",
+                "config { type: \"table\" }\n"
+                        + "WITH stats AS (\n"
+                        + "    SELECT order_id AS country FROM `proj.ds.bronze_orders`\n"
+                        + ")\n"
+                        + "SELECT country FROM stats");
+        myFixture.configureFromExistingVirtualFile(file.getVirtualFile());
+        PsiElement alias = aliasAt(myFixture.getFile(), "AS country");
+        assertNull("a common table expression names no column of the table the file builds",
+                SqlxColumnAtCaret.declaredColumnOf(alias));
+        assertFalse("this plugin has nothing to add to a name local to the query",
+                new DataformSchemaFindUsagesHandlerFactory().canFindUsages(alias));
+    }
+
     public void testFindUsagesHasAHandlerForATable() throws Exception {
         openAll();
         DataformDasTable table = DataformTableSchemaService.getInstance(getProject())

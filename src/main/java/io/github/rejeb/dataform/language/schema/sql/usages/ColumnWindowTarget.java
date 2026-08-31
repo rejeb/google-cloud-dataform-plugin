@@ -86,7 +86,11 @@ public record ColumnWindowTarget(@NotNull List<PsiElement> searchTargets,
             PsiElement declaration = declarationOf(read, origins, null);
             if (declaration != null) declarations.add(declaration);
         }
-        return new ColumnWindowTarget(List.of(identifier, expression),
+
+        List<PsiElement> searched = new ArrayList<>(List.of(identifier, expression));
+        DataformDasColumn output = SqlxColumnAtCaret.declaredColumnOf(expression);
+        if (output != null) searched.add(output);
+        return new ColumnWindowTarget(searched,
                 identifier.getText().replace("`", ""), distinct(declarations));
     }
 

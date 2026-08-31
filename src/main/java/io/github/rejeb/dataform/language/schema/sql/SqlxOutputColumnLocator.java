@@ -79,8 +79,7 @@ public final class SqlxOutputColumnLocator {
                     && type != SqlCompositeElementTypes.SQL_REFERENCE) {
                 continue;
             }
-            String text = item.getText();
-            if ("*".equals(text) || text.endsWith(".*")) return item;
+            if (SqlPsiParts.isStar(item)) return item;
         }
         return null;
     }
@@ -97,7 +96,7 @@ public final class SqlxOutputColumnLocator {
         for (PsiElement item : selectClause.getChildren()) {
             if (item != element) continue;
             PsiElement name = outputNameOf(item);
-            return name == null ? null : name.getText().replace("`", "");
+            return name == null ? null : SqlPsiParts.unquoted(name.getText());
         }
         return null;
     }
@@ -121,7 +120,8 @@ public final class SqlxOutputColumnLocator {
                 || host.getNode().getElementType() != SharedTokenTypes.SQL_CONTENT) {
             return null;
         }
-        PsiElement statement = childOfType(injected, SqlCompositeElementTypes.SQL_SELECT_STATEMENT);
+        PsiElement statement = SqlPsiParts.childOfType(injected,
+                SqlCompositeElementTypes.SQL_SELECT_STATEMENT);
         return statement == null ? null : selectClauseOf(statement);
     }
 
@@ -132,7 +132,7 @@ public final class SqlxOutputColumnLocator {
             List<Pair<PsiElement, TextRange>> injected = manager.getInjectedPsiFiles(block);
             if (injected == null) continue;
             for (Pair<PsiElement, TextRange> pair : injected) {
-                PsiElement statement = childOfType(pair.getFirst().getContainingFile(),
+                PsiElement statement = SqlPsiParts.childOfType(pair.getFirst().getContainingFile(),
                         SqlCompositeElementTypes.SQL_SELECT_STATEMENT);
                 if (statement == null) continue;
                 PsiElement clause = selectClauseOf(statement);
@@ -148,14 +148,18 @@ public final class SqlxOutputColumnLocator {
      * with-expression; the CTE queries are nested inside the with-clause and are skipped.
      */
     private static @Nullable PsiElement selectClauseOf(@NotNull PsiElement statement) {
-        PsiElement query = childOfType(statement, SqlCompositeElementTypes.SQL_QUERY_EXPRESSION);
+        PsiElement query = SqlPsiParts.childOfType(statement,
+                SqlCompositeElementTypes.SQL_QUERY_EXPRESSION);
         if (query == null) {
-            PsiElement with = childOfType(statement, SqlCompositeElementTypes.SQL_WITH_QUERY_EXPRESSION);
+            PsiElement with = SqlPsiParts.childOfType(statement,
+                    SqlCompositeElementTypes.SQL_WITH_QUERY_EXPRESSION);
             if (with != null) {
-                query = childOfType(with, SqlCompositeElementTypes.SQL_QUERY_EXPRESSION);
+                query = SqlPsiParts.childOfType(with, SqlCompositeElementTypes.SQL_QUERY_EXPRESSION);
             }
         }
-        return query == null ? null : childOfType(query, SqlCompositeElementTypes.SQL_SELECT_CLAUSE);
+        return query == null
+                ? null
+                : SqlPsiParts.childOfType(query, SqlCompositeElementTypes.SQL_SELECT_CLAUSE);
     }
 
     /**
@@ -169,24 +173,10 @@ public final class SqlxOutputColumnLocator {
                 && type != SqlCompositeElementTypes.SQL_COLUMN_REFERENCE) {
             return null;
         }
-        PsiElement last = null;
-        for (PsiElement child : item.getChildren()) {
-            if (child.getNode().getElementType() == SqlCompositeElementTypes.SQL_IDENTIFIER) {
-                last = child;
-            }
-        }
-        return last;
-    }
-
-    private static @Nullable PsiElement childOfType(@NotNull PsiElement parent,
-                                                    @NotNull IElementType type) {
-        for (PsiElement child : parent.getChildren()) {
-            if (child.getNode().getElementType() == type) return child;
-        }
-        return null;
+        return SqlPsiParts.lastIdentifier(item);
     }
 
     private static boolean identifierMatches(@NotNull PsiElement identifier, @NotNull String name) {
-        return identifier.getText().replace("`", "").equalsIgnoreCase(name);
+        return SqlPsiParts.unquoted(identifier.getText()).equalsIgnoreCase(name);
     }
 }
