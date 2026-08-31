@@ -20,12 +20,16 @@ import com.intellij.notification.NotificationGroupManager;
 import com.intellij.notification.NotificationType;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Ref;
+import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
 import com.intellij.refactoring.BaseRefactoringProcessor;
 import com.intellij.usageView.UsageInfo;
 import com.intellij.usageView.UsageViewDescriptor;
+import io.github.rejeb.dataform.language.diagnostics.DataformEditorRefresher;
+import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
 import io.github.rejeb.dataform.language.refactoring.column.plan.ColumnRenamePlan;
 import io.github.rejeb.dataform.language.schema.sql.ColumnOriginService;
+import io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasColumn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -48,6 +52,7 @@ public final class ColumnRenameProcessor extends BaseRefactoringProcessor {
     private static final String NOTIFICATION_GROUP = "Dataform.Notifications";
 
     private final ColumnRenamePlan plan;
+    private UsageInfo[] kept = UsageInfo.EMPTY_ARRAY;
 
     public ColumnRenameProcessor(@NotNull Project project, @NotNull ColumnRenamePlan plan) {
         super(project);
@@ -72,17 +77,58 @@ public final class ColumnRenameProcessor extends BaseRefactoringProcessor {
     @Override
     protected boolean preprocessUsages(@NotNull Ref<UsageInfo[]> refUsages) {
         if (plan.refusal() != null) {
+            prepareSuccessful();
             notify(plan.refusal(), NotificationType.WARNING);
             return false;
         }
         return super.preprocessUsages(refUsages);
     }
 
+    /**
+     * Keeps the places the user reviewed. Nothing is written here: the platform calls
+     * {@link #performPsiSpoilingRefactoring()} right after this, and that is where a refactoring
+     * writing documents rather than PSI belongs.
+     */
     @Override
     protected void performRefactoring(UsageInfo @NotNull [] usages) {
-        int written = ColumnRenameEdits.apply(myProject, usages);
-        int excluded = plan.edits().size() - usages.length;
-        notify(message(written, usages, excluded), NotificationType.INFORMATION);
+        kept = usages;
+    }
+
+    /** Writes the places, the platform having finished with the PSI the usages point at. */
+    @Override
+    protected void performPsiSpoilingRefactoring() {
+        int written = ColumnRenameEdits.apply(myProject, kept);
+        int excluded = plan.edits().size() - kept.length;
+        publishNewName();
+        notify(message(written, kept, excluded), NotificationType.INFORMATION);
+        kept = UsageInfo.EMPTY_ARRAY;
+        DataformEditorRefresher.refresh(myProject);
+    }
+
+    /**
+     * Tells the schemas that the actions of the rename publish their column under the new name, and
+     * repaints what shows it.
+     *
+     * <p>Without this the column stays unresolved — painted as unknown wherever it is read — until
+     * the next compilation and its schema extraction have both finished, which is far longer than a
+     * rename feels like it should take. A column produced by a star the rename could not expand is
+     * left out: that action really does go on publishing the old name.</p>
+     */
+    private void publishNewName() {
+        Set<ColumnRef> renamed = new LinkedHashSet<>(plan.columns());
+        plan.starBoundaries().forEach(boundary -> renamed.remove(boundary.column()));
+        if (renamed.isEmpty()) return;
+        DataformTableSchemaService.getInstance(myProject)
+                .renameColumn(renamed, plan.newName(), writtenFiles());
+    }
+
+    /** The files the rename wrote, which is what its claim about the schemas rests on. */
+    private @NotNull Set<VirtualFile> writtenFiles() {
+        Set<VirtualFile> files = new LinkedHashSet<>();
+        for (UsageInfo usage : kept) {
+            if (usage instanceof ColumnRenameUsageInfo info) files.add(info.edit().file());
+        }
+        return files;
     }
 
     @Override

@@ -16,8 +16,7 @@
  */
 package io.github.rejeb.dataform.language.schema.sql.usages;
 
-import com.intellij.psi.PsiElement;
-import com.intellij.psi.SmartPsiElementPointer;
+import com.intellij.openapi.fileEditor.OpenFileDescriptor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -26,6 +25,11 @@ import org.jetbrains.annotations.Nullable;
  *
  * <p>An entry keeps the expression split around the column name so the name can be drawn apart from
  * the rest, and names the file and line it sits in rather than the project it belongs to.</p>
+ *
+ * <p>Where a row opens is a place in a host file, never the injected element the search found. A row
+ * is opened from a mouse listener, and opening an injected file has the editor validate the
+ * injection there — on the event thread, outside a read action. Holding the host place also makes a
+ * row open the very line it names.</p>
  */
 public final class ColumnUsageRow {
 
@@ -44,11 +48,11 @@ public final class ColumnUsageRow {
     private final String name;
     private final String after;
     private final String location;
-    private final SmartPsiElementPointer<PsiElement> target;
+    private final OpenFileDescriptor target;
 
     private ColumnUsageRow(Kind kind, String group, String heading, int count, String before,
                            String name, String after, String location,
-                           SmartPsiElementPointer<PsiElement> target) {
+                           OpenFileDescriptor target) {
         this.kind = kind;
         this.group = group;
         this.heading = heading;
@@ -67,7 +71,7 @@ public final class ColumnUsageRow {
     static @NotNull ColumnUsageRow entry(@NotNull Kind kind, @NotNull String group,
                                          @NotNull String before, @NotNull String name,
                                          @NotNull String after, @NotNull String location,
-                                         @NotNull SmartPsiElementPointer<PsiElement> target) {
+                                         @NotNull OpenFileDescriptor target) {
         return new ColumnUsageRow(kind, group, "", 0, before, name, after, location, target);
     }
 
@@ -109,9 +113,9 @@ public final class ColumnUsageRow {
         return location;
     }
 
-    /** The element to open, or {@code null} for a heading and for a row gone stale. */
-    public @Nullable PsiElement target() {
-        return target == null ? null : target.getElement();
+    /** The place to open in the host file, or {@code null} for a heading. */
+    public @Nullable OpenFileDescriptor target() {
+        return target;
     }
 
     @Override

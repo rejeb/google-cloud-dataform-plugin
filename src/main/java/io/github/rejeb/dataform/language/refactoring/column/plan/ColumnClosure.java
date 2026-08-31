@@ -25,8 +25,10 @@ import org.jetbrains.annotations.NotNull;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -47,16 +49,34 @@ import java.util.Set;
 public final class ColumnClosure {
 
     private final Set<ColumnRef> columns;
+    private final Set<ColumnRef> carried;
     private final List<ColumnRef> unknownOrigins;
 
-    private ColumnClosure(@NotNull Set<ColumnRef> columns, @NotNull List<ColumnRef> unknownOrigins) {
+    private ColumnClosure(@NotNull Set<ColumnRef> columns,
+                          @NotNull Set<ColumnRef> carried,
+                          @NotNull List<ColumnRef> unknownOrigins) {
         this.columns = columns;
+        this.carried = carried;
         this.unknownOrigins = unknownOrigins;
     }
 
     /** The columns the rename reaches, the starting one included. */
     public @NotNull Set<ColumnRef> columns() {
         return columns;
+    }
+
+    /**
+     * The columns another column of the closure feeds directly, and which therefore take the new
+     * name from what they read rather than having to declare it themselves.
+     *
+     * <p>This is what tells a star that has to be expanded from one that has nothing to do. A star
+     * publishes whatever its source calls the column: once the source is renamed, a carried column
+     * is published under the new name without a character being written for it. Only a star whose
+     * own input the rename does not reach — the first action of the chain, whose source is a literal
+     * or a table outside the project — has to be turned into an explicit list.</p>
+     */
+    public @NotNull Set<ColumnRef> carried() {
+        return carried;
     }
 
     /**
@@ -88,28 +108,40 @@ public final class ColumnClosure {
     private static @NotNull ColumnClosure walk(@NotNull ColumnLineageGraph graph,
                                                @NotNull ColumnRef start,
                                                boolean bothWays) {
+        Map<ColumnRef, List<ColumnEdge>> byFrom = new HashMap<>();
+        Map<ColumnRef, List<ColumnEdge>> byTo = new HashMap<>();
+        for (ColumnEdge edge : graph.edges()) {
+            byFrom.computeIfAbsent(edge.from(), column -> new ArrayList<>()).add(edge);
+            byTo.computeIfAbsent(edge.to(), column -> new ArrayList<>()).add(edge);
+        }
+
         Set<ColumnRef> reached = new LinkedHashSet<>();
-        List<ColumnRef> unknown = new ArrayList<>();
+        Set<ColumnRef> unknown = new LinkedHashSet<>();
+        Set<ColumnRef> carried = new LinkedHashSet<>();
         Deque<ColumnRef> queue = new ArrayDeque<>();
         reached.add(start);
         queue.add(start);
 
         while (!queue.isEmpty()) {
             ColumnRef current = queue.poll();
-            for (ColumnEdge edge : graph.edges()) {
-                if (edge.kind() == Confidence.STAR && edge.to().equals(current)
-                        && !unknown.contains(current)) {
-                    unknown.add(current);
-                }
-                if (edge.kind() != Confidence.DIRECT) continue;
-                if (edge.from().equals(current) && reached.add(edge.to())) {
-                    queue.add(edge.to());
-                }
-                if (bothWays && edge.to().equals(current) && reached.add(edge.from())) {
+            for (ColumnEdge edge : byTo.getOrDefault(current, List.of())) {
+                if (edge.kind() == Confidence.STAR) unknown.add(current);
+                if (edge.kind() == Confidence.DIRECT && bothWays && reached.add(edge.from())) {
                     queue.add(edge.from());
                 }
             }
+            for (ColumnEdge edge : byFrom.getOrDefault(current, List.of())) {
+                if (edge.kind() == Confidence.DIRECT && reached.add(edge.to())) {
+                    queue.add(edge.to());
+                }
+            }
         }
-        return new ColumnClosure(reached, unknown);
+        for (ColumnEdge edge : graph.edges()) {
+            if (edge.kind() == Confidence.DIRECT
+                    && reached.contains(edge.from()) && reached.contains(edge.to())) {
+                carried.add(edge.to());
+            }
+        }
+        return new ColumnClosure(reached, carried, List.copyOf(unknown));
     }
 }

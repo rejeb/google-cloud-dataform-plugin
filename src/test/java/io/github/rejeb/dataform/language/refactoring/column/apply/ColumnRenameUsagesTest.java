@@ -16,7 +16,9 @@
  */
 package io.github.rejeb.dataform.language.refactoring.column.apply;
 
+import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.openapi.command.WriteCommandAction;
+import com.intellij.openapi.util.Segment;
 import com.intellij.psi.PsiFile;
 import com.intellij.usageView.UsageInfo;
 import io.github.rejeb.dataform.language.refactoring.column.ColumnRenameFixture;
@@ -79,6 +81,28 @@ public class ColumnRenameUsagesTest extends ColumnRenameFixture {
                 plan.edits().size(), usages.length);
     }
 
+    public void testEveryRowIsShownInTheFileItWrites() {
+        ColumnRenamePlan plan = plan("order_ref");
+        ColumnRenameProcessor processor = new ColumnRenameProcessor(getProject(), plan);
+        InjectedLanguageManager injections = InjectedLanguageManager.getInstance(getProject());
+
+        for (UsageInfo usage : processor.findUsages()) {
+            PsiFile file = usage.getFile();
+            assertNotNull("a row without a file cannot be shown", file);
+            assertFalse("a row of an injected file makes the rename window restore the injection"
+                            + " on the event thread, outside a read action: " + usage,
+                    injections.isInjectedFragment(file));
+            assertEquals("the row is shown in the file its place is written to",
+                    ((ColumnRenameUsageInfo) usage).edit().file(), file.getVirtualFile());
+
+            Segment segment = usage.getSegment();
+            assertNotNull("a row without a range cannot be shown", segment);
+            assertTrue("the row covers the name in the host file, not an offset of the injection",
+                    file.getText().substring(segment.getStartOffset(), segment.getEndOffset())
+                            .contains("order_id"));
+        }
+    }
+
     public void testTextFoundByMatchingIsGroupedApartFromCode() {
         ColumnRenamePlan plan = plan("order_ref");
         ColumnRenameProcessor processor = new ColumnRenameProcessor(getProject(), plan);
@@ -97,7 +121,10 @@ public class ColumnRenameUsagesTest extends ColumnRenameFixture {
                         && "src.sqlx".equals(info.edit().file().getName()))
                 .toArray(UsageInfo[]::new);
 
-        WriteCommandAction.runWriteCommandAction(getProject(), () -> processor.performRefactoring(kept));
+        WriteCommandAction.runWriteCommandAction(getProject(), () -> {
+            processor.performRefactoring(kept);
+            processor.performPsiSpoilingRefactoring();
+        });
 
         assertTrue("the kept rows are written\n" + fileOf("src").getText(),
                 fileOf("src").getText().contains("order_ref"));

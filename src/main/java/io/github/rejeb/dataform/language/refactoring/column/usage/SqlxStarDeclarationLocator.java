@@ -18,9 +18,9 @@ package io.github.rejeb.dataform.language.refactoring.column.usage;
 
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
-import com.intellij.psi.tree.IElementType;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.sql.psi.SqlCompositeElementTypes;
+import io.github.rejeb.dataform.language.schema.sql.SqlPsiParts;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -49,12 +49,14 @@ public final class SqlxStarDeclarationLocator {
         for (PsiFile injected : InjectedSqlFiles.mainQuery(hostFile)) {
             PsiElement selectClause = mainSelectClause(injected);
             for (PsiElement expression : PsiTreeUtil.collectElements(injected,
-                    element -> isType(element, SqlCompositeElementTypes.SQL_AS_EXPRESSION))) {
+                    element -> SqlPsiParts.isType(element,
+                            SqlCompositeElementTypes.SQL_AS_EXPRESSION))) {
                 if (selectClause != null && PsiTreeUtil.isAncestor(selectClause, expression, false)) {
                     continue;
                 }
-                PsiElement identifier = lastIdentifier(expression);
-                if (identifier != null && unquoted(identifier.getText()).equalsIgnoreCase(columnName)) {
+                PsiElement identifier = SqlPsiParts.lastIdentifier(expression);
+                if (identifier != null
+                        && SqlPsiParts.unquoted(identifier.getText()).equalsIgnoreCase(columnName)) {
                     found.add(identifier);
                 }
             }
@@ -64,45 +66,25 @@ public final class SqlxStarDeclarationLocator {
 
     /** Whether an element is a star of a select list rather than a name. */
     public static boolean isStar(@Nullable PsiElement element) {
-        if (element == null) return false;
-        String text = element.getText();
-        return "*".equals(text) || text.endsWith(".*");
+        return SqlPsiParts.isStar(element);
     }
 
     /** The select clause producing the rows of the main query of an injected SQL file. */
     public static @Nullable PsiElement mainSelectClause(@NotNull PsiFile injected) {
-        PsiElement statement = childOfType(injected, SqlCompositeElementTypes.SQL_SELECT_STATEMENT);
+        PsiElement statement = SqlPsiParts.childOfType(injected,
+                SqlCompositeElementTypes.SQL_SELECT_STATEMENT);
         if (statement == null) return null;
-        PsiElement query = childOfType(statement, SqlCompositeElementTypes.SQL_QUERY_EXPRESSION);
+        PsiElement query = SqlPsiParts.childOfType(statement,
+                SqlCompositeElementTypes.SQL_QUERY_EXPRESSION);
         if (query == null) {
-            PsiElement with = childOfType(statement, SqlCompositeElementTypes.SQL_WITH_QUERY_EXPRESSION);
-            if (with != null) query = childOfType(with, SqlCompositeElementTypes.SQL_QUERY_EXPRESSION);
+            PsiElement with = SqlPsiParts.childOfType(statement,
+                    SqlCompositeElementTypes.SQL_WITH_QUERY_EXPRESSION);
+            if (with != null) {
+                query = SqlPsiParts.childOfType(with, SqlCompositeElementTypes.SQL_QUERY_EXPRESSION);
+            }
         }
-        return query == null ? null : childOfType(query, SqlCompositeElementTypes.SQL_SELECT_CLAUSE);
-    }
-
-    private static @Nullable PsiElement childOfType(@NotNull PsiElement parent,
-                                                    @NotNull IElementType type) {
-        for (PsiElement child : parent.getChildren()) {
-            if (child.getNode() != null && child.getNode().getElementType() == type) return child;
-        }
-        return null;
-    }
-
-    private static @Nullable PsiElement lastIdentifier(@NotNull PsiElement parent) {
-        PsiElement last = null;
-        for (PsiElement child : parent.getChildren()) {
-            if (isType(child, SqlCompositeElementTypes.SQL_IDENTIFIER)) last = child;
-        }
-        return last;
-    }
-
-    private static boolean isType(@Nullable PsiElement element, @NotNull IElementType type) {
-        return element != null && element.getNode() != null
-                && element.getNode().getElementType() == type;
-    }
-
-    private static @NotNull String unquoted(@NotNull String text) {
-        return text.replace("`", "");
+        return query == null
+                ? null
+                : SqlPsiParts.childOfType(query, SqlCompositeElementTypes.SQL_SELECT_CLAUSE);
     }
 }

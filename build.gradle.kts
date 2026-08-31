@@ -46,8 +46,8 @@ intellijPlatform {
 
         changeNotes = """
                 <ul>
-                    <li>Add columns goto and usage.</li>
-                    <li>Add autocompletion partitionBy expression</li>
+                    <li>Add in place columns renaming.</li>
+                    <li>Add new sqlx file templates</li>
                     <li>Fix issues.</li>
                 </ul>
         """.trimIndent()

@@ -16,36 +16,57 @@
  */
 package io.github.rejeb.dataform.language.refactoring.column.usage;
 
+import com.intellij.openapi.util.Segment;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.openapi.vfs.VirtualFile;
-import com.intellij.psi.PsiElement;
-import com.intellij.psi.SmartPsiElementPointer;
+import com.intellij.psi.SmartPsiFileRange;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * One place the rename writes.
  *
- * <p>An edit carries both what to write and what to show: {@code hostRange} is the range of the host
- * document the processor replaces, while {@code anchor} and {@code rangeInAnchor} are the PSI the
- * rename window points a reviewable row at. Every edit must be reviewable, so both are required.</p>
+ * <p>A place is always a range of a host file, never of an injected one. The SQL, the JavaScript and
+ * the config of a SQLX file are injected, and a pointer into an injected file has to rebuild the
+ * injection to answer what file it belongs to, which the rename window asks for while it paints. So
+ * every place is translated to its host once, where it is collected, and held as a range the
+ * document keeps up to date.</p>
  *
  * @param file          the host file the edit belongs to
- * @param hostRange     the range of the host document to replace
- * @param anchor        the element the review row points at
- * @param rangeInAnchor the range of the anchor holding the name
- * @param replacement   the text written in place of {@code hostRange}
+ * @param hostRange     the range of the host document to replace, as it stood when collected
+ * @param place         the same range, kept up to date with what is typed while the window is open
+ * @param replacement   the text written in place of the range
  * @param kind          what the place is
  * @param risk          whether the place was found by resolution or by matching text
  * @param presentation  a short description for logs and the review window
  */
 public record ColumnRenameEdit(@NotNull VirtualFile file,
                                @NotNull TextRange hostRange,
-                               @NotNull SmartPsiElementPointer<PsiElement> anchor,
-                               @NotNull TextRange rangeInAnchor,
+                               @NotNull SmartPsiFileRange place,
                                @NotNull String replacement,
                                @NotNull Kind kind,
                                @NotNull Risk risk,
                                @NotNull String presentation) {
+
+    /**
+     * What identifies the place, so that two collectors reaching the same characters produce one
+     * edit rather than two.
+     */
+    public @NotNull String key() {
+        return file.getPath() + "@" + hostRange.getStartOffset() + "-" + hostRange.getEndOffset();
+    }
+
+    /**
+     * The range the place occupies in its host document now, or {@code null} when what was collected
+     * is gone. A plan is reviewed in the rename window, which the user may leave open while typing
+     * somewhere else, so what a place covers today is asked for rather than assumed.
+     */
+    public @Nullable TextRange currentRange() {
+        Segment range = place.getRange();
+        if (range == null) return null;
+        TextRange current = TextRange.create(range);
+        return current.isEmpty() ? null : current;
+    }
 
     /** What kind of place an edit sits in. */
     public enum Kind {

@@ -16,7 +16,11 @@
  */
 package io.github.rejeb.dataform.language.schema.sql.usages;
 
+import com.intellij.injected.editor.VirtualFileWindow;
 import com.intellij.lang.injection.InjectedLanguageManager;
+import com.intellij.openapi.editor.Document;
+import com.intellij.openapi.fileEditor.FileDocumentManager;
+import com.intellij.openapi.fileEditor.OpenFileDescriptor;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import io.github.rejeb.dataform.language.schema.sql.DataformProjectFixture;
@@ -109,11 +113,22 @@ public class ColumnUsagesWindowTest extends DataformProjectFixture {
         assertFalse("the expression around it is kept", read.before().isEmpty());
     }
 
-    public void testARowPointsAtSomethingNavigable() throws Exception {
+    public void testARowOpensTheHostFileAtTheLineItNames() throws Exception {
         List<ColumnUsageRow> rows = rowsAt(openAll().get(1), 23, "order_id");
         for (ColumnUsageRow row : rows) {
             if (row.isHeading()) continue;
-            assertNotNull("a row must point at an element to open", row.target());
+            OpenFileDescriptor target = row.target();
+            assertNotNull("a row must point at a place to open", target);
+            assertFalse("a row opening an injected file makes the editor validate the injection"
+                            + " on the event thread, outside a read action: " + row.location(),
+                    target.getFile() instanceof VirtualFileWindow);
+
+            Document document = FileDocumentManager.getInstance().getDocument(target.getFile());
+            assertNotNull("the file a row opens must have a document", document);
+            assertEquals("a row opens the line it names",
+                    row.location(),
+                    target.getFile().getName() + ":"
+                            + (document.getLineNumber(target.getOffset()) + 1));
         }
     }
 
@@ -242,6 +257,20 @@ public class ColumnUsagesWindowTest extends DataformProjectFixture {
             assertFalse("the line naming the column is not one of its rows, got " + row.location(),
                     row.location().equals("gold_customer_ltv.sqlx:" + aliasLine));
         }
+    }
+
+    /**
+     * A column the file names with {@code AS} is an output column of the table the file builds, and
+     * what reads it lives in the files reading that table.
+     */
+    public void testAnAliasDeclaringAnOutputColumnIsReadAcrossFiles() throws Exception {
+        open("gold/gold_customer_ltv.sqlx");
+        PsiFile summary = open("gold/gold_customer_purchase_summary.sqlx");
+        List<String> rows = describe(rowsAt(summary, 10, "order_amount"));
+        assertTrue("gold_customer_ltv reads the column and must be listed, got " + rows,
+                rows.contains("USAGE gold_customer_ltv.sqlx:18"));
+        assertFalse("the alias is where the column is written, never a read of it, got " + rows,
+                rows.contains("USAGE gold_customer_purchase_summary.sqlx:10"));
     }
 
     public void testReadsAreCapped() {

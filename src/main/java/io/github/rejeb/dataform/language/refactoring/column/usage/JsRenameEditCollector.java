@@ -18,7 +18,7 @@ package io.github.rejeb.dataform.language.refactoring.column.usage;
 
 import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.lang.javascript.psi.JSLiteralExpression;
-import com.intellij.lang.javascript.psi.JSProperty;
+import com.intellij.lang.javascript.psi.JSNamedElement;
 import com.intellij.lang.javascript.psi.JSReferenceExpression;
 import com.intellij.lang.javascript.psi.ecma6.JSStringTemplateExpression;
 import com.intellij.openapi.project.Project;
@@ -28,6 +28,7 @@ import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.util.PsiTreeUtil;
 import io.github.rejeb.dataform.language.index.DataformJsFileIndex;
+import io.github.rejeb.dataform.language.injection.InjectedFiles;
 import io.github.rejeb.dataform.language.psi.SqlxJsBlock;
 import io.github.rejeb.dataform.language.psi.SqlxJsLiteralExpression;
 import org.jetbrains.annotations.NotNull;
@@ -44,6 +45,10 @@ import java.util.List;
  * a {@code js} block keeps a list of them. None of that resolves to anything, so these places are
  * found by matching the name as a whole identifier and are reported as usages the user reviews
  * rather than as certain ones.</p>
+ *
+ * <p>What declares the name is collected along with what reads it — a variable, a parameter, a
+ * function, a key of an object — so that a file whose references are rewritten keeps referring to
+ * something that exists.</p>
  *
  * <p>Template literals carrying injected SQL are skipped: their column names are real references and
  * are collected as SQL, and matching them again here would report the same place twice.</p>
@@ -95,13 +100,13 @@ public final class JsRenameEditCollector {
             if (carriesInjection(template)) continue;
             collectInTemplate(template, oldName, newName, edits);
         }
-        for (JSProperty property : PsiTreeUtil.findChildrenOfType(file, JSProperty.class)) {
-            if (!oldName.equals(property.getName())) continue;
-            PsiElement identifier = property.getNameIdentifier();
+        for (JSNamedElement named : PsiTreeUtil.findChildrenOfType(file, JSNamedElement.class)) {
+            if (!oldName.equals(named.getName())) continue;
+            PsiElement identifier = named.getNameIdentifier();
             if (identifier == null || identifier instanceof JSLiteralExpression) continue;
             add(edits, EditFactory.ofWhole(identifier, newName,
                     ColumnRenameEdit.Kind.JS_IDENTIFIER, ColumnRenameEdit.Risk.HEURISTIC,
-                    "JavaScript property " + oldName));
+                    "JavaScript declaration of " + oldName));
         }
         for (JSReferenceExpression reference :
                 PsiTreeUtil.findChildrenOfType(file, JSReferenceExpression.class)) {
@@ -125,7 +130,7 @@ public final class JsRenameEditCollector {
         if (isModulePath(literal)) return;
         Object value = literal.getValue();
         if (oldName.equals(value)) {
-            add(edits, EditFactory.ofWhole(literal, quoted(literal, newName),
+            add(edits, EditFactory.ofLiteral(literal, newName,
                     ColumnRenameEdit.Kind.JS_STRING, ColumnRenameEdit.Risk.CERTAIN,
                     "JavaScript string " + oldName));
             return;
@@ -184,28 +189,11 @@ public final class JsRenameEditCollector {
         return text.contains("/") || text.endsWith(".js") || text.endsWith(".sqlx");
     }
 
-    private static @NotNull String quoted(@NotNull JSLiteralExpression literal,
-                                          @NotNull String newName) {
-        String text = literal.getText();
-        char quote = text.isEmpty() ? '"' : text.charAt(0);
-        return quote + newName + quote;
-    }
-
     private static @NotNull List<PsiFile> injectedJavaScript(@NotNull PsiFile hostFile) {
-        List<PsiFile> files = new ArrayList<>();
-        InjectedLanguageManager manager = InjectedLanguageManager.getInstance(hostFile.getProject());
         List<PsiElement> hosts = new ArrayList<>();
         hosts.addAll(PsiTreeUtil.findChildrenOfType(hostFile, SqlxJsBlock.class));
         hosts.addAll(PsiTreeUtil.findChildrenOfType(hostFile, SqlxJsLiteralExpression.class));
-        for (PsiElement host : hosts) {
-            List<Pair<PsiElement, TextRange>> injected = manager.getInjectedPsiFiles(host);
-            if (injected == null) continue;
-            for (Pair<PsiElement, TextRange> pair : injected) {
-                PsiFile file = pair.getFirst().getContainingFile();
-                if (file != null && !files.contains(file)) files.add(file);
-            }
-        }
-        return files;
+        return InjectedFiles.of(hosts);
     }
 
     private static void add(@NotNull List<ColumnRenameEdit> edits, @Nullable ColumnRenameEdit edit) {

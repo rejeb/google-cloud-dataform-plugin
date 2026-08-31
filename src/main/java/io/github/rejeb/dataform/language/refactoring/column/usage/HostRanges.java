@@ -18,7 +18,6 @@ package io.github.rejeb.dataform.language.refactoring.column.usage;
 
 import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.openapi.util.TextRange;
-import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import org.jetbrains.annotations.NotNull;
@@ -36,16 +35,7 @@ public final class HostRanges {
     private HostRanges() {
     }
 
-    /** The host file an element belongs to, or {@code null} when it has none on disk. */
-    public static @Nullable VirtualFile hostFileOf(@NotNull PsiElement element) {
-        PsiFile containing = element.getContainingFile();
-        if (containing == null) return null;
-        PsiFile host = InjectedLanguageManager.getInstance(element.getProject())
-                .getTopLevelFile(containing);
-        return host == null ? null : host.getVirtualFile();
-    }
-
-    /** The host file of an element, or {@code null} when it has none on disk. */
+    /** The host file of an element, or {@code null} when it has none. */
     public static @Nullable PsiFile hostPsiFileOf(@NotNull PsiElement element) {
         PsiFile containing = element.getContainingFile();
         return containing == null
@@ -69,11 +59,5 @@ public final class HostRanges {
         if (containing == null) return null;
         if (!manager.isInjectedFragment(containing)) return absolute;
         return manager.injectedToHost(element, absolute);
-    }
-
-    /** The whole range of an element, in the host document. */
-    public static @Nullable TextRange hostRangeOf(@NotNull PsiElement element) {
-        TextRange range = element.getTextRange();
-        return range == null ? null : hostRangeOf(element, TextRange.from(0, range.getLength()));
     }
 }

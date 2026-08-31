@@ -19,10 +19,10 @@ package io.github.rejeb.dataform.language.schema.sql.usages;
 import com.intellij.find.FindManager;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.colors.EditorColorsManager;
+import com.intellij.openapi.fileEditor.OpenFileDescriptor;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.popup.JBPopup;
 import com.intellij.openapi.ui.popup.JBPopupFactory;
-import com.intellij.pom.Navigatable;
 import com.intellij.psi.PsiElement;
 import com.intellij.ui.JBColor;
 import com.intellij.ui.components.JBList;
@@ -165,11 +165,9 @@ public final class ColumnUsagesPopup {
                 rebuild();
                 return;
             }
-            PsiElement element = row.target();
+            OpenFileDescriptor target = row.target();
             if (popup != null) popup.cancel();
-            if (element instanceof Navigatable navigatable && navigatable.canNavigate()) {
-                navigatable.navigate(true);
-            }
+            if (target != null && target.canNavigate()) target.navigate(true);
         }
 
         private void openFindWindow() {

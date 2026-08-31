@@ -19,6 +19,7 @@ package io.github.rejeb.dataform.language.refactoring.column.usage;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
+import com.intellij.psi.PsiFile;
 import com.intellij.psi.SmartPointerManager;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -41,13 +42,15 @@ public final class EditFactory {
                                                 @NotNull ColumnRenameEdit.Kind kind,
                                                 @NotNull ColumnRenameEdit.Risk risk,
                                                 @NotNull String presentation) {
-        VirtualFile file = HostRanges.hostFileOf(anchor);
+        PsiFile host = HostRanges.hostPsiFileOf(anchor);
         TextRange hostRange = HostRanges.hostRangeOf(anchor, rangeInAnchor);
-        if (file == null || hostRange == null) return null;
+        if (host == null || hostRange == null) return null;
+        VirtualFile file = host.getVirtualFile();
+        if (file == null) return null;
         return new ColumnRenameEdit(file, hostRange,
                 SmartPointerManager.getInstance(anchor.getProject())
-                        .createSmartPsiElementPointer(anchor),
-                rangeInAnchor, replacement, kind, risk, presentation);
+                        .createSmartPsiFileRangePointer(host, hostRange),
+                replacement, kind, risk, presentation);
     }
 
     /** An edit replacing the whole of {@code anchor}. */
@@ -59,5 +62,19 @@ public final class EditFactory {
         TextRange range = anchor.getTextRange();
         if (range == null) return null;
         return of(anchor, TextRange.from(0, range.getLength()), replacement, kind, risk, presentation);
+    }
+
+    /**
+     * An edit replacing a whole string literal by {@code newName}, written with the quotes the
+     * literal already uses.
+     */
+    public static @Nullable ColumnRenameEdit ofLiteral(@NotNull PsiElement literal,
+                                                       @NotNull String newName,
+                                                       @NotNull ColumnRenameEdit.Kind kind,
+                                                       @NotNull ColumnRenameEdit.Risk risk,
+                                                       @NotNull String presentation) {
+        String text = literal.getText();
+        char quote = text.isEmpty() ? '"' : text.charAt(0);
+        return ofWhole(literal, quote + newName + quote, kind, risk, presentation);
     }
 }

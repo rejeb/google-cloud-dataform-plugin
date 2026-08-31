@@ -30,6 +30,11 @@ import java.util.Set;
  * an error, so no inspection profile can lower it; suppressing it here and reporting it again is
  * the only way to keep the message without the red highlighting. Column references are left to the
  * inspection, which already reports them as weak warnings.
+ *
+ * <p>A column read from a source the IDE cannot name the columns of is dropped rather than handed
+ * over: there is nothing to say about it. The query reads rows a template hole builds, and the
+ * inspection is answering from the filler text the injection put there — which it reports as an
+ * error, since as far as it can tell the source is a perfectly ordinary one.</p>
  */
 public final class SqlxSqlResolveSuppressor implements InspectionSuppressor {
 
@@ -38,9 +43,11 @@ public final class SqlxSqlResolveSuppressor implements InspectionSuppressor {
 
     @Override
     public boolean isSuppressedFor(@NotNull PsiElement element, @NotNull String toolId) {
-        return SQL_RESOLVE_TOOL_IDS.contains(toolId)
-                && SqlxSqlProblemAnnotator.isCoveredReference(element)
-                && SqlxHighlightScope.isInSqlxFile(element);
+        if (!SQL_RESOLVE_TOOL_IDS.contains(toolId) || !SqlxHighlightScope.isInSqlxFile(element)) {
+            return false;
+        }
+        return SqlxSqlProblemAnnotator.isCoveredReference(element)
+                || !SqlxQuerySources.areKnown(element);
     }
 
     @Override

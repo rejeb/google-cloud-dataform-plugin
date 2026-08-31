@@ -19,6 +19,7 @@ package io.github.rejeb.dataform.language.compilation;
 import com.intellij.testFramework.ServiceContainerUtil;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
+import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
 import io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasTable;
 import io.github.rejeb.dataform.language.settings.DataformToolsSettings;
@@ -133,6 +134,12 @@ public class DataformAutoCompileServiceImplTest extends BasePlatformTestCase {
         @Override
         public @NotNull Map<String, DataformDasTable> getAllTables() {
             return Map.of();
+        }
+
+        @Override
+        public void renameColumn(@NotNull Set<ColumnRef> columns, @NotNull String newName,
+                                 @NotNull java.util.Collection<
+                                         com.intellij.openapi.vfs.VirtualFile> written) {
         }
 
         @Override

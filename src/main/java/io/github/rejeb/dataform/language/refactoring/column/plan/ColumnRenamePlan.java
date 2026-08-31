@@ -16,7 +16,6 @@
  */
 package io.github.rejeb.dataform.language.refactoring.column.plan;
 
-import com.intellij.openapi.vfs.VirtualFile;
 import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
 import io.github.rejeb.dataform.language.refactoring.column.target.ColumnRenameSubject;
 import io.github.rejeb.dataform.language.refactoring.column.usage.ColumnRenameEdit;
@@ -103,10 +102,5 @@ public record ColumnRenamePlan(@NotNull ColumnRenameSubject subject,
     public boolean needsPreview() {
         return !warnings.isEmpty()
                 || edits.stream().anyMatch(edit -> edit.risk() == ColumnRenameEdit.Risk.HEURISTIC);
-    }
-
-    /** The edits of one file, in the order they were collected. */
-    public @NotNull List<ColumnRenameEdit> editsIn(@NotNull VirtualFile file) {
-        return edits.stream().filter(edit -> file.equals(edit.file())).toList();
     }
 }

@@ -1,0 +1,7 @@
+config {
+  type: "operations",
+  description: "",
+  hasOutput: false
+}
+
+SELECT 1

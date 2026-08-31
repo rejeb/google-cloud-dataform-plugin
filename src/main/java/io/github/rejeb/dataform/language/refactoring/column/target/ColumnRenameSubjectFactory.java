@@ -20,10 +20,10 @@ import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiReference;
-import com.intellij.psi.tree.IElementType;
 import com.intellij.sql.psi.SqlCompositeElementTypes;
 import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
 import io.github.rejeb.dataform.language.schema.sql.ColumnOriginService;
+import io.github.rejeb.dataform.language.schema.sql.SqlPsiParts;
 import io.github.rejeb.dataform.language.schema.sql.SqlxColumnAtCaret;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasColumn;
 import org.jetbrains.annotations.NotNull;
@@ -64,10 +64,12 @@ public final class ColumnRenameSubjectFactory {
     private static @NotNull Optional<ColumnRenameSubject> fromAlias(@NotNull PsiElement token,
                                                                     @NotNull PsiFile hostFile) {
         PsiElement identifier = token.getParent();
-        if (!isType(identifier, SqlCompositeElementTypes.SQL_IDENTIFIER)) return Optional.empty();
+        if (!SqlPsiParts.isType(identifier, SqlCompositeElementTypes.SQL_IDENTIFIER)) {
+            return Optional.empty();
+        }
         PsiElement expression = identifier.getParent();
-        if (!isType(expression, SqlCompositeElementTypes.SQL_AS_EXPRESSION)
-                || lastIdentifier(expression) != identifier) {
+        if (!SqlPsiParts.isType(expression, SqlCompositeElementTypes.SQL_AS_EXPRESSION)
+                || SqlPsiParts.lastIdentifier(expression) != identifier) {
             return Optional.empty();
         }
         ColumnRef declared = ColumnOriginService.getInstance(hostFile.getProject())
@@ -86,7 +88,7 @@ public final class ColumnRenameSubjectFactory {
                                                                         @NotNull PsiFile hostFile) {
         PsiElement reference = SqlxColumnAtCaret.referenceOf(token);
         if (reference == null) return Optional.empty();
-        PsiElement identifier = lastIdentifier(reference);
+        PsiElement identifier = SqlPsiParts.lastIdentifier(reference);
         if (identifier == null || !identifier.getTextRange().contains(token.getTextRange())) {
             return Optional.empty();
         }
@@ -124,18 +126,5 @@ public final class ColumnRenameSubjectFactory {
                 ? Optional.empty()
                 : Optional.of(new ColumnRenameSubject(reference, declaration, hostFile,
                         ColumnRenameSubject.Kind.SELECT_ITEM));
-    }
-
-    private static @Nullable PsiElement lastIdentifier(@NotNull PsiElement parent) {
-        PsiElement last = null;
-        for (PsiElement child : parent.getChildren()) {
-            if (isType(child, SqlCompositeElementTypes.SQL_IDENTIFIER)) last = child;
-        }
-        return last;
-    }
-
-    private static boolean isType(@Nullable PsiElement element, @NotNull IElementType type) {
-        return element != null && element.getNode() != null
-                && element.getNode().getElementType() == type;
     }
 }

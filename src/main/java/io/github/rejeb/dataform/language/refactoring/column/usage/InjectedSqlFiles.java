@@ -16,12 +16,9 @@
  */
 package io.github.rejeb.dataform.language.refactoring.column.usage;
 
-import com.intellij.lang.injection.InjectedLanguageManager;
-import com.intellij.openapi.util.Pair;
-import com.intellij.openapi.util.TextRange;
-import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.util.PsiTreeUtil;
+import io.github.rejeb.dataform.language.injection.InjectedFiles;
 import io.github.rejeb.dataform.language.psi.SharedTokenTypes;
 import io.github.rejeb.dataform.language.psi.SqlxSqlBlock;
 import org.jetbrains.annotations.NotNull;
@@ -51,19 +48,13 @@ public final class InjectedSqlFiles {
     }
 
     private static @NotNull List<PsiFile> injectedIn(@NotNull PsiFile hostFile, boolean mainOnly) {
-        List<PsiFile> files = new ArrayList<>();
-        InjectedLanguageManager manager = InjectedLanguageManager.getInstance(hostFile.getProject());
+        List<SqlxSqlBlock> blocks = new ArrayList<>();
         for (SqlxSqlBlock block : PsiTreeUtil.findChildrenOfType(hostFile, SqlxSqlBlock.class)) {
             if (mainOnly && block.getNode().getElementType() != SharedTokenTypes.SQL_CONTENT) {
                 continue;
             }
-            List<Pair<PsiElement, TextRange>> injected = manager.getInjectedPsiFiles(block);
-            if (injected == null) continue;
-            for (Pair<PsiElement, TextRange> pair : injected) {
-                PsiFile file = pair.getFirst().getContainingFile();
-                if (file != null && !files.contains(file)) files.add(file);
-            }
+            blocks.add(block);
         }
-        return files;
+        return InjectedFiles.of(blocks);
     }
 }

@@ -20,6 +20,7 @@ import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import io.github.rejeb.dataform.language.refactoring.column.DataformColumnNameValidator;
 import io.github.rejeb.dataform.language.schema.sql.DataformActionColumns;
+import io.github.rejeb.dataform.language.schema.sql.SqlPsiParts;
 import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -47,15 +48,28 @@ public final class SqlxStarExpander {
     /**
      * The text a star expands to, or the reasons it cannot.
      *
-     * @param text     the replacement of the star, {@code null} when there is none
-     * @param blockers why the star cannot be expanded, empty when it can
+     * @param text          the replacement of the star, {@code null} when there is none
+     * @param replacedLength how many characters from the start of the star the replacement covers:
+     *                      the star itself and the {@code EXCEPT} list the expansion has already
+     *                      applied
+     * @param blockers      why the star cannot be expanded, empty when it can
      */
-    public record Expansion(@Nullable String text, @NotNull List<String> blockers) {
+    public record Expansion(@Nullable String text, int replacedLength,
+                            @NotNull List<String> blockers) {
 
         /** Whether the star can be expanded. */
         public boolean isPossible() {
             return text != null && blockers.isEmpty();
         }
+    }
+
+    /**
+     * The modifier written after a star.
+     *
+     * @param excluded the lower-cased names of an {@code EXCEPT} list, empty when there is none
+     * @param length   how many characters of the tail the modifier takes
+     */
+    private record Modifier(@NotNull Set<String> excluded, int length) {
     }
 
     private SqlxStarExpander() {
@@ -74,27 +88,29 @@ public final class SqlxStarExpander {
         if (columns.isEmpty()) {
             blockers.add("the schema of the action is not known; compile the project first");
         }
+        String token = SqlPsiParts.starTokenOf(star);
         String tail = tailOf(star);
-        if (startsWithKeyword(tail, "REPLACE")) {
+        Modifier modifier = modifierOf(tail);
+        if (startsWithKeyword(tail.substring(modifier.length()), "REPLACE")) {
             blockers.add("the star carries a REPLACE list, which is not rewritten");
         }
-        if (star.getText().endsWith(".*") && countStars(star) > 1) {
+        if (token.endsWith(".*") && countStars(star) > 1) {
             blockers.add("the query selects several qualified stars");
         }
-        if (!blockers.isEmpty()) return new Expansion(null, List.copyOf(blockers));
+        if (!blockers.isEmpty()) return new Expansion(null, 0, List.copyOf(blockers));
 
-        Set<String> excluded = exceptNames(tail);
         String qualifier = qualifierOf(star);
         List<String> items = new ArrayList<>();
         for (ColumnInfo column : columns) {
-            if (excluded.contains(column.name().toLowerCase(Locale.ROOT))) continue;
+            if (modifier.excluded().contains(column.name().toLowerCase(Locale.ROOT))) continue;
             items.add(itemFor(column.name(), qualifier, oldName, newName));
         }
         if (items.isEmpty()) {
-            return new Expansion(null,
+            return new Expansion(null, 0,
                     List.of("the star would expand to no column at all"));
         }
-        return new Expansion(String.join(separatorOf(star), items), List.of());
+        return new Expansion(String.join(separatorOf(star), items),
+                token.length() + modifier.length(), List.of());
     }
 
     /**
@@ -138,34 +154,43 @@ public final class SqlxStarExpander {
     }
 
     private static @Nullable String qualifierOf(@NotNull PsiElement star) {
-        String text = star.getText();
-        int dot = text.lastIndexOf('.');
-        return dot <= 0 ? null : text.substring(0, dot);
+        String token = SqlPsiParts.starTokenOf(star);
+        int dot = token.lastIndexOf('.');
+        return dot <= 0 ? null : token.substring(0, dot);
     }
 
+    /**
+     * What is written after the {@code *} itself: the rest of the star element when the parser keeps
+     * the {@code EXCEPT} list inside it, followed by the rest of the select list.
+     */
     private static @NotNull String tailOf(@NotNull PsiElement star) {
+        String own = star.getText().substring(SqlPsiParts.starTokenOf(star).length());
         PsiElement clause = star.getParent();
-        if (clause == null) return "";
+        if (clause == null) return own;
         String text = clause.getText();
         int from = star.getTextRange().getEndOffset() - clause.getTextRange().getStartOffset();
-        return from < 0 || from >= text.length() ? "" : text.substring(from);
+        return from < 0 || from >= text.length() ? own : own + text.substring(from);
     }
 
     private static boolean startsWithKeyword(@NotNull String tail, @NotNull String keyword) {
         return tail.stripLeading().toUpperCase(Locale.ROOT).startsWith(keyword);
     }
 
-    private static @NotNull Set<String> exceptNames(@NotNull String tail) {
-        Set<String> names = new LinkedHashSet<>();
-        if (!startsWithKeyword(tail, "EXCEPT")) return names;
+    /**
+     * The {@code EXCEPT} list written after the star, which the expansion applies itself and
+     * therefore replaces along with the star.
+     */
+    private static @NotNull Modifier modifierOf(@NotNull String tail) {
+        if (!startsWithKeyword(tail, "EXCEPT")) return new Modifier(Set.of(), 0);
         int open = tail.indexOf('(');
         int close = tail.indexOf(')', open + 1);
-        if (open < 0 || close < 0) return names;
+        if (open < 0 || close < 0) return new Modifier(Set.of(), 0);
+        Set<String> names = new LinkedHashSet<>();
         for (String name : tail.substring(open + 1, close).split(",")) {
             String trimmed = name.trim().replace("`", "");
             if (!trimmed.isEmpty()) names.add(trimmed.toLowerCase(Locale.ROOT));
         }
-        return names;
+        return new Modifier(names, close + 1);
     }
 
     private static int countStars(@NotNull PsiElement star) {

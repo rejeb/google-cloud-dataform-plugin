@@ -69,14 +69,20 @@ public final class ColumnOriginServiceImpl implements ColumnOriginService {
         return reference == null ? null : declaringElement(reference);
     }
 
-    /** The column reference of a schema column, found by the table it belongs to. */
+    /**
+     * The column reference of a schema column, found by the table it belongs to.
+     *
+     * <p>The schema is keyed by full name, and two datasets of a project may well hold a table of
+     * the same short name. A table that is not the very instance the schema holds is matched on the
+     * logical identity {@link DataformDasTable#isEquivalentTo}, which is the name <em>and</em> the
+     * file of the action building it, never on the short name alone.</p>
+     */
     @Override
     public @Nullable ColumnRef reference(@NotNull DataformDasColumn column) {
         DasTable table = column.getTable();
-        if (table == null) return null;
+        if (!(table instanceof DataformDasTable dataformTable)) return null;
         for (Map.Entry<String, DataformDasTable> entry : tables().entrySet()) {
-            if (entry.getValue() == table
-                    || entry.getValue().getName().equalsIgnoreCase(table.getName())) {
+            if (entry.getValue() == dataformTable || entry.getValue().isEquivalentTo(dataformTable)) {
                 return new ColumnRef(entry.getKey(), column.getName());
             }
         }

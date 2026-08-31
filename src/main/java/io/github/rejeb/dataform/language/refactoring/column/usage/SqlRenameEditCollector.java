@@ -23,13 +23,13 @@ import com.intellij.psi.PsiReference;
 import com.intellij.psi.SmartPointerManager;
 import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.psi.search.searches.ReferencesSearch;
-import com.intellij.psi.tree.IElementType;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.sql.psi.SqlCompositeElementTypes;
 import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
 import io.github.rejeb.dataform.language.refactoring.column.DataformColumnNameValidator;
 import io.github.rejeb.dataform.language.refactoring.column.plan.StarBoundary;
 import io.github.rejeb.dataform.language.schema.sql.ColumnOriginService;
+import io.github.rejeb.dataform.language.schema.sql.SqlPsiParts;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasColumn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -66,9 +66,13 @@ public final class SqlRenameEditCollector {
     /**
      * The SQL places of every column of the rename. Runs a project-wide reference search, so it
      * belongs to a background read action.
+     *
+     * @param carried the columns another column of the rename feeds directly, which a star
+     *                publishes under the new name on its own
      */
     public static @NotNull Result collect(@NotNull Project project,
                                           @NotNull Set<ColumnRef> columns,
+                                          @NotNull Set<ColumnRef> carried,
                                           @NotNull String newName) {
         Map<String, ColumnRenameEdit> edits = new LinkedHashMap<>();
         List<StarBoundary> boundaries = new ArrayList<>();
@@ -76,7 +80,8 @@ public final class SqlRenameEditCollector {
         ColumnOriginService origins = ColumnOriginService.getInstance(project);
 
         for (ColumnRef column : columns) {
-            collectDeclaration(project, origins, column, newName, edits, boundaries, warnings);
+            collectDeclaration(project, origins, column, columns, carried, newName, edits,
+                    boundaries, warnings);
             collectReferences(project, origins, column, newName, edits);
         }
         return new Result(List.copyOf(edits.values()), List.copyOf(boundaries),
@@ -86,10 +91,18 @@ public final class SqlRenameEditCollector {
     /**
      * The declaration of one column: the select-list item naming it, the aliases feeding it from
      * outside the select list, and the reads of those aliases inside the same file.
+     *
+     * <p>A column a star publishes has no declaration to write. When the rename already reaches what
+     * that star reads, there is nothing to write either: the star goes on copying its source, which
+     * is about to be renamed, and the action publishes the new name of its own accord. Only a star
+     * whose source the rename does not reach stands in the way, and that one is reported so the user
+     * decides what to do with it.</p>
      */
     private static void collectDeclaration(@NotNull Project project,
                                            @NotNull ColumnOriginService origins,
                                            @NotNull ColumnRef column,
+                                           @NotNull Set<ColumnRef> renamed,
+                                           @NotNull Set<ColumnRef> carried,
                                            @NotNull String newName,
                                            @NotNull Map<String, ColumnRenameEdit> edits,
                                            @NotNull List<StarBoundary> boundaries,
@@ -107,6 +120,7 @@ public final class SqlRenameEditCollector {
                 SqlxStarDeclarationLocator.findStructAliases(hostFile, column.columnName());
 
         if (SqlxStarDeclarationLocator.isStar(declaration)) {
+            if (carried.contains(column)) return;
             if (aliases.isEmpty()) {
                 boundaries.add(new StarBoundary(column, hostFile.getVirtualFile(),
                         SmartPointerManager.getInstance(project)
@@ -126,7 +140,7 @@ public final class SqlRenameEditCollector {
                     "alias feeding " + column.columnName()));
         }
         if (!aliases.isEmpty()) {
-            collectLocalReads(hostFile, column, newName, edits);
+            collectLocalReads(origins, hostFile, column, renamed, newName, edits);
         }
     }
 
@@ -134,22 +148,26 @@ public final class SqlRenameEditCollector {
      * The reads of a name inside the file declaring it, for the case where the name is written by an
      * alias of the same file rather than by another action.
      *
-     * <p>A reference resolving to a Dataform column of another table is left alone: that column is
-     * not part of this rename and shares the name by accident.</p>
+     * <p>A reference resolving to a Dataform column the rename does not reach is left alone: that
+     * column belongs to another chain and shares the name by accident.</p>
      */
-    private static void collectLocalReads(@NotNull PsiFile hostFile,
+    private static void collectLocalReads(@NotNull ColumnOriginService origins,
+                                          @NotNull PsiFile hostFile,
                                           @NotNull ColumnRef column,
+                                          @NotNull Set<ColumnRef> renamed,
                                           @NotNull String newName,
                                           @NotNull Map<String, ColumnRenameEdit> edits) {
         for (PsiFile injected : InjectedSqlFiles.all(hostFile)) {
             for (PsiElement reference : PsiTreeUtil.collectElements(injected,
-                    element -> isType(element, SqlCompositeElementTypes.SQL_COLUMN_REFERENCE))) {
-                PsiElement identifier = lastIdentifier(reference);
+                    element -> SqlPsiParts.isType(element,
+                            SqlCompositeElementTypes.SQL_COLUMN_REFERENCE))) {
+                PsiElement identifier = SqlPsiParts.lastIdentifier(reference);
                 if (identifier == null
-                        || !unquoted(identifier.getText()).equalsIgnoreCase(column.columnName())) {
+                        || !SqlPsiParts.unquoted(identifier.getText())
+                                .equalsIgnoreCase(column.columnName())) {
                     continue;
                 }
-                if (resolvesToForeignColumn(reference, column)) continue;
+                if (resolvesToForeignColumn(origins, reference, renamed)) continue;
                 add(edits, EditFactory.ofWhole(identifier,
                         DataformColumnNameValidator.inSql(newName),
                         ColumnRenameEdit.Kind.SQL_REFERENCE, ColumnRenameEdit.Risk.CERTAIN,
@@ -158,12 +176,19 @@ public final class SqlRenameEditCollector {
         }
     }
 
-    private static boolean resolvesToForeignColumn(@NotNull PsiElement reference,
-                                                   @NotNull ColumnRef column) {
+    /**
+     * Whether a reference stands for a Dataform column outside the rename. The name alone does not
+     * answer that question: {@code customer_id} names a column of the orders chain and another of
+     * the customers chain, and only the table each belongs to tells them apart.
+     */
+    private static boolean resolvesToForeignColumn(@NotNull ColumnOriginService origins,
+                                                   @NotNull PsiElement reference,
+                                                   @NotNull Set<ColumnRef> renamed) {
         PsiReference psiReference = reference.getReference();
         PsiElement resolved = psiReference == null ? null : psiReference.resolve();
-        return resolved instanceof DataformDasColumn resolvedColumn
-                && !resolvedColumn.getName().equalsIgnoreCase(column.columnName());
+        if (!(resolved instanceof DataformDasColumn resolvedColumn)) return false;
+        ColumnRef declared = origins.reference(resolvedColumn);
+        return declared == null || !renamed.contains(declared);
     }
 
     /** Every reference of the project resolving to one column of the rename. */
@@ -177,7 +202,7 @@ public final class SqlRenameEditCollector {
         GlobalSearchScope scope = GlobalSearchScope.projectScope(project);
         ReferencesSearch.search(dasColumn, scope).forEach(reference -> {
             PsiElement element = reference.getElement();
-            PsiElement identifier = lastIdentifier(element);
+            PsiElement identifier = SqlPsiParts.lastIdentifier(element);
             PsiElement target = identifier != null ? identifier : element;
             add(edits, EditFactory.ofWhole(target, DataformColumnNameValidator.inSql(newName),
                     ColumnRenameEdit.Kind.SQL_REFERENCE, ColumnRenameEdit.Risk.CERTAIN,
@@ -189,28 +214,6 @@ public final class SqlRenameEditCollector {
     private static void add(@NotNull Map<String, ColumnRenameEdit> edits,
                             @Nullable ColumnRenameEdit edit) {
         if (edit == null) return;
-        edits.putIfAbsent(key(edit), edit);
-    }
-
-    private static @NotNull String key(@NotNull ColumnRenameEdit edit) {
-        return edit.file().getPath() + "@" + edit.hostRange().getStartOffset()
-                + "-" + edit.hostRange().getEndOffset();
-    }
-
-    private static @Nullable PsiElement lastIdentifier(@NotNull PsiElement parent) {
-        PsiElement last = null;
-        for (PsiElement child : parent.getChildren()) {
-            if (isType(child, SqlCompositeElementTypes.SQL_IDENTIFIER)) last = child;
-        }
-        return last;
-    }
-
-    private static boolean isType(@Nullable PsiElement element, @NotNull IElementType type) {
-        return element != null && element.getNode() != null
-                && element.getNode().getElementType() == type;
-    }
-
-    private static @NotNull String unquoted(@NotNull String text) {
-        return text.replace("`", "");
+        edits.putIfAbsent(edit.key(), edit);
     }
 }

@@ -16,15 +16,14 @@
  */
 package io.github.rejeb.dataform.language.refactoring.column.usage;
 
-import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.lang.javascript.psi.JSLiteralExpression;
 import com.intellij.lang.javascript.psi.JSProperty;
-import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.util.PsiTreeUtil;
 import io.github.rejeb.dataform.language.completion.config.ConfigColumnSlots;
+import io.github.rejeb.dataform.language.injection.InjectedFiles;
 import io.github.rejeb.dataform.language.psi.SqlxConfigBlock;
 import io.github.rejeb.dataform.language.refactoring.column.DataformColumnNameValidator;
 import org.jetbrains.annotations.NotNull;
@@ -55,7 +54,7 @@ public final class ConfigRenameEditCollector {
                                                           @NotNull String oldName,
                                                           @NotNull String newName) {
         List<ColumnRenameEdit> edits = new ArrayList<>();
-        for (PsiFile injected : configFiles(hostFile)) {
+        for (PsiFile injected : InjectedFiles.inside(hostFile, SqlxConfigBlock.class)) {
             for (JSProperty property : PsiTreeUtil.findChildrenOfType(injected, JSProperty.class)) {
                 collectEntryKey(property, oldName, newName, edits);
                 collectNameValues(property, oldName, newName, edits);
@@ -90,7 +89,7 @@ public final class ConfigRenameEditCollector {
         if (value == null) return;
         for (JSLiteralExpression literal : stringLiterals(value)) {
             if (!oldName.equals(stringValueOf(literal))) continue;
-            add(edits, EditFactory.ofWhole(literal, quoted(literal, newName),
+            add(edits, EditFactory.ofLiteral(literal, newName,
                     ColumnRenameEdit.Kind.CONFIG_COLUMN_NAME, ColumnRenameEdit.Risk.CERTAIN,
                     property.getName() + " of the config"));
         }
@@ -145,28 +144,6 @@ public final class ConfigRenameEditCollector {
     private static @Nullable String stringValueOf(@NotNull JSLiteralExpression literal) {
         Object value = literal.getValue();
         return value instanceof String text ? text : null;
-    }
-
-    /** The new name written with the quotes the literal already uses. */
-    private static @NotNull String quoted(@NotNull JSLiteralExpression literal,
-                                          @NotNull String newName) {
-        String text = literal.getText();
-        char quote = text.isEmpty() ? '"' : text.charAt(0);
-        return quote + newName + quote;
-    }
-
-    private static @NotNull List<PsiFile> configFiles(@NotNull PsiFile hostFile) {
-        List<PsiFile> files = new ArrayList<>();
-        InjectedLanguageManager manager = InjectedLanguageManager.getInstance(hostFile.getProject());
-        for (SqlxConfigBlock block : PsiTreeUtil.findChildrenOfType(hostFile, SqlxConfigBlock.class)) {
-            List<Pair<PsiElement, TextRange>> injected = manager.getInjectedPsiFiles(block);
-            if (injected == null) continue;
-            for (Pair<PsiElement, TextRange> pair : injected) {
-                PsiFile file = pair.getFirst().getContainingFile();
-                if (file != null && !files.contains(file)) files.add(file);
-            }
-        }
-        return files;
     }
 
     private static void add(@NotNull List<ColumnRenameEdit> edits, @Nullable ColumnRenameEdit edit) {
