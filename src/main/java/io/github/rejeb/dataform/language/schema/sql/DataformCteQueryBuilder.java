@@ -75,7 +75,7 @@ public final class DataformCteQueryBuilder {
             lastReplaced = sub.first;
         }
 
-        return mergeWithClauses(buildWithClause(aliasToColumns), result.toString());
+        return mergeWithClauses(buildCteList(aliasToColumns), result.toString());
     }
 
     @NotNull
@@ -198,9 +198,10 @@ public final class DataformCteQueryBuilder {
         return result;
     }
 
+    /** The stub definitions, as a CTE list without the {@code WITH} keyword owning them. */
     @NotNull
-    private static String buildWithClause(@NotNull Map<String, List<ColumnInfo>> aliasToColumns) {
-        StringJoiner ctes = new StringJoiner(",\n", "WITH\n", "");
+    private static String buildCteList(@NotNull Map<String, List<ColumnInfo>> aliasToColumns) {
+        StringJoiner ctes = new StringJoiner(",\n");
         for (Map.Entry<String, List<ColumnInfo>> entry : aliasToColumns.entrySet()) {
             ctes.add(buildCte(entry.getKey(), entry.getValue()));
         }
@@ -264,17 +265,94 @@ public final class DataformCteQueryBuilder {
         return name.matches("[a-zA-Z_][a-zA-Z0-9_]*") ? name : "`" + name + "`";
     }
 
+    /**
+     * The stubs and the query under one {@code WITH}.
+     *
+     * <p>A query already opening with a {@code WITH} has its CTEs joined to the stubs, because two
+     * clauses side by side are not a query any dialect accepts. The keyword is looked for past
+     * comments as well as whitespace: a compiled Dataform query carries the comments of the SQLX
+     * file in front of it, and a clause hidden behind one used to be missed entirely, which made
+     * the dry-run of every action built by a CTE fail on a syntax error — and with it the schema of
+     * that table, so nothing downstream had columns to offer.</p>
+     *
+     * <p>{@code RECURSIVE} belongs to the clause rather than to one definition, so it moves to the
+     * front when the query carried it. The stubs stay plain: a list introduced by
+     * {@code WITH RECURSIVE} may hold definitions that do not recurse.</p>
+     */
     @NotNull
-    private static String mergeWithClauses(@NotNull String ourWith,
+    private static String mergeWithClauses(@NotNull String cteList,
                                            @NotNull String modifiedQuery) {
-        String trimmed = modifiedQuery.stripLeading();
+        int keyword = ownWithKeyword(modifiedQuery);
+        if (keyword < 0) return "WITH\n" + cteList + "\n" + modifiedQuery;
 
-        if (!trimmed.toUpperCase().startsWith("WITH")) {
-            return ourWith + "\n" + modifiedQuery;
+        int body = keyword + WITH.length();
+        int afterRecursive = keywordEnd(modifiedQuery, body, RECURSIVE);
+        boolean recursive = afterRecursive > 0;
+        if (recursive) body = afterRecursive;
+
+        return "WITH" + (recursive ? " " + RECURSIVE : "") + "\n" + cteList + ",\n"
+                + modifiedQuery.substring(0, keyword) + modifiedQuery.substring(body);
+    }
+
+    private static final String WITH = "WITH";
+    private static final String RECURSIVE = "RECURSIVE";
+
+    /**
+     * The offset of the query's own {@code WITH} keyword, or {@code -1} when it opens with anything
+     * else.
+     */
+    private static int ownWithKeyword(@NotNull String query) {
+        int start = skipWhitespaceAndComments(query, 0);
+        return start >= 0 && isKeywordAt(query, start, WITH) ? start : -1;
+    }
+
+    /**
+     * The offset just past {@code keyword} when it stands next in the query, or {@code -1} when
+     * something else does.
+     */
+    private static int keywordEnd(@NotNull String query, int from, @NotNull String keyword) {
+        int start = skipWhitespaceAndComments(query, from);
+        return start >= 0 && isKeywordAt(query, start, keyword) ? start + keyword.length() : -1;
+    }
+
+    /**
+     * The first offset at or after {@code from} holding neither whitespace nor a comment, or
+     * {@code -1} when the query holds nothing else.
+     */
+    private static int skipWhitespaceAndComments(@NotNull String query, int from) {
+        int at = from;
+        while (at < query.length()) {
+            char current = query.charAt(at);
+            if (Character.isWhitespace(current)) {
+                at++;
+            } else if (current == '#' || isPairAt(query, at, '-', '-')) {
+                int end = query.indexOf('\n', at);
+                at = end < 0 ? query.length() : end + 1;
+            } else if (isPairAt(query, at, '/', '*')) {
+                int end = query.indexOf("*/", at + 2);
+                at = end < 0 ? query.length() : end + 2;
+            } else {
+                return at;
+            }
         }
+        return -1;
+    }
 
-        String existingBody = trimmed.substring(4);
-        return ourWith + ",\n" + existingBody;
+    private static boolean isPairAt(@NotNull String query, int at, char first, char second) {
+        return query.charAt(at) == first
+                && at + 1 < query.length()
+                && query.charAt(at + 1) == second;
+    }
+
+    /** Whether a keyword stands at an offset as a whole word rather than as the start of a name. */
+    private static boolean isKeywordAt(@NotNull String query, int at, @NotNull String keyword) {
+        if (!query.regionMatches(true, at, keyword, 0, keyword.length())) return false;
+        int after = at + keyword.length();
+        return after >= query.length() || !isWordCharacter(query.charAt(after));
+    }
+
+    private static boolean isWordCharacter(char character) {
+        return Character.isLetterOrDigit(character) || character == '_';
     }
 
 }

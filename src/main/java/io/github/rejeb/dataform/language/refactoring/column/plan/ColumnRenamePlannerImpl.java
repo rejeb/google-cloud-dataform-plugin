@@ -230,7 +230,15 @@ public final class ColumnRenamePlannerImpl implements ColumnRenamePlanner {
                 && SqlPsiParts.lastIdentifier(parent) == declaration;
     }
 
-    /** The plan for a set of columns: their SQL places, their config places, and the JavaScript. */
+    /**
+     * The plan for a set of columns: their SQL places, their config places, and the JavaScript.
+     *
+     * <p>The config places are looked for in the files declaring a column of the rename, the caret's
+     * own file included when it is one of them. A config describes what its action publishes, so the
+     * config of a file that only reads the column names a column of its own — one this rename has
+     * nothing to say about. The JavaScript of the caret's file is searched either way: the rename
+     * writes in that file, and what its {@code js} block builds is about the column being renamed.</p>
+     */
     private @NotNull ColumnRenamePlan build(@NotNull ColumnRenameSubject subject,
                                             @NotNull String newName,
                                             @NotNull ColumnClosure closure,
@@ -241,12 +249,14 @@ public final class ColumnRenamePlannerImpl implements ColumnRenamePlanner {
         Map<String, ColumnRenameEdit> edits = new LinkedHashMap<>();
         sql.edits().forEach(edit -> edits.putIfAbsent(edit.key(), edit));
 
-        Set<PsiFile> touchedFiles = declaringFilesOf(columns);
-        touchedFiles.add(subject.hostFile());
-        for (PsiFile file : touchedFiles) {
+        Set<PsiFile> declaringFiles = declaringFilesOf(columns);
+        if (subject.declaresColumn()) declaringFiles.add(subject.hostFile());
+        for (PsiFile file : declaringFiles) {
             ConfigRenameEditCollector.collect(file, subject.oldName(), newName)
                     .forEach(edit -> edits.putIfAbsent(edit.key(), edit));
         }
+        Set<PsiFile> touchedFiles = new LinkedHashSet<>(declaringFiles);
+        touchedFiles.add(subject.hostFile());
         JsRenameEditCollector.collect(project, subject.oldName(), newName, touchedFiles)
                 .forEach(edit -> edits.putIfAbsent(edit.key(), edit));
 

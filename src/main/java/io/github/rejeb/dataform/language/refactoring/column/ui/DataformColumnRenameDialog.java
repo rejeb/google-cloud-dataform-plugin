@@ -36,7 +36,8 @@ import java.util.Optional;
  *
  * <p>Everything the dialog already offers is kept — the name field, the preview button, the search
  * options — and only what it does on OK changes: the places are planned from the lineage of the
- * column rather than from the references of a PSI element.</p>
+ * column rather than from the references of a PSI element. An element that is no Dataform column is
+ * handed back to the platform, which renames it the usual way.</p>
  */
 public final class DataformColumnRenameDialog extends RenameDialog {
 
@@ -49,19 +50,25 @@ public final class DataformColumnRenameDialog extends RenameDialog {
 
     @Override
     protected void doAction() {
-        String newName = getNewName();
         if (!(getPsiElement() instanceof DataformDasColumn column)) {
+            super.doAction();
             return;
         }
         Optional<ColumnRenameSubject> subject = ColumnRenameSubjectFactory.of(column);
-        if (subject.isEmpty()) return;
-
-        ColumnRenamePlanner planner = ColumnRenamePlanner.getInstance(getProject());
-        ColumnRenamePlan plan = planner.plan(subject.get(), newName);
+        if (subject.isEmpty()) {
+            close(CANCEL_EXIT_CODE);
+            return;
+        }
+        ColumnRenamePlan plan = ColumnRenamePlanner
+                .planUnderProgress(getProject(), subject.get(), getNewName());
+        if (plan == null) {
+            close(CANCEL_EXIT_CODE);
+            return;
+        }
         if (plan.needsStarDecision()) {
             StarResolution resolution = StarResolutionChooser.getInstance(getProject())
                     .choose(getProject(), plan);
-            plan = planner.resolve(plan, resolution);
+            plan = ColumnRenamePlanner.getInstance(getProject()).resolve(plan, resolution);
         }
         invokeRefactoring(new ColumnRenameProcessor(getProject(), plan));
     }

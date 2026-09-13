@@ -20,14 +20,17 @@ import com.intellij.notification.NotificationGroupManager;
 import com.intellij.notification.NotificationType;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Ref;
+import com.intellij.openapi.util.TextRange;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
+import com.intellij.psi.PsiFile;
 import com.intellij.refactoring.BaseRefactoringProcessor;
 import com.intellij.usageView.UsageInfo;
 import com.intellij.usageView.UsageViewDescriptor;
 import io.github.rejeb.dataform.language.diagnostics.DataformEditorRefresher;
 import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
 import io.github.rejeb.dataform.language.refactoring.column.plan.ColumnRenamePlan;
+import io.github.rejeb.dataform.language.refactoring.column.usage.HostRanges;
 import io.github.rejeb.dataform.language.schema.sql.ColumnOriginService;
 import io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasColumn;
@@ -97,9 +100,10 @@ public final class ColumnRenameProcessor extends BaseRefactoringProcessor {
     /** Writes the places, the platform having finished with the PSI the usages point at. */
     @Override
     protected void performPsiSpoilingRefactoring() {
+        Set<ColumnRef> renamed = columnsTheKeptPlacesDeclare();
         int written = ColumnRenameEdits.apply(myProject, kept);
         int excluded = plan.edits().size() - kept.length;
-        publishNewName();
+        publishNewName(renamed);
         notify(message(written, kept, excluded), NotificationType.INFORMATION);
         kept = UsageInfo.EMPTY_ARRAY;
         DataformEditorRefresher.refresh(myProject);
@@ -111,15 +115,51 @@ public final class ColumnRenameProcessor extends BaseRefactoringProcessor {
      *
      * <p>Without this the column stays unresolved — painted as unknown wherever it is read — until
      * the next compilation and its schema extraction have both finished, which is far longer than a
-     * rename feels like it should take. A column produced by a star the rename could not expand is
-     * left out: that action really does go on publishing the old name.</p>
+     * rename feels like it should take.</p>
      */
-    private void publishNewName() {
-        Set<ColumnRef> renamed = new LinkedHashSet<>(plan.columns());
-        plan.starBoundaries().forEach(boundary -> renamed.remove(boundary.column()));
+    private void publishNewName(@NotNull Set<ColumnRef> renamed) {
         if (renamed.isEmpty()) return;
         DataformTableSchemaService.getInstance(myProject)
                 .renameColumn(renamed, plan.newName(), writtenFiles());
+    }
+
+    /**
+     * The columns whose declaration is among the places the user kept, which are the ones the
+     * actions really start publishing under the new name.
+     *
+     * <p>An excluded place is not written, so its action goes on publishing the old name; claiming
+     * otherwise would paint the column as unknown everywhere it is read. A column produced by a star
+     * the rename could not expand falls out of this on its own — nothing writes where it is
+     * declared.</p>
+     *
+     * <p>Asked before the first character is written: afterwards the old name is gone from the files
+     * and the declarations can no longer be found.</p>
+     */
+    private @NotNull Set<ColumnRef> columnsTheKeptPlacesDeclare() {
+        Set<ColumnRef> renamed = new LinkedHashSet<>();
+        ColumnOriginService origins = ColumnOriginService.getInstance(myProject);
+        for (ColumnRef column : plan.columns()) {
+            PsiElement declaration = origins.declaringElement(column);
+            if (declaration == null) continue;
+            PsiFile hostFile = HostRanges.hostPsiFileOf(declaration);
+            TextRange declared = HostRanges.hostRangeOf(declaration,
+                    TextRange.from(0, declaration.getTextLength()));
+            if (hostFile == null || declared == null) continue;
+            if (isKept(hostFile.getVirtualFile(), declared)) renamed.add(column);
+        }
+        return renamed;
+    }
+
+    /** Whether one of the places the user kept writes over a range of a file. */
+    private boolean isKept(@Nullable VirtualFile file, @NotNull TextRange declared) {
+        for (UsageInfo usage : kept) {
+            if (!(usage instanceof ColumnRenameUsageInfo info)) continue;
+            TextRange place = info.edit().currentRange();
+            if (place != null && info.edit().file().equals(file) && place.intersects(declared)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** The files the rename wrote, which is what its claim about the schemas rests on. */

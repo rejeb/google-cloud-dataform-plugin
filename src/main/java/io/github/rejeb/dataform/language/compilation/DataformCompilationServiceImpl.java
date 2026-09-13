@@ -50,8 +50,7 @@ public final class DataformCompilationServiceImpl
 
     private static final Logger LOG = Logger.getInstance(DataformCompilationServiceImpl.class);
     private static final Gson GSON = new GsonBuilder().create();
-    private static final Set<String> IGNORED_DIRECTORIES =
-            Set.of("node_modules", ".git", ".idea", ".df", "build", "dist");
+    private static final Set<String> IGNORED_DIRECTORIES = DataformProjectLayout.IGNORED_DIRECTORIES;
 
     private final Project project;
 

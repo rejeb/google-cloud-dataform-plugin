@@ -16,7 +16,10 @@
  */
 package io.github.rejeb.dataform.language.compilation;
 
+import com.intellij.openapi.project.Project;
+import com.intellij.openapi.roots.ProjectRootManager;
 import com.intellij.openapi.vfs.AsyncFileListener;
+import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent;
 import io.github.rejeb.dataform.language.util.DataformProjectLayout;
 import io.github.rejeb.dataform.language.util.DataformProjects;
@@ -43,16 +46,57 @@ public final class DataformExternalChangeListener implements AsyncFileListener {
 
     @Override
     public @Nullable ChangeApplier prepareChange(@NotNull List<? extends VFileEvent> events) {
-        boolean changedOnDisk = events.stream()
-                .anyMatch(event -> event.isFromRefresh()
-                        && DataformProjectLayout.isDataformSource(event.getFile()));
-        if (!changedOnDisk) return null;
+        List<String> changedOnDisk = events.stream()
+                .filter(VFileEvent::isFromRefresh)
+                .filter(DataformExternalChangeListener::isSource)
+                .map(VFileEvent::getPath)
+                .toList();
+        if (changedOnDisk.isEmpty()) return null;
         return new ChangeApplier() {
             @Override
             public void afterVfsChange() {
-                DataformProjects.forEachOpen(project ->
-                        DataformAutoCompileService.getInstance(project).scheduleCompile());
+                DataformProjects.forEachOpen(project -> {
+                    if (holds(project, changedOnDisk)) {
+                        DataformAutoCompileService.getInstance(project).scheduleCompile();
+                    }
+                });
             }
         };
+    }
+
+    /**
+     * Whether the event is about a source of a Dataform project.
+     *
+     * <p>The name is read from the path rather than from the file, because a file being created has
+     * none yet and a checkout bringing a file back is exactly what this listener is here for. Where
+     * there is a file, it also has to sit in a Dataform project. The directories holding
+     * dependencies and build output are left out either way — an {@code npm install} writes
+     * thousands of JavaScript files under {@code node_modules} and Dataform compiles none.</p>
+     */
+    private static boolean isSource(@NotNull VFileEvent event) {
+        String path = event.getPath().replace('\\', '/');
+        if (DataformProjectLayout.isUnderIgnoredDirectory(path)) return false;
+        int slash = path.lastIndexOf('/');
+        String name = slash < 0 ? path : path.substring(slash + 1);
+        int dot = name.lastIndexOf('.');
+        if (!DataformProjectLayout.isDataformSourceName(name,
+                dot < 0 ? null : name.substring(dot + 1))) {
+            return false;
+        }
+        VirtualFile file = event.getFile();
+        return file == null || DataformProjectLayout.isInDataformProject(file);
+    }
+
+    /**
+     * Whether one of the changed paths is inside the project. An application listener hears of every
+     * open project at once, and compiling one because another was checked out costs a full Dataform
+     * CLI run for nothing.
+     */
+    private static boolean holds(@NotNull Project project, @NotNull List<String> paths) {
+        for (VirtualFile root : ProjectRootManager.getInstance(project).getContentRoots()) {
+            String base = root.getPath().replace('\\', '/') + "/";
+            if (paths.stream().anyMatch(path -> path.startsWith(base))) return true;
+        }
+        return false;
     }
 }

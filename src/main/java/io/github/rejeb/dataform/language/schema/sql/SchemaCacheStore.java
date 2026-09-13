@@ -167,8 +167,20 @@ final class SchemaCacheStore {
     }
 
     private boolean isDisowned() {
-        return guessedFrom.entrySet().stream()
-                .anyMatch(entry -> stampOf(entry.getKey()) != entry.getValue());
+        return guessedFrom.entrySet().stream().anyMatch(SchemaCacheStore::holdsOtherText);
+    }
+
+    /**
+     * Whether a file no longer holds what the rename wrote in it.
+     *
+     * <p>Only a document that is loaded answers this. The platform keeps documents weakly and drops
+     * the one of a file nobody looks at, which says nothing about the text: taking that for a change
+     * would put the old names back the moment anything else in the IDE is typed in.</p>
+     */
+    private static boolean holdsOtherText(@NotNull Map.Entry<VirtualFile, Long> guessed) {
+        long stamp = stampOf(guessed.getKey());
+        if (stamp == NO_DOCUMENT || guessed.getValue() == NO_DOCUMENT) return false;
+        return stamp != guessed.getValue();
     }
 
     /**

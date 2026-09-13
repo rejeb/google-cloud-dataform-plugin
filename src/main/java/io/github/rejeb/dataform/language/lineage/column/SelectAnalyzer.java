@@ -39,6 +39,20 @@ public interface SelectAnalyzer {
         return new QueryAnalysis(analyze(sql), fromAliases(sql));
     }
 
+    /**
+     * The lineage of an action whose statements write {@code tableName} rather than select its
+     * columns: what each statement writes to a column, merged across statements. Falls back to
+     * {@link #analyzeQuery} when nothing in the SQL writes the table.
+     *
+     * @param tableColumns the table's columns in schema order, for a statement writing them by
+     *                     position rather than by name; empty when unknown
+     */
+    default @NotNull QueryAnalysis analyzeWrites(@NotNull String sql,
+                                                 @NotNull String tableName,
+                                                 @NotNull List<String> tableColumns) {
+        return analyzeQuery(sql);
+    }
+
     /** Combined result of analysing a query: output columns and FROM aliases. */
     record QueryAnalysis(@NotNull Map<String, List<InputColumn>> outputs,
                          @NotNull Map<String, String> aliases) {

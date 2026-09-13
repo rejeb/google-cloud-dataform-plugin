@@ -28,6 +28,7 @@ import com.intellij.psi.util.PsiTreeUtil;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class DataformJsFileIndex {
@@ -60,12 +61,28 @@ public class DataformJsFileIndex {
      */
     @NotNull
     public static List<PsiFile> findAllJsSourceFiles(@NotNull Project project) {
+        return psiFilesMatching(project, DataformJsFileIndex::isJsSourceFile);
+    }
+
+    /**
+     * Every include file of the project, whether or not another JavaScript file shares its name.
+     * {@link #findDataformJsFiles} drops both files of such a pair, which is right for resolving an
+     * include by name and wrong for a caller that has to search the text of them all.
+     */
+    @NotNull
+    public static List<PsiFile> findAllIncludeFiles(@NotNull Project project) {
+        return psiFilesMatching(project, DataformJsFileIndex::isDataformJsFile);
+    }
+
+    @NotNull
+    private static List<PsiFile> psiFilesMatching(@NotNull Project project,
+                                                  @NotNull Predicate<VirtualFile> predicate) {
         PsiManager psiManager = PsiManager.getInstance(project);
         return FileTypeIndex.getFiles(JavaScriptFileType.INSTANCE, GlobalSearchScope.projectScope(project))
                 .stream()
-                .filter(DataformJsFileIndex::isJsSourceFile)
+                .filter(predicate)
                 .map(psiManager::findFile)
-                .filter(java.util.Objects::nonNull)
+                .filter(Objects::nonNull)
                 .toList();
     }
 

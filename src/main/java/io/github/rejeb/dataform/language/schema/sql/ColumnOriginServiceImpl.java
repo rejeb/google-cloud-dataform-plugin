@@ -33,6 +33,7 @@ import io.github.rejeb.dataform.language.lineage.service.LineageGraphService;
 import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasColumn;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasTable;
+import io.github.rejeb.dataform.language.schema.sql.model.StructColumnPath;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -67,6 +68,16 @@ public final class ColumnOriginServiceImpl implements ColumnOriginService {
     public @Nullable PsiElement declaringElement(@NotNull DataformDasColumn column) {
         ColumnRef reference = reference(column);
         return reference == null ? null : declaringElement(reference);
+    }
+
+    @Override
+    public @Nullable PsiElement declaringElement(@NotNull StructColumnPath path) {
+        ColumnRef column = reference(path.root());
+        if (column == null) return null;
+        PsiFile file = sourceFileOf(column.tableFullName());
+        return file == null
+                ? null
+                : StructFieldDeclarationLocator.declaringElement(file, path.segments());
     }
 
     /**

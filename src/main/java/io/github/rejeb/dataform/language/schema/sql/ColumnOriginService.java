@@ -21,6 +21,7 @@ import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasColumn;
+import io.github.rejeb.dataform.language.schema.sql.model.StructColumnPath;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -58,6 +59,14 @@ public interface ColumnOriginService {
      */
     @Nullable
     PsiElement declaringElement(@NotNull DataformDasColumn column);
+
+    /**
+     * The element declaring the field a path ends on, in the file of the action building the column
+     * the path starts at. Answers for a path of no fields the way {@link #declaringElement(
+     * DataformDasColumn)} does.
+     */
+    @Nullable
+    PsiElement declaringElement(@NotNull StructColumnPath path);
 
     /**
      * The columns feeding a column directly, empty when the lineage is unknown.

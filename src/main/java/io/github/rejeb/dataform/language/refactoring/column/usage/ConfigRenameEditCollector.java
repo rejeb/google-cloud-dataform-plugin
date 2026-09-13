@@ -71,7 +71,7 @@ public final class ConfigRenameEditCollector {
                                         @NotNull List<ColumnRenameEdit> edits) {
         if (!ConfigColumnSlots.isColumnEntry(property)) return;
         String name = property.getName();
-        if (name == null || !name.equals(oldName)) return;
+        if (name == null || !name.equalsIgnoreCase(oldName)) return;
         PsiElement identifier = property.getNameIdentifier();
         if (identifier == null) return;
         add(edits, EditFactory.ofWhole(identifier, DataformColumnNameValidator.asConfigKey(newName),
@@ -88,7 +88,7 @@ public final class ConfigRenameEditCollector {
         PsiElement value = property.getValue();
         if (value == null) return;
         for (JSLiteralExpression literal : stringLiterals(value)) {
-            if (!oldName.equals(stringValueOf(literal))) continue;
+            if (!oldName.equalsIgnoreCase(stringValueOf(literal))) continue;
             add(edits, EditFactory.ofLiteral(literal, newName,
                     ColumnRenameEdit.Kind.CONFIG_COLUMN_NAME, ColumnRenameEdit.Risk.CERTAIN,
                     property.getName() + " of the config"));
@@ -101,6 +101,11 @@ public final class ConfigRenameEditCollector {
      *
      * <p>The object form of {@code partitionBy} names its column in {@code field}, which is a bare
      * name and is collected as one; only the string form holds an expression.</p>
+     *
+     * <p>Both are found by matching the name in the text of the string, as a whole identifier. A
+     * partitioning expression is over the columns of the action itself and BigQuery only partitions
+     * on one of them, so a match there is the column and is written without asking. A row condition
+     * is an arbitrary predicate the user reviews.</p>
      */
     private static void collectExpressions(@NotNull JSProperty property,
                                            @NotNull String oldName,

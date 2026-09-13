@@ -76,7 +76,7 @@ public final class JsRenameEditCollector {
                                                           @NotNull String newName,
                                                           @NotNull Collection<PsiFile> scope) {
         List<ColumnRenameEdit> edits = new ArrayList<>();
-        for (PsiFile file : DataformJsFileIndex.findDataformJsFiles(project)) {
+        for (PsiFile file : DataformJsFileIndex.findAllIncludeFiles(project)) {
             collectIn(file, oldName, newName, edits);
         }
         for (PsiFile file : scope) {

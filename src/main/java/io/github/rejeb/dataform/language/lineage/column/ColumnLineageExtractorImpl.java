@@ -54,7 +54,7 @@ public final class ColumnLineageExtractorImpl implements ColumnLineageExtractor 
     @Override
     public @NotNull ColumnLineageGraph extract(@NotNull CompiledGraph graph,
                                                @NotNull Map<String, List<ColumnInfo>> schemas) {
-        List<Analyzable> units = collectAnalyzables(graph);
+        List<Analyzable> units = collectAnalyzables(graph, schemas);
 
         List<TableAnalysis> analyses = units.parallelStream()
                 .map(this::analyzeUnit)
@@ -73,26 +73,31 @@ public final class ColumnLineageExtractorImpl implements ColumnLineageExtractor 
     /**
      * Every query that can produce column lineage. A table contributes its main query and, when it
      * is incremental, its incremental query too: a column built differently on the incremental
-     * branch reads inputs the main query never names. An operation contributes its last query,
-     * which is the one that defines the columns of its output, mirroring how its schema is
-     * extracted. Several units may share a target; their edges accumulate.
+     * branch reads inputs the main query never names. An operation contributes every statement it
+     * runs, because its output is written by them — a {@code MERGE}, an {@code INSERT}, an
+     * {@code UPDATE} — rather than selected by one; the schema's column order goes with it for a
+     * statement writing by position. Several units may share a target; their edges accumulate.
      */
-    private @NotNull List<Analyzable> collectAnalyzables(@NotNull CompiledGraph graph) {
+    private @NotNull List<Analyzable> collectAnalyzables(@NotNull CompiledGraph graph,
+                                                         @NotNull Map<String, List<ColumnInfo>> schemas) {
         List<Analyzable> units = new ArrayList<>();
         for (CompiledTable table : graph.getTables()) {
             if (table.isDisabled()) continue;
-            units.add(new Analyzable(table.getTarget(), table.getQuery(), table.getDependencyTargets()));
+            units.add(new Analyzable(table.getTarget(), table.getQuery(), table.getDependencyTargets(), null));
             String incremental = table.getIncrementalQuery();
             if (incremental != null && !incremental.isBlank()) {
-                units.add(new Analyzable(table.getTarget(), incremental, table.getDependencyTargets()));
+                units.add(new Analyzable(table.getTarget(), incremental, table.getDependencyTargets(), null));
             }
         }
         for (CompiledOperation operation : graph.getOperations()) {
             if (operation.isDisabled() || !operation.isHasOutput()) continue;
             List<String> queries = operation.getQueries();
-            if (queries.isEmpty()) continue;
-            units.add(new Analyzable(operation.getTarget(), queries.getLast(),
-                    operation.getDependencyTargets()));
+            Target target = operation.getTarget();
+            if (queries.isEmpty() || target == null || target.getName() == null) continue;
+            List<ColumnInfo> schema = schemas.get(target.getFullName());
+            List<String> columns = schema == null ? List.of() : schema.stream().map(ColumnInfo::name).toList();
+            units.add(new Analyzable(target, String.join(";\n", queries),
+                    operation.getDependencyTargets(), new Writes(target.getName(), columns)));
         }
         return units;
     }
@@ -219,7 +224,9 @@ public final class ColumnLineageExtractorImpl implements ColumnLineageExtractor 
             if (target == null || target.getFullName() == null) return null;
             String sql = unit.sql();
             if (sql == null || sql.isBlank()) return null;
-            SelectAnalyzer.QueryAnalysis analysis = analyzer.analyzeQuery(sql);
+            SelectAnalyzer.QueryAnalysis analysis = unit.writes() == null
+                    ? analyzer.analyzeQuery(sql)
+                    : analyzer.analyzeWrites(sql, unit.writes().tableName(), unit.writes().columns());
             return new TableAnalysis(target.getFullName(), analysis.outputs(),
                     analysis.aliases(), unit.deps());
         } catch (RuntimeException e) {
@@ -499,7 +506,12 @@ public final class ColumnLineageExtractorImpl implements ColumnLineageExtractor 
     /** A compiled table whose SQL can be analyzed for column lineage. */
     private record Analyzable(@Nullable Target target,
                               @Nullable String sql,
-                              @NotNull List<Target> deps) {
+                              @NotNull List<Target> deps,
+                              @Nullable Writes writes) {
+    }
+
+    /** The table an operation's statements write, with its columns in schema order when known. */
+    private record Writes(@NotNull String tableName, @NotNull List<String> columns) {
     }
 
     /** Immutable per-table analysis result produced in the parallel phase. */

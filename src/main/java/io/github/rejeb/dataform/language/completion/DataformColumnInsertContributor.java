@@ -45,6 +45,12 @@ import org.jetbrains.annotations.Nullable;
  *
  * <p>Only the columns of this plugin are touched, and only what they write: everything else the SQL
  * completion offers passes through untouched, qualification included.</p>
+ *
+ * <p>A column is handed on as the result the SQL completion produced, with the element swapped. That
+ * result carries the prefix the contributor behind it matched on and the order it sorts by; offering
+ * the element as one of this contributor's own would match it against another prefix, and a column
+ * offered after a qualifier the SQL completion narrowed the prefix on would drop out of the popup
+ * altogether.</p>
  */
 public class DataformColumnInsertContributor extends CompletionContributor {
 
@@ -61,7 +67,8 @@ public class DataformColumnInsertContributor extends CompletionContributor {
                 result.passResult(completionResult);
                 return;
             }
-            result.addElement(unqualified(completionResult.getLookupElement(), column.getName()));
+            result.passResult(completionResult.withLookupElement(
+                    unqualified(completionResult.getLookupElement(), column.getName())));
         });
     }
 

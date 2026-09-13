@@ -143,23 +143,43 @@ public final class SqlxOutputColumnLocator {
     }
 
     /**
-     * The select clause producing the rows of a statement. A {@code WITH} statement produces them
-     * through the query following its CTEs, which is the query expression held directly by the
-     * with-expression; the CTE queries are nested inside the with-clause and are skipped.
+     * The select clause naming the rows a statement produces.
+     *
+     * <p>The query producing them is not always held by the statement itself. A {@code WITH}
+     * statement holds it after its CTEs, a set operation holds one per branch, and a query may be
+     * written inside parentheses — and these nest, as a {@code WITH} whose main query is a
+     * {@code UNION} does. Each of those only wraps the query, so the walk goes through them.</p>
+     *
+     * <p>The first query found is the one that names the columns: the branches of a set operation
+     * all carry the same number of columns and BigQuery takes their names from the first. The CTE
+     * queries are inside the with-clause, which is not walked, so they are never mistaken for the
+     * query the table is built from.</p>
      */
     private static @Nullable PsiElement selectClauseOf(@NotNull PsiElement statement) {
-        PsiElement query = SqlPsiParts.childOfType(statement,
-                SqlCompositeElementTypes.SQL_QUERY_EXPRESSION);
-        if (query == null) {
-            PsiElement with = SqlPsiParts.childOfType(statement,
-                    SqlCompositeElementTypes.SQL_WITH_QUERY_EXPRESSION);
-            if (with != null) {
-                query = SqlPsiParts.childOfType(with, SqlCompositeElementTypes.SQL_QUERY_EXPRESSION);
-            }
-        }
+        PsiElement query = rowProducingQuery(statement);
         return query == null
                 ? null
                 : SqlPsiParts.childOfType(query, SqlCompositeElementTypes.SQL_SELECT_CLAUSE);
+    }
+
+    /** Kinds that only wrap the query producing the rows, in the order they nest. */
+    private static final IElementType[] QUERY_WRAPPERS = {
+            SqlCompositeElementTypes.SQL_WITH_QUERY_EXPRESSION,
+            SqlCompositeElementTypes.SQL_UNION_EXPRESSION,
+            SqlCompositeElementTypes.SQL_PARENTHESIZED_QUERY_EXPRESSION
+    };
+
+    private static @Nullable PsiElement rowProducingQuery(@NotNull PsiElement element) {
+        PsiElement query = SqlPsiParts.childOfType(element,
+                SqlCompositeElementTypes.SQL_QUERY_EXPRESSION);
+        if (query != null) return query;
+        for (IElementType wrapper : QUERY_WRAPPERS) {
+            PsiElement wrapped = SqlPsiParts.childOfType(element, wrapper);
+            if (wrapped == null) continue;
+            PsiElement found = rowProducingQuery(wrapped);
+            if (found != null) return found;
+        }
+        return null;
     }
 
     /**

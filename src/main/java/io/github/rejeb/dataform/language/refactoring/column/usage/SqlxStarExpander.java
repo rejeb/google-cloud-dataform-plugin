@@ -16,6 +16,7 @@
  */
 package io.github.rejeb.dataform.language.refactoring.column.usage;
 
+import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import io.github.rejeb.dataform.language.refactoring.column.DataformColumnNameValidator;
@@ -91,11 +92,12 @@ public final class SqlxStarExpander {
         String token = SqlPsiParts.starTokenOf(star);
         String tail = tailOf(star);
         Modifier modifier = modifierOf(tail);
+        int replacedLength = token.length() + modifier.length();
         if (startsWithKeyword(tail.substring(modifier.length()), "REPLACE")) {
             blockers.add("the star carries a REPLACE list, which is not rewritten");
         }
-        if (token.endsWith(".*") && countStars(star) > 1) {
-            blockers.add("the query selects several qualified stars");
+        if (hasItemsBesideTheStar(star, replacedLength)) {
+            blockers.add("the select list holds items beside the star");
         }
         if (!blockers.isEmpty()) return new Expansion(null, 0, List.copyOf(blockers));
 
@@ -109,8 +111,7 @@ public final class SqlxStarExpander {
             return new Expansion(null, 0,
                     List.of("the star would expand to no column at all"));
         }
-        return new Expansion(String.join(separatorOf(star), items),
-                token.length() + modifier.length(), List.of());
+        return new Expansion(String.join(separatorOf(star), items), replacedLength, List.of());
     }
 
     /**
@@ -193,13 +194,29 @@ public final class SqlxStarExpander {
         return new Modifier(names, close + 1);
     }
 
-    private static int countStars(@NotNull PsiElement star) {
+    /**
+     * Whether the select list holds anything besides the star and the modifier the expansion
+     * replaces along with it.
+     *
+     * <p>What the expansion writes is the column list of the action, which is the whole output of
+     * the query. That is the expansion of the star only when the star is all the query selects:
+     * beside another item the list would name that item's column twice — once as itself and once
+     * inside the expansion — and beside a second star each would be written the whole output.</p>
+     *
+     * <p>The keyword, the commas and the spacing of the clause are tokens, not items, and what the
+     * expansion replaces along with the star — the {@code EXCEPT} list the parser keeps beside it —
+     * is not one either.</p>
+     */
+    private static boolean hasItemsBesideTheStar(@NotNull PsiElement star, int replacedLength) {
         PsiElement clause = star.getParent();
-        if (clause == null) return 1;
-        int count = 0;
-        for (PsiElement child : clause.getChildren()) {
-            if (SqlxStarDeclarationLocator.isStar(child)) count++;
+        TextRange starRange = star.getTextRange();
+        if (clause == null || starRange == null) return false;
+        TextRange replaced = TextRange.from(starRange.getStartOffset(), replacedLength);
+        for (PsiElement item : clause.getChildren()) {
+            if (item == star || item.getFirstChild() == null) continue;
+            TextRange range = item.getTextRange();
+            if (range == null || !replaced.contains(range)) return true;
         }
-        return count;
+        return false;
     }
 }

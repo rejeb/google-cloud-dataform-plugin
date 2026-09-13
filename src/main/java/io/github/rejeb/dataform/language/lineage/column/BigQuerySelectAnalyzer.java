@@ -132,6 +132,40 @@ public class BigQuerySelectAnalyzer implements SelectAnalyzer {
         });
     }
 
+    /**
+     * Lineage of the statements writing {@code tableName}, read by {@link BigQueryDmlAnalyzer}.
+     * When no statement writes it, the last {@code SELECT} of the SQL stands for the output, as it
+     * does for a query action.
+     */
+    @Override
+    public @NotNull QueryAnalysis analyzeWrites(@NotNull String sql,
+                                                @NotNull String tableName,
+                                                @NotNull List<String> tableColumns) {
+        return ReadAction.compute(() -> {
+            try {
+                PsiFile file = PsiFileFactory.getInstance(project)
+                        .createFileFromText("temp.sql", BigQueryDialect.INSTANCE, sql);
+                BigQueryDmlAnalyzer writes = new BigQueryDmlAnalyzer(this, tableName, tableColumns);
+                QueryAnalysis written = writes.analyze(file);
+                if (writes.wroteTheTable()) return written;
+                PsiElement stmt = lastSelectStatement(file);
+                if (stmt == null) return QueryAnalysis.EMPTY;
+                return new QueryAnalysis(outputsOf(stmt), aliasesOf(stmt));
+            } catch (Exception e) {
+                LOG.warn("Column lineage analysis failed; the SQL PSI shape may have changed", e);
+                return QueryAnalysis.EMPTY;
+            }
+        });
+    }
+
+    private static @Nullable PsiElement lastSelectStatement(@NotNull PsiFile file) {
+        PsiElement last = null;
+        for (PsiElement child : file.getChildren()) {
+            if (isType(child, SELECT_STATEMENT)) last = child;
+        }
+        return last;
+    }
+
     private @NotNull Map<String, List<InputColumn>> outputsOf(@NotNull PsiElement stmt) {
         Map<String, List<InputColumn>> result = new LinkedHashMap<>();
         PsiElement top = firstComposite(stmt);
@@ -144,7 +178,7 @@ public class BigQuerySelectAnalyzer implements SelectAnalyzer {
      * its own body only. Scopes nest, so a derived table or a CTE body may declare CTEs of its
      * own on top of the ones it inherits.
      */
-    private void processScope(@NotNull PsiElement expression,
+    void processScope(@NotNull PsiElement expression,
                               @NotNull Map<String, Map<String, List<InputColumn>>> cteMap,
                               @NotNull Map<String, List<InputColumn>> result) {
         PsiElement body = expression;
@@ -167,7 +201,7 @@ public class BigQuerySelectAnalyzer implements SelectAnalyzer {
         return aliases;
     }
 
-    private void collectScopeAliases(@NotNull PsiElement expression, @NotNull Map<String, String> aliases) {
+    void collectScopeAliases(@NotNull PsiElement expression, @NotNull Map<String, String> aliases) {
         PsiElement body = expression;
         if (isType(expression, WITH_QUERY)) {
             PsiElement withClause = directChild(expression, WITH_CLAUSE);
@@ -269,7 +303,7 @@ public class BigQuerySelectAnalyzer implements SelectAnalyzer {
         collectFromScopes(fromClause, cteMap, scopes, aliases, pivoted, new int[]{0});
     }
 
-    private void collectFromScopes(@NotNull PsiElement element,
+    void collectFromScopes(@NotNull PsiElement element,
                                    @NotNull Map<String, Map<String, List<InputColumn>>> cteMap,
                                    @NotNull Map<String, Map<String, List<InputColumn>>> scopes,
                                    @NotNull Map<String, String> aliases,
@@ -471,7 +505,7 @@ public class BigQuerySelectAnalyzer implements SelectAnalyzer {
      * name instead of collapsing to its last identifier, which no schema declares. A reference
      * rooted on an UNNEST alias is rewritten onto the array column it iterates.
      */
-    private @NotNull InputColumn columnInput(@NotNull PsiElement reference,
+    @NotNull InputColumn columnInput(@NotNull PsiElement reference,
                                              @NotNull Map<String, String> aliases,
                                              @NotNull Map<String, UnnestSource> unnests,
                                              @NotNull Confidence kind) {
@@ -601,7 +635,7 @@ public class BigQuerySelectAnalyzer implements SelectAnalyzer {
         return true;
     }
 
-    private @NotNull List<InputColumn> resolve(@NotNull InputColumn input,
+    @NotNull List<InputColumn> resolve(@NotNull InputColumn input,
                                                @NotNull Map<String, String> aliases,
                                                @NotNull Map<String, Map<String, List<InputColumn>>> cteMap) {
         if (input.star()) return List.of(input);
@@ -642,7 +676,7 @@ public class BigQuerySelectAnalyzer implements SelectAnalyzer {
         return aliases;
     }
 
-    private void collectFromSources(@NotNull PsiElement element, @NotNull Map<String, String> aliases) {
+    void collectFromSources(@NotNull PsiElement element, @NotNull Map<String, String> aliases) {
         for (PsiElement child : element.getChildren()) {
             if (isType(child, JOIN_CONDITION)) continue;
             if (derivedTableOf(child) != null) continue;

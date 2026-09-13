@@ -17,6 +17,8 @@
 package io.github.rejeb.dataform.language.schema.sql;
 
 import com.intellij.openapi.Disposable;
+import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.editor.EditorFactory;
 import com.intellij.openapi.editor.event.DocumentEvent;
@@ -151,7 +153,7 @@ public final class DataformTableSchemaServiceImpl
                 new DocumentListener() {
                     @Override
                     public void documentChanged(@NotNull DocumentEvent event) {
-                        if (cache.dropStaleGuesses()) announce();
+                        if (cache.dropStaleGuesses()) announceAfterTheDocumentChange();
                     }
                 }, this);
     }
@@ -160,6 +162,26 @@ public final class DataformTableSchemaServiceImpl
     private void announce() {
         cache.publish();
         modificationCount.incrementAndGet();
+        notifyReaders();
+    }
+
+    /**
+     * The same from inside a document change, where the telling has to wait.
+     *
+     * <p>A document listener runs while the document is being written and before the PSI of the file
+     * is committed. The subscribers of the topic and the editors this repaints read the PSI of what
+     * they show, which they may not do on a document the platform has not caught up with yet. What
+     * the cache holds is put right on the spot, so resolution asking a moment later gets the
+     * corrected answer either way.</p>
+     */
+    private void announceAfterTheDocumentChange() {
+        cache.publish();
+        modificationCount.incrementAndGet();
+        ApplicationManager.getApplication()
+                .invokeLater(this::notifyReaders, ModalityState.defaultModalityState());
+    }
+
+    private void notifyReaders() {
         if (project.isDisposed()) return;
         project.getMessageBus().syncPublisher(DataformSchemaEvent.TOPIC).onSchemasUpdated();
         DataformEditorRefresher.refresh(project);
@@ -340,17 +362,13 @@ public final class DataformTableSchemaServiceImpl
     @NotNull
     private DryRunResult extractOperationSchema(@NotNull CompiledOperation operation,
                                                 @NotNull ExtractionContext ctx) {
-        List<String> queries = operation.getQueries();
-        if (queries.isEmpty()) return DryRunResult.empty();
-        String lastQuery = queries.getLast();
-        if (lastQuery == null || lastQuery.isBlank()) return DryRunResult.empty();
-        return runDryRun(ctx, lastQuery);
+        return OperationSchemaExtraction.extract(operation, ctx);
     }
 
     @NotNull
     private DryRunResult extractDeclarationSchema(@NotNull String fqn,
                                                   @NotNull ExtractionContext ctx) {
-        return runDryRun(ctx, "SELECT * FROM `" + fqn + "` LIMIT 0");
+        return runDryRun(ctx, OperationSchemaExtraction.tableQuery(fqn));
     }
 
     @NotNull

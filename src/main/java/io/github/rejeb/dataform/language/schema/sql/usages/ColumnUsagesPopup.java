@@ -25,6 +25,8 @@ import com.intellij.openapi.ui.popup.JBPopup;
 import com.intellij.openapi.ui.popup.JBPopupFactory;
 import com.intellij.psi.PsiElement;
 import com.intellij.ui.JBColor;
+import io.github.rejeb.dataform.language.schema.sql.model.StructColumnPath;
+import com.intellij.ui.components.ActionLink;
 import com.intellij.ui.components.JBList;
 import com.intellij.ui.components.JBScrollPane;
 import com.intellij.util.ui.JBUI;
@@ -43,11 +45,13 @@ import javax.swing.BoxLayout;
 import javax.swing.ScrollPaneConstants;
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.FlowLayout;
 import java.awt.Component;
 import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
@@ -61,9 +65,13 @@ import java.util.Set;
  * that fold.
  *
  * <p>The platform's declaration popup carries none of this — no headings, no title of our own, no
- * way into the Find window — so the window is built here. What it lists comes from the same
- * reference search Find Usages runs, and its footer hands the same column to that window when the
- * list outgrows a popup.</p>
+ * way into the Find window — so the window is built here. What it lists comes from the same search
+ * Find Usages runs, and {@code Shift+Ctrl+F7} hands the same column to that window when the list
+ * outgrows a popup.</p>
+ *
+ * <p>The window opens on the first reads the search finds, since a reader waits for the first rows
+ * and not the last. A Usages group that stopped at that ceiling offers a link under the list, and
+ * following it runs the search again for every read the project holds.</p>
  */
 public final class ColumnUsagesPopup {
 
@@ -74,46 +82,73 @@ public final class ColumnUsagesPopup {
     private ColumnUsagesPopup() {
     }
 
-    /** Opens the window for a column. Does nothing when nothing is known about it. */
+    /**
+     * Opens the window for a column. Does nothing when nothing is known about it.
+     *
+     * <p>The rows are read off the event thread and the window opens once they arrive, so the
+     * gesture returns straight away however much the search has to resolve.</p>
+     */
     public static void show(@NotNull Project project,
                             @NotNull Editor editor,
                             @NotNull ColumnWindowTarget target,
                             @Nullable PsiElement caretReference) {
-        List<ColumnUsageRow> rows = ColumnUsageRows.of(project, target, caretReference);
-        if (rows.isEmpty()) return;
-        new Window(project, target, rows).show(editor);
+        ColumnUsageRowsLoader.load(project, editor, target, caretReference,
+                ColumnUsageRows.MAX_READS, rows -> {
+                    if (rows.isEmpty() || editor.isDisposed()) return;
+                    new Window(project, editor, target, caretReference, rows).show();
+                });
     }
 
-    /** Hands the column to the Find window, which holds a list a popup should not. */
+    /**
+     * Hands the column to the Find window, which holds a list a popup should not.
+     *
+     * <p>A field of a struct column is handed over as itself rather than as the element the caret
+     * sits on. Find Usages starting from that element would search whatever it resolves to, which
+     * for a field is an element of its column's type and not the field at all.</p>
+     */
     static void openInFindWindow(@NotNull Project project, @NotNull ColumnWindowTarget target) {
+        StructColumnPath path = target.structPath();
+        if (path != null && path.isField()) {
+            new StructFieldUsageTarget(project, path).findUsages();
+            return;
+        }
         if (target.searchTargets().isEmpty()) return;
         FindManager.getInstance(project).findUsages(target.searchTargets().getFirst());
     }
 
-    static @NotNull String findWindowShortcutText() {
-        return System.getProperty("os.name", "").toLowerCase().contains("mac")
-                ? "⇧⌘F7" : "Shift+Ctrl+F7";
-    }
-
-    /** The popup itself: a list whose headings fold, over a footer that opens the Find window. */
+    /**
+     * The popup itself: a list whose headings fold, a link loading the reads the search stopped
+     * short of, and a shortcut into the Find window.
+     */
     private static final class Window {
 
+        private static final String LOAD_ALL = "Show all usages";
+        private static final String LOADING = "Loading all usages\u2026";
+
         private final Project project;
+        private final Editor editor;
         private final ColumnWindowTarget target;
-        private final List<ColumnUsageRow> all;
+        private final PsiElement caretReference;
         private final Set<String> folded = new LinkedHashSet<>();
         private final DefaultListModel<ColumnUsageRow> model = new DefaultListModel<>();
         private final JBList<ColumnUsageRow> list = new JBList<>(model);
+        private final ActionLink loadAllLink =
+                new ActionLink(LOAD_ALL, (ActionListener) e -> loadAll());
+        private final JPanel footer = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        private List<ColumnUsageRow> all;
         private JBScrollPane scroller;
         private JBPopup popup;
 
-        Window(Project project, ColumnWindowTarget target, List<ColumnUsageRow> all) {
+        Window(Project project, Editor editor, ColumnWindowTarget target,
+               @Nullable PsiElement caretReference, List<ColumnUsageRow> all) {
             this.project = project;
+            this.editor = editor;
             this.target = target;
+            this.caretReference = caretReference;
             this.all = all;
         }
 
-        void show(@NotNull Editor editor) {
+        void show() {
             rebuild();
             list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
             list.setCellRenderer(new RowRenderer(folded));
@@ -126,8 +161,13 @@ public final class ColumnUsagesPopup {
             scroller.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
             fitToContent();
 
+            footer.setBorder(JBUI.Borders.empty(4, 20, 6, 8));
+            footer.add(loadAllLink);
+            footer.setVisible(isTruncated());
+
             JPanel content = new JPanel(new BorderLayout());
             content.add(scroller, BorderLayout.CENTER);
+            content.add(footer, BorderLayout.SOUTH);
 
             popup = JBPopupFactory.getInstance()
                     .createComponentPopupBuilder(content, list)
@@ -173,6 +213,35 @@ public final class ColumnUsagesPopup {
         private void openFindWindow() {
             if (popup != null) popup.cancel();
             openInFindWindow(project, target);
+        }
+
+        /** Whether the Usages group holds the reads the search stopped at rather than all of them. */
+        private boolean isTruncated() {
+            for (ColumnUsageRow row : all) {
+                if (row.isHeading() && row.heading().equals(ColumnUsageRows.USAGES)) {
+                    return row.isTruncated();
+                }
+            }
+            return false;
+        }
+
+        /**
+         * Runs the search again with no ceiling and replaces the rows once it is done. The link
+         * says it is working meanwhile, and goes away once there is nothing left to load.
+         */
+        private void loadAll() {
+            loadAllLink.setEnabled(false);
+            loadAllLink.setText(LOADING);
+            ColumnUsageRowsLoader.load(project, editor, target, caretReference,
+                    ColumnUsageRows.UNBOUNDED, rows -> {
+                        if (popup == null || popup.isDisposed()) return;
+                        if (!rows.isEmpty()) all = rows;
+                        footer.setVisible(isTruncated());
+                        loadAllLink.setText(LOAD_ALL);
+                        loadAllLink.setEnabled(true);
+                        rebuild();
+                        if (list.getSelectedIndex() < 0) selectFirstEntry();
+                    });
         }
 
         /** Rebuilds the visible rows, leaving out the entries of a folded group. */
@@ -258,7 +327,7 @@ public final class ColumnUsagesPopup {
                 JLabel label = new JLabel(row.heading());
                 label.setForeground(selected ? foreground : dimmed());
                 label.setFont(label.getFont().deriveFont(Font.BOLD, label.getFont().getSize() - 1f));
-                JLabel count = new JLabel("   " + row.count());
+                JLabel count = new JLabel("   " + row.count() + (row.isTruncated() ? "+" : ""));
                 count.setForeground(selected ? foreground : dimmed());
                 count.setFont(label.getFont().deriveFont(Font.PLAIN));
                 heading.add(arrow);

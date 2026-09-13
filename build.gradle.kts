@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "io.github.rejeb"
-version = "0.2.19"
+version = "0.2.20"
 
 repositories {
     mavenCentral()
@@ -46,8 +46,7 @@ intellijPlatform {
 
         changeNotes = """
                 <ul>
-                    <li>Add in place columns renaming.</li>
-                    <li>Add new sqlx file templates</li>
+                    <li>Expand column usage to struct fields.</li>
                     <li>Fix issues.</li>
                 </ul>
         """.trimIndent()
