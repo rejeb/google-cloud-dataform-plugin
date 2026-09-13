@@ -29,7 +29,6 @@ import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.application.Application;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
-import com.intellij.openapi.options.ShowSettingsUtil;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.SystemInfo;
 import org.jetbrains.annotations.NotNull;
@@ -180,10 +179,7 @@ public class NodeJsNpmUtils {
 
 
     private static void openNodeJsSettings(Project project) {
-        ShowSettingsUtil.getInstance().showSettingsDialog(
-                project,
-                NodeSettingsConfigurable.class
-        );
+        NodeSettingsConfigurable.showSettingsDialog(project);
     }
 
 }

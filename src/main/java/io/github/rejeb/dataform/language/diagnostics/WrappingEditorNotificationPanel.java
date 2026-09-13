@@ -60,13 +60,13 @@ public class WrappingEditorNotificationPanel extends EditorNotificationPanel {
     }
 
     private void installWrappingText(@NotNull String text) {
-        Container parent = myLabel.getParent();
+        Container parent = myTextLabel.getParent();
         if (parent == null) {
             setText(text);
             return;
         }
         JTextArea area = createArea(text);
-        parent.remove(myLabel);
+        parent.remove(myTextLabel);
         parent.add(area, BorderLayout.CENTER);
         textArea = area;
 
@@ -99,8 +99,8 @@ public class WrappingEditorNotificationPanel extends EditorNotificationPanel {
         area.setFocusable(false);
         area.setOpaque(false);
         area.setBorder(JBUI.Borders.empty());
-        area.setFont(myLabel.getFont());
-        area.setForeground(myLabel.getForeground());
+        area.setFont(myTextLabel.getFont());
+        area.setForeground(myTextLabel.getForeground());
         return area;
     }
 }

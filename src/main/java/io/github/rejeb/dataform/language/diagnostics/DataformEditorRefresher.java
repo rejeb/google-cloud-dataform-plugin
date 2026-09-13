@@ -47,7 +47,7 @@ public final class DataformEditorRefresher {
                 return;
             }
             if (!ApplicationManager.getApplication().isUnitTestMode()) {
-                DaemonCodeAnalyzer.getInstance(project).restart();
+                DaemonCodeAnalyzer.getInstance(project).restart("Dataform editor refresh");
             }
             EditorNotifications.getInstance(project).updateAllNotifications();
         });

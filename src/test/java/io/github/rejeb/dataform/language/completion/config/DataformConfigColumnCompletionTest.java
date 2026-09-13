@@ -477,7 +477,7 @@ public class DataformConfigColumnCompletionTest extends BasePlatformTestCase {
         }
         assertNotNull("no config fragment at the caret", context);
         return new ConfigColumnCompletionConfidence().shouldSkipAutopopup(
-                context, context.getContainingFile(), offset);
+                myFixture.getEditor(), context, context.getContainingFile(), offset);
     }
 
     public void testColumnNamesAreProposedInAMultilineArray() {

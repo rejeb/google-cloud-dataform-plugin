@@ -49,31 +49,43 @@ public class DataformInstaller implements ProjectActivity {
     private static final AtomicBoolean dataformNotificationShown = new AtomicBoolean(false);
     private static final AtomicBoolean nodeJsNotificationShown = new AtomicBoolean(false);
 
+    /**
+     * Schedules the environment check once the plugin is fully registered. When the plugin is
+     * loaded dynamically, the platform launches project activities while it is still notifying
+     * the other extension point listeners on the EDT, so the notification group declared in
+     * plugin.xml may not exist yet. Going through the EDT queue guarantees that every extension
+     * of this plugin has been registered before the check runs.
+     */
     @Override
     public @Nullable Object execute(@NotNull Project project,
                                     @NotNull Continuation<? super Unit> continuation) {
 
-        ApplicationManager.getApplication().executeOnPooledThread(() -> {
-            checkAndSetup(project);
-            MessageBusConnection connection = ApplicationManager.getApplication()
-                    .getMessageBus()
-                    .connect();
+        ApplicationManager.getApplication().invokeLater(() -> {
+            if (project.isDisposed()) {
+                return;
+            }
+            ApplicationManager.getApplication().executeOnPooledThread(() -> {
+                checkAndSetup(project);
+                MessageBusConnection connection = ApplicationManager.getApplication()
+                        .getMessageBus()
+                        .connect();
 
-            connection.subscribe(ApplicationActivationListener.TOPIC,
-                    new ApplicationActivationListener() {
-                        @Override
-                        public void applicationActivated(@NotNull IdeFrame ideFrame) {
-                            DataformToolsSettings settings = DataformToolsSettings.getInstance();
-                            if (!settings.getCoreInstallPath().isBlank()) {
+                connection.subscribe(ApplicationActivationListener.TOPIC,
+                        new ApplicationActivationListener() {
+                            @Override
+                            public void applicationActivated(@NotNull IdeFrame ideFrame) {
+                                DataformToolsSettings settings = DataformToolsSettings.getInstance();
+                                if (!settings.getCoreInstallPath().isBlank()) {
+                                    connection.disconnect();
+                                    return;
+                                }
+                                ApplicationManager.getApplication()
+                                        .executeOnPooledThread(() -> checkAndSetup(project));
                                 connection.disconnect();
-                                return;
+                                connection.dispose();
                             }
-                            ApplicationManager.getApplication()
-                                    .executeOnPooledThread(() -> checkAndSetup(project));
-                            connection.disconnect();
-                            connection.dispose();
-                        }
-                    });
+                        });
+            });
         });
 
         return null;

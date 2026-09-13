@@ -17,6 +17,7 @@
 package io.github.rejeb.dataform.language.completion.config;
 
 import com.intellij.codeInsight.completion.CompletionConfidence;
+import com.intellij.openapi.editor.Editor;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.util.ThreeState;
@@ -33,7 +34,8 @@ import org.jetbrains.annotations.NotNull;
 public class ConfigColumnCompletionConfidence extends CompletionConfidence {
 
     @Override
-    public @NotNull ThreeState shouldSkipAutopopup(@NotNull PsiElement contextElement,
+    public @NotNull ThreeState shouldSkipAutopopup(@NotNull Editor editor,
+                                                   @NotNull PsiElement contextElement,
                                                    @NotNull PsiFile psiFile,
                                                    int offset) {
         return ConfigColumnSlots.at(contextElement).isPresent() ? ThreeState.NO : ThreeState.UNSURE;

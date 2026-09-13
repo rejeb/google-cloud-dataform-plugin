@@ -197,6 +197,10 @@
                 language="SQL"
                 implementationClass="io.github.rejeb.dataform.language.completion.DataformColumnInsertContributor"
                 order="first"/>
+        <completion.contributor
+                language="SQL"
+                implementationClass="io.github.rejeb.dataform.language.completion.SqlxMissingCommaCompletionContributor"
+                order="last"/>
         <renameHandler
                 implementation="io.github.rejeb.dataform.language.refactoring.column.DataformColumnRenameHandler"
                 order="first"/>

@@ -63,7 +63,7 @@ public interface ColumnRenamePlanner {
                                                         @NotNull String newName) {
         ColumnRenamePlanner planner = getInstance(project);
         return ProgressManager.getInstance().runProcessWithProgressSynchronously(
-                () -> ReadAction.compute(() -> planner.plan(subject, newName)),
+                () -> ReadAction.computeBlocking(() -> planner.plan(subject, newName)),
                 "Finding Where " + subject.oldName() + " Is Used", true, project);
     }
 }

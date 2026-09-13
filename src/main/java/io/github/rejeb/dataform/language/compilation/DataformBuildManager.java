@@ -191,12 +191,12 @@ public final class DataformBuildManager {
         if (vf == null) {
             File f = new File(normalized);
             if (f.exists()) {
-                return new FilePosition(f, 0, 0);
+                return new FilePosition(f.toPath(), 0, 0);
             }
             return null;
         }
 
-        return new FilePosition(new File(vf.getPath()), 0, 0);
+        return new FilePosition(vf.toNioPath(), 0, 0);
     }
 
     @NotNull

@@ -117,7 +117,7 @@ public class BigQuerySelectAnalyzer implements SelectAnalyzer {
      */
     @Override
     public @NotNull QueryAnalysis analyzeQuery(@NotNull String sql) {
-        return ReadAction.compute(() -> {
+        return ReadAction.computeBlocking(() -> {
             try {
                 PsiElement stmt = parseStatement(sql);
                 if (stmt == null) {
@@ -141,7 +141,7 @@ public class BigQuerySelectAnalyzer implements SelectAnalyzer {
     public @NotNull QueryAnalysis analyzeWrites(@NotNull String sql,
                                                 @NotNull String tableName,
                                                 @NotNull List<String> tableColumns) {
-        return ReadAction.compute(() -> {
+        return ReadAction.computeBlocking(() -> {
             try {
                 PsiFile file = PsiFileFactory.getInstance(project)
                         .createFileFromText("temp.sql", BigQueryDialect.INSTANCE, sql);

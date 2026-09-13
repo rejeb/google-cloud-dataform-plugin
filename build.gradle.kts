@@ -1,11 +1,11 @@
 plugins {
-    id("org.jetbrains.kotlin.jvm") version "2.4.20-Beta1"
+    id("org.jetbrains.kotlin.jvm") version "2.4.20"
     id("org.jetbrains.intellij.platform") version "2.18.1"
-    id("org.jetbrains.kotlin.plugin.compose") version "2.4.20-Beta1"
+    id("org.jetbrains.kotlin.plugin.compose") version "2.4.20"
 }
 
 group = "io.github.rejeb"
-version = "0.2.20"
+version = "0.2.21"
 
 repositories {
     mavenCentral()
@@ -23,7 +23,7 @@ dependencies {
 
     testImplementation("org.junit.vintage:junit-vintage-engine:5.10.0")
     intellijPlatform {
-        intellijIdea("2026.1")
+        intellijIdea("2026.2")
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
         bundledPlugin("JavaScript")
         bundledPlugin("NodeJS")
@@ -35,18 +35,18 @@ dependencies {
     }
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.1")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testImplementation("org.junit.platform:junit-platform-launcher")
 }
 
 intellijPlatform {
     pluginConfiguration {
         ideaVersion {
-            sinceBuild = "261"
+            sinceBuild = "262"
         }
 
         changeNotes = """
                 <ul>
-                    <li>Expand column usage to struct fields.</li>
+                    <li>Fix deprecations for 2026.2+ version.</li>
                     <li>Fix issues.</li>
                 </ul>
         """.trimIndent()
@@ -76,5 +76,6 @@ sourceSets {
 tasks.test {
     useJUnitPlatform()
     systemProperty("idea.suppressed.plugins.id", "org.jetbrains.plugins.vue")
+    systemProperty("idea.plugins.host", "http://localhost:0")
 }
 
