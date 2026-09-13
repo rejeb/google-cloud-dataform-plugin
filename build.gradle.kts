@@ -18,8 +18,8 @@ dependencies {
     implementation(platform("com.google.cloud:libraries-bom:26.85.0"))
     implementation("com.google.cloud:google-cloud-dataform")
     implementation("com.google.cloud:google-cloud-bigquery")
-    testImplementation("org.mockito:mockito-core:5.11.0")
-    testImplementation("org.mockito:mockito-junit-jupiter:5.11.0")
+    testImplementation("org.mockito:mockito-core:5.23.0")
+    testImplementation("org.mockito:mockito-junit-jupiter:5.23.0")
 
     testImplementation("org.junit.vintage:junit-vintage-engine:5.10.0")
     intellijPlatform {
