@@ -277,4 +277,77 @@ public class ColumnUsagesWindowTest extends DataformProjectFixture {
         assertTrue("an unbounded search would be paid for while the user waits",
                 ColumnUsageRows.MAX_READS > 0 && ColumnUsageRows.MAX_READS <= 100);
     }
+
+    /**
+     * The window opens on the first reads and offers the rest on request, so the ceiling is the
+     * caller's to set: a low one stops the search short and says so, no ceiling lists every read.
+     */
+    public void testTheCeilingStopsTheSearchAndLiftingItListsEveryRead() throws Exception {
+        PsiFile silver = openAll().get(1);
+        PsiElement injected = injectedAt(silver, 23, "order_id");
+        int offset = InjectedLanguageManager.getInstance(getProject())
+                .injectedToHost(injected, injected.getTextOffset());
+        ColumnWindowTarget target = ColumnWindowTarget.at(silver, offset);
+        assertNotNull(target);
+        PsiElement caret = SqlxColumnAtCaret.referenceOf(injected);
+
+        ColumnUsageRow capped = usagesHeading(ColumnUsageRows.of(getProject(), target, caret, 1));
+        assertNotNull("the column has reads, so a Usages heading must lead them", capped);
+        assertEquals("a ceiling of one keeps one read", 1, capped.count());
+        assertTrue("a heading that stopped at the ceiling must say so", capped.isTruncated());
+
+        ColumnUsageRow every = usagesHeading(
+                ColumnUsageRows.of(getProject(), target, caret, ColumnUsageRows.UNBOUNDED));
+        assertNotNull(every);
+        assertTrue("without a ceiling every read is kept, got " + every.count(),
+                every.count() > 1);
+        assertFalse("a heading holding every read is not truncated", every.isTruncated());
+    }
+
+    private static ColumnUsageRow usagesHeading(List<ColumnUsageRow> rows) {
+        for (ColumnUsageRow row : rows) {
+            if (row.isHeading() && row.heading().equals(ColumnUsageRows.USAGES)) return row;
+        }
+        return null;
+    }
+
+    /**
+     * The reads are searched for in parallel, so they are found in whatever order the threads
+     * happen to finish. The order a reader sees has to come from the places themselves.
+     */
+    public void testReadsAreOrderedByFileThenLine() throws Exception {
+        List<String> found = new ArrayList<>();
+        for (ColumnUsageRow row : rowsAt(openAll().get(1), 23, "order_id")) {
+            if (row.isHeading() || row.kind() != ColumnUsageRow.Kind.USAGE) continue;
+            found.add(row.location());
+        }
+        List<String> ordered = new ArrayList<>(found);
+        ordered.sort(java.util.Comparator
+                .comparing((String at) -> at.substring(0, at.lastIndexOf(':')))
+                .thenComparingInt(at -> Integer.parseInt(at.substring(at.lastIndexOf(':') + 1))));
+        assertEquals("the window must impose an order a parallel search does not have, got " + found,
+                ordered, found);
+    }
+
+    /** A window built on several threads must still show the same thing every time it is opened. */
+    public void testTheSameColumnGivesTheSameWindowEveryTime() throws Exception {
+        PsiFile silver = openAll().get(1);
+        List<String> first = describe(rowsAt(silver, 23, "order_id"));
+        assertFalse("the column must have rows for the comparison to mean anything", first.isEmpty());
+        for (int run = 0; run < 3; run++) {
+            assertEquals("a parallel search must not change what the window shows",
+                    first, describe(rowsAt(silver, 23, "order_id")));
+        }
+    }
+
+    /**
+     * A count that stopped at the ceiling is not a total, and a reader takes a bare number for one.
+     */
+    public void testACappedHeadingSaysItStoppedAtTheCeiling() {
+        assertTrue("a heading that hit the ceiling must say so",
+                ColumnUsageRow.heading(ColumnUsageRows.USAGES, ColumnUsageRows.MAX_READS, true)
+                        .isTruncated());
+        assertFalse("a heading holding every read must not",
+                ColumnUsageRow.heading(ColumnUsageRows.USAGES, 3, false).isTruncated());
+    }
 }

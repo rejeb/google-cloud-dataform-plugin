@@ -54,11 +54,20 @@ public record ColumnInfo(
         return TYPES.computeIfAbsent(typeSpecification(), PropertyConverter::importDasType);
     }
 
+    /**
+     * The type as BigQuery writes it.
+     *
+     * <p>A repeated column is an array of its type, and saying otherwise costs the resolve of
+     * everything under an {@code UNNEST}: unnesting a value the platform does not believe is an
+     * array yields no element type, so a field read off the alias resolves to nothing at all.</p>
+     */
     private String typeSpecification() {
-        if (!isRecord()) return type;
-        return String.format("STRUCT<%s>", String.join(",", subFields.stream()
-                .map(child -> child.name() + " " + child.dasType().getDescription())
-                .toList()));
+        String base = isRecord()
+                ? String.format("STRUCT<%s>", String.join(",", subFields.stream()
+                        .map(child -> child.name() + " " + child.dasType().getDescription())
+                        .toList()))
+                : type;
+        return isRepeated() ? String.format("ARRAY<%s>", base) : base;
     }
 
     public boolean isRecord() {

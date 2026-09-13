@@ -16,9 +16,12 @@
  */
 package io.github.rejeb.dataform.language.refactoring.column.plan;
 
+import com.intellij.openapi.application.ReadAction;
+import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.project.Project;
 import io.github.rejeb.dataform.language.refactoring.column.target.ColumnRenameSubject;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Decides everything a column rename is going to do, before anything is written.
@@ -44,4 +47,23 @@ public interface ColumnRenamePlanner {
      */
     @NotNull
     ColumnRenamePlan resolve(@NotNull ColumnRenamePlan plan, @NotNull StarResolution resolution);
+
+    /**
+     * The plan of {@link #plan}, computed under a cancellable progress in a read action, for the
+     * gestures that start on the event thread.
+     *
+     * <p>Planning walks the lineage of the column and searches the whole project for its references.
+     * On a real project that is seconds of work, and doing it where the gesture arrives freezes the
+     * IDE with nothing to cancel.</p>
+     *
+     * @return the plan, or {@code null} when the user cancelled the search
+     */
+    static @Nullable ColumnRenamePlan planUnderProgress(@NotNull Project project,
+                                                        @NotNull ColumnRenameSubject subject,
+                                                        @NotNull String newName) {
+        ColumnRenamePlanner planner = getInstance(project);
+        return ProgressManager.getInstance().runProcessWithProgressSynchronously(
+                () -> ReadAction.compute(() -> planner.plan(subject, newName)),
+                "Finding Where " + subject.oldName() + " Is Used", true, project);
+    }
 }

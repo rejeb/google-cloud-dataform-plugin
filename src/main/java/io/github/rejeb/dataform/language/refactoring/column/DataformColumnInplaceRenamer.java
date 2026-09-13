@@ -16,11 +16,9 @@
  */
 package io.github.rejeb.dataform.language.refactoring.column;
 
-import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.command.impl.FinishMarkAction;
 import com.intellij.openapi.command.impl.StartMarkAction;
 import com.intellij.openapi.editor.Editor;
-import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -29,12 +27,12 @@ import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiManager;
 import com.intellij.psi.PsiReference;
 import com.intellij.psi.search.SearchScope;
-import com.intellij.psi.tree.IElementType;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.refactoring.rename.inplace.MemberInplaceRenamer;
 import com.intellij.sql.psi.SqlCompositeElementTypes;
 import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
 import io.github.rejeb.dataform.language.schema.sql.ColumnOriginService;
+import io.github.rejeb.dataform.language.schema.sql.SqlPsiParts;
 import io.github.rejeb.dataform.language.refactoring.column.apply.ColumnRenameProcessor;
 import io.github.rejeb.dataform.language.refactoring.column.plan.ColumnRenamePlan;
 import io.github.rejeb.dataform.language.refactoring.column.plan.ColumnRenamePlanner;
@@ -107,10 +105,11 @@ public final class DataformColumnInplaceRenamer extends MemberInplaceRenamer {
         PsiElement primary = getNameIdentifier();
         for (PsiFile injected : InjectedSqlFiles.all(hostFile)) {
             for (PsiElement reference : PsiTreeUtil.collectElements(injected,
-                    element -> isType(element, SqlCompositeElementTypes.SQL_COLUMN_REFERENCE))) {
-                PsiElement identifier = lastIdentifier(reference);
+                    element -> SqlPsiParts.isType(element,
+                            SqlCompositeElementTypes.SQL_COLUMN_REFERENCE))) {
+                PsiElement identifier = SqlPsiParts.lastIdentifier(reference);
                 if (identifier == null || identifier == primary) continue;
-                if (!unquoted(identifier.getText()).equalsIgnoreCase(oldName)) continue;
+                if (!SqlPsiParts.unquoted(identifier.getText()).equalsIgnoreCase(oldName)) continue;
                 if (resolvesElsewhere(reference)) continue;
                 stringUsages.add(Pair.create(identifier,
                         TextRange.from(0, identifier.getTextLength())));
@@ -142,7 +141,8 @@ public final class DataformColumnInplaceRenamer extends MemberInplaceRenamer {
             Optional<ColumnRenameSubject> subject =
                     ColumnRenameSubjectFactory.at(hostFile, hostOffset);
             if (subject.isEmpty()) return;
-            ColumnRenamePlan plan = planFor(subject.get(), newName);
+            ColumnRenamePlan plan =
+                    ColumnRenamePlanner.planUnderProgress(myProject, subject.get(), newName);
             if (plan == null) return;
             if (plan.needsStarDecision()) {
                 StarResolution resolution =
@@ -155,17 +155,6 @@ public final class DataformColumnInplaceRenamer extends MemberInplaceRenamer {
         }
     }
 
-    /** The plan, computed under a progress so the project-wide search never blocks the editor. */
-    private @Nullable ColumnRenamePlan planFor(@NotNull ColumnRenameSubject subject,
-                                               @NotNull String newName) {
-        ColumnRenamePlanner planner = ColumnRenamePlanner.getInstance(myProject);
-        return ProgressManager.getInstance().runProcessWithProgressSynchronously(
-                () -> ApplicationManager.getApplication()
-                        .runReadAction((com.intellij.openapi.util.Computable<ColumnRenamePlan>)
-                                () -> planner.plan(subject, newName)),
-                "Finding Where " + oldName + " Is Used", true, myProject);
-    }
-
     private @Nullable PsiFile hostFile() {
         return hostVirtualFile == null || !hostVirtualFile.isValid()
                 ? null
@@ -175,6 +164,11 @@ public final class DataformColumnInplaceRenamer extends MemberInplaceRenamer {
     /**
      * Whether a reference of the file stands for a column of another table that happens to carry the
      * same name.
+     *
+     * <p>The name is what decides here, where the plan asks whether the column is one of those the
+     * lineage puts in the rename. The two cannot ask the same question: the template runs before
+     * anything is planned, and the reads of the file are of the column of its source, which the
+     * lineage reaches and a template cannot.</p>
      */
     private boolean resolvesElsewhere(@NotNull PsiElement reference) {
         PsiReference psiReference = reference.getReference();
@@ -182,22 +176,5 @@ public final class DataformColumnInplaceRenamer extends MemberInplaceRenamer {
         if (!(resolved instanceof DataformDasColumn column)) return false;
         ColumnRef declared = ColumnOriginService.getInstance(myProject).reference(column);
         return declared != null && !declared.columnName().equalsIgnoreCase(oldName);
-    }
-
-    private static @Nullable PsiElement lastIdentifier(@NotNull PsiElement parent) {
-        PsiElement last = null;
-        for (PsiElement child : parent.getChildren()) {
-            if (isType(child, SqlCompositeElementTypes.SQL_IDENTIFIER)) last = child;
-        }
-        return last;
-    }
-
-    private static boolean isType(@Nullable PsiElement element, @NotNull IElementType type) {
-        return element != null && element.getNode() != null
-                && element.getNode().getElementType() == type;
-    }
-
-    private static @NotNull String unquoted(@NotNull String text) {
-        return text.replace("`", "");
     }
 }

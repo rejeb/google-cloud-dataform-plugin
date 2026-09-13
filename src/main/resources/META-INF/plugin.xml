@@ -22,11 +22,58 @@
 
     <vendor url="https://github.com/rejeb/google-cloud-dataform-plugin">rbenrejeb</vendor>
 
-    <description><![CDATA[
-        Plugin to develop using google cloud dataform.<br>
-        <em>Google Cloud, Dataform, BigQuery, SQLX, Javascript</em>
-    ]]></description>
 
+    <description><![CDATA[
+            A comprehensive IntelliJ IDEA plugin that brings full language support for Google Cloud Dataform projects, letting you write, navigate, run and debug SQLX pipelines without leaving the IDE.
+
+            <h2>SQLX Language Support</h2>
+            <ul>
+                <li>Full syntax highlighting for SQLX files, covering embedded SQL, JavaScript and config blocks.</li>
+                <li>Smart code completion for built-in Dataform functions (<code>ref()</code>, <code>declare()</code>, <code>publish()</code>, etc.), JavaScript/TypeScript symbols, and Dataform template expressions (<code>${...}</code>), with automatic completion popup on <code>$</code>.</li>
+                <li>Native BigQuery SQL dialect support, including syntax validation and real-time error highlighting.</li>
+                <li>JSON Schema-powered validation and autocompletion for <code>workflow_settings.yaml</code>, generated dynamically from your project's Dataform configuration.</li>
+            </ul>
+
+            <h2>Navigation &amp; Code Intelligence</h2>
+            <ul>
+                <li>Jump between references, includes and declarations with <code>Ctrl+Click</code> / <code>Ctrl+B</code>.</li>
+                <li>Column-level navigation: <code>Ctrl+Click</code> a column in a SQLX query to jump straight to its declaration in the source table.</li>
+                <li>Show Column Usages (<code>Ctrl+Alt+Shift+U</code>, also available from the editor context menu): list every downstream place where a given column is read across the project &mdash; the reverse direction of Go to Declaration.</li>
+                <li>Quick Documentation (<code>Ctrl+Q</code>) for table references, resolved schemas, column metadata, and the built-in BigQuery function catalog (signatures, descriptions, examples).</li>
+                <li>Clickable links to workflow configuration properties.</li>
+            </ul>
+
+            <h2>Refactoring</h2>
+            <ul>
+                <li>In-place column rename (<code>Shift+F6</code>) with its own dedicated engine: it walks the plugin's column lineage graph to propagate the new name across every file where the column flows, including through <code>SELECT *</code> resolution, incremental actions, and unrelated join chains, then refreshes the resolved schema.</li>
+            </ul>
+
+            <h2>Data Lineage</h2>
+            <ul>
+                <li>Built-in lineage graph view (Open Lineage View action) that visualizes upstream/downstream dependencies between Dataform actions.</li>
+                <li>Column-level lineage tracing, so you can trace exactly where a given column's data originates across your pipeline, including through renamed/aliased columns.</li>
+            </ul>
+
+            <h2>Run &amp; Execute</h2>
+            <ul>
+                <li>Native run configurations for Dataform workflows, launched straight from IntelliJ's Run/Debug toolbar.</li>
+                <li>One-click gutter icons in the SQLX editor to execute the current action's workflow without leaving the file.</li>
+            </ul>
+
+            <h2>Formatting</h2>
+            <ul>
+                <li>Built-in formatter aware of injected SQL, JavaScript and config blocks inside SQLX files.</li>
+                <li>Optional integration with Sqlfluff for external, configurable SQL formatting.</li>
+            </ul>
+
+            <h2>Project Tooling</h2>
+            <ul>
+                <li>New Project wizard to scaffold Dataform projects with the correct structure.</li>
+                <li>New SQLX File action with ready-made templates for every Dataform action type: Table, View, Incremental table, Assertion, Operations, and Declaration.</li>
+                <li>Automatic Dataform CLI detection, installation and setup.</li>
+                <li>Fast project indexing of Dataform core definitions and JavaScript symbols for responsive completion and search.</li>
+            </ul>
+    ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
     <depends>JavaScript</depends>
@@ -157,6 +204,9 @@
                 implementation="io.github.rejeb.dataform.language.refactoring.column.DataformColumnRenamePsiElementProcessor"
                 order="first"/>
         <projectService
+                serviceInterface="io.github.rejeb.dataform.language.schema.sql.StructColumnPathResolver"
+                serviceImplementation="io.github.rejeb.dataform.language.schema.sql.StructColumnPathResolverImpl"/>
+        <projectService
                 serviceInterface="io.github.rejeb.dataform.language.refactoring.column.plan.ColumnRenamePlanner"
                 serviceImplementation="io.github.rejeb.dataform.language.refactoring.column.plan.ColumnRenamePlannerImpl"/>
         <projectService
@@ -167,6 +217,8 @@
                 implementation="io.github.rejeb.dataform.language.schema.sql.DataformSchemaFindUsagesHandlerFactory"/>
         <usageTypeProvider
                 implementation="io.github.rejeb.dataform.language.schema.sql.DataformColumnUsageTypeProvider"/>
+        <usageTargetProvider
+                implementation="io.github.rejeb.dataform.language.schema.sql.usages.StructFieldUsageTargetProvider"/>
 
         <editorFactoryListener
                 implementation="io.github.rejeb.dataform.language.folding.DataformValueFoldClickListener"/>
@@ -264,7 +316,7 @@
                 implementation="io.github.rejeb.dataform.language.injection.SqlxTemplateInjector"/>
 
         <multiHostInjector order="first" id="dataformJsQueryInjector"
-                implementation="io.github.rejeb.dataform.language.injection.SqlxJsQueryInjector"/>
+                           implementation="io.github.rejeb.dataform.language.injection.SqlxJsQueryInjector"/>
 
         <completion.contributor
                 language="JavaScript" order="first"
@@ -326,10 +378,10 @@
                 implementation="io.github.rejeb.dataform.language.documentation.DataformExpressionValueDocumentationTargetProvider"/>
 
         <platform.backend.documentation.targetProvider order="first"
-                implementation="io.github.rejeb.dataform.language.documentation.DataformConfigKeyDocumentationTargetProvider"/>
+                                                       implementation="io.github.rejeb.dataform.language.documentation.DataformConfigKeyDocumentationTargetProvider"/>
 
         <platform.backend.documentation.targetProvider order="first"
-                implementation="io.github.rejeb.dataform.language.documentation.bigquery.BigQueryFunctionDocumentationTargetProvider"/>
+                                                       implementation="io.github.rejeb.dataform.language.documentation.bigquery.BigQueryFunctionDocumentationTargetProvider"/>
 
         <platform.backend.documentation.psiTargetProvider
                 implementation="io.github.rejeb.dataform.language.documentation.DataformDasDocumentationTargetProvider"/>

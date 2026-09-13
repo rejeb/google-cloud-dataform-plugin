@@ -93,6 +93,15 @@ public class ConfigRenameEditCollectorTest extends BasePlatformTestCase {
         assertEquals(ColumnRenameEdit.Risk.CERTAIN, edits.getFirst().risk());
     }
 
+    public void testAKeyWrittenInAnotherCaseIsRenamedToo() {
+        List<ColumnRenameEdit> edits = collect(
+                "  columns: { Order_Id: \"the order\" },\n  clusterBy: [\"ORDER_ID\"]",
+                "order_id", "order_ref");
+
+        assertEquals("BigQuery column names do not differ by case, and neither does the rename",
+                "CONFIG_COLUMN_KEY,CONFIG_COLUMN_NAME", kinds(edits));
+    }
+
     public void testARowConditionIsRenamedAsTextThatHasToBeReviewed() {
         List<ColumnRenameEdit> edits = collect(
                 "  assertions: { rowConditions: [\"order_id IS NOT NULL\"] }", "order_id", "order_ref");

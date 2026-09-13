@@ -32,8 +32,15 @@ import org.jetbrains.annotations.NotNull;
  * itself whenever something inside the injected JavaScript is rewritten. Only the block is parsed
  * again — the platform calls this once per rewritten reference, and re-parsing the whole SQLX file
  * each time would parse every other block of the file for nothing.</p>
+ *
+ * <p>The element holds the content of the block, not the {@code config { }} around it, so the new
+ * text is wrapped back into a block before it is parsed. Parsed on its own it would read as the SQL
+ * of the file and no config block would come back.</p>
  */
 public class SqlxConfigBlockManipulator extends AbstractElementManipulator<SqlxConfigBlock> {
+
+    private static final String BLOCK_PREFIX = "config {";
+    private static final String BLOCK_SUFFIX = "}";
 
     @Override
     public SqlxConfigBlock handleContentChange(@NotNull SqlxConfigBlock element,
@@ -45,7 +52,8 @@ public class SqlxConfigBlockManipulator extends AbstractElementManipulator<SqlxC
                 + newContent
                 + oldText.substring(range.getEndOffset());
         PsiFile fileFromText = PsiFileFactory.getInstance(element.getProject())
-                .createFileFromText("dummy.sqlx", SqlxLanguage.INSTANCE, newText);
+                .createFileFromText("dummy.sqlx", SqlxLanguage.INSTANCE,
+                        BLOCK_PREFIX + newText + BLOCK_SUFFIX);
 
         SqlxConfigBlock newElement = PsiTreeUtil.findChildOfType(fileFromText, SqlxConfigBlock.class);
         if (newElement == null) {

@@ -21,6 +21,7 @@ import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -668,6 +669,52 @@ class ColumnLineageExtractorImplTest {
         assertTrue(result.upstream(new ColumnRef("p.d.op", "amt").id())
                         .contains(new ColumnRef("p.d.src", "amount").id()),
                 "an operation with output must receive column edges, not only seeded columns");
+    }
+
+    @Test
+    void operationIsAnalyzedAsWritesOfAllItsStatements() {
+        String ddl = "CREATE TABLE IF NOT EXISTS p.d.op (amt NUMERIC)";
+        String merge = "MERGE p.d.op t USING (SELECT amount AS amt FROM p.d.src) s ON FALSE "
+                + "WHEN NOT MATCHED THEN INSERT (amt) VALUES (s.amt)";
+        CompiledGraph graph = GSON.fromJson("{\"operations\":[{"
+                + "\"target\":" + targetJson("p", "d", "op") + ","
+                + "\"hasOutput\":true,\"queries\":[\"" + ddl + "\",\"" + merge + "\"],"
+                + "\"dependencyTargets\":[" + targetJson("p", "d", "src") + "]}]}", CompiledGraph.class);
+
+        List<String> asked = new ArrayList<>();
+        SelectAnalyzer analyzer = new SelectAnalyzer() {
+            @Override
+            public Map<String, List<InputColumn>> analyze(String sql) {
+                return Map.of();
+            }
+
+            @Override
+            public Map<String, String> fromAliases(String sql) {
+                return Map.of();
+            }
+
+            @Override
+            public QueryAnalysis analyzeWrites(String sql, String tableName, List<String> tableColumns) {
+                asked.add(sql);
+                asked.add(tableName);
+                asked.add(String.join(",", tableColumns));
+                return new QueryAnalysis(
+                        Map.of("amt", List.of(new InputColumn(null, "amount", Confidence.DIRECT, false))),
+                        Map.of("p.d.src", "p.d.src"));
+            }
+        };
+
+        Map<String, List<ColumnInfo>> schemas = Map.of(
+                "p.d.src", List.of(new ColumnInfo("amount", "NUMERIC", "NULLABLE", null)),
+                "p.d.op", List.of(new ColumnInfo("amt", "NUMERIC", "NULLABLE", null)));
+
+        ColumnLineageGraph result = new ColumnLineageExtractorImpl(analyzer).extract(graph, schemas);
+
+        assertEquals(List.of(ddl + ";\n" + merge, "op", "amt"), asked,
+                "every statement is handed over with the written table and its schema order");
+        assertTrue(result.upstream(new ColumnRef("p.d.op", "amt").id())
+                        .contains(new ColumnRef("p.d.src", "amount").id()),
+                "what the statements write to a column is its lineage");
     }
 
     @Test

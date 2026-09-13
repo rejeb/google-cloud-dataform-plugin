@@ -27,7 +27,9 @@ import com.intellij.sql.psi.SqlCompositeElementTypes;
 import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
 import io.github.rejeb.dataform.language.schema.sql.ColumnOriginService;
 import io.github.rejeb.dataform.language.schema.sql.SqlxColumnAtCaret;
+import io.github.rejeb.dataform.language.schema.sql.StructColumnPathResolver;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasColumn;
+import io.github.rejeb.dataform.language.schema.sql.model.StructColumnPath;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -43,13 +45,21 @@ import java.util.List;
  * country} inside a CTE — whose readers live in the query that named it. Both are columns to the
  * person reading the file, so both open the same window.</p>
  *
+ * <p>A third shape reaches it: a field inside a struct column, at any depth. The schema holds the
+ * column rather than the field, so the field is named by the path walked into it, and that path is
+ * what its rows are searched for. The path is carried whether the caret sits on a read of the field
+ * or on the alias declaring it — a reader asks the same question from either end, and nothing
+ * references the alias of a field, so a search over references answers only one of them.</p>
+ *
  * @param searchTargets the elements whose references make up the usage rows
  * @param name          the column name, as written
  * @param declarations  the columns this one is built from, each in the file declaring it
+ * @param structPath    the field inside a struct column, {@code null} for a column of a table
  */
 public record ColumnWindowTarget(@NotNull List<PsiElement> searchTargets,
                                  @NotNull String name,
-                                 @NotNull List<PsiElement> declarations) {
+                                 @NotNull List<PsiElement> declarations,
+                                 @Nullable StructColumnPath structPath) {
 
     /**
      * The column window's subject at an offset of a SQLX file, or {@code null} when the offset
@@ -62,7 +72,9 @@ public record ColumnWindowTarget(@NotNull List<PsiElement> searchTargets,
         if (injected == null) return null;
 
         ColumnWindowTarget alias = fromAlias(injected);
-        return alias != null ? alias : fromReference(injected);
+        if (alias != null) return alias;
+        ColumnWindowTarget read = fromReference(injected);
+        return read != null ? read : fromStructField(injected);
     }
 
     /**
@@ -91,7 +103,9 @@ public record ColumnWindowTarget(@NotNull List<PsiElement> searchTargets,
         DataformDasColumn output = SqlxColumnAtCaret.declaredColumnOf(expression);
         if (output != null) searched.add(output);
         return new ColumnWindowTarget(searched,
-                identifier.getText().replace("`", ""), distinct(declarations));
+                identifier.getText().replace("`", ""), distinct(declarations),
+                StructColumnPathResolver.getInstance(identifier.getProject())
+                        .declaredPathAt(identifier));
     }
 
     /** A column read by name, which is declared by whatever it resolves to. */
@@ -116,7 +130,30 @@ public record ColumnWindowTarget(@NotNull List<PsiElement> searchTargets,
         }
         return new ColumnWindowTarget(searched,
                 declared != null ? declared.getName() : columnName(reference),
-                declaration == null ? List.of() : List.of(declaration));
+                declaration == null ? List.of() : List.of(declaration), null);
+    }
+
+    /**
+     * A field inside a struct column, named by the path walked into it.
+     *
+     * <p>Tried last, so a column of a table keeps answering the way it always has: a plain reference
+     * is a path of no fields as much as a struct column is, and only the shapes nothing else claims
+     * reach here. What does reach here is every segment of a qualified path — the struct column
+     * itself included, which no other shape recognises.</p>
+     */
+    private static @Nullable ColumnWindowTarget fromStructField(@NotNull PsiElement token) {
+        StructColumnPathResolver resolver = StructColumnPathResolver.getInstance(token.getProject());
+        StructColumnPath path = resolver.pathAt(token);
+        if (path == null) return null;
+        if (SqlxColumnAtCaret.sqlxFileOf(token) == null) return null;
+
+        PsiElement read = resolver.segmentAt(token);
+        PsiElement declaration = ColumnOriginService.getInstance(token.getProject())
+                .declaringElement(path);
+        return new ColumnWindowTarget(read == null ? List.of() : List.of(read),
+                path.leafName(),
+                declaration == null ? List.of() : List.of(declaration),
+                path);
     }
 
     /**
@@ -132,10 +169,42 @@ public record ColumnWindowTarget(@NotNull List<PsiElement> searchTargets,
             PsiElement declaring = origins.declaringElement(column);
             if (declaring != null) return declaring;
         }
+        PsiElement field = structFieldDeclarationOf(reference, origins);
+        if (field != null) return field;
         PsiReference psiReference = reference.getReference();
         if (psiReference == null) return null;
         PsiElement resolved = psiReference.resolve();
-        return resolved instanceof DataformDasColumn ? null : resolved;
+        if (resolved instanceof DataformDasColumn) return null;
+        return isInAFileOfTheProject(resolved) ? resolved : null;
+    }
+
+    /**
+     * Where a read of a field inside a struct column is declared.
+     *
+     * <p>The platform resolves such a read to an element of the column's own type, which belongs to
+     * no file of the project, so the field is looked for in the action building the column instead.
+     * Without this an alias over a nested field — {@code n.customer.name AS customer_name} — has a
+     * declaration that cannot be pointed at, and a window that cannot show one comes up empty.</p>
+     */
+    private static @Nullable PsiElement structFieldDeclarationOf(@NotNull PsiElement reference,
+                                                                 @NotNull ColumnOriginService origins) {
+        StructColumnPath path = StructColumnPathResolver.getInstance(reference.getProject())
+                .pathAt(reference);
+        return path == null || !path.isField() ? null : origins.declaringElement(path);
+    }
+
+    /**
+     * Whether an element sits in a file the project holds.
+     *
+     * <p>A type imported to answer a resolve carries PSI of its own that no document backs. A row of
+     * the window cannot be built for it, so holding it as a declaration loses the row silently and
+     * the column reads as one that resolves to nothing. Better to report no declaration than one
+     * nobody can open.</p>
+     */
+    private static boolean isInAFileOfTheProject(@Nullable PsiElement element) {
+        if (element == null) return false;
+        PsiFile file = element.getContainingFile();
+        return file != null && file.getVirtualFile() != null;
     }
 
     /** The schema column an expression reads, which is never the one it declares. */

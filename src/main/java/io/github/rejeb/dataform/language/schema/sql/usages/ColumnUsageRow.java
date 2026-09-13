@@ -33,10 +33,14 @@ import org.jetbrains.annotations.Nullable;
  */
 public final class ColumnUsageRow {
 
-    /** What a row stands for. The heading of a group, or a place within it. */
+    /**
+     * What a row stands for. The heading of a group, or a place within it: where the column is built
+     * from, a field it holds, or a place reading it.
+     */
     public enum Kind {
         HEADING,
         DECLARATION,
+        FIELD,
         USAGE
     }
 
@@ -49,10 +53,11 @@ public final class ColumnUsageRow {
     private final String after;
     private final String location;
     private final OpenFileDescriptor target;
+    private final boolean truncated;
 
     private ColumnUsageRow(Kind kind, String group, String heading, int count, String before,
                            String name, String after, String location,
-                           OpenFileDescriptor target) {
+                           OpenFileDescriptor target, boolean truncated) {
         this.kind = kind;
         this.group = group;
         this.heading = heading;
@@ -62,17 +67,24 @@ public final class ColumnUsageRow {
         this.after = after;
         this.location = location;
         this.target = target;
+        this.truncated = truncated;
     }
 
-    static @NotNull ColumnUsageRow heading(@NotNull String heading, int count) {
-        return new ColumnUsageRow(Kind.HEADING, heading, heading, count, "", "", "", "", null);
+    /**
+     * A group heading. A truncated heading carries the reads the search stopped at rather than the
+     * reads the project holds, and says so, because a count read as a total is worse than no count.
+     */
+    static @NotNull ColumnUsageRow heading(@NotNull String heading, int count, boolean truncated) {
+        return new ColumnUsageRow(Kind.HEADING, heading, heading, count, "", "", "", "", null,
+                truncated);
     }
 
     static @NotNull ColumnUsageRow entry(@NotNull Kind kind, @NotNull String group,
                                          @NotNull String before, @NotNull String name,
                                          @NotNull String after, @NotNull String location,
                                          @NotNull OpenFileDescriptor target) {
-        return new ColumnUsageRow(kind, group, "", 0, before, name, after, location, target);
+        return new ColumnUsageRow(kind, group, "", 0, before, name, after, location, target,
+                false);
     }
 
     public @NotNull Kind kind() {
@@ -94,6 +106,11 @@ public final class ColumnUsageRow {
 
     public int count() {
         return count;
+    }
+
+    /** Whether the group holds the reads the search stopped at rather than all of them. */
+    public boolean isTruncated() {
+        return truncated;
     }
 
     public @NotNull String before() {
@@ -120,6 +137,8 @@ public final class ColumnUsageRow {
 
     @Override
     public String toString() {
-        return isHeading() ? heading + " (" + count + ")" : before + name + after + "  " + location;
+        return isHeading()
+                ? heading + " (" + count + (truncated ? "+" : "") + ")"
+                : before + name + after + "  " + location;
     }
 }

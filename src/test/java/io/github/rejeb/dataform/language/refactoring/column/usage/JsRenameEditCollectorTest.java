@@ -93,6 +93,18 @@ public class JsRenameEditCollectorTest extends BasePlatformTestCase {
                 collect("order_id", "order_ref").isEmpty());
     }
 
+    public void testAnIncludeIsSearchedEvenWhenAnotherFileCarriesItsName() {
+        myFixture.addFileToProject("includes/helpers.js",
+                "function whereClause() { return incremental(\"order_ts\", 3); }");
+        myFixture.addFileToProject("definitions/helpers.js",
+                "publish(\"h\").query(ctx => \"SELECT 1\");");
+
+        List<ColumnRenameEdit> edits = collect("order_ts", "loaded_at");
+
+        assertEquals("resolving an include by name needs one file of that name; searching their "
+                        + "text does not", "JS_STRING/CERTAIN/\"loaded_at\"", presentations(edits));
+    }
+
     public void testAJavaScriptPropertyOfTheSameNameIsReportedForReview() {
         myFixture.addFileToProject("includes/helpers.js",
                 "const mapping = { order_id: 1 };");

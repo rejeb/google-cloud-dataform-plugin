@@ -34,7 +34,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Renames a Dataform column when the gesture starts outside an editor: the column window, the
@@ -45,7 +44,19 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class DataformColumnRenamePsiElementProcessor extends RenamePsiElementProcessor {
 
-    private final Map<String, ColumnRenamePlan> plans = new ConcurrentHashMap<>();
+    /**
+     * A plan and the gesture it was built for.
+     *
+     * @param element the element {@link #prepareRenaming} was called with
+     * @param newName the name that rename is giving it
+     * @param plan    what that rename is going to write
+     */
+    private record PreparedPlan(@NotNull PsiElement element,
+                                @NotNull String newName,
+                                @NotNull ColumnRenamePlan plan) {
+    }
+
+    private volatile PreparedPlan prepared;
 
     @Override
     public boolean canProcessElement(@NotNull PsiElement element) {
@@ -77,16 +88,21 @@ public class DataformColumnRenamePsiElementProcessor extends RenamePsiElementPro
      * inside a write action deadlocks: those threads wait for a read lock the write action holds.
      * So the plan is built here, where nothing is locked yet, and only written in
      * {@link #renameElement}.</p>
+     *
+     * <p>The platform keeps one processor for the whole IDE, so only the plan of the gesture under
+     * way is held: a plan points into every file it touches, and a rename the user leaves after the
+     * preview would otherwise hold that for as long as the IDE runs.</p>
      */
     @Override
     public void prepareRenaming(@NotNull PsiElement element,
                                 @NotNull String newName,
                                 @NotNull Map<PsiElement, String> allRenames) {
+        prepared = null;
         if (!(element instanceof DataformDasColumn column)) return;
         ColumnRenameSubjectFactory.of(column)
                 .map(subject -> ColumnRenamePlanner.getInstance(column.getProject())
                         .plan(subject, newName))
-                .ifPresent(plan -> plans.put(keyOf(column, newName), plan));
+                .ifPresent(plan -> prepared = new PreparedPlan(element, newName, plan));
     }
 
     /**
@@ -99,14 +115,14 @@ public class DataformColumnRenamePsiElementProcessor extends RenamePsiElementPro
                               @NotNull String newName,
                               UsageInfo @NotNull [] usages,
                               @Nullable RefactoringElementListener listener) {
-        if (!(element instanceof DataformDasColumn column)) return;
-        ColumnRenamePlan plan = plans.remove(keyOf(column, newName));
-        if (plan == null || !plan.isRunnable() || plan.needsStarDecision()) return;
+        PreparedPlan planned = prepared;
+        prepared = null;
+        if (planned == null || planned.element() != element
+                || !planned.newName().equals(newName)) {
+            return;
+        }
+        ColumnRenamePlan plan = planned.plan();
+        if (!plan.isRunnable() || plan.needsStarDecision()) return;
         ColumnRenameEdits.apply(element.getProject(), ColumnRenameUsageInfo.allOf(plan));
-    }
-
-    private static @NotNull String keyOf(@NotNull DataformDasColumn column,
-                                         @NotNull String newName) {
-        return System.identityHashCode(column.getProject()) + "/" + column.getName() + "/" + newName;
     }
 }

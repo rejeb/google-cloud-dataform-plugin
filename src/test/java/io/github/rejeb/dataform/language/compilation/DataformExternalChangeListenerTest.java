@@ -85,6 +85,16 @@ public class DataformExternalChangeListenerTest extends BasePlatformTestCase {
                 new DataformExternalChangeListener().prepareChange(saveOf(file)));
     }
 
+    public void testTheJavaScriptOfADependencyAsksForNothing() {
+        myFixture.addFileToProject("workflow_settings.yaml", "defaultProject: p\n");
+        VirtualFile dependency =
+                myFixture.addFileToProject("node_modules/@dataform/core/index.js", "module.exports={}")
+                        .getVirtualFile();
+
+        assertNull("an npm install must not cost a compilation of the whole project",
+                new DataformExternalChangeListener().prepareChange(refreshOf(dependency)));
+    }
+
     public void testAFileOfAnotherKindAsksForNothing() {
         myFixture.addFileToProject("workflow_settings.yaml", "defaultProject: p\n");
         VirtualFile readme = myFixture.addFileToProject("definitions/README.md", "hi")

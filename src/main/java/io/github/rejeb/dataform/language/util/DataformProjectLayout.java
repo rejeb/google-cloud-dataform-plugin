@@ -35,6 +35,14 @@ public final class DataformProjectLayout {
     public static final String INCLUDES_DIR = "includes";
     public static final String DEFINITIONS_DIR = "definitions";
 
+    /**
+     * The directories no source of a Dataform project lives in: its dependencies, its version
+     * control, the IDE's own files and what a build leaves behind. Everything that walks or watches
+     * the sources skips them, so they are named once here.
+     */
+    public static final Set<String> IGNORED_DIRECTORIES =
+            Set.of("node_modules", ".git", ".idea", ".df", "build", "dist");
+
     private static final String JS_EXTENSION = "js";
     private static final String TS_EXTENSION = "ts";
     private static final String SQLX_EXTENSION = "sqlx";
@@ -117,6 +125,19 @@ public final class DataformProjectLayout {
         return file != null
                 && isInDataformProject(file)
                 && isDataformSourceName(file.getName(), file.getExtension());
+    }
+
+    /**
+     * Whether a path runs through one of {@link #IGNORED_DIRECTORIES}, which is what tells the
+     * JavaScript of a dependency from the JavaScript a project is written in.
+     */
+    public static boolean isUnderIgnoredDirectory(@NotNull String path) {
+        for (String segment : path.replace('\\', '/').split("/")) {
+            if (IGNORED_DIRECTORIES.contains(segment)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

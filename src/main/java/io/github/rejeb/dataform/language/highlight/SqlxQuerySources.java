@@ -21,6 +21,9 @@ import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiWhiteSpace;
+import com.intellij.psi.util.CachedValueProvider;
+import com.intellij.psi.util.CachedValuesManager;
+import com.intellij.psi.util.PsiModificationTracker;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.sql.psi.SqlCompositeElementTypes;
 import io.github.rejeb.dataform.language.schema.sql.SqlPsiParts;
@@ -46,10 +49,19 @@ public final class SqlxQuerySources {
     /**
      * Whether every source of the query holding {@code element} is one whose columns can be named.
      * True for a query with no sources at all, which has nothing to hide.
+     *
+     * <p>The answer depends on the {@code FROM} clause alone, so it is kept on it. Every unresolved
+     * name of a file asks this while the file is inspected, and the walk behind it asks the
+     * injection manager about each leaf of the clause.</p>
      */
     public static boolean areKnown(@NotNull PsiElement element) {
         PsiElement from = fromClauseOf(element);
         if (from == null) return true;
+        return CachedValuesManager.getCachedValue(from, () -> CachedValueProvider.Result.create(
+                allSourcesAreKnown(from), PsiModificationTracker.MODIFICATION_COUNT));
+    }
+
+    private static boolean allSourcesAreKnown(@NotNull PsiElement from) {
         for (PsiElement leaf : PsiTreeUtil.collectElements(from,
                 candidate -> candidate.getFirstChild() == null)) {
             if (leaf instanceof PsiWhiteSpace || isPartOfTableReference(leaf, from)) continue;
