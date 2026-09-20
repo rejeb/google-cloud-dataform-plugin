@@ -67,4 +67,27 @@ public class ColumnOriginServiceTest extends DataformProjectFixture {
         assertNull(service.declaringElement(new ColumnRef("proj.ds.nope", "order_id")));
         assertTrue(service.origins(new ColumnRef("proj.ds.nope", "order_id")).isEmpty());
     }
+
+    /**
+     * A source is declared, not built: no select-list item of the project declares its columns, and
+     * a rename must never be pointed at one. The place a reader is sent to is the call declaring
+     * the source, which is answered apart.
+     */
+    public void testAColumnOfADeclaredSourceHasNoDeclaringElementButASourceDeclaration() throws Exception {
+        open("sources.js");
+        ColumnOriginService origins = ColumnOriginService.getInstance(getProject());
+        ColumnRef column = new ColumnRef("proj.ds.raw_events", "event_id");
+        assertNull("no action builds a source, so nothing declares its column",
+                origins.declaringElement(column));
+        PsiElement source = origins.sourceDeclaration(column);
+        assertNotNull("the declare() call names the source", source);
+        assertEquals("\"raw_events\"", source.getText());
+        assertEquals("sources.js", source.getContainingFile().getName());
+    }
+
+    public void testAColumnOfATableHasNoSourceDeclaration() throws Exception {
+        open("bronze/bronze_orders.sqlx");
+        assertNull(ColumnOriginService.getInstance(getProject())
+                .sourceDeclaration(new ColumnRef("proj.ds.bronze_orders", "order_id")));
+    }
 }

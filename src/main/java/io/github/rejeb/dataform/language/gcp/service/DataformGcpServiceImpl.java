@@ -44,6 +44,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
+import java.util.function.Predicate;
+import java.util.Set;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -103,8 +105,12 @@ public final class DataformGcpServiceImpl implements DataformGcpService, Disposa
                 try {
                     List<String> files = workspaceOperations.listAllPaths(workspaceId);
                     fileCache.update(files);
-                    com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater(() -> onDone.accept(files));
-                    project.getMessageBus().syncPublisher(DataformGcpEvent.TOPIC).onFilesLoaded(files);
+                    com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater(() -> {
+                        onDone.accept(files);
+                        if (!project.isDisposed()) {
+                            project.getMessageBus().syncPublisher(DataformGcpEvent.TOPIC).onFilesLoaded(files);
+                        }
+                    });
                 } catch (Exception e) {
                     LOG.warn("Failed to refresh Dataform files.", e);
                     com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater(() -> onDone.accept(List.of()));
@@ -131,16 +137,23 @@ public final class DataformGcpServiceImpl implements DataformGcpService, Disposa
         try {
             workspaceOperations.pushGitCommits(workspaceId);
         } catch (GcpApiException e) {
-            LOG.warn("Failed to commit code to Dataform workspace: " + workspaceId, e);
+            LOG.warn("Failed to push commits of Dataform workspace: " + workspaceId, e);
+            throw e;
         }
     }
 
     @Override
     public void pushCode(@NotNull String workspaceId) {
+        pushCode(workspaceId, deletions -> true);
+    }
+
+    @Override
+    public void pushCode(@NotNull String workspaceId, @NotNull Predicate<Set<String>> deletionApproval) {
         try {
-            workspaceOperations.pushCode(workspaceId);
+            workspaceOperations.pushCode(workspaceId, deletionApproval);
         } catch (GcpApiException e) {
             LOG.warn("Failed to push code to Dataform workspace: " + workspaceId, e);
+            throw e;
         }
     }
 
@@ -163,6 +176,7 @@ public final class DataformGcpServiceImpl implements DataformGcpService, Disposa
             fileCache.invalidate();
         } catch (GcpApiException e) {
             LOG.warn("Failed to sync code from Dataform: " + workspaceId, e);
+            throw e;
         }
     }
 

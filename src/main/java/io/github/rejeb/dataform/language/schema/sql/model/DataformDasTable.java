@@ -47,6 +47,7 @@ public class DataformDasTable extends LightElement implements DasTable, DasSymbo
     private final List<ColumnInfo> myColumns;
     @Nullable
     private final VirtualFile mySourceFile;
+    private volatile PsiFile myFallbackFile;
 
     public DataformDasTable(@NotNull PsiManager psiManager,
                             @NotNull String table,
@@ -135,8 +136,13 @@ public class DataformDasTable extends LightElement implements DasTable, DasSymbo
             PsiFile file = getManager().findFile(mySourceFile);
             if (file != null) return file;
         }
-        return PsiFileFactory.getInstance(getProject())
-                .createFileFromText("_dataform.txt", PlainTextFileType.INSTANCE, "");
+        PsiFile fallback = myFallbackFile;
+        if (fallback == null || !fallback.isValid()) {
+            fallback = PsiFileFactory.getInstance(getProject())
+                    .createFileFromText("_dataform.txt", PlainTextFileType.INSTANCE, "");
+            myFallbackFile = fallback;
+        }
+        return fallback;
     }
 
     @Override

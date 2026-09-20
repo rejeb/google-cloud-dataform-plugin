@@ -28,17 +28,24 @@ import com.intellij.ui.JBColor;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
 
+import org.jetbrains.annotations.Nullable;
+
 import javax.swing.*;
 import java.awt.*;
 
 class QuerySection extends JPanel {
 
-    private final EditorEx editor;
     private final Project project;
+    private final FileType fileType;
+    private final boolean isError;
+    private final JPanel editorWrap;
+    private EditorEx editor;
 
     QuerySection(String title, FileType fileType, Project project, boolean isError) {
         super(new BorderLayout());
         this.project = project;
+        this.fileType = fileType != null ? fileType : PlainTextFileType.INSTANCE;
+        this.isError = isError;
         setOpaque(false);
         setBorder(JBUI.Borders.emptyBottom(12));
 
@@ -47,40 +54,55 @@ class QuerySection extends JPanel {
         label.setForeground(isError ? JBColor.RED : UIUtil.getContextHelpForeground());
         label.setBorder(JBUI.Borders.emptyBottom(4));
 
-        FileType ft = fileType != null ? fileType : PlainTextFileType.INSTANCE;
-        Document doc = EditorFactory.getInstance().createDocument("");
-        editor = (EditorEx) EditorFactory.getInstance().createEditor(doc, project, ft, true);
-        editor.getSettings().setLineNumbersShown(!isError);
-        editor.getSettings().setFoldingOutlineShown(false);
-        editor.setHighlighter(
-                EditorHighlighterFactory.getInstance().createEditorHighlighter(project, ft)
-        );
-
-        JPanel editorWrap = new JPanel(new BorderLayout());
+        editorWrap = new JPanel(new BorderLayout());
         editorWrap.setOpaque(false);
         editorWrap.setPreferredSize(new Dimension(-1, 150));
-        editorWrap.add(editor.getComponent(), BorderLayout.CENTER);
 
         add(label, BorderLayout.NORTH);
         add(editorWrap, BorderLayout.CENTER);
         setVisible(false);
     }
 
+    /**
+     * Shows the content, creating the editor on first use: a file has five sections per action
+     * and most of them stay empty, so an editor is only paid for when there is text to show.
+     */
     void setContent(String content) {
         boolean hasContent = content != null && !content.isBlank();
         if (hasContent) {
+            EditorEx target = ensureEditor();
             WriteCommandAction.runWriteCommandAction(project, () ->
-                    editor.getDocument().setText(content));
+                    target.getDocument().setText(content));
+        } else if (editor != null) {
+            WriteCommandAction.runWriteCommandAction(project, () -> editor.getDocument().setText(""));
         }
         setVisible(hasContent);
     }
 
+    private EditorEx ensureEditor() {
+        if (editor == null) {
+            Document doc = EditorFactory.getInstance().createDocument("");
+            editor = (EditorEx) EditorFactory.getInstance().createEditor(doc, project, fileType, true);
+            editor.getSettings().setLineNumbersShown(!isError);
+            editor.getSettings().setFoldingOutlineShown(false);
+            editor.setHighlighter(
+                    EditorHighlighterFactory.getInstance().createEditorHighlighter(project, fileType)
+            );
+            editorWrap.add(editor.getComponent(), BorderLayout.CENTER);
+        }
+        return editor;
+    }
+
+    @Nullable
     EditorEx getEditor() {
         return editor;
     }
 
     void dispose() {
-        EditorFactory.getInstance().releaseEditor(editor);
+        if (editor != null) {
+            EditorFactory.getInstance().releaseEditor(editor);
+            editor = null;
+        }
     }
 
     /**
@@ -91,6 +113,4 @@ class QuerySection extends JPanel {
         if (ed == null) return false;
         return !ed.getDocument().getText().isBlank();
     }
-
-
 }

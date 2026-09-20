@@ -94,6 +94,13 @@ public interface WorkspaceRepository {
             @Nullable String workspaceId
     );
 
+    /**
+     * Lists the paths of every file of the repository (main branch) or of a workspace.
+     *
+     * @param workspaceId workspace ID, or {@code null} to list the repo main branch
+     * @return the relative paths; empty for a repository without any commit
+     * @throws GcpApiException on API error
+     */
     @NotNull List<String> listAllPaths(
             @NotNull String projectId,
             @NotNull String location,

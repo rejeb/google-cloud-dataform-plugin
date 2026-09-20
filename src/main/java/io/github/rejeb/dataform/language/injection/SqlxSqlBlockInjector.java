@@ -89,11 +89,10 @@ public class SqlxSqlBlockInjector implements MultiHostInjector {
             }
 
             PsiElement jsElement = jsElements.get(jsRange);
-            String placeholder = (jsElement != null)
-                    ? SqlxRefSelfResolver.resolveToSqlIdentifier(jsElement, currentFileName)
-                    : null;
-            if (placeholder == null)
-                placeholder = "NULL";
+            boolean opensTheQuery = text.substring(0, jsRange.getStartOffset()).isBlank();
+            String placeholder = jsElement == null
+                    ? "NULL"
+                    : SqlxTemplatePlaceholder.of(jsElement, vFile, currentFileName, opensTheQuery);
 
             registrar.addPlace(
                     placeholder,
@@ -101,18 +100,18 @@ public class SqlxSqlBlockInjector implements MultiHostInjector {
                     sqlBlock,
                     new TextRange(jsRange.getStartOffset(), jsRange.getStartOffset())
             );
+            hasAddedFragment = true;
 
             currentPos = jsRange.getEndOffset();
         }
 
         if (currentPos < textLength) {
             registrar.addPlace(
-                    hasAddedFragment ? "" : null,
+                    "",
                     null,
                     sqlBlock,
                     new TextRange(currentPos, textLength)
             );
-            hasAddedFragment = true;
         }
 
         if (hasAddedFragment) {

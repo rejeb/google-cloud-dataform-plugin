@@ -27,6 +27,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
+import java.util.function.Predicate;
+import java.util.Set;
 import java.util.Map;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowRunRequest;
 
@@ -39,16 +41,36 @@ public interface DataformGcpService {
     /** Lists all workspaces. Must be called off the EDT. */
     @NotNull List<Workspace> listWorkspaces();
 
-    /** Commits local workspace changes. Must be called off the EDT. */
+    /**
+     * Pushes the commits of the workspace to the remote Git repository. Must be called off the EDT.
+     *
+     * @throws io.github.rejeb.dataform.language.gcp.common.GcpApiException when the push fails
+     */
     void pushGitCommits(@NotNull String workspaceId);
 
-    /** Pushes committed changes to remote. Must be called off the EDT. */
+    /**
+     * Uploads the local project files to the workspace. Must be called off the EDT.
+     *
+     * @throws io.github.rejeb.dataform.language.gcp.common.GcpApiException when the upload fails
+     */
     void pushCode(@NotNull String workspaceId);
+
+    /**
+     * Uploads the local project files to the workspace, deleting the remote files absent locally
+     * only when {@code deletionApproval} accepts them. Must be called off the EDT.
+     *
+     * @throws io.github.rejeb.dataform.language.gcp.common.GcpApiException when the upload fails
+     */
+    void pushCode(@NotNull String workspaceId, @NotNull Predicate<Set<String>> deletionApproval);
 
     /** Fetches files from GCP. Must be called off the EDT. */
     @NotNull Map<String, String> fetchCode(@Nullable String workspaceId);
 
-    /** Pulls files from GCP and writes them locally. Must be called off the EDT. */
+    /**
+     * Pulls files from GCP and writes them locally. Must be called off the EDT.
+     *
+     * @throws io.github.rejeb.dataform.language.gcp.common.GcpApiException when the pull fails
+     */
     void pullCode(@Nullable String workspaceId);
 
     /** Tests connectivity to the given config. Throws {@link GcpApiException} on failure. */

@@ -28,6 +28,11 @@ import com.intellij.sql.psi.SqlFile;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
 import org.jetbrains.annotations.NotNull;
 
+import com.intellij.psi.PsiFile;
+import io.github.rejeb.dataform.language.evaluation.DataformExpressionEvaluationService;
+import io.github.rejeb.dataform.language.evaluation.DataformExpressionEvaluationServiceImpl;
+import io.github.rejeb.dataform.language.injection.SqlxInjectionRefresher;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -136,5 +141,32 @@ public class SqlxSqlProblemAnnotatorTest extends BasePlatformTestCase {
         assertFalse("the probe needs a parse error to assert on", errors.isEmpty());
         assertFalse("SQLX parse errors must not be painted red",
                 new SqlxSyntaxErrorFilter().shouldHighlightErrorElement(errors.get(0)));
+    }
+    /**
+     * A {@code ${ref()}} hole is injected as the full BigQuery name of the table, project first.
+     * Nothing of that name was written by the user, so nothing of it is worth a report — least of
+     * all the project, which no schema of the plugin holds as an object.
+     */
+    public void testTheProjectOfAResolvedRefIsNotReported() {
+        myFixture.enableInspections(new SqlResolveInspection());
+        PsiFile file = myFixture.addFileToProject("definitions/reader.sqlx",
+                "config { type: \"table\" }\nSELECT 1 FROM ${ref(\"orders\")}\n");
+        myFixture.configureFromExistingVirtualFile(file.getVirtualFile());
+        ((DataformExpressionEvaluationServiceImpl) DataformExpressionEvaluationService
+                .getInstance(getProject())).putCachedValue(file.getVirtualFile(),
+                "ref(\"orders\")", "`test-dataform-489602`.dataform_ds.orders");
+        SqlxInjectionRefresher.refresh(getProject(), file.getVirtualFile());
+
+        List<HighlightInfo> infos = myFixture.doHighlighting();
+        List<String> reported = new ArrayList<>();
+        for (HighlightInfo info : infos) {
+            String description = info.getDescription();
+            if (description != null && description.contains("test-dataform-489602")) {
+                reported.add(info.getSeverity() + ": " + description);
+            }
+        }
+        assertEquals("the project of a name the injection wrote is never reported",
+                List.of(), reported);
+        assertEquals("nothing of a SQLX file is an error", List.of(), errors(infos));
     }
 }

@@ -41,10 +41,6 @@ public record ColumnInfo(
         this(name, type, mode, description, Collections.emptyList());
     }
 
-    public ColumnInfo withParentName(String parentName) {
-        return new ColumnInfo(parentName + "." + name, type, mode, description, subFields);
-    }
-
     /**
      * The database type of this column. Importing a type builds throwaway PSI for it, so the
      * result is memoised per type specification: a resolve that reaches a struct field must see

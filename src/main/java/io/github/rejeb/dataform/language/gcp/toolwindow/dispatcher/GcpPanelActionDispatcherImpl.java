@@ -31,8 +31,13 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
+import java.util.Set;
+import com.intellij.openapi.util.Ref;
+import com.intellij.openapi.ui.Messages;
 
 public class GcpPanelActionDispatcherImpl implements GcpPanelActionDispatcher {
+
+    private static final int MAX_LISTED_DELETIONS = 15;
 
     private final Project project;
 
@@ -70,6 +75,13 @@ public class GcpPanelActionDispatcherImpl implements GcpPanelActionDispatcher {
                 ApplicationManager.getApplication().invokeLater(() ->
                         publish().onFilesLoaded(List.copyOf(files)));
             }
+
+            @Override
+            public void onThrowable(@NotNull Throwable error) {
+                publish().onFilesLoaded(List.of());
+                publish().onNotification("Could not list the remote files: " + error.getMessage(),
+                        NotificationType.ERROR);
+            }
         });
     }
 
@@ -102,7 +114,14 @@ public class GcpPanelActionDispatcherImpl implements GcpPanelActionDispatcher {
                 new Task.Backgroundable(project, "Uploading files to workspace '" + workspaceId + "'…") {
                     @Override
                     public void run(@NotNull ProgressIndicator indicator) {
-                        gcpService().pushCode(workspaceId);
+                        gcpService().pushCode(workspaceId, deletions -> confirmDeletions(workspaceId, deletions));
+                    }
+
+                    @Override
+                    public void onSuccess() {
+                        publish().onNotification("Local files uploaded to workspace '" + workspaceId + "'.",
+                                NotificationType.INFORMATION);
+                        fetchFiles(workspaceId);
                     }
 
                     @Override
@@ -200,6 +219,28 @@ public class GcpPanelActionDispatcherImpl implements GcpPanelActionDispatcher {
                         publish().onNotification("Failed to create workspace: " + error.getMessage(), NotificationType.ERROR);
                     }
                 });
+    }
+
+    /**
+     * Asks the user, on the event thread, whether the remote files absent from the local project
+     * may be deleted from the workspace. Called from the push task's background thread.
+     */
+    private boolean confirmDeletions(@NotNull String workspaceId, @NotNull Set<String> deletions) {
+        List<String> shown = deletions.stream().sorted().limit(MAX_LISTED_DELETIONS).toList();
+        StringBuilder message = new StringBuilder()
+                .append("The following ").append(deletions.size())
+                .append(" file(s) exist in workspace '").append(workspaceId)
+                .append("' but not in the local project and will be deleted:\n\n");
+        shown.forEach(path -> message.append("  ").append(path).append('\n'));
+        if (deletions.size() > shown.size()) {
+            message.append("  … and ").append(deletions.size() - shown.size()).append(" more\n");
+        }
+        message.append("\nContinue?");
+        Ref<Boolean> answer = new Ref<>(false);
+        ApplicationManager.getApplication().invokeAndWait(() -> answer.set(
+                Messages.showYesNoDialog(project, message.toString(), "Delete Remote Files",
+                        Messages.getWarningIcon()) == Messages.YES));
+        return answer.get();
     }
 
     private void fetchGitStatusesInternal(@NotNull String workspaceId) {

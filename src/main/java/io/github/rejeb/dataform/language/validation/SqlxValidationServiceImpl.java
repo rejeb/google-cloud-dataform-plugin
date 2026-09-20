@@ -16,6 +16,7 @@
  */
 package io.github.rejeb.dataform.language.validation;
 
+import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.util.CachedValueProvider;
@@ -28,7 +29,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Default {@link SqlxValidationService}, running every registered validator.
+ * Default {@link SqlxValidationService}, running every registered validator. Nothing is reported
+ * while indexes are being built: the references the validators resolve need them, and a problem
+ * reported then would be a false one.
  */
 public final class SqlxValidationServiceImpl implements SqlxValidationService {
 
@@ -44,8 +47,12 @@ public final class SqlxValidationServiceImpl implements SqlxValidationService {
         if (!(file instanceof SqlxFile)) {
             return List.of();
         }
+        if (DumbService.isDumb(file.getProject())) {
+            return List.of();
+        }
         return CachedValuesManager.getCachedValue(file, () -> CachedValueProvider.Result.create(
-                run(file), PsiModificationTracker.MODIFICATION_COUNT));
+                run(file), PsiModificationTracker.MODIFICATION_COUNT,
+                DumbService.getInstance(file.getProject()).getModificationTracker()));
     }
 
     private List<SqlxValidationProblem> run(@NotNull PsiFile file) {

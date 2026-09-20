@@ -27,6 +27,7 @@ import com.intellij.psi.PsiManager;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.compilation.model.CompiledTable;
+import io.github.rejeb.dataform.language.compilation.model.Declaration;
 import io.github.rejeb.dataform.language.lineage.column.ColumnLineageGraph;
 import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
 import io.github.rejeb.dataform.language.lineage.service.LineageGraphService;
@@ -62,6 +63,15 @@ public final class ColumnOriginServiceImpl implements ColumnOriginService {
         PsiFile file = sourceFileOf(column.tableFullName());
         if (file == null) return null;
         return SqlxOutputColumnLocator.findOutputColumn(file, column.columnName());
+    }
+
+    @Override
+    public @Nullable PsiElement sourceDeclaration(@NotNull ColumnRef column) {
+        PsiFile file = sourceFileOf(column.tableFullName());
+        if (file == null) return null;
+        String tableFullName = column.tableFullName();
+        String shortName = tableFullName.substring(tableFullName.lastIndexOf('.') + 1);
+        return JsDeclarationLocator.findDeclaration(file, shortName);
     }
 
     @Override
@@ -154,21 +164,34 @@ public final class ColumnOriginServiceImpl implements ColumnOriginService {
         return null;
     }
 
+    /**
+     * The file an action was compiled from: the SQLX file of a table, or the JavaScript file
+     * holding the {@code declare()} call of a source. A source has no query, but it has a line
+     * declaring it, and a column of it is declared there as far as the project is concerned.
+     */
     private @Nullable PsiFile sourceFileOf(@NotNull String tableFullName) {
         CompiledGraph graph = DataformCompilationService.getInstance(project).getCompiledGraph();
         if (graph == null) return null;
-        VirtualFile projectDir = ProjectUtil.guessProjectDir(project);
-        if (projectDir == null) return null;
         for (CompiledTable table : graph.getTables()) {
-            if (table.getTarget() == null
-                    || !tableFullName.equals(table.getTarget().getFullName())
-                    || table.getFileName() == null) {
-                continue;
+            if (table.getTarget() != null && tableFullName.equals(table.getTarget().getFullName())) {
+                return fileAt(table.getFileName());
             }
-            VirtualFile source = projectDir.findFileByRelativePath(table.getFileName());
-            return source == null ? null : PsiManager.getInstance(project).findFile(source);
+        }
+        for (Declaration declaration : graph.getDeclarations()) {
+            if (declaration.getTarget() != null
+                    && tableFullName.equals(declaration.getTarget().getFullName())) {
+                return fileAt(declaration.getFileName());
+            }
         }
         return null;
+    }
+
+    private @Nullable PsiFile fileAt(@Nullable String relativePath) {
+        if (relativePath == null) return null;
+        VirtualFile projectDir = ProjectUtil.guessProjectDir(project);
+        if (projectDir == null) return null;
+        VirtualFile source = projectDir.findFileByRelativePath(relativePath.replace("\\", "/"));
+        return source == null ? null : PsiManager.getInstance(project).findFile(source);
     }
 
     private @Nullable String relativePathOf(@NotNull PsiFile file) {

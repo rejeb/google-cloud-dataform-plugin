@@ -16,9 +16,9 @@
  */
 package io.github.rejeb.dataform.language.folding;
 
-import com.intellij.codeInsight.daemon.DaemonCodeAnalyzer;
 import com.intellij.codeInsight.folding.CodeFoldingManager;
 import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
@@ -26,31 +26,32 @@ import com.intellij.openapi.editor.EditorFactory;
 import com.intellij.openapi.editor.FoldRegion;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.util.Key;
-import com.intellij.openapi.util.TextRange;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiDocumentManager;
-import com.intellij.psi.PsiFile;
-import com.intellij.psi.PsiManager;
 import com.intellij.util.concurrency.ThreadingAssertions;
+import io.github.rejeb.dataform.language.injection.SqlxInjectionRefresher;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Makes newly computed expression values visible in the editors of a file.
  *
  * <p>The platform only honours {@code isCollapsedByDefault} on the first folding pass of an editor,
- * so regions created by a later pass are collapsed explicitly here. Each range is collapsed once,
- * which keeps a region the user expanded manually expanded.</p>
+ * so the regions are collapsed explicitly here — every one of them, expanded or not. A pass runs
+ * when the file is opened or comes back into focus, and a value expanded to edit the code behind
+ * it is done with by the time the person leaves and returns.</p>
+ *
+ * <p>New values change neither the document nor the PSI, and the platform keeps both the folding
+ * and the injected SQL it computed for that state — the folding for as long as the document and
+ * the dependencies of its descriptors stand still, and a hole without a value has no descriptor to
+ * depend on anything. So the caches are dropped first, on the event thread, and the folding is
+ * computed only once that is done: computed any earlier it would be the folding of the file
+ * without its values, and the hole would never fold.</p>
  */
 public final class DataformFoldingRefresher {
 
-    private static final Key<Set<TextRange>> COLLAPSED_RANGES = Key.create("dataform.folding.collapsedRanges");
-    private static final String RESTART_REASON = "Dataform expression values updated";
 
     private DataformFoldingRefresher() {
     }
@@ -71,14 +72,25 @@ public final class DataformFoldingRefresher {
             return;
         }
 
-        restartDaemon(project, file);
+        List<Editor> editors = editorsOf(project, document);
+        if (editors.isEmpty()) {
+            return;
+        }
+        ApplicationManager.getApplication().invokeAndWait(() -> {
+            SqlxInjectionRefresher.refresh(project, file);
+            for (Editor editor : editors) {
+                if (!editor.isDisposed()) {
+                    CodeFoldingManager.getInstance(project).scheduleAsyncFoldingUpdate(editor);
+                }
+            }
+        }, ModalityState.nonModal());
         MultilineSnapshot snapshot = ReadAction.nonBlocking(
                         () -> new MultilineSnapshot(
                                 DataformMultilineValues.of(project, file, document),
                                 document.getModificationStamp()))
                 .executeSynchronously();
 
-        for (Editor editor : editorsOf(project, document)) {
+        for (Editor editor : editors) {
             FoldingSnapshot folding = ReadAction.nonBlocking(
                             () -> new FoldingSnapshot(foldingUpdate(project, editor, document),
                                     document.getModificationStamp()))
@@ -90,8 +102,42 @@ public final class DataformFoldingRefresher {
                         && document.getModificationStamp() == snapshot.documentStamp()) {
                     DataformMultilineFoldManager.apply(editor, snapshot.values());
                 }
-            }, project.getDisposed());
+            }, ModalityState.nonModal(), project.getDisposed());
         }
+    }
+
+    /**
+     * Collapses the Dataform value folds of every editor showing the file, without recomputing
+     * anything: the values did not change, so the injections and the fold regions the platform
+     * holds are the right ones already. This is what a file coming back into focus needs.
+     */
+    public static void collapse(@NotNull Project project, @NotNull VirtualFile file) {
+        ThreadingAssertions.assertBackgroundThread();
+        if (project.isDisposed() || !file.isValid()) {
+            return;
+        }
+        Document document = FileDocumentManager.getInstance().getCachedDocument(file);
+        if (document == null) {
+            return;
+        }
+        List<Editor> editors = editorsOf(project, document);
+        if (editors.isEmpty()) {
+            return;
+        }
+        MultilineSnapshot snapshot = ReadAction.nonBlocking(
+                        () -> new MultilineSnapshot(
+                                DataformMultilineValues.of(project, file, document),
+                                document.getModificationStamp()))
+                .executeSynchronously();
+        ApplicationManager.getApplication().invokeLater(() -> {
+            for (Editor editor : editors) {
+                applyAndCollapse(editor, null);
+                if (!editor.isDisposed()
+                        && document.getModificationStamp() == snapshot.documentStamp()) {
+                    DataformMultilineFoldManager.apply(editor, snapshot.values());
+                }
+            }
+        }, ModalityState.nonModal(), project.getDisposed());
     }
 
     /**
@@ -133,16 +179,6 @@ public final class DataformFoldingRefresher {
                 .executeSynchronously();
     }
 
-    private static void restartDaemon(@NotNull Project project, @NotNull VirtualFile file) {
-        PsiFile psiFile = ReadAction.nonBlocking(
-                () -> PsiManager.getInstance(project).findFile(file)).executeSynchronously();
-        if (psiFile != null) {
-            ApplicationManager.getApplication().invokeLater(
-                    () -> DaemonCodeAnalyzer.getInstance(project).restart(psiFile, RESTART_REASON),
-                    project.getDisposed());
-        }
-    }
-
     private static void applyAndCollapse(@NotNull Editor editor, @Nullable Runnable applyFolding) {
         if (editor.isDisposed()) {
             return;
@@ -151,30 +187,12 @@ public final class DataformFoldingRefresher {
             applyFolding.run();
         }
 
-        Set<TextRange> alreadyCollapsed = collapsedRanges(editor);
-        Set<TextRange> current = new HashSet<>();
         editor.getFoldingModel().runBatchFoldingOperation(() -> {
             for (FoldRegion region : editor.getFoldingModel().getAllFoldRegions()) {
-                if (!DataformFoldingPlaceholder.isDataformRegion(region.getGroup())) {
-                    continue;
-                }
-                TextRange range = TextRange.create(region.getStartOffset(), region.getEndOffset());
-                current.add(range);
-                if (alreadyCollapsed.add(range)) {
+                if (DataformFoldingPlaceholder.isDataformRegion(region.getGroup())) {
                     region.setExpanded(false);
                 }
             }
         });
-        alreadyCollapsed.retainAll(current);
-    }
-
-    @NotNull
-    private static Set<TextRange> collapsedRanges(@NotNull Editor editor) {
-        Set<TextRange> ranges = editor.getUserData(COLLAPSED_RANGES);
-        if (ranges == null) {
-            ranges = new HashSet<>();
-            editor.putUserData(COLLAPSED_RANGES, ranges);
-        }
-        return ranges;
     }
 }

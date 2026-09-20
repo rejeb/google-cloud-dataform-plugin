@@ -27,6 +27,7 @@ import com.intellij.testFramework.fixtures.BasePlatformTestCase;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.compilation.model.CompiledTable;
+import io.github.rejeb.dataform.language.compilation.model.Declaration;
 import io.github.rejeb.dataform.language.compilation.model.Target;
 
 import java.lang.reflect.Field;
@@ -47,7 +48,8 @@ public abstract class DataformProjectFixture extends BasePlatformTestCase {
 
     private static final String[] ACTIONS = {
             "bronze_orders", "silver_orders", "gold_customer_ltv",
-            "gold_customer_purchase_summary", "silver_customers", "bronze_customers"
+            "gold_customer_purchase_summary", "silver_customers", "bronze_customers",
+            "gold_order_keys"
     };
 
     /**
@@ -73,6 +75,8 @@ public abstract class DataformProjectFixture extends BasePlatformTestCase {
                     + "'a' AS full_name, 'b' AS email)])";
             case "gold_customer_purchase_summary" ->
                     "SELECT order_id, 1 AS order_amount FROM `proj.ds.silver_orders`";
+            case "gold_order_keys" ->
+                    "SELECT MAX(order_id) AS top_order FROM `proj.ds.silver_orders`";
             default -> "SELECT customer_id, 'a' AS full_name, 'b' AS email";
         };
     }
@@ -103,6 +107,7 @@ public abstract class DataformProjectFixture extends BasePlatformTestCase {
             case "silver_orders" -> List.of(targetOf("bronze_orders"));
             case "silver_customers" -> List.of(targetOf("bronze_customers"));
             case "gold_customer_purchase_summary" -> List.of(targetOf("silver_orders"));
+            case "gold_order_keys" -> List.of(targetOf("silver_orders"));
             case "gold_customer_ltv" -> List.of(targetOf("silver_orders"),
                     targetOf("gold_customer_purchase_summary"), targetOf("silver_customers"));
             default -> List.of();
@@ -133,9 +138,12 @@ public abstract class DataformProjectFixture extends BasePlatformTestCase {
             set(table, "dependencyTargets", dependenciesOf(name));
             tables.add(table);
         }
+        Declaration source = new Declaration();
+        set(source, "target", targetOf("raw_events"));
+        set(source, "fileName", "definitions/sources.js");
         CompiledGraph graph = new CompiledGraph();
         set(graph, "tables", tables);
-        set(graph, "declarations", List.of());
+        set(graph, "declarations", List.of(source));
         set(graph, "operations", List.of());
         set(graph, "assertions", List.of());
         set(getProject().getService(DataformCompilationService.class), "compiledGraph", graph);
@@ -149,6 +157,8 @@ public abstract class DataformProjectFixture extends BasePlatformTestCase {
                 + "," + entry("gold_customer_purchase_summary", "order_id", "order_amount")
                 + "," + entry("silver_customers", "customer_id", "full_name", "email")
                 + "," + entry("bronze_customers", "customer_id", "full_name", "email")
+                + "," + entry("gold_order_keys", "top_order")
+                + "," + declaredEntry("raw_events", "definitions/sources.js", "event_id", "event_name")
                 + "}";
         DataformTableSchemaService.State state = new DataformTableSchemaService.State();
         state.schemaCacheJson = json;
@@ -156,6 +166,10 @@ public abstract class DataformProjectFixture extends BasePlatformTestCase {
     }
 
     private String entry(String name, String... columns) {
+        return declaredEntry(name, "definitions/" + name + ".sqlx", columns);
+    }
+
+    private String declaredEntry(String name, String fileName, String... columns) {
         StringBuilder cols = new StringBuilder();
         for (String c : columns) {
             if (!cols.isEmpty()) cols.append(",");
@@ -163,7 +177,7 @@ public abstract class DataformProjectFixture extends BasePlatformTestCase {
                     .append("\",\"type\":\"STRING\",\"mode\":\"NULLABLE\",\"subFields\":[]}");
         }
         return "\"proj.ds." + name + "\":{\"columns\":[" + cols
-                + "],\"lastModified\":0,\"fileName\":\"definitions/" + name + ".sqlx\"}";
+                + "],\"lastModified\":0,\"fileName\":\"" + fileName + "\"}";
     }
 
     protected PsiFile open(String path) throws Exception {

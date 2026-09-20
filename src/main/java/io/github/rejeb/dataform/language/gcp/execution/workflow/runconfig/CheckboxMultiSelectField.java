@@ -57,7 +57,6 @@ public class CheckboxMultiSelectField extends JPanel {
         displayField.setEditable(false);
         displayField.setCursor(Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR));
 
-        // Bouton flèche positionné à l'intérieur du champ via insets
         JButton arrowButton = new JButton(AllIcons.General.ChevronDown);
         arrowButton.setFocusable(false);
         arrowButton.setBorderPainted(false);

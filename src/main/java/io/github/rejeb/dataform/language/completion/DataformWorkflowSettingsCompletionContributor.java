@@ -16,25 +16,9 @@
  */
 package io.github.rejeb.dataform.language.completion;
 
-import com.intellij.codeInsight.AutoPopupController;
 import com.intellij.codeInsight.completion.*;
-import com.intellij.codeInsight.lookup.LookupElementBuilder;
-import com.intellij.lang.injection.InjectedLanguageManager;
-import com.intellij.lang.javascript.psi.JSFile;
-import com.intellij.openapi.editor.Editor;
 import com.intellij.patterns.PlatformPatterns;
-import com.intellij.psi.PsiElement;
-import com.intellij.psi.PsiFile;
-import com.intellij.psi.util.PsiTreeUtil;
-import com.intellij.util.ProcessingContext;
-import io.github.rejeb.dataform.language.psi.SqlxFile;
-import io.github.rejeb.dataform.language.service.WorkflowSettingsProperty;
-import io.github.rejeb.dataform.language.service.WorkflowSettingsService;
-import org.jetbrains.annotations.NotNull;
 
-import java.util.Collection;
-import java.util.LinkedList;
-import java.util.List;
 
 public class DataformWorkflowSettingsCompletionContributor extends CompletionContributor {
 

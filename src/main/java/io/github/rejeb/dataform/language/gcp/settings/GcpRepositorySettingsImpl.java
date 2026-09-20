@@ -68,6 +68,10 @@ public final class GcpRepositorySettingsImpl
                     c.repositoryId(),
                     c.location(),
                     c.serviceAccount());
+            r.setLabel(c.label());
+            r.setProjectId(c.projectId());
+            r.setRepositoryId(c.repositoryId());
+            r.setLocation(c.location());
             r.setServiceAccount(c.serviceAccount());
             updated.add(r);
         }

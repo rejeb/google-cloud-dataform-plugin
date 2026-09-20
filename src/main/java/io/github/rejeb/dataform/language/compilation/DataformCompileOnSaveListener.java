@@ -35,7 +35,7 @@ public final class DataformCompileOnSaveListener implements FileDocumentManagerL
         if (!DataformProjectLayout.isDataformSource(file)) {
             return;
         }
-        DataformProjects.forEachOpen(project ->
+        DataformProjects.forEachOwning(file, project ->
                 DataformAutoCompileService.getInstance(project).scheduleCompile());
     }
 }

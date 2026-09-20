@@ -18,7 +18,6 @@ package io.github.rejeb.dataform.language.gcp.execution.bigquery;
 
 import com.google.cloud.bigquery.*;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 

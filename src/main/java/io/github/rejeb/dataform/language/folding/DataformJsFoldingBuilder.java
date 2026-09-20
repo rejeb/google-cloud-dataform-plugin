@@ -164,7 +164,6 @@ public class DataformJsFoldingBuilder extends FoldingBuilderEx {
         if (expressions.isEmpty() || virtualFile == null) {
             return;
         }
-        service.requestEvaluation(hostFile);
         expressions.forEach(part -> {
             PsiElement element = part.element();
             DataformExpression expression = part.expression();

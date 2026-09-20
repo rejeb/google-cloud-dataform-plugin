@@ -91,7 +91,7 @@ public class DataformValueFoldClickListenerTest extends DataformFoldingTestCase 
         listener.mouseClicked(event);
 
         assertTrue("the click must be consumed so it does not move the caret", event.isConsumed());
-        assertEmpty("clicking the value must remove the multi-line region", customRegions());
+        assertEmpty("clicking the value must remove the multi-line region", currentCustomRegions());
     }
 
     public void testClickingOutsideAValueChangesNothing() {
@@ -117,7 +117,7 @@ public class DataformValueFoldClickListenerTest extends DataformFoldingTestCase 
         listener.mouseClicked(event);
 
         assertTrue("the click must be consumed", event.isConsumed());
-        assertEmpty("clicking the value must remove the multi-line region", customRegions());
+        assertEmpty("clicking the value must remove the multi-line region", currentCustomRegions());
     }
 
     public void testRightClickIsLeftToTheContextMenu() {
@@ -143,12 +143,18 @@ public class DataformValueFoldClickListenerTest extends DataformFoldingTestCase 
                 0, new LogicalPosition(0, 0), new VisualPosition(0, 0), true, region, null, null);
     }
 
+    /** The multi-line regions after a pass, which is what creates them. */
     private List<CustomFoldRegion> customRegions() {
         myFixture.doHighlighting();
         DataformMultilineFoldManager.apply(myFixture.getEditor(),
                 DataformMultilineValues.of(getProject(),
                         myFixture.getFile().getVirtualFile(),
                         myFixture.getEditor().getDocument()));
+        return currentCustomRegions();
+    }
+
+    /** The multi-line regions the editor holds right now, with no pass in between. */
+    private List<CustomFoldRegion> currentCustomRegions() {
         return Arrays.stream(myFixture.getEditor().getFoldingModel().getAllFoldRegions())
                 .filter(region -> region instanceof CustomFoldRegion)
                 .map(CustomFoldRegion.class::cast)

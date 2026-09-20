@@ -19,7 +19,7 @@ package io.github.rejeb.dataform.language.lineage.view;
 import com.intellij.openapi.fileEditor.FileEditor;
 import com.intellij.openapi.fileEditor.FileEditorState;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.util.Key;
+import com.intellij.openapi.util.UserDataHolderBase;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.VirtualFileManager;
 import com.intellij.openapi.vfs.newvfs.BulkFileListener;
@@ -39,7 +39,7 @@ import java.util.List;
  * File editor hosting the project-wide {@link LineageProjectPanel}.
  * Refreshes the graph every time the editor tab is selected.
  */
-public final class LineageFileEditor implements FileEditor {
+public final class LineageFileEditor extends UserDataHolderBase implements FileEditor {
 
     private final Project project;
     private final VirtualFile file;
@@ -122,14 +122,5 @@ public final class LineageFileEditor implements FileEditor {
     public void dispose() {
         debounce.stop();
         connection.disconnect();
-    }
-
-    @Override
-    public @Nullable <T> T getUserData(@NotNull Key<T> key) {
-        return null;
-    }
-
-    @Override
-    public <T> void putUserData(@NotNull Key<T> key, @Nullable T value) {
     }
 }

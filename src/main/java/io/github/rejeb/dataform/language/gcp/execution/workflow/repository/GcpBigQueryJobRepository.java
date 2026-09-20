@@ -96,7 +96,6 @@ public final class GcpBigQueryJobRepository implements BigQueryJobRepository {
         Instant endTime = stats.getEndTime() != null
                 ? Instant.ofEpochMilli(stats.getEndTime()) : null;
 
-        // bytes uniquement disponibles dans QueryStatistics
         Long bytesProcessed = null;
         Long bytesBilled = null;
         if (stats instanceof JobStatistics.QueryStatistics qs) {
@@ -104,13 +103,11 @@ public final class GcpBigQueryJobRepository implements BigQueryJobRepository {
             bytesBilled = qs.getTotalBytesBilled();
         }
 
-        // project et location réels depuis le job (pas depuis l'invocationName)
         String realProject = job.getJobId().getProject() != null
                 ? job.getJobId().getProject() : project;
         String realLocation = job.getJobId().getLocation() != null
                 ? job.getJobId().getLocation() : location;
 
-        // Child jobs
         List<BigQueryChildJob> childJobs = new ArrayList<>();
         Page<Job> children = bq.listJobs(
                 BigQuery.JobListOption.parentJobId(jobId),
@@ -130,7 +127,6 @@ public final class GcpBigQueryJobRepository implements BigQueryJobRepository {
             Instant cEnd = cStats.getEndTime() != null
                     ? Instant.ofEpochMilli(cStats.getEndTime()) : null;
 
-            // bytes child job
             Long cBytes = null;
             if (cStats instanceof JobStatistics.QueryStatistics cqs) {
                 cBytes = cqs.getTotalBytesProcessed();

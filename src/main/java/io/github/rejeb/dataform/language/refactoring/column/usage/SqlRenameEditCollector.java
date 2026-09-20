@@ -69,10 +69,13 @@ public final class SqlRenameEditCollector {
      *
      * @param carried the columns another column of the rename feeds directly, which a star
      *                publishes under the new name on its own
+     * @param aliased the columns read straight from a declared source, whose declaration keeps
+     *                reading the old name and publishes the new one as {@code old AS new}
      */
     public static @NotNull Result collect(@NotNull Project project,
                                           @NotNull Set<ColumnRef> columns,
                                           @NotNull Set<ColumnRef> carried,
+                                          @NotNull Set<ColumnRef> aliased,
                                           @NotNull String newName) {
         Map<String, ColumnRenameEdit> edits = new LinkedHashMap<>();
         List<StarBoundary> boundaries = new ArrayList<>();
@@ -80,7 +83,7 @@ public final class SqlRenameEditCollector {
         ColumnOriginService origins = ColumnOriginService.getInstance(project);
 
         for (ColumnRef column : columns) {
-            collectDeclaration(project, origins, column, columns, carried, newName, edits,
+            collectDeclaration(project, origins, column, columns, carried, aliased, newName, edits,
                     boundaries, warnings);
             collectReferences(project, origins, column, newName, edits);
         }
@@ -97,12 +100,17 @@ public final class SqlRenameEditCollector {
      * is about to be renamed, and the action publishes the new name of its own accord. Only a star
      * whose source the rename does not reach stands in the way, and that one is reported so the user
      * decides what to do with it.</p>
+     *
+     * <p>A column read straight from a declared source is declared under the new name while its
+     * source keeps the old one: a bare item becomes {@code old AS new}, and an alias is renamed,
+     * since the expression on its left is what reads the source.</p>
      */
     private static void collectDeclaration(@NotNull Project project,
                                            @NotNull ColumnOriginService origins,
                                            @NotNull ColumnRef column,
                                            @NotNull Set<ColumnRef> renamed,
                                            @NotNull Set<ColumnRef> carried,
+                                           @NotNull Set<ColumnRef> aliased,
                                            @NotNull String newName,
                                            @NotNull Map<String, ColumnRenameEdit> edits,
                                            @NotNull List<StarBoundary> boundaries,
@@ -128,6 +136,8 @@ public final class SqlRenameEditCollector {
                         List.of()));
                 return;
             }
+        } else if (aliased.contains(column)) {
+            add(edits, aliasedDeclaration(declaration, column.columnName(), newName));
         } else {
             add(edits, EditFactory.ofWhole(declaration, DataformColumnNameValidator.inSql(newName),
                     ColumnRenameEdit.Kind.SQL_DECLARATION, ColumnRenameEdit.Risk.CERTAIN,
@@ -142,6 +152,33 @@ public final class SqlRenameEditCollector {
         if (!aliases.isEmpty()) {
             collectLocalReads(origins, hostFile, column, renamed, newName, edits);
         }
+    }
+
+    /**
+     * The edit declaring a column under its new name while what it reads keeps the old one.
+     *
+     * <p>A declaration that is already the alias of an {@code AS} expression is only renamed: the
+     * expression on its left is what the file reads, and writing {@code old AS new} over the alias
+     * would leave the query with two {@code AS} in a row. Anything else becomes {@code old AS new}.</p>
+     */
+    public static @Nullable ColumnRenameEdit aliasedDeclaration(@NotNull PsiElement declaration,
+                                                                @NotNull String oldName,
+                                                                @NotNull String newName) {
+        String replacement = isAliasOfExpression(declaration)
+                ? DataformColumnNameValidator.inSql(newName)
+                : DataformColumnNameValidator.inSql(oldName)
+                        + " AS " + DataformColumnNameValidator.inSql(newName);
+        return EditFactory.ofWhole(declaration, replacement,
+                ColumnRenameEdit.Kind.SQL_DECLARATION_ALIAS, ColumnRenameEdit.Risk.CERTAIN,
+                "declaration of " + oldName + " under its new name");
+    }
+
+    /** Whether an element is the name an {@code AS} expression gives to what it computes. */
+    private static boolean isAliasOfExpression(@NotNull PsiElement declaration) {
+        PsiElement parent = declaration.getParent();
+        return parent != null
+                && SqlPsiParts.isType(parent, SqlCompositeElementTypes.SQL_AS_EXPRESSION)
+                && SqlPsiParts.lastIdentifier(parent) == declaration;
     }
 
     /**

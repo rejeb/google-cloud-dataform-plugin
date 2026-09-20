@@ -1,0 +1,10 @@
+config {
+  type: "table",
+  description: "Bronze layer: events read from a declared source.",
+  tags: ["bronze", "events"],
+}
+
+SELECT
+  event_id,
+  event_name
+FROM ${ref("raw_events")}

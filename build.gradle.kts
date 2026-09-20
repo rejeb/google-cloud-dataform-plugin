@@ -1,11 +1,10 @@
 plugins {
     id("org.jetbrains.kotlin.jvm") version "2.4.20"
     id("org.jetbrains.intellij.platform") version "2.18.1"
-    id("org.jetbrains.kotlin.plugin.compose") version "2.4.20"
 }
 
 group = "io.github.rejeb"
-version = "0.2.21"
+version = "0.2.22"
 
 repositories {
     mavenCentral()
@@ -31,7 +30,6 @@ dependencies {
         bundledPlugin("org.jetbrains.plugins.yaml")
         bundledPlugin("com.intellij.modules.json")
         bundledPlugin("org.jetbrains.plugins.terminal")
-        composeUI()
     }
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.1")
@@ -46,7 +44,6 @@ intellijPlatform {
 
         changeNotes = """
                 <ul>
-                    <li>Fix deprecations for 2026.2+ version.</li>
                     <li>Fix issues.</li>
                 </ul>
         """.trimIndent()

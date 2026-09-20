@@ -23,12 +23,15 @@ import com.intellij.psi.PsiFile;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 /**
  * Evaluates Dataform template expressions with the project Node interpreter and caches the results.
+ *
+ * <p>An evaluation pass is asked for when a file is opened or comes back into focus, never because
+ * it was edited: a value that changed under the person editing the hole would fold their code away
+ * again on every keystroke. Every pass computes every value of the file anew — what the values
+ * depend on may have moved anywhere in the meantime.</p>
  */
 public interface DataformExpressionEvaluationService extends ModificationTracker {
 
@@ -62,6 +65,13 @@ public interface DataformExpressionEvaluationService extends ModificationTracker
      * Drops the cached values of a single file.
      */
     void invalidate(@NotNull VirtualFile file);
+
+    /**
+     * Notes that what the expressions depend on — an include, the workflow settings, the compiled
+     * schema — has changed. The cached values are kept as they are, so that a file being edited
+     * keeps showing them; a run that failed before is allowed to try again at once.
+     */
+    void markEnvironmentChanged();
 
     /**
      * Drops every cached value, for changes that affect the whole evaluation environment.

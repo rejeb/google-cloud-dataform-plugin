@@ -17,6 +17,7 @@
 package io.github.rejeb.dataform.language.lineage.column;
 
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.progress.ProcessCanceledException;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.compilation.model.CompiledOperation;
 import io.github.rejeb.dataform.language.compilation.model.CompiledTable;
@@ -229,6 +230,8 @@ public final class ColumnLineageExtractorImpl implements ColumnLineageExtractor 
                     : analyzer.analyzeWrites(sql, unit.writes().tableName(), unit.writes().columns());
             return new TableAnalysis(target.getFullName(), analysis.outputs(),
                     analysis.aliases(), unit.deps());
+        } catch (ProcessCanceledException e) {
+            throw e;
         } catch (RuntimeException e) {
             LOG.warn("Column lineage analysis failed for "
                     + (unit.target() != null ? unit.target().getFullName() : "an unnamed action"), e);

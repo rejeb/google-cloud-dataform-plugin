@@ -26,7 +26,6 @@ import java.util.*;
 
 public class DataformRepoTreeModel extends DefaultTreeModel {
 
-    /** path → ChangeState, mis à jour par fetchGitStatuses */
     private Map<String, UncommittedChange.ChangeState> gitStatuses = Map.of();
 
     public DataformRepoTreeModel(@NotNull String repositoryId) {
@@ -35,15 +34,8 @@ public class DataformRepoTreeModel extends DefaultTreeModel {
         ));
     }
 
-    public void updateRoot(@NotNull String repositoryId) {
-        DefaultMutableTreeNode root = (DefaultMutableTreeNode) getRoot();
-        root.setUserObject(new RootEntry(repositoryId + " (remote)"));
-        nodeChanged(root);
-    }
-
     /**
-     * Met à jour la map des états Git et force le re-rendu du tree.
-     * Doit être appelé sur l'EDT.
+     * Replaces the Git states of the files and repaints the tree. Must be called on the EDT.
      */
     public void setGitStatuses(@NotNull List<UncommittedChange> changes) {
         Map<String, UncommittedChange.ChangeState> map = new HashMap<>();
@@ -55,7 +47,7 @@ public class DataformRepoTreeModel extends DefaultTreeModel {
     }
 
     /**
-     * Retourne l'état Git du fichier donné, ou {@code null} si non modifié.
+     * Returns the Git state of the file, or {@code null} when it is unmodified.
      */
     @Nullable
     public UncommittedChange.ChangeState getChangeState(@NotNull String relativePath) {
@@ -153,7 +145,7 @@ public class DataformRepoTreeModel extends DefaultTreeModel {
         DefaultMutableTreeNode current = dmtn;
         while (current != null) {
             Object obj = current.getUserObject();
-            if (obj instanceof RootEntry) break; // stop à la racine
+            if (obj instanceof RootEntry) break;
             if (obj instanceof String s) segments.add(0, s);
             current = (DefaultMutableTreeNode) current.getParent();
         }

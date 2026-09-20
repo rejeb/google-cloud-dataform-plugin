@@ -17,6 +17,7 @@
 package io.github.rejeb.dataform.language.refactoring.column;
 
 import com.intellij.openapi.actionSystem.DataContext;
+import com.intellij.openapi.progress.ProcessCanceledException;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.Project;
@@ -87,6 +88,8 @@ public class DataformColumnRenameHandler extends VariableInplaceRenameHandler {
             PsiFile hostFile = PsiDocumentManager.getInstance(project)
                     .getPsiFile(hostEditor.getDocument());
             return ColumnRenameSubjectFactory.at(hostFile, hostEditor.getCaretModel().getOffset());
+        } catch (ProcessCanceledException e) {
+            throw e;
         } catch (Exception e) {
             LOG.warn("Could not decide whether the caret is on a Dataform column", e);
             return Optional.empty();

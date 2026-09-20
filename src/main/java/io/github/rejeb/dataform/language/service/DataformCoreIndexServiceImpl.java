@@ -19,9 +19,6 @@ package io.github.rejeb.dataform.language.service;
 import com.intellij.lang.javascript.psi.JSFunction;
 import com.intellij.lang.javascript.psi.JSVariable;
 import com.intellij.lang.javascript.psi.ecma6.TypeScriptModule;
-import com.intellij.notification.NotificationGroupManager;
-import com.intellij.notification.NotificationType;
-import com.intellij.openapi.components.*;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
@@ -30,123 +27,107 @@ import com.intellij.psi.PsiManager;
 import com.intellij.psi.util.PsiTreeUtil;
 import io.github.rejeb.dataform.language.setup.DataformInterpreterManager;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 
-@State(name = "DataformCoreIndexService", storages = @Storage(
-        value = "dataform-core-index.xml")
-)
+/**
+ * Default {@link DataformCoreIndexService}. The symbols of {@code @dataform/core} are read from
+ * its {@code bundle.d.ts} once and kept in memory for as long as that file is unchanged; they are
+ * PSI elements, so they are never persisted and are rebuilt as soon as one of them stops being
+ * valid.
+ */
 public final class DataformCoreIndexServiceImpl implements DataformCoreIndexService {
-    private ServiceState state;
+
+    private record Snapshot(@Nullable VirtualFile coreFile,
+                            long stamp,
+                            @NotNull Optional<PsiFile> dataformCoreJsFile,
+                            @NotNull Collection<JSFunction> functions,
+                            @NotNull Collection<JSVariable> variables,
+                            @NotNull Collection<DataformFunctionCompletionObject> completions) {
+
+        boolean isCurrent(@Nullable VirtualFile currentFile) {
+            if (coreFile == null || currentFile == null) {
+                return coreFile == currentFile;
+            }
+            return coreFile.equals(currentFile)
+                    && stamp == currentFile.getModificationStamp()
+                    && dataformCoreJsFile.map(PsiFile::isValid).orElse(true)
+                    && functions.stream().allMatch(PsiElement::isValid)
+                    && variables.stream().allMatch(PsiElement::isValid);
+        }
+    }
+
+    private static final Snapshot EMPTY = new Snapshot(null, -1, Optional.empty(),
+            Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
+
     private final Project project;
-    private boolean notifyUser = false;
+    private volatile Snapshot snapshot = EMPTY;
 
     public DataformCoreIndexServiceImpl(Project project) {
         this.project = project;
-        this.state = new ServiceState(
-                null,
-                -1,
-                Optional.empty(),
-                Collections.emptyList(),
-                Collections.emptyList(),
-                Collections.emptyList(),
-                Collections.emptyList(),
-                Collections.emptyList()
-        );
     }
 
+    @Override
+    public Optional<PsiFile> getPsiFile() {
+        return current().dataformCoreJsFile();
+    }
 
     @Override
-    public void initializeComponent() {
-        DataformInterpreterManager dataformInterpreterManager = project.getService(DataformInterpreterManager.class);
-        Optional<VirtualFile> corePackage = dataformInterpreterManager.dataformCorePath();
+    @NotNull
+    public Collection<JSFunction> getCachedDataformFunctionsRef() {
+        return current().functions();
+    }
 
-        String currentVersion = dataformInterpreterManager.currentDataformCoreVersion();
+    @Override
+    @NotNull
+    public Collection<JSVariable> getCachedDataformVariablesRef() {
+        return current().variables();
+    }
 
-        var dataformCoreJsFile = findDataformCoreJsFile(corePackage);
-        var cachedDataformFunctionsRef = this.findNonModuleElements(dataformCoreJsFile, JSFunction.class);
-        var cachedDataformVariablesRef = this.findNonModuleElements(dataformCoreJsFile, JSVariable.class);
-        var cachedDataformFunctionsForCompletion = cachedDataformFunctionsRef.stream()
+    @Override
+    @NotNull
+    public Collection<DataformFunctionCompletionObject> getCachedDataformFunctionsForCompletion() {
+        return current().completions();
+    }
+
+    @NotNull
+    private Snapshot current() {
+        VirtualFile coreFile = findCoreDeclarationFile();
+        Snapshot cached = snapshot;
+        if (cached.isCurrent(coreFile)) {
+            return cached;
+        }
+        Snapshot rebuilt = build(coreFile);
+        snapshot = rebuilt;
+        return rebuilt;
+    }
+
+    @Nullable
+    private VirtualFile findCoreDeclarationFile() {
+        return project.getService(DataformInterpreterManager.class)
+                .dataformCorePath()
+                .map(coreDir -> coreDir.findChild("bundle.d.ts"))
+                .orElse(null);
+    }
+
+    @NotNull
+    private Snapshot build(@Nullable VirtualFile coreFile) {
+        if (coreFile == null) {
+            return EMPTY;
+        }
+        Optional<PsiFile> psiFile = Optional.ofNullable(PsiManager.getInstance(project).findFile(coreFile));
+        Collection<JSFunction> functions = findNonModuleElements(psiFile, JSFunction.class);
+        Collection<JSVariable> variables = findNonModuleElements(psiFile, JSVariable.class);
+        List<DataformFunctionCompletionObject> completions = functions.stream()
                 .map(DataformFunctionCompletionObject::fromJSFunction)
                 .flatMap(Optional::stream)
                 .toList();
-
-        var lastUpdate = corePackage.isPresent() ? System.currentTimeMillis() : -1L;
-
-        this.state = new ServiceState(
-                currentVersion,
-                lastUpdate,
-                dataformCoreJsFile,
-                cachedDataformFunctionsRef,
-                cachedDataformFunctionsRef.stream().map(JSFunction::getName).toList(),
-                cachedDataformVariablesRef,
-                cachedDataformVariablesRef.stream().map(JSVariable::getName).toList(),
-                cachedDataformFunctionsForCompletion
-        );
-    }
-
-
-    @Override
-    @NotNull
-    public ServiceState getState() {
-        if (state.lastUpdate() == -1) {
-            initializeComponent();
-        }
-        return this.state;
-    }
-
-    @Override
-    public void loadState(@NotNull ServiceState state) {
-        this.state = state;
-    }
-
-    public Optional<PsiFile> getPsiFile() {
-        if (getState().dataformCoreJsFile().isEmpty()) {
-            notifyUserDataformNotInstalled(project);
-            return Optional.empty();
-        }
-        return state.dataformCoreJsFile();
-    }
-
-
-    @NotNull
-    public Collection<JSFunction> getCachedDataformFunctionsRef() {
-        if (getState().dataformCoreJsFile().isEmpty()) {
-            notifyUserDataformNotInstalled(project);
-            return Collections.emptyList();
-        } else {
-            return this.state.cachedDataformFunctionsRef();
-        }
-    }
-
-    @NotNull
-    public Collection<JSVariable> getCachedDataformVariablesRef() {
-        if (getState().dataformCoreJsFile().isEmpty()) {
-            notifyUserDataformNotInstalled(project);
-            return Collections.emptyList();
-        } else {
-            return this.state.cachedDataformVariablesRef();
-        }
-    }
-
-    @NotNull
-    public Collection<DataformFunctionCompletionObject> getCachedDataformFunctionsForCompletion() {
-        if (getState().dataformCoreJsFile().isEmpty()) {
-            notifyUserDataformNotInstalled(project);
-            return Collections.emptyList();
-        } else {
-            return this.state.cachedDataformFunctionsForCompletion();
-        }
-    }
-
-    private Optional<PsiFile> findDataformCoreJsFile(Optional<VirtualFile> corePackage) {
-        return corePackage
-                .flatMap(coreDir ->
-                        Optional.ofNullable(coreDir.findChild("bundle.d.ts"))
-                                .map(child -> PsiManager.getInstance(project).findFile(child))
-                );
+        return new Snapshot(coreFile, coreFile.getModificationStamp(), psiFile, functions, variables,
+                completions);
     }
 
     private <T extends PsiElement> Collection<T> findNonModuleElements(
@@ -158,19 +139,5 @@ public final class DataformCoreIndexServiceImpl implements DataformCoreIndexServ
                         .filter(elm -> PsiTreeUtil.getParentOfType(elm, TypeScriptModule.class) == null)
                         .toList())
                 .orElse(Collections.emptyList());
-    }
-
-    private void notifyUserDataformNotInstalled(Project project) {
-        if (this.notifyUser) {
-            NotificationGroupManager.getInstance()
-                    .getNotificationGroup("Dataform.Notifications")
-                    .createNotification(
-                            "Dataform not found",
-                            "Please install @dataform/core globally: npm install -g @dataform/core",
-                            NotificationType.WARNING
-                    )
-                    .notify(project);
-            this.notifyUser = false;
-        }
     }
 }

@@ -72,15 +72,22 @@ public class DataformMultilineFoldTest extends DataformFoldingTestCase {
         assertEquals(1, customRegions().size());
     }
 
-    public void testShowSourceRemovesTheRegionAndDoesNotRecreateIt() {
+    /**
+     * Clicking the value brings the expression back to be edited. A pass runs when the file is
+     * opened or comes back into focus, and that is when the value is shown again.
+     */
+    public void testShowSourceRemovesTheRegionUntilTheNextPassShowsTheValueAgain() {
         PsiFile file = configureDefinition("mart.sqlx", WHOLE_LINE_EXPRESSION);
         DataformExpression expression = DataformExpressionCollector.collectSqlxTemplates(file).getFirst();
         seed(file, expression.source(), MULTILINE_VALUE);
 
         CustomFoldRegion region = customRegions().getFirst();
         ((DataformValueFoldRenderer) region.getRenderer()).showSource();
+        assertEmpty("showing the source must bring the expression back",
+                java.util.Arrays.stream(myFixture.getEditor().getFoldingModel().getAllFoldRegions())
+                        .filter(CustomFoldRegion.class::isInstance).toList());
 
-        assertEmpty("showing the source must bring the expression back", customRegions());
+        assertEquals("the next pass shows the value again", 1, customRegions().size());
     }
 
     public void testValueCarriesNoGutterIcon() {

@@ -20,18 +20,23 @@ import com.google.auth.oauth2.ComputeEngineCredentials;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.auth.oauth2.UserCredentials;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.intellij.openapi.diagnostic.Logger;
+import io.github.rejeb.dataform.language.gcp.auth.DataformCredentialsService;
+import io.github.rejeb.dataform.language.gcp.auth.SslConfig;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.net.HttpURLConnection;
 import java.net.URI;
-import java.net.URL;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 
 /**
- * Resolves the GCP identity (name + email) from Application Default Credentials.
+ * Resolves the GCP identity (name + email) of the credential owned by the plugin.
  *
  * <p>Supports:
  * <ul>
@@ -46,23 +51,22 @@ public final class GcpIdentityResolver {
 
     private static final Logger LOG = Logger.getInstance(GcpIdentityResolver.class);
     private static final String USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo";
+    private static final Duration HTTP_TIMEOUT = Duration.ofSeconds(5);
     private static final String FALLBACK_NAME = System.getProperty("user.name", "dataform-plugin");
     private static final String FALLBACK_EMAIL = FALLBACK_NAME + "@dataform-plugin.local";
 
     private GcpIdentityResolver() {}
 
     /**
-     * Resolves the {@link CommitAuthorConfig} from ADC.
+     * Resolves the {@link CommitAuthorConfig} from the credential the plugin uses for every other
+     * GCP call, so the author of a commit is the account that pushed it.
      * Never throws — returns a fallback identity on any error.
      */
     @NotNull
     public static CommitAuthorConfig resolve() {
         try {
-            GoogleCredentials credentials = GoogleCredentials
-                    .getApplicationDefault()
-                    .createScoped("https://www.googleapis.com/auth/cloud-platform");
+            GoogleCredentials credentials = DataformCredentialsService.getInstance().get();
             credentials.refreshIfExpired();
-
             switch (credentials) {
                 case ServiceAccountCredentials sa -> {
                     String email = sa.getClientEmail();
@@ -70,8 +74,7 @@ public final class GcpIdentityResolver {
                     return new CommitAuthorConfig(name, email);
                 }
                 case ComputeEngineCredentials ce -> {
-                    String email = ce.getAccount(); // service account email on GCE
-
+                    String email = ce.getAccount();
                     return new CommitAuthorConfig(email, email);
                 }
                 case UserCredentials userCredentials -> {
@@ -80,11 +83,10 @@ public final class GcpIdentityResolver {
                 default -> {
                 }
             }
-
-            LOG.warn("Unknown ADC credential type: " + credentials.getClass().getName()
+            LOG.warn("Unknown credential type: " + credentials.getClass().getName()
                     + " — using fallback identity.");
         } catch (Exception e) {
-            LOG.warn("Failed to resolve GCP identity from ADC — using fallback identity.", e);
+            LOG.warn("Failed to resolve GCP identity — using fallback identity.", e);
         }
         return new CommitAuthorConfig(FALLBACK_NAME, FALLBACK_EMAIL);
     }
@@ -92,32 +94,31 @@ public final class GcpIdentityResolver {
     @NotNull
     private static CommitAuthorConfig resolveFromUserInfo(
             @NotNull GoogleCredentials credentials
-    ) throws IOException {
+    ) throws IOException, InterruptedException {
         String accessToken = credentials.getAccessToken().getTokenValue();
-
-        URL url = URI.create(USERINFO_URL).toURL();
-        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-        conn.setRequestMethod("GET");
-        conn.setRequestProperty("Authorization", "Bearer " + accessToken);
-        conn.setConnectTimeout(5_000);
-        conn.setReadTimeout(5_000);
-
-        try (InputStream is = conn.getInputStream()) {
-            String json = new String(is.readAllBytes(), StandardCharsets.UTF_8);
-            com.google.gson.JsonObject obj =
-                    com.google.gson.JsonParser.parseString(json).getAsJsonObject();
-            String email = obj.has("email") ? obj.get("email").getAsString() : null;
-            String name  = obj.has("name")  ? obj.get("name").getAsString()  : null;
-            if (email == null || email.isBlank()) {
-                throw new IOException("email field missing from userinfo response: " + json);
-            }
-            return new CommitAuthorConfig(
-                    name != null && !name.isBlank() ? name : email,
-                    email
-            );
-        } finally {
-            conn.disconnect();
+        HttpRequest request = HttpRequest.newBuilder(URI.create(USERINFO_URL))
+                .header("Authorization", "Bearer " + accessToken)
+                .timeout(HTTP_TIMEOUT)
+                .GET()
+                .build();
+        HttpResponse<String> response = HttpClient.newBuilder()
+                .connectTimeout(HTTP_TIMEOUT)
+                .sslContext(SslConfig.sslContext())
+                .build()
+                .send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        if (response.statusCode() != 200) {
+            throw new IOException("userinfo endpoint returned " + response.statusCode());
         }
+        String json = response.body();
+        JsonObject obj = JsonParser.parseString(json).getAsJsonObject();
+        String email = obj.has("email") ? obj.get("email").getAsString() : null;
+        String name = obj.has("name") ? obj.get("name").getAsString() : null;
+        if (email == null || email.isBlank()) {
+            throw new IOException("email field missing from userinfo response");
+        }
+        return new CommitAuthorConfig(
+                name != null && !name.isBlank() ? name : email,
+                email
+        );
     }
-
 }

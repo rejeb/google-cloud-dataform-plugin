@@ -20,6 +20,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.intellij.ide.BrowserUtil;
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.progress.ProcessCanceledException;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.sun.net.httpserver.HttpExchange;
@@ -99,6 +100,10 @@ public final class GoogleOAuthLoginFlow {
         }
     }
 
+    /**
+     * Answers the browser redirect. A request carrying neither a code nor an error — a favicon
+     * lookup, a prefetch, a scanner — is not part of the flow and must not fail it.
+     */
     private static void handleCallback(
             HttpExchange exchange,
             String expectedState,
@@ -108,6 +113,11 @@ public final class GoogleOAuthLoginFlow {
         String code = params.get("code");
         String state = params.get("state");
         String error = params.get("error");
+        if (code == null && error == null) {
+            exchange.sendResponseHeaders(404, -1);
+            exchange.close();
+            return;
+        }
 
         IOException failure = null;
         if (error != null) {
@@ -305,7 +315,7 @@ public final class GoogleOAuthLoginFlow {
 
     private static String errorPage(String message) {
         return "<html><body style=\"font-family:sans-serif\"><h3>Sign-in failed</h3><p>"
-                + message + "</p></body></html>";
+                + StringUtil.escapeXmlEntities(message) + "</p></body></html>";
     }
 
     private static String rootMessage(Throwable throwable) {

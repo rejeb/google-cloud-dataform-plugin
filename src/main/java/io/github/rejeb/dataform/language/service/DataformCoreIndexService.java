@@ -18,7 +18,6 @@ package io.github.rejeb.dataform.language.service;
 
 import com.intellij.lang.javascript.psi.JSFunction;
 import com.intellij.lang.javascript.psi.JSVariable;
-import com.intellij.openapi.components.PersistentStateComponent;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiFile;
 import org.jetbrains.annotations.NotNull;
@@ -26,22 +25,36 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Collection;
 import java.util.Optional;
 
-public interface DataformCoreIndexService extends PersistentStateComponent<ServiceState> {
+/**
+ * Symbols exported by the {@code @dataform/core} package installed for the project: the builtin
+ * functions such as {@code ref()} or {@code publish()} and the builtin variables.
+ */
+public interface DataformCoreIndexService {
 
     static DataformCoreIndexService getInstance(Project project) {
         return project.getService(DataformCoreIndexService.class);
     }
 
+    /**
+     * @return the {@code bundle.d.ts} of the core package, when the package is installed
+     */
     Optional<PsiFile> getPsiFile();
 
-
+    /**
+     * @return the builtin functions declared at the top level of the core declaration file
+     */
     @NotNull
     Collection<JSFunction> getCachedDataformFunctionsRef();
 
+    /**
+     * @return the builtin variables declared at the top level of the core declaration file
+     */
     @NotNull
     Collection<JSVariable> getCachedDataformVariablesRef();
 
+    /**
+     * @return the builtin functions shaped for code completion
+     */
     @NotNull
     Collection<DataformFunctionCompletionObject> getCachedDataformFunctionsForCompletion();
-
 }

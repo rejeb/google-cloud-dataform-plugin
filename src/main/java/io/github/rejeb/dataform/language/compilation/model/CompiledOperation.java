@@ -26,7 +26,6 @@ public class CompiledOperation {
     private String fileName;
     private List<String> tags;
     private List<Target> dependencyTargets;
-    private Target canonicalTarget;
     private boolean hasOutput;
 
     public Target getTarget() {

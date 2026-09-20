@@ -27,12 +27,12 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.options.ShowSettingsUtil;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.startup.ProjectActivity;
-import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.wm.IdeFrame;
 import com.intellij.util.messages.MessageBusConnection;
 import io.github.rejeb.dataform.language.settings.DataformToolsConfigurable;
 import io.github.rejeb.dataform.language.settings.DataformToolsSettings;
 import io.github.rejeb.dataform.language.util.NodeJsNpmUtils;
+import io.github.rejeb.dataform.language.util.Utils;
 import kotlin.Unit;
 import kotlin.coroutines.Continuation;
 import org.jetbrains.annotations.NotNull;
@@ -59,7 +59,9 @@ public class DataformInstaller implements ProjectActivity {
     @Override
     public @Nullable Object execute(@NotNull Project project,
                                     @NotNull Continuation<? super Unit> continuation) {
-
+        if (!Utils.isDataformProject(project)) {
+            return null;
+        }
         ApplicationManager.getApplication().invokeLater(() -> {
             if (project.isDisposed()) {
                 return;
@@ -97,7 +99,6 @@ public class DataformInstaller implements ProjectActivity {
         NodeInterpreterManager nim = NodeInterpreterManager.getInstance(project);
         if (nim.npmExecutable() == null) {
             LOG.info("Node.js not configured — notifying user.");
-            settings.update("", "", "", "");
             if (nodeJsNotificationShown.compareAndSet(false, true)) {
                 NodeJsNpmUtils.showNpmConfigurationDialog(project);
             }
@@ -117,9 +118,8 @@ public class DataformInstaller implements ProjectActivity {
         if (settings.getCoreInstallPath().isBlank()) {
             Path root = dataformRootDir.get();
             String core = root.resolve("core").toAbsolutePath().toString();
-            String cli = resolveCli(nim.nodeBinDir());
-            settings.update(cli, core, "", "");
-            LOG.info("Dataform paths persisted — core: " + core + ", cli: " + cli);
+            settings.setCoreInstallPath(core);
+            LOG.info("Dataform core path persisted: " + core);
         }
     }
 
@@ -134,11 +134,6 @@ public class DataformInstaller implements ProjectActivity {
         return Optional.empty();
     }
 
-    private static String resolveCli(@Nullable Path nodeBinDir) {
-        if (nodeBinDir == null) return "";
-        String exe = SystemInfo.isWindows ? "dataform.cmd" : "dataform";
-        return nodeBinDir.resolve(exe).toAbsolutePath().toString();
-    }
 
     private static void showConfigureDataformNotification(@NotNull Project project) {
         NotificationGroupManager.getInstance()

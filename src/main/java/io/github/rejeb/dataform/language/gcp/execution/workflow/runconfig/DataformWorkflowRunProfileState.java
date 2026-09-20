@@ -25,6 +25,7 @@ import com.intellij.execution.runners.ProgramRunner;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.progress.ProcessCanceledException;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.progress.Task;
@@ -36,7 +37,6 @@ import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowCr
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowInvocationProgress;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowInvocationState;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.ui.WorkflowExecutionConsole;
-import io.github.rejeb.dataform.language.gcp.service.DataformGcpEvent;
 import io.github.rejeb.dataform.language.gcp.service.DataformGcpService;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -90,14 +90,18 @@ public class DataformWorkflowRunProfileState
         return new Task.Backgroundable(project, "Running Dataform workflow…", true) {
             @Override
             public void run(@NotNull ProgressIndicator indicator) {
+                int exitCode = 0;
                 try {
                     runWorkflow(project, indicator, console);
+                } catch (ProcessCanceledException e) {
+                    exitCode = 1;
+                    throw e;
                 } catch (Exception e) {
                     LOG.warn("Dataform workflow execution failed", e);
                     publishAndDisplay(project, console, failedProgress(e));
-                    processHandler.notifyProcessTerminated(1);
+                    exitCode = 1;
                 } finally {
-                    processHandler.notifyProcessTerminated(0);
+                    processHandler.notifyProcessTerminated(exitCode);
                 }
             }
         };
@@ -113,8 +117,6 @@ public class DataformWorkflowRunProfileState
 
         publishAndDisplay(project, console, startingProgress());
         WorkflowCreationResult workflowRun = service.createWorkflowRun(configuration.toWorkflowRunRequest());
-
-        notifyRunStarted(project, workflowRun.invocationName());
         pollUntilTerminal(project, indicator, console, service, workflowRun);
     }
 
@@ -174,9 +176,6 @@ public class DataformWorkflowRunProfileState
                                    @NotNull WorkflowExecutionConsole console,
                                    @NotNull WorkflowInvocationProgress progress) {
         this.lastProgress = progress;
-        project.getMessageBus()
-                .syncPublisher(DataformGcpEvent.TOPIC)
-                .onWorkflowInvocationProgress(progress);
         ApplicationManager.getApplication().invokeLater(
                 () -> console.updateProgress(progress), ModalityState.nonModal());
     }
@@ -229,11 +228,6 @@ public class DataformWorkflowRunProfileState
         );
     }
 
-    private void notifyRunStarted(@NotNull Project project, @NotNull String runName) {
-        project.getMessageBus()
-                .syncPublisher(DataformGcpEvent.TOPIC)
-                .onWorkflowRunStarted(runName);
-    }
 
     private void updateIndicatorText(@NotNull ProgressIndicator indicator,
                                      @NotNull WorkflowInvocationProgress progress,

@@ -37,6 +37,8 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
+import java.util.HashMap;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -62,7 +64,9 @@ final class SchemaCacheStore {
     private final Map<String, String> fileNames = new ConcurrentHashMap<>();
 
     private volatile Map<String, DataformDasTable> publishedTables = Map.of();
-    private DataformTableSchemaService.State currentState = new DataformTableSchemaService.State();
+    private volatile Map<String, List<DataformDasTable>> publishedByName = Map.of();
+    private volatile DataformTableSchemaService.State currentState = new DataformTableSchemaService.State();
+    private volatile ParsedSnapshot parsedSnapshot;
 
     SchemaCacheStore(@NotNull Project project) {
         this.project = project;
@@ -82,7 +86,20 @@ final class SchemaCacheStore {
 
     /** Publishes the working cache as the new snapshot returned by {@link #published()}. */
     void publish() {
-        publishedTables = Collections.unmodifiableMap(new LinkedHashMap<>(tables));
+        Map<String, DataformDasTable> snapshot = Collections.unmodifiableMap(new LinkedHashMap<>(tables));
+        Map<String, List<DataformDasTable>> byName = new HashMap<>();
+        for (DataformDasTable table : snapshot.values()) {
+            byName.computeIfAbsent(table.getName().toLowerCase(Locale.ROOT), k -> new ArrayList<>()).add(table);
+        }
+        byName.replaceAll((k, v) -> List.copyOf(v));
+        publishedTables = snapshot;
+        publishedByName = Collections.unmodifiableMap(byName);
+    }
+
+    /** The published tables carrying the short name, compared without regard to case. */
+    @NotNull
+    List<DataformDasTable> publishedNamed(@NotNull String name) {
+        return publishedByName.getOrDefault(name.toLowerCase(Locale.ROOT), List.of());
     }
 
     /** Whether a schema is cached for the action, whatever its age. */
@@ -136,11 +153,6 @@ final class SchemaCacheStore {
         for (VirtualFile file : written) {
             guessedFrom.put(file, stampOf(file));
         }
-    }
-
-    /** Whether any schema currently holds what a rename wrote rather than what was read. */
-    boolean hasGuesses() {
-        return !guesses.isEmpty();
     }
 
     /**
@@ -269,16 +281,33 @@ final class SchemaCacheStore {
      */
     @Nullable
     Long persistedModificationTime(@NotNull String fqn) {
-        if (currentState.schemaCacheJson == null) return null;
+        SchemaCacheEntry entry = persistedEntries().get(fqn);
+        if (entry == null || !isKnownModificationTime(entry.lastModified())) return null;
+        return entry.lastModified();
+    }
+
+    /**
+     * The persisted snapshot, parsed once per version of the serialized form: the planner asks for
+     * every action of the project, and parsing the whole cache each time made that quadratic.
+     */
+    @NotNull
+    private Map<String, SchemaCacheEntry> persistedEntries() {
+        String json = currentState.schemaCacheJson;
+        if (json == null) return Map.of();
+        ParsedSnapshot parsed = parsedSnapshot;
+        if (parsed != null && parsed.json() == json) return parsed.entries();
+        Map<String, SchemaCacheEntry> entries;
         try {
-            Map<String, SchemaCacheEntry> parsed = GSON.fromJson(currentState.schemaCacheJson, CACHE_TYPE);
-            if (parsed == null) return null;
-            SchemaCacheEntry entry = parsed.get(fqn);
-            if (entry == null || !isKnownModificationTime(entry.lastModified())) return null;
-            return entry.lastModified();
+            Map<String, SchemaCacheEntry> loaded = GSON.fromJson(json, CACHE_TYPE);
+            entries = loaded == null ? Map.of() : loaded;
         } catch (Exception e) {
-            return null;
+            entries = Map.of();
         }
+        parsedSnapshot = new ParsedSnapshot(json, entries);
+        return entries;
+    }
+
+    private record ParsedSnapshot(@NotNull String json, @NotNull Map<String, SchemaCacheEntry> entries) {
     }
 
     /**

@@ -26,7 +26,6 @@ public class CompiledAssertion {
     private String fileName;
     private List<String> tags;
     private List<Target> dependencyTargets;
-    private Target canonicalTarget;
 
     public Target getTarget() {
         return target;

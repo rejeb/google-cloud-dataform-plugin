@@ -56,7 +56,7 @@ public final class DataformBuildContext {
         return finished - started;
     }
 
-    /** Bloque jusqu'à obtenir le sémaphore (un seul build à la fois). */
+    /** Blocks until the build semaphore is acquired: one build at a time per project. */
     public boolean waitAndStart() {
         while (true) {
             if (project.isDisposed()) {

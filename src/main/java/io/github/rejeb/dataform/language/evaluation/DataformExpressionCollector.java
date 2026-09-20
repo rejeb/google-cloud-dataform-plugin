@@ -28,7 +28,6 @@ import io.github.rejeb.dataform.language.psi.SharedTokenTypes;
 import io.github.rejeb.dataform.language.psi.SqlxJsLiteralExpression;
 import io.github.rejeb.dataform.language.psi.SqlxSqlBlock;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;

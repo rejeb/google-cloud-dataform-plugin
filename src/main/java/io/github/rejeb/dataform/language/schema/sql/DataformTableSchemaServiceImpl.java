@@ -17,6 +17,7 @@
 package io.github.rejeb.dataform.language.schema.sql;
 
 import com.intellij.openapi.Disposable;
+import com.intellij.openapi.progress.ProcessCanceledException;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.application.ReadAction;
@@ -25,7 +26,9 @@ import com.intellij.openapi.editor.event.DocumentEvent;
 import com.intellij.openapi.editor.event.DocumentListener;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.components.State;
+import com.intellij.openapi.components.RoamingType;
 import com.intellij.openapi.components.Storage;
+import com.intellij.openapi.components.StoragePathMacros;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.Task;
@@ -48,6 +51,11 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import com.intellij.openapi.progress.ProgressManager;
+import com.intellij.util.concurrency.AppExecutorUtil;
+import java.util.ArrayList;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -59,7 +67,7 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 @State(
         name = "DataformTableSchemaService",
-        storages = @Storage(value = "dataform-table-schema.xml")
+        storages = @Storage(value = StoragePathMacros.CACHE_FILE, roamingType = RoamingType.DISABLED)
 )
 public final class DataformTableSchemaServiceImpl
         implements DataformTableSchemaService, Disposable {
@@ -68,12 +76,24 @@ public final class DataformTableSchemaServiceImpl
 
     private final Project project;
     private final SchemaCacheStore cache;
+    private static final int DRY_RUN_PARALLELISM = 4;
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicLong modificationCount = new AtomicLong(0);
-
+    private final ExecutorService dryRunExecutor = AppExecutorUtil.createBoundedApplicationPoolExecutor(
+            "Dataform schema extraction", DRY_RUN_PARALLELISM);
     private volatile boolean watchingDocuments = false;
-    private volatile boolean pendingRefresh = false;
-    private volatile CompiledGraph pendingGraph = null;
+    private final Object pendingLock = new Object();
+    private PendingRefresh pending;
+
+    private record PendingRefresh(@NotNull CompiledGraph graph,
+                                  boolean forceRefresh,
+                                  @NotNull Set<String> failedFileNames) {
+        PendingRefresh mergedWith(@NotNull CompiledGraph graph,
+                                  boolean forceRefresh,
+                                  @NotNull Set<String> failedFileNames) {
+            return new PendingRefresh(graph, this.forceRefresh || forceRefresh, failedFileNames);
+        }
+    }
 
     public DataformTableSchemaServiceImpl(@NotNull Project project) {
         this.project = project;
@@ -109,21 +129,29 @@ public final class DataformTableSchemaServiceImpl
     public void refreshAsync(@NotNull CompiledGraph graph,
                              boolean forceRefresh,
                              @NotNull Set<String> failedFileNames) {
-        if (running.compareAndSet(false, true)) {
-            pendingRefresh = false;
-            pendingGraph = null;
-            evictStaleEntries(graph);
-            startTask(graph, forceRefresh, failedFileNames);
-        } else {
-            pendingGraph = graph;
-            pendingRefresh = true;
-            LOG.debug("Schema extraction already running, will re-run after completion");
+        synchronized (pendingLock) {
+            if (!running.compareAndSet(false, true)) {
+                pending = pending == null
+                        ? new PendingRefresh(graph, forceRefresh, failedFileNames)
+                        : pending.mergedWith(graph, forceRefresh, failedFileNames);
+                LOG.debug("Schema extraction already running, will re-run after completion");
+                return;
+            }
+            pending = null;
         }
+        evictStaleEntries(graph);
+        startTask(graph, forceRefresh, failedFileNames);
     }
 
     @NotNull
     public Map<String, DataformDasTable> getAllTables() {
         return cache.published();
+    }
+
+    @Override
+    @NotNull
+    public List<DataformDasTable> getTablesNamed(@NotNull String name) {
+        return cache.publishedNamed(name);
     }
 
     @Override
@@ -231,13 +259,15 @@ public final class DataformTableSchemaServiceImpl
 
     private void onTaskFinished() {
         cache.publish();
-        running.set(false);
         modificationCount.incrementAndGet();
-        if (pendingRefresh && pendingGraph != null) {
-            CompiledGraph next = pendingGraph;
-            pendingGraph = null;
-            pendingRefresh = false;
-            refreshAsync(next);
+        PendingRefresh next;
+        synchronized (pendingLock) {
+            running.set(false);
+            next = pending;
+            pending = null;
+        }
+        if (next != null) {
+            refreshAsync(next.graph(), next.forceRefresh(), next.failedFileNames());
         } else if (!project.isDisposed()) {
             project.getMessageBus().syncPublisher(DataformSchemaEvent.TOPIC).onSchemasUpdated();
         }
@@ -297,16 +327,28 @@ public final class DataformTableSchemaServiceImpl
                 + " actions resolved");
     }
 
+    /**
+     * Dry-runs the actions of one wave concurrently on a bounded pool of the platform rather than
+     * on the common fork-join pool, which network calls must not tie up, and under the indicator of
+     * the extraction so cancellation reaches every dry-run.
+     */
     private void waveExtraction(ExtractionContext ctx,
                                 ProgressIndicator indicator,
                                 Map<String, List<ColumnInfo>> resolvedInThisRun,
                                 List<SortableAction> wave,
                                 AtomicInteger processed,
                                 int total) {
-        wave.parallelStream().forEach(action -> {
-            extractSchema(ctx, resolvedInThisRun, action);
-            indicator.setFraction((double) processed.incrementAndGet() / total);
-        });
+        List<CompletableFuture<Void>> futures = new ArrayList<>(wave.size());
+        for (SortableAction action : wave) {
+            futures.add(CompletableFuture.runAsync(() -> {
+                if (indicator.isCanceled()) return;
+                ProgressManager.getInstance().executeProcessUnderProgress(() -> {
+                    extractSchema(ctx, resolvedInThisRun, action);
+                    indicator.setFraction((double) processed.incrementAndGet() / total);
+                }, indicator);
+            }, dryRunExecutor));
+        }
+        CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).join();
     }
 
     private void extractSchema(ExtractionContext ctx,
@@ -340,6 +382,8 @@ public final class DataformTableSchemaServiceImpl
             if (action.isTable()) return extractTableSchema(action.table(), ctx, resolvedInThisRun);
             if (action.isOperation()) return extractOperationSchema(action.operation(), ctx);
             if (action.isDeclaration()) return extractDeclarationSchema(action.target().getFullName(), ctx);
+        } catch (ProcessCanceledException e) {
+            throw e;
         } catch (Exception e) {
             LOG.warn("Schema extraction failed for " + action.target().getFullName() + ": " + e.getMessage());
             return DryRunResult.failure(e.getMessage() != null ? e.getMessage() : e.toString());

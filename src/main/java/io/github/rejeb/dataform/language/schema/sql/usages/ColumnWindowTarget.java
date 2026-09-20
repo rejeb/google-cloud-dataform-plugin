@@ -80,7 +80,8 @@ public record ColumnWindowTarget(@NotNull List<PsiElement> searchTargets,
     /**
      * A column named by an {@code AS} alias. What later queries read is the alias, and what the
      * column is built from is every column the renamed expression reads — one for a plain rename,
-     * several for {@code CONCAT(first, last) AS full_name}.
+     * several for {@code CONCAT(first, last) AS full_name}, and the columns handed as strings to a
+     * helper for {@code ${helper("goals")} AS top_scorers}.
      */
     private static @Nullable ColumnWindowTarget fromAlias(@NotNull PsiElement token) {
         PsiElement identifier = token.getParent();
@@ -94,9 +95,16 @@ public record ColumnWindowTarget(@NotNull List<PsiElement> searchTargets,
 
         ColumnOriginService origins = ColumnOriginService.getInstance(identifier.getProject());
         List<PsiElement> declarations = new ArrayList<>();
-        for (PsiElement read : columnReferencesIn(renamedExpression(expression))) {
+        PsiElement renamed = renamedExpression(expression);
+        for (PsiElement read : columnReferencesIn(renamed)) {
             PsiElement declaration = declarationOf(read, origins, null);
             if (declaration != null) declarations.add(declaration);
+        }
+        if (renamed != null) {
+            for (DataformDasColumn handed : HelperColumnStrings.columnsHandedTo(renamed, identifier)) {
+                PsiElement declaration = declarationOf(handed, origins);
+                if (declaration != null) declarations.add(declaration);
+            }
         }
 
         List<PsiElement> searched = new ArrayList<>(List.of(identifier, expression));
@@ -148,8 +156,9 @@ public record ColumnWindowTarget(@NotNull List<PsiElement> searchTargets,
         if (SqlxColumnAtCaret.sqlxFileOf(token) == null) return null;
 
         PsiElement read = resolver.segmentAt(token);
-        PsiElement declaration = ColumnOriginService.getInstance(token.getProject())
-                .declaringElement(path);
+        ColumnOriginService origins = ColumnOriginService.getInstance(token.getProject());
+        PsiElement declaration = origins.declaringElement(path);
+        if (declaration == null) declaration = sourceDeclarationOf(path.root(), origins);
         return new ColumnWindowTarget(read == null ? List.of() : List.of(read),
                 path.leafName(),
                 declaration == null ? List.of() : List.of(declaration),
@@ -158,15 +167,16 @@ public record ColumnWindowTarget(@NotNull List<PsiElement> searchTargets,
 
     /**
      * Where a column read by an expression is declared: the select-list item of the action that
-     * builds it when the schema knows it, and otherwise whatever the reference resolves to inside
-     * the file, such as the alias of an earlier common table expression.
+     * builds it when the schema knows it, the {@code declare()} call of its source when no action
+     * builds it, and otherwise whatever the reference resolves to inside the file, such as the alias
+     * of an earlier common table expression.
      */
     private static @Nullable PsiElement declarationOf(@NotNull PsiElement reference,
                                                       @NotNull ColumnOriginService origins,
                                                       @Nullable DataformDasColumn exclude) {
         DataformDasColumn column = readColumn(reference, exclude);
         if (column != null) {
-            PsiElement declaring = origins.declaringElement(column);
+            PsiElement declaring = declarationOf(column, origins);
             if (declaring != null) return declaring;
         }
         PsiElement field = structFieldDeclarationOf(reference, origins);
@@ -176,6 +186,27 @@ public record ColumnWindowTarget(@NotNull List<PsiElement> searchTargets,
         PsiElement resolved = psiReference.resolve();
         if (resolved instanceof DataformDasColumn) return null;
         return isInAFileOfTheProject(resolved) ? resolved : null;
+    }
+
+    /**
+     * Where a schema column is declared: the select-list item of the action building it, or the
+     * {@code declare()} call of its source when no action builds it.
+     */
+    private static @Nullable PsiElement declarationOf(@NotNull DataformDasColumn column,
+                                                      @NotNull ColumnOriginService origins) {
+        PsiElement declaring = origins.declaringElement(column);
+        return declaring != null ? declaring : sourceDeclarationOf(column, origins);
+    }
+
+    /**
+     * The {@code declare()} call of the source a column belongs to, for a column no action of the
+     * project builds. The schema of a source comes from BigQuery, so the call naming the table is
+     * the only line of the project a reader can be sent to.
+     */
+    private static @Nullable PsiElement sourceDeclarationOf(@NotNull DataformDasColumn column,
+                                                            @NotNull ColumnOriginService origins) {
+        ColumnRef reference = origins.reference(column);
+        return reference == null ? null : origins.sourceDeclaration(reference);
     }
 
     /**

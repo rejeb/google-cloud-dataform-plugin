@@ -37,8 +37,12 @@ import java.util.stream.Collectors;
 public class Utils {
     public static final String DATAFORM_SCHEMA_PREFIX = "gcdp_";
 
+    /**
+     * Formats a BigQuery statement with the SQL code style of the project. Runs a write command,
+     * so the caller is expected to be on the EDT and to call this only for text about to be shown.
+     */
     public static String formatSql(@NotNull Project project, @NotNull String sql) {
-        return ApplicationManager.getApplication().runWriteIntentReadAction(() -> doFormat(project, sql));
+        return doFormat(project, sql);
     }
 
     /**

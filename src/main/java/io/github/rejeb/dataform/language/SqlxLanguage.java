@@ -17,10 +17,6 @@
 package io.github.rejeb.dataform.language;
 
 import com.intellij.lang.Language;
-import com.intellij.lang.javascript.JavascriptLanguage;
-import com.intellij.openapi.fileTypes.PlainTextLanguage;
-import com.intellij.sql.dialects.bigquery.BigQueryDialect;
-import com.intellij.sql.psi.SqlLanguage;
 
 public class SqlxLanguage extends Language {
 

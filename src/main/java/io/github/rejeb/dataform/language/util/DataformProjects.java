@@ -18,8 +18,13 @@ package io.github.rejeb.dataform.language.util;
 
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectManager;
+import com.intellij.openapi.roots.ProjectFileIndex;
+import com.intellij.openapi.vfs.VirtualFile;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Consumer;
 
 /**
@@ -40,5 +45,33 @@ public final class DataformProjects {
                 action.accept(project);
             }
         }
+    }
+
+    /**
+     * Runs the action on the open projects whose content holds the file. An application listener
+     * hears of every project at once, and compiling or re-highlighting one because a file of
+     * another changed costs a full Dataform CLI run for nothing. Needs read access.
+     */
+    public static void forEachOwning(@Nullable VirtualFile file, @NotNull Consumer<Project> action) {
+        for (Project project : owning(file)) {
+            action.accept(project);
+        }
+    }
+
+    /**
+     * The open projects whose content holds the file. Needs read access.
+     */
+    @NotNull
+    public static List<Project> owning(@Nullable VirtualFile file) {
+        List<Project> result = new ArrayList<>();
+        if (file == null) {
+            return result;
+        }
+        for (Project project : ProjectManager.getInstance().getOpenProjects()) {
+            if (!project.isDisposed() && ProjectFileIndex.getInstance(project).isInContent(file)) {
+                result.add(project);
+            }
+        }
+        return result;
     }
 }

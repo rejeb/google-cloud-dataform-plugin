@@ -29,10 +29,14 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Pattern;
 
+/**
+ * Lists the files of the project that a push sends to the Dataform workspace: everything under
+ * the content root, minus what {@code .gitignore} and {@code .gcloudignore} exclude.
+ */
 public final class DataformProjectFilesResolver {
 
     private static final Set<String> ALWAYS_IGNORED_DIRS = Set.of(
@@ -52,19 +56,18 @@ public final class DataformProjectFilesResolver {
         VirtualFile contentRoot = resolveContentRoot(project);
         if (contentRoot == null) return List.of();
 
-        Set<String> allPatterns = new HashSet<>();
-        allPatterns.addAll(readIgnorePatterns(contentRoot, ".gitignore"));
-        allPatterns.addAll(readIgnorePatterns(contentRoot, ".gcloudignore"));
+        List<IgnoreRule> rules = new ArrayList<>();
+        rules.addAll(readIgnorePatterns(contentRoot, ".gitignore"));
+        rules.addAll(readIgnorePatterns(contentRoot, ".gcloudignore"));
 
         List<String> paths = new ArrayList<>();
-
         VirtualFileFilter filter = fileOrDir -> {
             if (fileOrDir.equals(contentRoot)) return true;
             String name = fileOrDir.getName();
             if (fileOrDir.isDirectory() && ALWAYS_IGNORED_DIRS.contains(name)) return false;
             if (fileOrDir.isDirectory()) {
                 String relativePath = VfsUtil.getRelativePath(fileOrDir, contentRoot);
-                return relativePath == null || !isIgnored(relativePath, name, allPatterns);
+                return relativePath == null || !isIgnored(relativePath, true, rules);
             }
             return true;
         };
@@ -73,9 +76,8 @@ public final class DataformProjectFilesResolver {
             if (!fileOrDir.isDirectory() && !fileOrDir.equals(contentRoot)) {
                 String relativePath = VfsUtil.getRelativePath(fileOrDir, contentRoot);
                 if (relativePath != null) {
-                    String name = fileOrDir.getName();
-                    boolean alwaysInclude = ALWAYS_INCLUDED_FILES.contains(name);
-                    if (alwaysInclude || !isIgnored(relativePath, name, allPatterns)) {
+                    boolean alwaysInclude = ALWAYS_INCLUDED_FILES.contains(fileOrDir.getName());
+                    if (alwaysInclude || !isIgnored(relativePath, false, rules)) {
                         paths.add(relativePath);
                     }
                 }
@@ -86,63 +88,108 @@ public final class DataformProjectFilesResolver {
         return List.copyOf(paths);
     }
 
-
     @NotNull
-    private static Set<String> readIgnorePatterns(
+    private static List<IgnoreRule> readIgnorePatterns(
             @NotNull VirtualFile contentRoot,
             @NotNull String fileName
     ) {
-        Set<String> patterns = new HashSet<>();
+        List<IgnoreRule> rules = new ArrayList<>();
         VirtualFile ignoreFile = contentRoot.findChild(fileName);
-        if (ignoreFile == null || ignoreFile.isDirectory()) return patterns;
-
+        if (ignoreFile == null || ignoreFile.isDirectory()) return rules;
         try (BufferedReader reader = new BufferedReader(
                 new InputStreamReader(ignoreFile.getInputStream(), StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                line = line.trim();
-                if (!line.isEmpty() && !line.startsWith("#")) {
-                    patterns.add(line);
+                IgnoreRule rule = IgnoreRule.parse(line);
+                if (rule != null) {
+                    rules.add(rule);
                 }
             }
         } catch (IOException ignored) {
         }
-        return patterns;
+        return rules;
     }
 
     /**
-     * Vérifie si un fichier doit être ignoré selon les patterns .gitignore.
-     * Supporte les patterns simples : "file.ext", "dir/", "*.log", ".dataform/"
+     * Whether a path is excluded by the rules, read in order with the last matching rule winning,
+     * as gitignore does: a negated rule ({@code !kept.sqlx}) brings back what an earlier one
+     * excluded.
      */
-    private static boolean isIgnored(
-            @NotNull String relativePath,
-            @NotNull String fileName,
-            @NotNull Set<String> patterns
-    ) {
-        for (String pattern : patterns) {
-            // Pattern de répertoire : "node_modules/" ou ".dataform/"
-            if (pattern.endsWith("/")) {
-                String dir = pattern.substring(0, pattern.length() - 1);
-                if (relativePath.startsWith(dir + "/") || relativePath.equals(dir)) {
-                    return true;
-                }
-            }
-            // Pattern glob simple : "*.log"
-            else if (pattern.startsWith("*")) {
-                String suffix = pattern.substring(1); // ex: ".log"
-                if (fileName.endsWith(suffix)) return true;
-            }
-            // Match exact du nom de fichier ou du chemin relatif
-            else {
-                if (fileName.equals(pattern) || relativePath.equals(pattern)) return true;
+    private static boolean isIgnored(@NotNull String relativePath,
+                                     boolean directory,
+                                     @NotNull List<IgnoreRule> rules) {
+        boolean ignored = false;
+        for (IgnoreRule rule : rules) {
+            if (rule.matches(relativePath, directory)) {
+                ignored = !rule.negated();
             }
         }
-        return false;
+        return ignored;
     }
 
     @Nullable
     private static VirtualFile resolveContentRoot(@NotNull Project project) {
         VirtualFile[] roots = ProjectRootManager.getInstance(project).getContentRoots();
         return roots.length > 0 ? roots[0] : null;
+    }
+
+    /**
+     * One line of an ignore file. A pattern without a slash matches a name at any depth; one with
+     * a slash is relative to the root. {@code *} and {@code ?} never cross a slash, {@code **}
+     * does. A trailing slash matches directories only.
+     */
+    private record IgnoreRule(@NotNull Pattern pattern, boolean negated, boolean directoryOnly) {
+
+        @Nullable
+        static IgnoreRule parse(@NotNull String line) {
+            String text = line.trim();
+            if (text.isEmpty() || text.startsWith("#")) return null;
+            boolean negated = text.startsWith("!");
+            if (negated) text = text.substring(1);
+            boolean directoryOnly = text.endsWith("/");
+            if (directoryOnly) text = text.substring(0, text.length() - 1);
+            boolean anchored = text.contains("/");
+            if (text.startsWith("/")) text = text.substring(1);
+            if (text.isEmpty()) return null;
+            String regex = (anchored ? "" : "(?:.*/)?") + toRegex(text) + "(?:/.*)?";
+            return new IgnoreRule(Pattern.compile(regex), negated, directoryOnly);
+        }
+
+        boolean matches(@NotNull String relativePath, boolean directory) {
+            if (directoryOnly && !directory && !pattern.matcher(parentOf(relativePath)).matches()) {
+                return false;
+            }
+            return pattern.matcher(relativePath).matches();
+        }
+
+        private static String parentOf(@NotNull String relativePath) {
+            int slash = relativePath.lastIndexOf('/');
+            return slash < 0 ? "" : relativePath.substring(0, slash);
+        }
+
+        private static String toRegex(@NotNull String glob) {
+            StringBuilder regex = new StringBuilder();
+            for (int i = 0; i < glob.length(); i++) {
+                char c = glob.charAt(i);
+                if (c == '*') {
+                    if (i + 1 < glob.length() && glob.charAt(i + 1) == '*') {
+                        i++;
+                        if (i + 1 < glob.length() && glob.charAt(i + 1) == '/') {
+                            regex.append("(?:.*/)?");
+                            i++;
+                        } else {
+                            regex.append(".*");
+                        }
+                    } else {
+                        regex.append("[^/]*");
+                    }
+                } else if (c == '?') {
+                    regex.append("[^/]");
+                } else {
+                    regex.append(Pattern.quote(String.valueOf(c)));
+                }
+            }
+            return regex.toString();
+        }
     }
 }

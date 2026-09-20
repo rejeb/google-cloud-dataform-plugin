@@ -57,6 +57,15 @@ public interface DataformCredentialsService {
     boolean isSignedIn();
 
     /**
+     * The last known answer of {@link #isSignedIn()} without doing any I/O, for callers on the
+     * event thread or in an action update. When the answer is not known yet, the resolution is
+     * started in the background and {@code false} is returned meanwhile.
+     *
+     * @return whether a credential is known to be available
+     */
+    boolean isSignedInCached();
+
+    /**
      * @return the signed-in account email, or {@code null} when unknown
      */
     @Nullable

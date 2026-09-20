@@ -28,6 +28,8 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.Collection;
 import java.util.Map;
+import java.util.List;
+import java.util.ArrayList;
 import java.util.Set;
 
 
@@ -51,6 +53,22 @@ public interface DataformTableSchemaService extends PersistentStateComponent<Dat
 
     @NotNull
     Map<String, DataformDasTable> getAllTables();
+
+    /**
+     * The published tables carrying the given short name, whatever their dataset, compared without
+     * regard to case as BigQuery does. Resolution asks this for every table reference of a file,
+     * so the answer is indexed rather than searched.
+     */
+    @NotNull
+    default List<DataformDasTable> getTablesNamed(@NotNull String name) {
+        List<DataformDasTable> result = new ArrayList<>();
+        for (DataformDasTable table : getAllTables().values()) {
+            if (table.getName().equalsIgnoreCase(name)) {
+                result.add(table);
+            }
+        }
+        return result;
+    }
 
     /**
      * Renames a column in the schemas already published, so that the editor resolves it under its

@@ -22,8 +22,8 @@ A full IntelliJ plugin (current version: `0.2.11`) providing advanced language s
 - Platform: IntelliJ Platform SDK `2026.1` (sinceBuild `261`).
 - Syntax analysis: Custom Lexer and Parser (no JFlex). Generated sources are in `src/main/gen/`.
 - Build tool: Gradle (Kotlin DSL `build.gradle.kts`), Gradle IntelliJ Platform plugin `2.12.0`.
-- Kotlin: version `2.3.10` (used for the Compose plugin and Gradle DSL).
-- UI: Compose for IntelliJ IDE (`composeUI()` enabled in build, Kotlin Compose plugin `2.3.10`).
+- Kotlin: Gradle plugin applied for the Kotlin DSL only; there are no Kotlin sources.
+- UI: Swing (IntelliJ UI components). Compose for IDE is not used.
 - GCP dependencies: `com.google.cloud:google-cloud-dataform`, `com.google.cloud:google-cloud-bigquery` (via BOM `26.79.0`).
 - IntelliJ Plugin dependencies (bundled):
   - `com.intellij.java`
@@ -45,7 +45,7 @@ A full IntelliJ plugin (current version: `0.2.11`) providing advanced language s
 - **Project configuration**: New project wizard ("Module Builder"), Dataform CLI integration, compilation, fast indexing.
 - **Settings**: Plugin configuration panel (GCP credentials, project, dataset, etc.).
 - **SQLX formatting**: Custom formatting model with injected-language block support; external format via Sqlfluff (`SqlxSqlfluffFormatProcessor`).
-- **Lineage view**: Compose-based lineage graph panel in the split editor preview (`fileEditor/lineage/`).
+- **Lineage view**: Swing lineage graph panel in the split editor preview (`fileEditor/lineage/`) and the project-wide lineage editor (`lineage/view/`).
 - **Run configurations**: Dataform workflow run configuration with gutter icon on SQLX files.
 - **BigQuery query execution**: Service view contributor for query results with grid and paging.
 
@@ -67,7 +67,7 @@ Root package: `src/main/java/io/github/rejeb/dataform/language/`
 | `compilation/` | Compilation models and tasks (`DataformCompileBeforeTask`, `DataformBuildTaskRunner`) |
 | `completion/` | Code completion contributors (JS symbols, workflow settings, SQL keywords, JSON schema) |
 | `fileEditor/` | Custom file editors for UI: `SqlxSplitEditor`, `SqlxCompiledPreviewEditor`, panels (query, schema, console, lineage) |
-| `fileEditor/lineage/` | Compose-based lineage graph: `LineagePanel`, `LineageGraphPanel`, `LineageGraph`, `LineageNode` |
+| `fileEditor/lineage/` | File-level lineage graph model: `LineageGraph`, `LineageGraphHelper` |
 | `formatting/` | SQLX formatting model: `SqlxFormattingModelBuilder`, `SqlxFileBlock`, `SqlxContentBlock`, `SqlxStructuralBlock`, `SqlxInjectedLanguageBlockBuilder`, `SqlxSpacingRules`, `SqlxSqlfluffFormatProcessor` |
 | `highlight/` | Severity of the SQL problems reported inside SQLX files: `SqlxHighlightScope`, `SqlxSyntaxErrorFilter`, `SqlxSqlResolveSuppressor`, `SqlxSqlProblemAnnotator` |
 | `index/` | File and symbol indexing (`DataformJsFileIndex`) |
@@ -153,7 +153,7 @@ All Google Cloud Platform integration.
   - Editor lifecycle (dumb mode, `DumbAware`).
   - Background tasks (`ProgressManager`, Kotlin coroutines if applicable).
   - Index access: never in write action, never outside read action.
-  - Compose for IntelliJ: used in this project, prefer it for new UI.
+  - UI is Swing based; reuse IntelliJ UI components (`JBUI`, `JBPanel`, `DialogWrapper`).
   - `src/main/gen/`: auto-generated sources, do not modify.
 
 ## 8. Mandatory Response Method

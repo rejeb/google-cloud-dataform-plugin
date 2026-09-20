@@ -16,10 +16,7 @@
  */
 package io.github.rejeb.dataform.language;
 
-import com.intellij.icons.AllIcons;
 import com.intellij.openapi.fileTypes.LanguageFileType;
-import com.intellij.sql.dialects.bigquery.BigQueryDialect;
-import com.intellij.sql.psi.SqlLanguage;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

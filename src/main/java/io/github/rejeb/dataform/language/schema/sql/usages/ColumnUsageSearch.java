@@ -22,6 +22,8 @@ import com.intellij.util.Processor;
 import io.github.rejeb.dataform.language.schema.sql.model.StructColumnPath;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 /**
  * Where a column is read.
  *
@@ -30,6 +32,9 @@ import org.jetbrains.annotations.NotNull;
  * resolves a field to an element of its column's type rather than to anything of this plugin's, so
  * no reference ever names it and a search over references comes back empty however many files read
  * it. Each is given the search that can actually find it.</p>
+ *
+ * <p>A column of a table is also read where its name is handed to JavaScript as a string, which no
+ * reference points at either; those reads follow the ones the reference search finds.</p>
  */
 interface ColumnUsageSearch {
 
@@ -39,9 +44,18 @@ interface ColumnUsageSearch {
     static @NotNull ColumnUsageSearch of(@NotNull Project project,
                                          @NotNull ColumnWindowTarget target) {
         StructColumnPath path = target.structPath();
-        return path == null
-                ? new ReferenceColumnUsageSearch(project, target)
-                : new StructFieldColumnUsageSearch(project, path);
+        if (path != null) return new StructFieldColumnUsageSearch(project, path);
+        ColumnUsageSearch references = new ReferenceColumnUsageSearch(project, target);
+        ColumnUsageSearch strings = new JsStringColumnUsageSearch(project, target);
+        return (reads, maxReads) -> {
+            AtomicBoolean stopped = new AtomicBoolean();
+            references.forEachRead(read -> {
+                if (reads.process(read)) return true;
+                stopped.set(true);
+                return false;
+            }, maxReads);
+            if (!stopped.get()) strings.forEachRead(reads, maxReads);
+        };
     }
 
     /**

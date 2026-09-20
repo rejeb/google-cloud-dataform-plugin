@@ -17,6 +17,7 @@
 package io.github.rejeb.dataform.language.schema.sql.usages;
 
 import com.intellij.codeInsight.navigation.actions.GotoDeclarationAction;
+import com.intellij.openapi.progress.ProcessCanceledException;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.diagnostic.Logger;
@@ -67,6 +68,8 @@ public class SqlxColumnNavigationAction extends GotoDeclarationAction {
             PsiFile file = event.getData(CommonDataKeys.PSI_FILE);
             if (editor == null || file == null) return null;
             return ColumnWindowTarget.at(file, editor.getCaretModel().getOffset());
+        } catch (ProcessCanceledException e) {
+            throw e;
         } catch (Exception e) {
             LOG.warn("Could not decide whether the caret is on a Dataform column", e);
             return null;

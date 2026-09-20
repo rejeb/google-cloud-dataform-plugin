@@ -47,6 +47,11 @@ public final class DataformToolsSettingsImpl
     }
 
     @Override
+    public void setCoreInstallPath(@NotNull String coreInstallPath) {
+        state.coreInstallPath = coreInstallPath;
+    }
+
+    @Override
     public @NotNull String getSqlfluffExecutablePath() {
         return state.sqlfluffExecutablePath.replace("\\", "/");
     }

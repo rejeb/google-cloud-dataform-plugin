@@ -23,6 +23,8 @@ import com.intellij.openapi.Disposable;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.util.concurrency.AppExecutorUtil;
+import io.github.rejeb.dataform.language.gcp.auth.AuthTrigger;
+import io.github.rejeb.dataform.language.gcp.auth.GcpAuthErrors;
 import io.github.rejeb.dataform.language.gcp.common.CommitAuthorConfig;
 import io.github.rejeb.dataform.language.gcp.common.GcpApiException;
 import io.github.rejeb.dataform.language.gcp.workspace.UncommittedChange;
@@ -41,6 +43,8 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
 public class GcpDataformWorkspaceRepository implements WorkspaceRepository, Disposable {
@@ -49,6 +53,9 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository, Disp
 
     private static final int PUSH_MAX_RETRIES = 3;
     private static final long PUSH_RETRY_DELAY_MS = 1_000;
+    private static final int PUSH_PARALLELISM = 8;
+    private static final Executor WRITE_EXECUTOR =
+            AppExecutorUtil.createBoundedApplicationPoolExecutor("Dataform workspace push", PUSH_PARALLELISM);
 
     @Override
     public void dispose() {
@@ -140,10 +147,20 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository, Disp
     }
 
     private void writeAllFiles(@NotNull String wsName,
-                               @NotNull Map<String, String> batch, @NotNull DataformClient client) throws Exception {
-        batch.entrySet().parallelStream().forEach(entry ->
-                writeFileWithRetry(wsName, entry.getKey(), entry.getValue(), client)
-        );
+                               @NotNull Map<String, String> batch, @NotNull DataformClient client) {
+        List<CompletableFuture<Void>> writes = new ArrayList<>(batch.size());
+        for (Map.Entry<String, String> entry : batch.entrySet()) {
+            writes.add(writeWithRetry(wsName, entry.getKey(), entry.getValue(), 0, client));
+        }
+        try {
+            CompletableFuture.allOf(writes.toArray(CompletableFuture[]::new)).join();
+        } catch (CompletionException e) {
+            Throwable cause = e.getCause() != null ? e.getCause() : e;
+            if (cause instanceof GcpApiException api) {
+                throw api;
+            }
+            throw new GcpApiException("Error writing files to GCP Dataform workspace.", cause);
+        }
     }
 
     private void deleteAllFiles(@NotNull String wsName,
@@ -157,13 +174,6 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository, Disp
                 .setPath(path)
                 .build();
         client.removeFile(request);
-    }
-
-    private void writeFileWithRetry(@NotNull String wsName,
-                                    @NotNull String path,
-                                    @NotNull String content,
-                                    @NotNull DataformClient client) {
-        writeWithRetry(wsName, path, content, 0, client).join();
     }
 
     @NotNull
@@ -183,7 +193,7 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository, Disp
                                                  @NotNull DataformClient client) {
         return CompletableFuture.runAsync(
                 () -> doWriteFile(wsName, path, content, client),
-                AppExecutorUtil.getAppExecutorService()
+                WRITE_EXECUTOR
         );
     }
 
@@ -206,7 +216,7 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository, Disp
                                                 int attempt,
                                                 @NotNull Throwable ex,
                                                 @NotNull DataformClient client) {
-        Throwable cause = ex instanceof java.util.concurrent.CompletionException ? ex.getCause() : ex;
+        Throwable cause = ex instanceof CompletionException ? ex.getCause() : ex;
         if (!(cause instanceof UnavailableException) || attempt + 1 >= PUSH_MAX_RETRIES) {
             throw new GcpApiException(
                     "Failed to write \"" + path + "\" after " + (attempt + 1) + " attempt(s).", cause);
@@ -243,9 +253,14 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository, Disp
                 return listAllRepositoryPaths(projectId, location, repositoryId, "", client).toList();
             }
         } catch (Exception e) {
-            LOG.debug("Error reading files from GCP Dataform.", e);
+            if (isEmptyRepoException(e)) {
+                LOG.info("Repository is empty (no commits yet), returning no paths.");
+                return List.of();
+            }
+            throw new GcpApiException("Error listing files of GCP Dataform "
+                    + (workspaceId != null ? "workspace \"" + workspaceId + "\"" : "repository")
+                    + ": " + e.getMessage(), e);
         }
-        return List.of();
     }
 
     @Override
@@ -273,9 +288,8 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository, Disp
             }
             return result;
         } catch (Exception e) {
-            LOG.debug("Error reading files from GCP Dataform.", e);
+            throw new GcpApiException("Error reading files from GCP Dataform repository: " + e.getMessage(), e);
         }
-        return Map.of();
     }
 
     @Override
@@ -414,6 +428,7 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository, Disp
             }
         } catch (Exception e) {
             LOG.warn("Failed to fetch file content", e);
+            GcpAuthErrors.reportIfAuthFailure(e, AuthTrigger.USER_ACTION);
             return "";
         }
     }

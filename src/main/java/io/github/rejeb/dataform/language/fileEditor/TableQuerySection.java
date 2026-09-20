@@ -19,10 +19,6 @@ package io.github.rejeb.dataform.language.fileEditor;
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.fileTypes.FileType;
 import com.intellij.openapi.project.Project;
-import com.intellij.psi.PsiFile;
-import com.intellij.psi.PsiFileFactory;
-import com.intellij.psi.codeStyle.CodeStyleManager;
-import com.intellij.sql.psi.SqlLanguage;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
 

@@ -79,6 +79,38 @@ public class BigQuerySelectAnalyzerTest extends BasePlatformTestCase {
         assertEquals("amount", in.columnName());
     }
 
+    /**
+     * A reference resolved through a CTE is only as direct as the weakest step. An expression over
+     * a CTE column that itself copies a table column is derived from that table column, never a
+     * direct copy of it: reading it otherwise makes a rename walk from one column into another.
+     */
+    public void testAnExpressionOverACteColumnIsDerivedFromItsSource() {
+        Map<String, List<InputColumn>> r = analyzer.analyze(
+                "WITH cte AS (SELECT customer_id AS customer_id, order_ts AS order_ts FROM p.d.src) "
+                        + "SELECT ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_ts) AS rank "
+                        + "FROM cte");
+        List<InputColumn> ins = r.get("rank");
+        assertEquals(2, ins.size());
+        assertTrue("every input of an expression is derived, got " + ins,
+                ins.stream().allMatch(i -> i.kind() == Confidence.DERIVED));
+    }
+
+    public void testARenameOfACteColumnStaysARename() {
+        Map<String, List<InputColumn>> r = analyzer.analyze(
+                "WITH cte AS (SELECT amount FROM p.d.src) SELECT amount AS amt FROM cte");
+        InputColumn in = r.get("amt").get(0);
+        assertEquals("amount", in.columnName());
+        assertEquals(Confidence.RENAME, in.kind());
+    }
+
+    public void testADirectReadOfACteColumnKeepsTheCteKind() {
+        Map<String, List<InputColumn>> r = analyzer.analyze(
+                "WITH cte AS (SELECT a + b AS total FROM p.d.src) SELECT total FROM cte");
+        List<InputColumn> ins = r.get("total");
+        assertEquals(2, ins.size());
+        assertTrue(ins.stream().allMatch(i -> i.kind() == Confidence.DERIVED));
+    }
+
     public void testUnionAllMapsPositionally() {
         Map<String, List<InputColumn>> r = analyzer.analyze(
                 "SELECT a AS x FROM p.d.t1 UNION ALL SELECT b AS x FROM p.d.t2");

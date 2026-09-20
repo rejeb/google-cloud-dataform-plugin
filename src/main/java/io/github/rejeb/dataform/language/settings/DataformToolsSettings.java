@@ -34,6 +34,11 @@ public interface DataformToolsSettings {
     @NotNull String getCoreInstallPath();
 
     /**
+     * Updates the Dataform Core install directory alone, leaving the SQLFluff settings untouched.
+     */
+    void setCoreInstallPath(@NotNull String coreInstallPath);
+
+    /**
      * Updates all settings at once.
      */
     void update(

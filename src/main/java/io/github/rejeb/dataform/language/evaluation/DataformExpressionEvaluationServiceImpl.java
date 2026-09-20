@@ -21,6 +21,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 import com.intellij.execution.process.ProcessOutput;
 import com.intellij.openapi.Disposable;
+import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.progress.ProcessCanceledException;
@@ -69,16 +70,23 @@ public final class DataformExpressionEvaluationServiceImpl
     private static final int MAX_EXPRESSIONS_PER_FILE = 200;
     private static final long FAILURE_COOLDOWN_MS = 30_000;
 
-    private enum PassOutcome { UP_TO_DATE, STORED, UPDATED, HARNESS_FAILURE }
+    private enum PassOutcome { UP_TO_DATE, STORED, UNCHANGED, UPDATED, HARNESS_FAILURE }
 
     private final Project project;
     private final Map<String, Map<String, DataformEvaluationResult>> cache = new ConcurrentHashMap<>();
     private final Map<String, AtomicLong> generations = new ConcurrentHashMap<>();
     private final Map<String, AtomicBoolean> running = new ConcurrentHashMap<>();
     private final Map<String, Boolean> pending = new ConcurrentHashMap<>();
-    private final Map<String, long[]> completedPasses = new ConcurrentHashMap<>();
     private final AtomicLong modificationCount = new AtomicLong();
     private volatile long failedUntil;
+    private volatile Evaluator evaluator = defaultEvaluator();
+
+    /** Computes the values of the given sources of a file, as Node does. */
+    @FunctionalInterface
+    public interface Evaluator {
+        @NotNull List<DataformEvaluationResult> evaluate(@NotNull PsiFile file,
+                                                         @NotNull List<String> sources);
+    }
 
     public DataformExpressionEvaluationServiceImpl(@NotNull Project project) {
         this.project = project;
@@ -89,9 +97,14 @@ public final class DataformExpressionEvaluationServiceImpl
             }
         }, this);
         project.getMessageBus().connect(this)
-                .subscribe(DataformSchemaEvent.TOPIC, (DataformSchemaEvent) this::invalidateAll);
+                .subscribe(DataformSchemaEvent.TOPIC, (DataformSchemaEvent) this::markEnvironmentChanged);
     }
 
+    /**
+     * An edit never drops a value: the next pass, asked for when the file comes back into focus,
+     * computes every value anew. A change to what every file depends on only lifts the cooldown a
+     * failed run put in place, so that the fix is tried at once.
+     */
     private void onPsiChanged(@Nullable PsiFile file) {
         VirtualFile virtualFile = file == null ? null : file.getVirtualFile();
         if (virtualFile == null) {
@@ -99,9 +112,7 @@ public final class DataformExpressionEvaluationServiceImpl
         }
         if (DataformJsFileIndex.isDataformJsFile(virtualFile)
                 || DataformWorkflowSettingsValueResolver.WORKFLOW_SETTINGS_FILE_NAME.equals(virtualFile.getName())) {
-            invalidateAll();
-        } else {
-            invalidate(virtualFile);
+            markEnvironmentChanged();
         }
     }
 
@@ -141,7 +152,6 @@ public final class DataformExpressionEvaluationServiceImpl
     @Override
     public void invalidate(@NotNull VirtualFile file) {
         String url = file.getUrl();
-        completedPasses.remove(url);
         pending.remove(url);
         if (cache.remove(url) != null) {
             modificationCount.incrementAndGet();
@@ -150,7 +160,6 @@ public final class DataformExpressionEvaluationServiceImpl
 
     @Override
     public void invalidateAll() {
-        completedPasses.clear();
         failedUntil = 0;
         if (!cache.isEmpty()) {
             cache.clear();
@@ -159,15 +168,27 @@ public final class DataformExpressionEvaluationServiceImpl
     }
 
     @Override
+    public void markEnvironmentChanged() {
+        failedUntil = 0;
+    }
+
+    @Override
     public void dispose() {
         generations.clear();
         cache.clear();
-        completedPasses.clear();
         pending.clear();
         running.clear();
     }
 
     private void runPass(@NotNull VirtualFile file) {
+        runPass(file, false);
+    }
+
+    /**
+     * @param ignoreCooldown whether to run even while the harness is on cooldown after a failure,
+     *                       which an explicit request for a pass wants
+     */
+    private void runPass(@NotNull VirtualFile file, boolean ignoreCooldown) {
         if (project.isDisposed() || !file.isValid()) {
             return;
         }
@@ -186,25 +207,21 @@ public final class DataformExpressionEvaluationServiceImpl
             if (psiFile == null || !isFileOpen(file)) {
                 return;
             }
-            long psiStamp = ReadAction.nonBlocking(psiFile::getModificationStamp).executeSynchronously();
-            long[] last = completedPasses.get(url);
-            if (last != null && last[0] == psiStamp && last[1] == modificationCount.get()) {
-                return;
-            }
-            if (System.currentTimeMillis() < failedUntil) {
+            if (!ignoreCooldown && System.currentTimeMillis() < failedUntil) {
                 return;
             }
             List<DataformExpression> expressions = ReadAction.nonBlocking(
                     () -> collect(psiFile)).executeSynchronously();
-            PassOutcome outcome = evaluateMissing(file, psiFile, expressions);
+            PassOutcome outcome = evaluateAll(file, psiFile, expressions);
             if (outcome == PassOutcome.HARNESS_FAILURE) {
                 failedUntil = System.currentTimeMillis() + FAILURE_COOLDOWN_MS;
                 return;
             }
-            completedPasses.put(url, new long[]{psiStamp, modificationCount.get()});
             if (outcome == PassOutcome.UPDATED) {
                 project.getMessageBus().syncPublisher(DataformEvaluationEvent.TOPIC).onValuesUpdated(file);
                 DataformFoldingRefresher.refresh(project, file);
+            } else if (outcome == PassOutcome.UNCHANGED) {
+                DataformFoldingRefresher.collapse(project, file);
             }
         } catch (ProcessCanceledException e) {
             throw e;
@@ -258,35 +275,36 @@ public final class DataformExpressionEvaluationServiceImpl
     }
 
     /**
-     * Evaluates the expressions of the file that have no cached result yet.
+     * Evaluates every deterministic expression of the file and replaces its values with the
+     * results. A hole whose text stood still may still depend on something that moved, so nothing
+     * is kept from the previous pass. Values identical to the previous ones are reported as
+     * {@link PassOutcome#UNCHANGED}: the file coming back into focus only needs its folds collapsed
+     * again, not its injections and folding rebuilt, which is what dropping the caches costs every
+     * open editor of the project.
      */
-    private PassOutcome evaluateMissing(@NotNull VirtualFile file,
-                                        @NotNull PsiFile psiFile,
-                                        @NotNull List<DataformExpression> expressions) {
-        Map<String, DataformEvaluationResult> values =
-                cache.computeIfAbsent(file.getUrl(), key -> new ConcurrentHashMap<>());
-
-        Set<String> missing = new LinkedHashSet<>();
+    private PassOutcome evaluateAll(@NotNull VirtualFile file,
+                                    @NotNull PsiFile psiFile,
+                                    @NotNull List<DataformExpression> expressions) {
+        Set<String> sources = new LinkedHashSet<>();
         for (DataformExpression expression : expressions) {
             if (!DataformTemplateSyntax.isDeterministic(expression.source())) {
                 continue;
             }
-            if (!values.containsKey(expression.source())) {
-                missing.add(expression.source());
-            }
-            if (missing.size() >= MAX_EXPRESSIONS_PER_FILE) {
+            sources.add(expression.source());
+            if (sources.size() >= MAX_EXPRESSIONS_PER_FILE) {
                 break;
             }
         }
-        if (missing.isEmpty()) {
-            return PassOutcome.UP_TO_DATE;
+        Map<String, DataformEvaluationResult> previous = cache.get(file.getUrl());
+        if (sources.isEmpty()) {
+            cache.put(file.getUrl(), new ConcurrentHashMap<>());
+            return previous == null || previous.isEmpty() ? PassOutcome.UP_TO_DATE : PassOutcome.STORED;
         }
-
-        List<DataformEvaluationResult> results = evaluate(psiFile, List.copyOf(missing));
+        List<DataformEvaluationResult> results = evaluator.evaluate(psiFile, List.copyOf(sources));
         if (results.isEmpty()) {
             return PassOutcome.HARNESS_FAILURE;
         }
-
+        Map<String, DataformEvaluationResult> values = new ConcurrentHashMap<>();
         boolean resolvedAny = false;
         for (DataformEvaluationResult result : results) {
             values.put(result.source(), result);
@@ -296,12 +314,29 @@ public final class DataformExpressionEvaluationServiceImpl
                         + result.source().replace('\n', ' ') + "] -> " + result.error());
             }
         }
+        boolean unchanged = previous != null && previous.equals(values);
+        cache.put(file.getUrl(), values);
+        if (unchanged) {
+            return resolvedAny ? PassOutcome.UNCHANGED : PassOutcome.STORED;
+        }
         modificationCount.incrementAndGet();
         return resolvedAny ? PassOutcome.UPDATED : PassOutcome.STORED;
     }
 
+    /**
+     * Node, except under the test framework, where an external process would answer at a moment
+     * no test controls and overwrite the values a test seeded. A test that wants a pass installs
+     * an evaluator of its own.
+     */
+    private @NotNull Evaluator defaultEvaluator() {
+        return ApplicationManager.getApplication().isUnitTestMode()
+                ? (file, sources) -> List.of()
+                : this::evaluateWithNode;
+    }
+
     @NotNull
-    private List<DataformEvaluationResult> evaluate(@NotNull PsiFile psiFile, @NotNull List<String> sources) {
+    private List<DataformEvaluationResult> evaluateWithNode(@NotNull PsiFile psiFile,
+                                                            @NotNull List<String> sources) {
         List<String> nodePaths = DataformEvaluationContextBuilder.nodePaths(project);
         DataformEvaluationContext context = ReadAction.nonBlocking(
                 () -> DataformEvaluationContextBuilder.build(project, psiFile, nodePaths)).executeSynchronously();
@@ -332,6 +367,29 @@ public final class DataformExpressionEvaluationServiceImpl
     /**
      * Seeds the cache with a value, so editor features can be tested without a Node process.
      */
+    @TestOnly
+    public void setEvaluator(@NotNull Evaluator evaluator) {
+        this.evaluator = evaluator;
+        failedUntil = 0;
+    }
+
+    /**
+     * Puts the default evaluator back and clears the failure cooldown, for the tear-down of a test
+     * that installed an evaluator: the light project outlives the test class, and so does this
+     * service.
+     */
+    @TestOnly
+    public void resetEvaluator() {
+        this.evaluator = defaultEvaluator();
+        failedUntil = 0;
+    }
+
+    /** Runs an evaluation pass for the file where it is called, without the debounce. */
+    @TestOnly
+    public void runPassNow(@NotNull VirtualFile file) {
+        runPass(file, true);
+    }
+
     @TestOnly
     public void putCachedValue(@NotNull VirtualFile file, @NotNull String source, @NotNull String value) {
         cache.computeIfAbsent(file.getUrl(), key -> new ConcurrentHashMap<>())

@@ -58,7 +58,7 @@ public interface ColumnRenamePlanner {
      *
      * @return the plan, or {@code null} when the user cancelled the search
      */
-    static @Nullable ColumnRenamePlan planUnderProgress(@NotNull Project project,
+    public static @Nullable ColumnRenamePlan planUnderProgress(@NotNull Project project,
                                                         @NotNull ColumnRenameSubject subject,
                                                         @NotNull String newName) {
         ColumnRenamePlanner planner = getInstance(project);

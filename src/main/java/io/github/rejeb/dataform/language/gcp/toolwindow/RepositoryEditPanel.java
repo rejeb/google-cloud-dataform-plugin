@@ -44,14 +44,15 @@ public class RepositoryEditPanel extends JPanel {
     private final JBTextField repositoryIdField = new JBTextField(30);
     private final JBTextField locationField = new JBTextField(30);
     private final ServiceAccountComboBox serviceAccountField;
+    private @Nullable String loadedConfigId;
 
     private final JButton testButton = new JButton("Test Connection");
     private final JButton createGcpButton = new JButton("Create in GCP");
     private final JLabel statusLabel = new JBLabel();
 
     /**
-     * Appelé sur l'EDT après une création GCP réussie.
-     * Le dialog parent doit flusher + persister la config.
+     * Called on the EDT once the repository was created in GCP; the owning dialog flushes and
+     * persists the config.
      */
     private Runnable onCreateSuccess = () -> {
     };
@@ -86,13 +87,14 @@ public class RepositoryEditPanel extends JPanel {
     }
 
     /**
-     * Enregistre le callback appelé après une création GCP réussie.
+     * Registers the callback run once the repository was created in GCP.
      */
     public void setOnCreateSuccess(@NotNull Runnable callback) {
         this.onCreateSuccess = callback;
     }
 
     public void load(@NotNull DataformRepositoryConfig config) {
+        loadedConfigId = config.repositoryConfigId();
         labelField.setText(config.label() );
         projectIdField.setText(config.projectId());
         repositoryIdField.setText(config.repositoryId());
@@ -103,6 +105,7 @@ public class RepositoryEditPanel extends JPanel {
     }
 
     public void clear() {
+        loadedConfigId = null;
         labelField.setText("");
         projectIdField.setText("");
         repositoryIdField.setText("");
@@ -134,7 +137,7 @@ public class RepositoryEditPanel extends JPanel {
     public DataformRepositoryConfig buildConfig(@NotNull String labelFallback) {
         String label = labelField.getText().trim();
         return new DataformRepositoryConfig(
-                UUID.randomUUID().toString(),
+                loadedConfigId != null ? loadedConfigId : UUID.randomUUID().toString(),
                 label.isEmpty() ? labelFallback : label,
                 projectIdField.getText().trim(),
                 repositoryIdField.getText().trim(),

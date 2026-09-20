@@ -26,47 +26,35 @@ import io.github.rejeb.dataform.language.util.DataformProjectLayout;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Drops cached expression values when the files they were computed from change.
+ * Notes, for every open project, that the files the expression values depend on have changed on
+ * disk. Nothing is dropped: the values stay in front of whoever is editing, and the next pass of a
+ * file computes them anew. A change to an ordinary file needs no note at all — its own PSI stamp
+ * moves with it, and that is what a pass compares.
  */
 public final class DataformEvaluationInvalidator implements AsyncFileListener {
 
     @Override
     public @Nullable ChangeApplier prepareChange(@NotNull List<? extends VFileEvent> events) {
-        List<VirtualFile> changed = new ArrayList<>();
         boolean environmentChanged = false;
         for (VFileEvent event : events) {
             VirtualFile file = event.getFile();
-            if (file == null) {
-                continue;
-            }
-            if (affectsEnvironment(file)) {
+            if (file != null && affectsEnvironment(file)) {
                 environmentChanged = true;
-            } else {
-                changed.add(file);
+                break;
             }
         }
-        if (!environmentChanged && changed.isEmpty()) {
+        if (!environmentChanged) {
             return null;
         }
-
-        boolean invalidateAll = environmentChanged;
         return new ChangeApplier() {
             @Override
             public void afterVfsChange() {
                 for (Project project : ProjectManager.getInstance().getOpenProjects()) {
-                    if (project.isDisposed()) {
-                        continue;
-                    }
-                    DataformExpressionEvaluationService service =
-                            DataformExpressionEvaluationService.getInstance(project);
-                    if (invalidateAll) {
-                        service.invalidateAll();
-                    } else {
-                        changed.forEach(service::invalidate);
+                    if (!project.isDisposed()) {
+                        DataformExpressionEvaluationService.getInstance(project).markEnvironmentChanged();
                     }
                 }
             }

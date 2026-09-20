@@ -83,10 +83,6 @@ public final class LineageModel {
         listeners.add(listener);
     }
 
-    public void removeListener(@NotNull Consumer<LineageModel> listener) {
-        listeners.remove(listener);
-    }
-
     private void fire() {
         for (Consumer<LineageModel> listener : listeners) {
             listener.accept(this);
@@ -185,19 +181,6 @@ public final class LineageModel {
      */
     public void setScopeIds(@Nullable Set<String> ids) {
         this.scopeIds = ids == null ? null : new LinkedHashSet<>(ids);
-        fire();
-    }
-
-    public void clearFilters() {
-        enabledTypes.clear();
-        enabledSchemas.clear();
-        for (LineageNode node : graph.nodes()) {
-            enabledTypes.add(node.dataformType());
-            enabledSchemas.add(node.schema());
-        }
-        enabledTags.clear();
-        searchQuery = "";
-        focusId = null;
         fire();
     }
 

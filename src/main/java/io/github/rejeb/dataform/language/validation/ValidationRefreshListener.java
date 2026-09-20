@@ -18,14 +18,17 @@ package io.github.rejeb.dataform.language.validation;
 
 import com.intellij.openapi.editor.event.DocumentEvent;
 import com.intellij.openapi.editor.event.DocumentListener;
+import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.project.ProjectManager;
+import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.concurrency.AppExecutorUtil;
 import io.github.rejeb.dataform.language.diagnostics.DataformEditorRefresher;
 import io.github.rejeb.dataform.language.diagnostics.ValidationProblemInlayManager;
+import io.github.rejeb.dataform.language.util.DataformProjectLayout;
 import io.github.rejeb.dataform.language.util.DataformProjects;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -43,7 +46,15 @@ public final class ValidationRefreshListener implements DocumentListener {
 
     @Override
     public void documentChanged(@NotNull DocumentEvent event) {
-        scheduleRefresh(generation.incrementAndGet(), DEBOUNCE_MS);
+        VirtualFile file = FileDocumentManager.getInstance().getFile(event.getDocument());
+        if (!DataformProjectLayout.isDataformSource(file)) {
+            return;
+        }
+        List<Project> owners = DataformProjects.owning(file);
+        if (owners.isEmpty()) {
+            return;
+        }
+        scheduleRefresh(generation.incrementAndGet(), DEBOUNCE_MS, owners);
     }
 
     /**
@@ -51,25 +62,29 @@ public final class ValidationRefreshListener implements DocumentListener {
      * than assumed: a rebuild starting a few milliseconds early would find the user still editing,
      * be skipped by the annotator, and leave the problems unpainted until the next keystroke.
      */
-    private void scheduleRefresh(long requested, long delayMs) {
+    private void scheduleRefresh(long requested, long delayMs, @NotNull List<Project> projects) {
         AppExecutorUtil.getAppScheduledExecutorService().schedule(() -> {
             if (generation.get() != requested) {
                 return;
             }
-            if (rescheduleWhileEditing(requested)) {
+            if (rescheduleWhileEditing(requested, projects)) {
                 return;
             }
-            DataformProjects.forEachOpen(this::refresh);
+            for (Project project : projects) {
+                if (!project.isDisposed()) {
+                    refresh(project);
+                }
+            }
         }, delayMs, TimeUnit.MILLISECONDS);
     }
 
     /**
-     * Whether any project is still within its quiet period, in which case the rebuild is pushed
-     * back to the moment the user actually stops typing.
+     * Whether one of the projects is still within its quiet period, in which case the rebuild is
+     * pushed back to the moment the user actually stops typing.
      */
-    private boolean rescheduleWhileEditing(long requested) {
+    private boolean rescheduleWhileEditing(long requested, @NotNull List<Project> projects) {
         long remaining = 0;
-        for (Project project : ProjectManager.getInstance().getOpenProjects()) {
+        for (Project project : projects) {
             if (!project.isDisposed()) {
                 remaining = Math.max(remaining,
                         DataformEditActivityService.getInstance(project).remainingQuietPeriodMs());
@@ -78,7 +93,7 @@ public final class ValidationRefreshListener implements DocumentListener {
         if (remaining <= 0) {
             return false;
         }
-        scheduleRefresh(requested, remaining);
+        scheduleRefresh(requested, remaining, projects);
         return true;
     }
 

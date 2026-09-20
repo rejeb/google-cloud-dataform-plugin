@@ -16,6 +16,7 @@
  */
 package io.github.rejeb.dataform.language.gcp.execution.bigquery;
 
+import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.project.Project;
 import org.jetbrains.annotations.NotNull;
 
@@ -26,17 +27,19 @@ public interface BigQueryExecutionService {
     }
 
     /**
-     * Executes a SQL query against BigQuery synchronously.
-     * Must be called off the EDT.
+     * Executes a SQL query against BigQuery synchronously, cancelling the BigQuery job when the
+     * indicator is cancelled. Must be called off the EDT.
      *
      * @param sql       compiled SQL to execute
      * @param projectId GCP project ID
      * @param tableName Dataform table name (for display)
+     * @param indicator progress of the caller, honoured while the job runs
      * @return execution result, never null
      */
     @NotNull BigQueryJobResult execute(
             @NotNull String sql,
             @NotNull String projectId,
-            @NotNull String tableName
+            @NotNull String tableName,
+            @NotNull ProgressIndicator indicator
     );
 }

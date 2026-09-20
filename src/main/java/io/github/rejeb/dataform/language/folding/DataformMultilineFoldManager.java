@@ -17,31 +17,28 @@
 package io.github.rejeb.dataform.language.folding;
 
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.progress.ProcessCanceledException;
 import com.intellij.openapi.editor.CustomFoldRegion;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.FoldRegion;
 import com.intellij.openapi.util.Key;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Renders long expression values over several editor lines, using custom fold regions.
  *
  * <p>A custom fold region spans whole lines and cannot be expanded, so clicking the painted value
- * removes it to bring the expression source back. The region is recreated by the next evaluation
- * pass.</p>
+ * removes it to bring the expression source back. The next evaluation pass — run when the file is
+ * opened or comes back into focus — creates it again.</p>
  */
 public final class DataformMultilineFoldManager {
 
     private static final Logger LOG = Logger.getInstance(DataformMultilineFoldManager.class);
     private static final Key<Map<String, CustomFoldRegion>> REGIONS = Key.create("dataform.folding.multilineRegions");
-    private static final Key<Set<String>> SUPPRESSED = Key.create("dataform.folding.multilineSuppressed");
 
     /**
      * A value to paint over the lines of one expression.
@@ -70,18 +67,9 @@ public final class DataformMultilineFoldManager {
      */
     public static void apply(@NotNull Editor editor, @NotNull List<MultilineValue> values) {
         Map<String, CustomFoldRegion> regions = regionsOf(editor);
-        Set<String> suppressed = suppressedOf(editor);
-
-        List<MultilineValue> wanted = new ArrayList<>();
-        for (MultilineValue value : values) {
-            if (!suppressed.contains(value.source())) {
-                wanted.add(value);
-            }
-        }
-
         editor.getFoldingModel().runBatchFoldingOperation(() -> {
-            removeObsolete(editor, regions, wanted);
-            for (MultilineValue value : wanted) {
+            removeObsolete(editor, regions, values);
+            for (MultilineValue value : values) {
                 if (regions.containsKey(key(value))) {
                     continue;
                 }
@@ -123,15 +111,16 @@ public final class DataformMultilineFoldManager {
         try {
             return editor.getFoldingModel().addCustomLinesFolding(value.startLine(), value.endLine(),
                     new DataformValueFoldRenderer(value.lines(), value.prefix(), value.suffix(),
-                            () -> suppress(editor, value)));
+                            () -> showSource(editor, value)));
+        } catch (ProcessCanceledException e) {
+            throw e;
         } catch (Exception e) {
             LOG.warn("Could not render the value of [" + value.source() + "] over multiple lines", e);
             return null;
         }
     }
 
-    private static void suppress(@NotNull Editor editor, @NotNull MultilineValue value) {
-        suppressedOf(editor).add(value.source());
+    private static void showSource(@NotNull Editor editor, @NotNull MultilineValue value) {
         Map<String, CustomFoldRegion> regions = regionsOf(editor);
         CustomFoldRegion region = regions.remove(key(value));
         if (region != null) {
@@ -158,15 +147,5 @@ public final class DataformMultilineFoldManager {
             editor.putUserData(REGIONS, regions);
         }
         return regions;
-    }
-
-    @NotNull
-    private static Set<String> suppressedOf(@NotNull Editor editor) {
-        Set<String> suppressed = editor.getUserData(SUPPRESSED);
-        if (suppressed == null) {
-            suppressed = new HashSet<>();
-            editor.putUserData(SUPPRESSED, suppressed);
-        }
-        return suppressed;
     }
 }

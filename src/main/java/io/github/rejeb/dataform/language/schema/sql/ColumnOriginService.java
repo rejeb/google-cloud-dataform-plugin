@@ -46,9 +46,24 @@ public interface ColumnOriginService {
     @Nullable
     ColumnRef declaredColumn(@NotNull PsiFile file, @NotNull PsiElement element);
 
-    /** The element declaring a column, in the file of the action building it. */
+    /**
+     * The element declaring a column, in the file of the action building it. A column of a declared
+     * source is built by no action and has none: see {@link #sourceDeclaration}.
+     */
     @Nullable
     PsiElement declaringElement(@NotNull ColumnRef column);
+
+    /**
+     * The declaration of the source a column belongs to — the {@code declare()} call in a
+     * JavaScript file, or the {@code config} block of a SQLX file of type {@code declaration} —
+     * when the column belongs to a source declared to the project rather than to an action
+     * building it.
+     *
+     * <p>Kept apart from {@link #declaringElement}: what is answered here names the table and not
+     * the column, so it is a place to read and never a place a rename may write.</p>
+     */
+    @Nullable
+    PsiElement sourceDeclaration(@NotNull ColumnRef column);
 
     /**
      * The element declaring a schema column, whichever way the column was built.

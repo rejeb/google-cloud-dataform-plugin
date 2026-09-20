@@ -21,7 +21,9 @@ import com.intellij.openapi.util.TextRange;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
-import com.intellij.sql.psi.SqlCompositeElementTypes;
+import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
+import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
+import io.github.rejeb.dataform.language.compilation.model.Declaration;
 import io.github.rejeb.dataform.language.lineage.column.ColumnLineageGraph;
 import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
 import io.github.rejeb.dataform.language.lineage.service.LineageGraphService;
@@ -35,7 +37,6 @@ import io.github.rejeb.dataform.language.refactoring.column.usage.JsRenameEditCo
 import io.github.rejeb.dataform.language.refactoring.column.usage.SqlRenameEditCollector;
 import io.github.rejeb.dataform.language.refactoring.column.usage.SqlxStarExpander;
 import io.github.rejeb.dataform.language.schema.sql.ColumnOriginService;
-import io.github.rejeb.dataform.language.schema.sql.SqlPsiParts;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -66,7 +67,22 @@ public final class ColumnRenamePlannerImpl implements ColumnRenamePlanner {
             return ColumnRenamePlan.refused(subject, newName,
                     "The project has not been compiled yet, so the columns reading this one are unknown");
         }
-        return build(subject, newName, ColumnClosure.of(graph, subject.column()), List.of());
+        return build(subject, newName,
+                ColumnClosure.of(graph, subject.column(), sourceTables()), List.of());
+    }
+
+    /**
+     * The tables declared to the project with {@code declare()}: tables of BigQuery no action
+     * builds, whose columns a rename never writes.
+     */
+    private @NotNull Set<String> sourceTables() {
+        CompiledGraph compiled = DataformCompilationService.getInstance(project).getCompiledGraph();
+        if (compiled == null) return Set.of();
+        Set<String> tables = new LinkedHashSet<>();
+        for (Declaration declaration : compiled.getDeclarations()) {
+            if (declaration.getTarget() != null) tables.add(declaration.getTarget().getFullName());
+        }
+        return tables;
     }
 
     @Override
@@ -181,7 +197,7 @@ public final class ColumnRenamePlannerImpl implements ColumnRenamePlanner {
                     "The project has not been compiled yet");
         }
         ColumnRenamePlan reduced = build(subject, plan.newName(),
-                ColumnClosure.downstreamOf(graph, subject.column()), List.of());
+                ColumnClosure.downstreamOf(graph, subject.column(), sourceTables()), List.of());
         return new ColumnRenamePlan(subject, plan.newName(), reduced.columns(),
                 withDeclarationAliased(reduced.edits(), subject, plan.newName()),
                 List.of(), reduced.warnings(), reduced.refusal());
@@ -202,13 +218,8 @@ public final class ColumnRenamePlannerImpl implements ColumnRenamePlanner {
         PsiElement declaration = ColumnOriginService.getInstance(project)
                 .declaringElement(subject.column());
         if (declaration == null) return edits;
-        String replacement = isAliasOfExpression(declaration)
-                ? DataformColumnNameValidator.inSql(newName)
-                : DataformColumnNameValidator.inSql(subject.oldName())
-                        + " AS " + DataformColumnNameValidator.inSql(newName);
-        ColumnRenameEdit aliased = EditFactory.ofWhole(declaration, replacement,
-                ColumnRenameEdit.Kind.SQL_DECLARATION_ALIAS, ColumnRenameEdit.Risk.CERTAIN,
-                "declaration of " + subject.oldName() + " under its new name");
+        ColumnRenameEdit aliased = SqlRenameEditCollector.aliasedDeclaration(declaration,
+                subject.oldName(), newName);
         if (aliased == null) return edits;
 
         List<ColumnRenameEdit> result = new ArrayList<>();
@@ -220,14 +231,6 @@ public final class ColumnRenamePlannerImpl implements ColumnRenamePlanner {
         }
         result.add(aliased);
         return List.copyOf(result);
-    }
-
-    /** Whether an element is the name an {@code AS} expression gives to what it computes. */
-    private static boolean isAliasOfExpression(@NotNull PsiElement declaration) {
-        PsiElement parent = declaration.getParent();
-        return parent != null
-                && SqlPsiParts.isType(parent, SqlCompositeElementTypes.SQL_AS_EXPRESSION)
-                && SqlPsiParts.lastIdentifier(parent) == declaration;
     }
 
     /**
@@ -245,7 +248,8 @@ public final class ColumnRenamePlannerImpl implements ColumnRenamePlanner {
                                             @NotNull List<String> knownWarnings) {
         Set<ColumnRef> columns = closure.columns();
         SqlRenameEditCollector.Result sql =
-                SqlRenameEditCollector.collect(project, columns, closure.carried(), newName);
+                SqlRenameEditCollector.collect(project, columns, closure.carried(),
+                        closure.aliased(), newName);
         Map<String, ColumnRenameEdit> edits = new LinkedHashMap<>();
         sql.edits().forEach(edit -> edits.putIfAbsent(edit.key(), edit));
 

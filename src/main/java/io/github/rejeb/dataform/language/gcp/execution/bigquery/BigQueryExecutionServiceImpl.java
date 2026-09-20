@@ -23,10 +23,14 @@ import io.github.rejeb.dataform.language.gcp.auth.AuthTrigger;
 import io.github.rejeb.dataform.language.gcp.auth.GcpAuthErrors;
 import io.github.rejeb.dataform.language.util.GcpClientsUtils;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+import com.intellij.openapi.progress.ProgressIndicator;
+import com.intellij.openapi.progress.ProcessCanceledException;
 
 public final class BigQueryExecutionServiceImpl implements BigQueryExecutionService {
 
     private static final Logger LOG = Logger.getInstance(BigQueryExecutionServiceImpl.class);
+    private static final long POLL_INTERVAL_MS = 500;
 
     public BigQueryExecutionServiceImpl(@NotNull Project project) {
     }
@@ -35,17 +39,17 @@ public final class BigQueryExecutionServiceImpl implements BigQueryExecutionServ
     public @NotNull BigQueryJobResult execute(
             @NotNull String sql,
             @NotNull String projectId,
-            @NotNull String tableName
+            @NotNull String tableName,
+            @NotNull ProgressIndicator indicator
     ) {
+        Job submitted = null;
         try {
             BigQuery bigQuery = GcpClientsUtils.bigQuery(projectId);
             QueryJobConfiguration config = QueryJobConfiguration.newBuilder(sql)
                     .setUseLegacySql(false)
                     .build();
-
-            Job job = bigQuery.create(JobInfo.of(config));
-            job = job.waitFor();
-
+            submitted = bigQuery.create(JobInfo.of(config));
+            Job job = waitFor(submitted, indicator);
             if (job == null) {
                 return failure(tableName, "Job no longer exists after submission");
             }
@@ -67,15 +71,47 @@ public final class BigQueryExecutionServiceImpl implements BigQueryExecutionServ
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            cancelQuietly(submitted);
             return failure(tableName, "Query execution interrupted");
+        } catch (ProcessCanceledException e) {
+            cancelQuietly(submitted);
+            return failure(tableName, "Query execution cancelled");
         } catch (RuntimeException e) {
-            LOG.warn("Failed to build BigQuery client", e);
+            LOG.warn("BigQuery execution failed", e);
             GcpAuthErrors.reportIfAuthFailure(e, AuthTrigger.USER_ACTION);
             return failure(tableName, "Execution error: " + e.getMessage());
         } catch (Exception e) {
             LOG.warn("BigQuery execution failed", e);
             GcpAuthErrors.reportIfAuthFailure(e, AuthTrigger.USER_ACTION);
             return failure(tableName, e.getMessage());
+        }
+    }
+
+    /**
+     * Waits for the job to finish, checking the indicator between two polls so a cancelled
+     * execution stops waiting at once and cancels the job on BigQuery.
+     */
+    @Nullable
+    private static Job waitFor(@NotNull Job job, @NotNull ProgressIndicator indicator)
+            throws InterruptedException {
+        Job current = job;
+        while (!current.isDone()) {
+            indicator.checkCanceled();
+            Thread.sleep(POLL_INTERVAL_MS);
+            current = current.reload();
+            if (current == null) {
+                return null;
+            }
+        }
+        return current;
+    }
+
+    private static void cancelQuietly(@Nullable Job job) {
+        if (job == null) return;
+        try {
+            job.cancel();
+        } catch (Exception e) {
+            LOG.debug("Could not cancel BigQuery job " + job.getJobId(), e);
         }
     }
 

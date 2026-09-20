@@ -168,7 +168,7 @@ public class ActionSummaryPanel extends JPanel {
         settings.setVirtualSpace(false);
         settings.setUseSoftWraps(true);          // wrap → pas de scroll horizontal
         editor.setHorizontalScrollbarVisible(false);
-        editor.setVerticalScrollbarVisible(false); // scroll géré par le parent
+        editor.setVerticalScrollbarVisible(false);
         sqlEditor = editor;
 
         sqlContainer.add(buildSqlTitleLabel(), BorderLayout.NORTH);

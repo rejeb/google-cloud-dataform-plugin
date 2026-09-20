@@ -17,7 +17,6 @@
 package io.github.rejeb.dataform.language.lineage.service;
 
 import com.intellij.openapi.project.Project;
-import com.intellij.util.concurrency.AppExecutorUtil;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.compilation.model.Target;
@@ -37,37 +36,47 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 
+/**
+ * Default {@link LineageGraphService}. The graphs are rebuilt when the compiled graph or the
+ * schemas change and cached otherwise; concurrent callers share a single build. The build parses
+ * the SQL of every action, so it must be asked from a background thread.
+ */
 public final class LineageGraphServiceImpl implements LineageGraphService {
 
-    private final Project project;
+    private record Cached(@Nullable CompiledGraph compiled, long schemaStamp, @NotNull Graphs graphs) {
+        boolean matches(@NotNull CompiledGraph compiled, long schemaStamp) {
+            return this.compiled == compiled && this.schemaStamp == schemaStamp
+                    && graphs.columnGraph() != null;
+        }
+    }
 
-    private CompiledGraph cachedCompiled;
-    private long cachedSchemaStamp = Long.MIN_VALUE;
-    private Graphs cachedGraphs = new Graphs(null, null);
+    private final Project project;
+    private final Object buildLock = new Object();
+    private volatile Cached cached = new Cached(null, Long.MIN_VALUE, new Graphs(null, null));
 
     public LineageGraphServiceImpl(@NotNull Project project) {
         this.project = project;
     }
 
     @Override
-    public synchronized @NotNull Graphs graphs(@NotNull CompiledGraph compiled) {
+    public @NotNull Graphs graphs(@NotNull CompiledGraph compiled) {
         long schemaStamp = DataformTableSchemaService.getInstance(project).getModificationCount();
-        if (compiled == cachedCompiled && schemaStamp == cachedSchemaStamp
-                && cachedGraphs.columnGraph() != null) {
-            return cachedGraphs;
+        Cached current = cached;
+        if (current.matches(compiled, schemaStamp)) {
+            return current.graphs();
         }
-
-        CompletableFuture<LineageGraph> tableFuture = CompletableFuture.supplyAsync(
-                () -> new LineageExtractorImpl().extract(compiled),
-                AppExecutorUtil.getAppExecutorService());
-        ColumnLineageGraph columnGraph = computeColumnGraph(compiled);
-
-        cachedCompiled = compiled;
-        cachedSchemaStamp = schemaStamp;
-        cachedGraphs = new Graphs(tableFuture.join(), columnGraph);
-        return cachedGraphs;
+        synchronized (buildLock) {
+            current = cached;
+            if (current.matches(compiled, schemaStamp)) {
+                return current.graphs();
+            }
+            LineageGraph tableGraph = new LineageExtractorImpl().extract(compiled);
+            ColumnLineageGraph columnGraph = computeColumnGraph(compiled);
+            Graphs graphs = new Graphs(tableGraph, columnGraph);
+            cached = new Cached(compiled, schemaStamp, graphs);
+            return graphs;
+        }
     }
 
     @Override

@@ -18,14 +18,11 @@ package io.github.rejeb.dataform.language.gcp.service;
 
 import com.intellij.notification.NotificationType;
 import com.intellij.util.messages.Topic;
-import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowInvocationProgress;
 import io.github.rejeb.dataform.language.gcp.workspace.UncommittedChange;
 import io.github.rejeb.dataform.language.gcp.workspace.Workspace;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 
 public interface DataformGcpEvent {
 
@@ -38,10 +35,4 @@ public interface DataformGcpEvent {
     default void onGitStatusesLoaded(@NotNull List<UncommittedChange> changes) {}
 
     default void onNotification(@NotNull String message, @NotNull NotificationType type) {}
-
-    /** Fired when a workflow run has been successfully created in GCP. */
-    default void onWorkflowRunStarted(@NotNull String workflowRunName) {}
-
-    /** Fired on each polling tick with the latest run progress. */
-    default void onWorkflowInvocationProgress(@NotNull WorkflowInvocationProgress progress) {}
 }

@@ -61,7 +61,6 @@ public class ManageRepositoriesDialog extends DialogWrapper {
         this.project = project;
         this.editPanel = new RepositoryEditPanel(project);
 
-        // Après Create in GCP réussi : flush + persist immédiat
         editPanel.setOnCreateSuccess(() -> {
             flushEditedIndex();
             persistList();
@@ -248,12 +247,9 @@ public class ManageRepositoriesDialog extends DialogWrapper {
         }
     }
 
-    // -------------------------------------------------------------------------
-
     /**
-     * Insère {@code config} à {@code index} dans le modèle, sélectionne la ligne
-     * et charge le formulaire — tout en supprimant le listener pour éviter
-     * les flushes parasites.
+     * Inserts the config at the index, selects the row and loads the form, with the selection
+     * listener muted so the insertion does not flush the form into the wrong entry.
      */
     private void insertAndSelect(@NotNull DataformRepositoryConfig config, int index) {
         suppressListener = true;
@@ -268,11 +264,10 @@ public class ManageRepositoriesDialog extends DialogWrapper {
     }
 
     /**
-     * Génère un label de copie unique de la forme "{base} (Copy)", "{base} (Copy 2)", etc.
+     * Builds a unique copy label of the form "{base} (Copy)", "{base} (Copy 2)", and so on.
      */
     @NotNull
     private String generateCopyLabel(@NotNull String base) {
-        // Retirer un suffixe de copie existant pour repartir du label de base
         String root = base.replaceAll("\\s*\\(Copy(\\s+\\d+)?\\)$", "").trim();
 
         String candidate = root + " (Copy)";
@@ -292,8 +287,8 @@ public class ManageRepositoriesDialog extends DialogWrapper {
     }
 
     /**
-     * Persiste l'état du formulaire dans {@code listModel[editedIndex]}.
-     * Le label existant sert de fallback si le champ label est vide.
+     * Writes the form into {@code listModel[editedIndex]}; the existing label is kept when the
+     * label field is empty.
      */
     private void flushEditedIndex() {
         if (editedIndex < 0 || editedIndex >= listModel.size()) return;

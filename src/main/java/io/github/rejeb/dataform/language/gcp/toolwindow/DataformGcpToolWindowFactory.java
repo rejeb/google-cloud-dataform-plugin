@@ -25,8 +25,6 @@ import io.github.rejeb.dataform.language.gcp.toolwindow.action.CreateWorkspaceAc
 import io.github.rejeb.dataform.language.gcp.toolwindow.action.GcpAuthAction;
 import io.github.rejeb.dataform.language.gcp.toolwindow.action.ManageRepositoriesAction;
 import io.github.rejeb.dataform.language.gcp.toolwindow.action.RefreshAction;
-import io.github.rejeb.dataform.language.gcp.toolwindow.dispatcher.GcpPanelActionDispatcher;
-import io.github.rejeb.dataform.language.gcp.toolwindow.dispatcher.GcpPanelActionDispatcherImpl;
 import io.github.rejeb.dataform.language.util.Utils;
 import org.jetbrains.annotations.NotNull;
 

@@ -16,6 +16,7 @@
  */
 package io.github.rejeb.dataform.language.refactoring.column;
 
+import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiElement;
@@ -27,6 +28,7 @@ import io.github.rejeb.dataform.language.refactoring.column.apply.ColumnRenameEd
 import io.github.rejeb.dataform.language.refactoring.column.apply.ColumnRenameUsageInfo;
 import io.github.rejeb.dataform.language.refactoring.column.plan.ColumnRenamePlan;
 import io.github.rejeb.dataform.language.refactoring.column.plan.ColumnRenamePlanner;
+import io.github.rejeb.dataform.language.refactoring.column.target.ColumnRenameSubject;
 import io.github.rejeb.dataform.language.refactoring.column.target.ColumnRenameSubjectFactory;
 import io.github.rejeb.dataform.language.refactoring.column.ui.DataformColumnRenameDialog;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasColumn;
@@ -100,9 +102,22 @@ public class DataformColumnRenamePsiElementProcessor extends RenamePsiElementPro
         prepared = null;
         if (!(element instanceof DataformDasColumn column)) return;
         ColumnRenameSubjectFactory.of(column)
-                .map(subject -> ColumnRenamePlanner.getInstance(column.getProject())
-                        .plan(subject, newName))
+                .map(subject -> plan(column.getProject(), subject, newName))
                 .ifPresent(plan -> prepared = new PreparedPlan(element, newName, plan));
+    }
+
+    /**
+     * The plan, computed under a cancellable progress when the gesture arrives on the event
+     * thread: planning searches the whole project, which is seconds of work on a real one.
+     */
+    private static @Nullable ColumnRenamePlan plan(@NotNull Project project,
+                                                   @NotNull ColumnRenameSubject subject,
+                                                   @NotNull String newName) {
+        if (ApplicationManager.getApplication().isDispatchThread()
+                && !ApplicationManager.getApplication().isUnitTestMode()) {
+            return ColumnRenamePlanner.planUnderProgress(project, subject, newName);
+        }
+        return ColumnRenamePlanner.getInstance(project).plan(subject, newName);
     }
 
     /**

@@ -44,7 +44,13 @@ public final class HostRanges {
     }
 
     /**
-     * The range of the host document holding {@code rangeInElement} of {@code element}.
+     * The range of the host document holding {@code rangeInElement} of {@code element}, or
+     * {@code null} when the host holds no such text.
+     *
+     * <p>An injection writes text of its own around what the host holds — the value a template
+     * hole stands for, for one. A range inside that text maps to nothing a rename could write:
+     * the platform answers with the empty range at the hole, and an edit there would insert the
+     * new name in front of the template instead of renaming anything.</p>
      *
      * @param element       the element the range belongs to
      * @param rangeInElement the range inside the element, relative to its own start
@@ -58,6 +64,15 @@ public final class HostRanges {
         PsiFile containing = element.getContainingFile();
         if (containing == null) return null;
         if (!manager.isInjectedFragment(containing)) return absolute;
+        if (!isEditable(manager, containing, absolute)) return null;
         return manager.injectedToHost(element, absolute);
+    }
+
+    private static boolean isEditable(@NotNull InjectedLanguageManager manager,
+                                      @NotNull PsiFile injected, @NotNull TextRange range) {
+        for (TextRange editable : manager.intersectWithAllEditableFragments(injected, range)) {
+            if (editable.getLength() == range.getLength()) return true;
+        }
+        return false;
     }
 }

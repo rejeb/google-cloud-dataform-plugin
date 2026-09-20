@@ -25,7 +25,6 @@ import com.google.cloud.dataform.v1.DataformSettings;
 import com.google.cloud.http.HttpTransportOptions;
 import io.github.rejeb.dataform.language.gcp.auth.SslConfig;
 import io.github.rejeb.dataform.language.gcp.auth.DataformCredentialsService;
-import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;

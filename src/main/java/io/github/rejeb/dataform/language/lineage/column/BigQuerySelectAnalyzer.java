@@ -17,6 +17,7 @@
 package io.github.rejeb.dataform.language.lineage.column;
 
 import com.intellij.openapi.application.ReadAction;
+import com.intellij.openapi.progress.ProcessCanceledException;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiElement;
@@ -65,8 +66,6 @@ public class BigQuerySelectAnalyzer implements SelectAnalyzer {
     private static final String WITH_QUERY = "SqlWithQueryExpressionImpl";
     private static final String WITH_CLAUSE = "SqlWithClauseImpl";
     private static final String NAMED_QUERY = "SqlNamedQueryDefinitionImpl";
-    private static final String UNION = "BigQueryUnionExpressionImpl";
-    private static final String QUERY = "SqlQueryExpressionImpl";
     private static final String SELECT_CLAUSE = "SqlSelectClauseImpl";
     private static final String TABLE_EXPRESSION = "SqlTableExpressionImpl";
     private static final String FROM_CLAUSE = "SqlFromClauseImpl";
@@ -79,9 +78,6 @@ public class BigQuerySelectAnalyzer implements SelectAnalyzer {
     private static final String STRUCT_EXPRESSION = "BigQueryParenthesizedExpression";
     private static final String DERIVED_SCOPE_PREFIX = "#derived";
     private static final String PIVOTED_QUERY = "BigQueryPivotedQueryExpressionImpl";
-    private static final String UNPIVOTED_QUERY = "SqlUnpivotedQueryExpressionImpl";
-    private static final String PIVOT_COLUMNS_CLAUSE = "SqlPivotColumnsClauseImpl";
-    private static final String CLAUSE = "SqlClauseImpl";
     private static final String FUNCTION_CALL_TABLE = "SqlFunctionCallTableExpressionImpl";
     private static final String EXPRESSION_LIST = "SqlExpressionListImpl";
     private static final String UNNEST = "UNNEST";
@@ -125,6 +121,8 @@ public class BigQuerySelectAnalyzer implements SelectAnalyzer {
                     return QueryAnalysis.EMPTY;
                 }
                 return new QueryAnalysis(outputsOf(stmt), aliasesOf(stmt));
+            } catch (ProcessCanceledException e) {
+                throw e;
             } catch (Exception e) {
                 LOG.warn("Column lineage analysis failed; the SQL PSI shape may have changed", e);
                 return QueryAnalysis.EMPTY;
@@ -151,6 +149,8 @@ public class BigQuerySelectAnalyzer implements SelectAnalyzer {
                 PsiElement stmt = lastSelectStatement(file);
                 if (stmt == null) return QueryAnalysis.EMPTY;
                 return new QueryAnalysis(outputsOf(stmt), aliasesOf(stmt));
+            } catch (ProcessCanceledException e) {
+                throw e;
             } catch (Exception e) {
                 LOG.warn("Column lineage analysis failed; the SQL PSI shape may have changed", e);
                 return QueryAnalysis.EMPTY;
@@ -642,13 +642,31 @@ public class BigQuerySelectAnalyzer implements SelectAnalyzer {
         String source = resolveSource(input.sourceAlias(), aliases);
         if (source != null && cteMap.containsKey(source)) {
             List<InputColumn> sub = cteMap.get(source).get(input.columnName());
-            if (sub != null && !sub.isEmpty()) return new ArrayList<>(sub);
+            if (sub != null && !sub.isEmpty()) return through(input.kind(), sub);
         }
         if (input.sourceAlias() != null && cteMap.containsKey(input.sourceAlias())) {
             List<InputColumn> sub = cteMap.get(input.sourceAlias()).get(input.columnName());
-            if (sub != null && !sub.isEmpty()) return new ArrayList<>(sub);
+            if (sub != null && !sub.isEmpty()) return through(input.kind(), sub);
         }
         return List.of(input);
+    }
+
+    /**
+     * The inputs of a scope column as seen through a reference of a given kind: each is only as
+     * direct as the weakest step. A copy of a CTE column keeps whatever the CTE knows about it, but
+     * a rename or an expression over that column is a rename or an expression over its sources
+     * too, however directly the CTE copied them.
+     */
+    private static @NotNull List<InputColumn> through(@NotNull Confidence outer,
+                                                      @NotNull List<InputColumn> inputs) {
+        List<InputColumn> result = new ArrayList<>(inputs.size());
+        for (InputColumn input : inputs) {
+            Confidence kind = input.kind().ordinal() >= outer.ordinal() ? input.kind() : outer;
+            result.add(kind == input.kind()
+                    ? input
+                    : new InputColumn(input.sourceAlias(), input.columnName(), kind, input.star()));
+        }
+        return result;
     }
 
     private @Nullable String resolveSource(@Nullable String alias, @NotNull Map<String, String> aliases) {

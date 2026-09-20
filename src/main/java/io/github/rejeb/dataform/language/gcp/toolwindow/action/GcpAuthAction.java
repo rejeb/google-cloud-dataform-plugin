@@ -47,7 +47,7 @@ public final class GcpAuthAction extends AnAction implements DumbAware {
 
     @Override
     public void update(@NotNull AnActionEvent e) {
-        boolean signedIn = DataformCredentialsService.getInstance().isSignedIn();
+        boolean signedIn = DataformCredentialsService.getInstance().isSignedInCached();
         boolean inProgress = DataformAuthState.getInstance().getStatus() == AuthStatus.IN_PROGRESS;
         String email = DataformCredentialsService.getInstance().getAccountEmail();
 

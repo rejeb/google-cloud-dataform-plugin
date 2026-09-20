@@ -23,7 +23,13 @@ import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.fileEditor.OpenFileDescriptor;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
+import io.github.rejeb.dataform.language.evaluation.DataformExpressionEvaluationService;
+import io.github.rejeb.dataform.language.evaluation.DataformExpressionEvaluationServiceImpl;
+import io.github.rejeb.dataform.language.injection.SqlxInjectionRefresher;
+import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
+import io.github.rejeb.dataform.language.schema.sql.ColumnOriginService;
 import io.github.rejeb.dataform.language.schema.sql.DataformProjectFixture;
+import io.github.rejeb.dataform.language.schema.sql.model.DataformDasColumn;
 import io.github.rejeb.dataform.language.schema.sql.SqlxColumnAtCaret;
 
 import java.util.ArrayList;
@@ -349,5 +355,131 @@ public class ColumnUsagesWindowTest extends DataformProjectFixture {
                         .isTruncated());
         assertFalse("a heading holding every read must not",
                 ColumnUsageRow.heading(ColumnUsageRows.USAGES, 3, false).isTruncated());
+    }
+
+    /**
+     * A column of a source declared with {@code declare()} has no query building it; its declaration
+     * is the call naming the source, in the JavaScript file holding it.
+     */
+    public void testAColumnOfADeclaredSourceIsDeclaredByTheDeclareCall() throws Exception {
+        open("sources.js");
+        PsiFile bronze = open("bronze/bronze_events.sqlx");
+        List<ColumnUsageRow> rows = rowsAt(bronze, 8, "event_id");
+        List<String> described = describe(rows);
+        assertTrue("the declare() call of the source is the declaration, got " + described,
+                described.contains("DECLARATION sources.js:4"));
+        ColumnUsageRow declaration = rows.stream()
+                .filter(r -> !r.isHeading() && r.location().equals("sources.js:4"))
+                .findFirst().orElseThrow();
+        assertEquals("the row shows the line naming the source",
+                "name: \"raw_events\"", declaration.before() + declaration.name() + declaration.after());
+    }
+
+    /**
+     * The schema column of a source carries the file holding the {@code declare()} call, the very
+     * file its declaration row points into. A schema column has no range of its own, and comparing
+     * the two places must say they differ rather than fail.
+     */
+    public void testASourceColumnAndItsDeclareCallAreNotTheSamePlace() throws Exception {
+        open("sources.js");
+        ColumnOriginService origins = ColumnOriginService.getInstance(getProject());
+        ColumnRef reference = new ColumnRef("proj.ds.raw_events", "event_id");
+        DataformDasColumn column = origins.dasColumn(reference);
+        PsiElement declaration = origins.sourceDeclaration(reference);
+        assertNotNull(column);
+        assertNotNull(declaration);
+        assertEquals("the schema column reports the file of the declare() call",
+                declaration.getContainingFile(), column.getContainingFile());
+
+        ColumnWindowTarget target = new ColumnWindowTarget(List.of(column), "event_id",
+                List.of(declaration), null);
+        List<String> rows = describe(ColumnUsageRows.of(getProject(), target, null));
+        assertTrue("the declare() call is listed as the declaration, got " + rows,
+                rows.contains("DECLARATION sources.js:4"));
+    }
+
+    /**
+     * An action may hand a column name to an include helper as a string, which the SQL the IDE
+     * analyses never shows: the template becomes filler text. The name is nonetheless read there,
+     * and the file reads the table declaring the column, so the window lists it.
+     */
+    public void testAColumnNamedAsAStringInATemplateOfAReaderIsAUsage() throws Exception {
+        PsiFile silver = open("silver/silver_orders.sqlx");
+        open("gold/gold_order_keys.sqlx");
+        List<ColumnUsageRow> rows = rowsAt(silver, 23, "order_id");
+        List<String> described = describe(rows);
+        assertTrue("the string handed to the helper reads the column, got " + described,
+                described.contains("USAGE gold_order_keys.sqlx:8"));
+        ColumnUsageRow usage = rows.stream()
+                .filter(r -> !r.isHeading() && r.location().equals("gold_order_keys.sqlx:8"))
+                .findFirst().orElseThrow();
+        assertEquals("the row shows the call as written",
+                "${helpers.top_value(\"order_id\")} AS top_order",
+                usage.before() + usage.name() + usage.after());
+        Document document = FileDocumentManager.getInstance().getDocument(usage.target().getFile());
+        assertNotNull(document);
+        assertTrue("the row opens on the string itself", document.getText()
+                .startsWith("\"order_id\"", usage.target().getOffset()));
+    }
+    /**
+     * A column built by an include helper — {@code ${helpers.top_value("order_id")} AS top_order} —
+     * is built from the columns the helper is handed as strings. The SQL the IDE analyses shows
+     * the template as filler text, so no reference names those columns; the strings do, and each
+     * is declared where its column is.
+     */
+    public void testAColumnBuiltByAHelperIsDeclaredByTheColumnsHandedToIt() throws Exception {
+        open("silver/silver_orders.sqlx");
+        PsiFile gold = open("gold/gold_order_keys.sqlx");
+        int offset = gold.getText().indexOf("top_order") + 1;
+        ColumnWindowTarget target = ColumnWindowTarget.at(gold, offset);
+        assertNotNull("the alias of a helper-built column is still a column", target);
+        List<String> declared = new ArrayList<>();
+        for (PsiElement element : target.declarations()) declared.add(locationOf(element));
+        assertTrue("the column handed to the helper is declared in silver, got " + declared,
+                declared.contains("silver_orders.sqlx:23"));
+        List<String> rows = describe(ColumnUsageRows.of(getProject(), target, null));
+        assertTrue("the window has something to show, got " + rows,
+                rows.contains("DECLARATION silver_orders.sqlx:23"));
+    }
+    /**
+     * Once Node has evaluated the helper, its value is injected in place of the hole and the SQL
+     * reads the column inside it. That text is not a place in the file — the reference search
+     * walks the host's words and never reaches it — so the window keeps listing the string the
+     * helper is handed, and only that.
+     */
+    public void testAReadInsideAnEvaluatedHoleIsListedAtTheStringAndNotAtTheHole() throws Exception {
+        PsiFile silver = open("silver/silver_orders.sqlx");
+        PsiFile gold = open("gold/gold_order_keys.sqlx");
+        ((DataformExpressionEvaluationServiceImpl) DataformExpressionEvaluationService
+                .getInstance(getProject())).putCachedValue(gold.getVirtualFile(),
+                "helpers.top_value(\"order_id\")", "MAX(order_id)");
+        SqlxInjectionRefresher.refresh(getProject(), gold.getVirtualFile());
+        List<ColumnUsageRow> rows = rowsAt(silver, 23, "order_id");
+        List<ColumnUsageRow> inGold = rows.stream()
+                .filter(r -> !r.isHeading() && r.location().equals("gold_order_keys.sqlx:8"))
+                .toList();
+        assertEquals("one row for the helper call, got " + describe(rows), 1, inGold.size());
+        Document document = FileDocumentManager.getInstance()
+                .getDocument(inGold.getFirst().target().getFile());
+        assertNotNull(document);
+        assertTrue("the row opens on the string itself", document.getText()
+                .startsWith("\"order_id\"", inGold.getFirst().target().getOffset()));
+    }
+    /**
+     * With the helper evaluated, the alias is built from the column read in the value and from
+     * the column named by the string, which are one and the same declaration.
+     */
+    public void testAnEvaluatedHelperDeclaresEachColumnOnce() throws Exception {
+        open("silver/silver_orders.sqlx");
+        PsiFile gold = open("gold/gold_order_keys.sqlx");
+        ((DataformExpressionEvaluationServiceImpl) DataformExpressionEvaluationService
+                .getInstance(getProject())).putCachedValue(gold.getVirtualFile(),
+                "helpers.top_value(\"order_id\")", "MAX(order_id)");
+        SqlxInjectionRefresher.refresh(getProject(), gold.getVirtualFile());
+        ColumnWindowTarget target = ColumnWindowTarget.at(gold, gold.getText().indexOf("top_order") + 1);
+        assertNotNull(target);
+        List<String> declared = new ArrayList<>();
+        for (PsiElement element : target.declarations()) declared.add(locationOf(element));
+        assertEquals("got " + declared, List.of("silver_orders.sqlx:23"), declared);
     }
 }

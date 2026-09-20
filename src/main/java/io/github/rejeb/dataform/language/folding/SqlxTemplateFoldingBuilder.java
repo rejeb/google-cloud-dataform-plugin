@@ -61,7 +61,6 @@ public class SqlxTemplateFoldingBuilder extends FoldingBuilderEx {
         }
 
         DataformExpressionEvaluationService service = DataformExpressionEvaluationService.getInstance(project);
-        service.requestEvaluation(file);
 
         List<FoldingDescriptor> descriptors = new ArrayList<>();
         expressions.forEach(part -> {

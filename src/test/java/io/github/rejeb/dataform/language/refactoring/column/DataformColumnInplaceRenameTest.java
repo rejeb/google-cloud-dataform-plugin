@@ -16,11 +16,20 @@
  */
 package io.github.rejeb.dataform.language.refactoring.column;
 
+import com.intellij.codeInsight.template.impl.TemplateManagerImpl;
+import com.intellij.codeInsight.template.impl.TemplateState;
+import com.intellij.ide.DataManager;
 import com.intellij.lang.injection.InjectedLanguageManager;
+import com.intellij.openapi.Disposable;
+import com.intellij.openapi.actionSystem.DataContext;
+import com.intellij.openapi.util.Disposer;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.refactoring.BaseRefactoringProcessor;
+import com.intellij.refactoring.util.TextOccurrencesUtil;
 import com.intellij.testFramework.fixtures.CodeInsightTestUtil;
+import io.github.rejeb.dataform.language.refactoring.column.target.ColumnRenameSubject;
+import io.github.rejeb.dataform.language.refactoring.column.target.ColumnRenameSubjectFactory;
 import io.github.rejeb.dataform.language.schema.sql.DataformProjectFixture;
 
 /**
@@ -90,5 +99,38 @@ public class DataformColumnInplaceRenameTest extends DataformProjectFixture {
 
         assertTrue("a column the query renames is another column and is left alone\n" + bronze.getText(),
                 bronze.getText().contains("NormalizeStatus(raw_status) AS order_status"));
+    }
+
+    public void testTheAnchorOutlivesTheStartOfTheTemplate() throws Exception {
+        PsiFile silver = open("silver/silver_orders.sqlx");
+        int offset = silver.getText().indexOf("order_id ,") + 1;
+        myFixture.getEditor().getCaretModel().moveToOffset(offset);
+        PsiElement injected = InjectedLanguageManager.getInstance(getProject())
+                .findInjectedElementAt(silver, offset);
+        assertNotNull(injected);
+        ColumnRenameSubject subject = ColumnRenameSubjectFactory.at(silver, offset).orElseThrow();
+        DataformColumnRenameAnchor anchor =
+                new DataformColumnRenameAnchor(subject.identifier(), subject.oldName());
+
+        Disposable disposable = Disposer.newDisposable();
+        try {
+            TemplateManagerImpl.setTemplateTesting(disposable);
+            DataContext context = DataManager.getInstance()
+                    .getDataContext(myFixture.getEditor().getComponent());
+            new DataformColumnRenameHandler().doRename(injected, myFixture.getEditor(), context);
+            TemplateState state = TemplateManagerImpl.getTemplateState(myFixture.getEditor());
+            assertNotNull("the template must have started", state);
+
+            assertFalse("the template rewrote the identifier the caret sat on", injected.isValid());
+            assertTrue("the anchor must stay valid once the template rewrote the document",
+                    anchor.isValid());
+            assertNotNull("the anchor must still know its file", anchor.getContainingFile());
+            assertEquals("order_id", anchor.getNameIdentifier().getText());
+            TextOccurrencesUtil.isSearchTextOccurrencesEnabled(anchor);
+
+            state.gotoEnd(true);
+        } finally {
+            Disposer.dispose(disposable);
+        }
     }
 }

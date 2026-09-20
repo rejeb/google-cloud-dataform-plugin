@@ -20,6 +20,7 @@ import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.fileEditor.OpenFileDescriptor;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiElement;
 import com.intellij.sql.psi.SqlCompositeElementTypes;
 import io.github.rejeb.dataform.language.schema.sql.ColumnOriginService;
@@ -284,12 +285,17 @@ public final class ColumnUsageRows {
     /**
      * Whether two elements are the same occurrence. The reference search reports an element of its
      * own for the place the caret sits on, so identity alone does not recognise it.
+     *
+     * <p>A schema column has a file but no range: it is a column of a table, not a place in that
+     * file. It is never the same occurrence as an element that has one.</p>
      */
     private static boolean isSameElement(@NotNull PsiElement element, @Nullable PsiElement other) {
         if (other == null) return false;
         if (element == other) return true;
         if (element.getContainingFile() != other.getContainingFile()) return false;
-        return element.getTextRange().intersects(other.getTextRange());
+        TextRange range = element.getTextRange();
+        TextRange otherRange = other.getTextRange();
+        return range != null && otherRange != null && range.intersects(otherRange);
     }
 
     /**

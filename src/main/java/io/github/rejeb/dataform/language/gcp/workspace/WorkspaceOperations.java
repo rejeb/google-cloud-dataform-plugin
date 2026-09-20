@@ -22,6 +22,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
+import java.util.function.Predicate;
+import java.util.Set;
 import java.util.Map;
 
 public interface WorkspaceOperations {
@@ -65,12 +67,27 @@ public interface WorkspaceOperations {
     void testConnection(@NotNull DataformRepositoryConfig config);
 
     /**
-     * Pushes local files to the given workspace.
+     * Pushes local files to the given workspace, mirroring the local project: remote files that
+     * no longer exist locally are deleted.
      *
      * @param workspaceId the target workspace ID
      * @throws GcpApiException on API error
      */
-    void pushCode(@NotNull String workspaceId);
+    default void pushCode(@NotNull String workspaceId) {
+        pushCode(workspaceId, deletions -> true);
+    }
+
+    /**
+     * Pushes local files to the given workspace. Remote files that no longer exist locally are
+     * deleted only when {@code deletionApproval} accepts their paths; when it declines, nothing
+     * at all is pushed.
+     *
+     * @param workspaceId      the target workspace ID
+     * @param deletionApproval asked once, with the remote paths about to be deleted, when there
+     *                         are any
+     * @throws GcpApiException on API error
+     */
+    void pushCode(@NotNull String workspaceId, @NotNull Predicate<Set<String>> deletionApproval);
 
     /**
      * Creates a new Dataform repository in GCP for the given config.

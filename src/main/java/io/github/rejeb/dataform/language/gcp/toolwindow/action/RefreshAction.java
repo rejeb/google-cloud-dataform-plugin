@@ -19,12 +19,9 @@ package io.github.rejeb.dataform.language.gcp.toolwindow.action;
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
-import io.github.rejeb.dataform.language.gcp.toolwindow.DataformGcpPanel;
 import io.github.rejeb.dataform.language.gcp.toolwindow.dispatcher.GcpPanelActionDispatcher;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
-import java.util.function.Supplier;
 
 public class RefreshAction extends AnAction {
 

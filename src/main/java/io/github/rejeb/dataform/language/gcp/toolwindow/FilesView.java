@@ -315,8 +315,7 @@ public class FilesView extends JPanel {
     }
 
     /**
-     * Crée ou écrase le fichier local au chemin relatif donné.
-     * Doit être appelé dans un WriteCommandAction.
+     * Creates or overwrites the local file at the relative path. Must run inside a write command.
      */
     private void writeLocalFile(@NotNull String relativePath,
                                 @NotNull String content) throws IOException {

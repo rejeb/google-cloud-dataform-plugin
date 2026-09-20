@@ -18,7 +18,6 @@ package io.github.rejeb.dataform.language.gcp.settings;
 
 import org.jetbrains.annotations.NotNull;
 
-import java.util.UUID;
 
 /**
  * Immutable snapshot of the Dataform GCP repository configuration.

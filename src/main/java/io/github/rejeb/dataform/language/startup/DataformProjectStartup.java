@@ -23,13 +23,17 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.ModuleManager;
 import com.intellij.openapi.project.Project;
+import io.github.rejeb.dataform.language.diagnostics.DataformEditorRefresher;
+import com.intellij.openapi.progress.Task;
+import com.intellij.openapi.progress.ProgressManager;
+import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.project.ProjectUtil;
 import com.intellij.openapi.roots.ProjectRootManager;
 import com.intellij.openapi.startup.ProjectActivity;
 import com.intellij.openapi.vfs.VirtualFile;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
+import io.github.rejeb.dataform.language.evaluation.DataformEvaluationFocusListener;
 import io.github.rejeb.dataform.language.folding.DataformValueFoldClickListener;
-import io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.LastMousePositionService;
 import io.github.rejeb.dataform.language.gcp.service.DataformGcpService;
 import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
 import io.github.rejeb.dataform.language.projectWizard.DataformFacet;
@@ -51,6 +55,8 @@ public class DataformProjectStartup implements ProjectActivity {
             "includes",
             "dataform.json",
             "workflow_settings.yaml",
+            "package.json",
+            "package-lock.json",
             ".gitignore",
             ".gcloudignore");
 
@@ -67,8 +73,8 @@ public class DataformProjectStartup implements ProjectActivity {
                         baseDir.findChild("workflow_settings.yaml") != null;
 
         if (!isDataformProject) return null;
-        LastMousePositionService.getInstance();
         DataformValueFoldClickListener.attachToOpenEditors();
+        DataformEvaluationFocusListener.requestForSelectedFiles(project);
         if (GcpRepositorySettings.getInstance(project).getActiveConfig() != null) {
             List<String> cached = DataformGcpService.getInstance(project).getCachedFiles();
             if (cached.isEmpty()) {
@@ -81,7 +87,14 @@ public class DataformProjectStartup implements ProjectActivity {
 
         }
         if (DataformCompilationService.getInstance(project).getCompiledGraph() == null) {
-            DataformCompilationService.getInstance(project).compile(true);
+            ProgressManager.getInstance().run(new Task.Backgroundable(project, "Dataform: compiling", false) {
+                @Override
+                public void run(@NotNull ProgressIndicator indicator) {
+                    if (project.isDisposed()) return;
+                    DataformCompilationService.getInstance(project).compile(true);
+                    DataformEditorRefresher.refresh(project);
+                }
+            });
         }
 
         WriteAction.runAndWait(() -> {

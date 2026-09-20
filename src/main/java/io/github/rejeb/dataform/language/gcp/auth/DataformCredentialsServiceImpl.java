@@ -45,8 +45,10 @@ public final class DataformCredentialsServiceImpl implements DataformCredentials
     private final DataformCredentialsStore store = new PasswordSafeCredentialsStore();
     private final AtomicBoolean signInRunning = new AtomicBoolean(false);
 
+    private final AtomicBoolean resolving = new AtomicBoolean(false);
     private volatile GoogleCredentials cached;
     private volatile String accountEmail;
+    private volatile boolean accountEmailLoaded;
     private volatile Boolean lastKnownSignedIn;
 
     @Override
@@ -79,6 +81,25 @@ public final class DataformCredentialsServiceImpl implements DataformCredentials
     public void invalidate() {
         cached = null;
         lastKnownSignedIn = null;
+        accountEmailLoaded = false;
+    }
+
+    @Override
+    public boolean isSignedInCached() {
+        Boolean known = lastKnownSignedIn;
+        if (known != null) {
+            return known;
+        }
+        if (resolving.compareAndSet(false, true)) {
+            ApplicationManager.getApplication().executeOnPooledThread(() -> {
+                try {
+                    isSignedIn();
+                } finally {
+                    resolving.set(false);
+                }
+            });
+        }
+        return false;
     }
 
     @Override
@@ -97,8 +118,12 @@ public final class DataformCredentialsServiceImpl implements DataformCredentials
 
     @Override
     public @Nullable String getAccountEmail() {
-        if (accountEmail == null) {
+        if (accountEmail == null && !accountEmailLoaded) {
+            if (ApplicationManager.getApplication().isDispatchThread()) {
+                return null;
+            }
             store.load().ifPresent(stored -> accountEmail = stored.accountEmail());
+            accountEmailLoaded = true;
         }
         return accountEmail;
     }
@@ -127,6 +152,7 @@ public final class DataformCredentialsServiceImpl implements DataformCredentials
         synchronized (this) {
             cached = null;
             accountEmail = null;
+            accountEmailLoaded = true;
             lastKnownSignedIn = Boolean.FALSE;
             store.clear();
             setSignedOut(true);
@@ -140,6 +166,7 @@ public final class DataformCredentialsServiceImpl implements DataformCredentials
             synchronized (this) {
                 store.save(credentials);
                 accountEmail = credentials.accountEmail();
+                accountEmailLoaded = true;
                 cached = null;
                 lastKnownSignedIn = null;
                 setSignedOut(false);
@@ -160,10 +187,12 @@ public final class DataformCredentialsServiceImpl implements DataformCredentials
     private GoogleCredentials fromStore() {
         Optional<StoredCredentials> stored = store.load();
         if (stored.isEmpty()) {
+            accountEmailLoaded = true;
             return null;
         }
         StoredCredentials value = stored.get();
         accountEmail = value.accountEmail();
+        accountEmailLoaded = true;
         GoogleCredentials credentials = UserCredentials.newBuilder()
                 .setClientId(value.clientId())
                 .setClientSecret(value.clientSecret())

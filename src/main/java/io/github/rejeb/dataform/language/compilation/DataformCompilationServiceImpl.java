@@ -22,7 +22,9 @@ import com.intellij.execution.configurations.GeneralCommandLine;
 import com.intellij.execution.process.ProcessOutput;
 import com.intellij.execution.util.ExecUtil;
 import com.intellij.openapi.components.State;
+import com.intellij.openapi.components.RoamingType;
 import com.intellij.openapi.components.Storage;
+import com.intellij.openapi.components.StoragePathMacros;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectUtil;
@@ -38,12 +40,13 @@ import org.jetbrains.annotations.Nullable;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.locks.ReentrantLock;
 
 import static io.github.rejeb.dataform.language.util.Utils.flushFiles;
 
 @State(
         name = "DataformCompilationService",
-        storages = @Storage("dataform-compilation-result.xml")
+        storages = @Storage(value = StoragePathMacros.CACHE_FILE, roamingType = RoamingType.DISABLED)
 )
 public final class DataformCompilationServiceImpl
         implements DataformCompilationService {
@@ -53,11 +56,9 @@ public final class DataformCompilationServiceImpl
     private static final Set<String> IGNORED_DIRECTORIES = DataformProjectLayout.IGNORED_DIRECTORIES;
 
     private final Project project;
-
+    private final ReentrantLock compileLock = new ReentrantLock();
     private volatile CompiledGraph compiledGraph;
-
-
-    private State currentState = new State();
+    private volatile State currentState = new State();
 
     public DataformCompilationServiceImpl(Project project) {
         this.project = project;
@@ -83,6 +84,14 @@ public final class DataformCompilationServiceImpl
         }
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Compilations are serialized: the build, the automatic compilation, the startup and the
+     * lineage view may all ask at once, and running several Dataform CLI processes for the same
+     * sources only makes each of them slower. A caller that waited for a compilation started by
+     * another one reuses its result when the sources did not change in the meantime.</p>
+     */
     @Override
     public CompiledGraph compile(boolean forceRefresh) {
         if (project.isDisposed()) {
@@ -92,19 +101,30 @@ public final class DataformCompilationServiceImpl
         flushFiles(project);
         LOG.info("Dataform compile: documents flushed in "
                 + (System.currentTimeMillis() - flushStartedAt) + " ms");
-        if (compiledGraph != null
-                && currentState.lastCompileTimestamp > 0
-                && !hasSourcesChangedSince(currentState.lastCompileTimestamp)
-                && !forceRefresh) {
-            LOG.info("Sources unchanged, using cached compiled graph");
-            return compiledGraph;
+        boolean waited = !compileLock.tryLock();
+        if (waited) {
+            compileLock.lock();
         }
-        return runCompilation();
+        try {
+            if (project.isDisposed()) {
+                return null;
+            }
+            boolean reuse = compiledGraph != null
+                    && currentState.lastCompileTimestamp > 0
+                    && !hasSourcesChangedSince(currentState.lastCompileTimestamp)
+                    && (!forceRefresh || waited);
+            if (reuse) {
+                LOG.info("Sources unchanged, using cached compiled graph");
+                return compiledGraph;
+            }
+            return runCompilation();
+        } finally {
+            compileLock.unlock();
+        }
     }
 
-
     private CompiledGraph runCompilation() {
-        LOG.warn("Running compilation");
+        LOG.info("Running compilation");
         try {
             Optional<GeneralCommandLine> cmd = project.getService(DataformInterpreterManager.class)
                     .buildDataformCompileCommand();

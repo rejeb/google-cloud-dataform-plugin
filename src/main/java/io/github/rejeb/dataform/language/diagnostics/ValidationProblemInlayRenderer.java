@@ -51,13 +51,6 @@ public final class ValidationProblemInlayRenderer
         this.lines = List.copyOf(lines);
     }
 
-    /**
-     * Returns the number of text lines this chip paints.
-     */
-    public int lineCount() {
-        return lines.size();
-    }
-
     @Override
     public int calcWidthInPixels(@NotNull Inlay inlay) {
         FontMetrics metrics = metrics(inlay.getEditor());

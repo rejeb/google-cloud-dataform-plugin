@@ -32,7 +32,4 @@ public record WorkflowRunRequest(
         boolean transitiveDependentsIncluded,
         boolean fullyRefreshIncrementalTables
 ) {
-    public static WorkflowRunRequest runAll(@NotNull String workspaceId) {
-        return new WorkflowRunRequest(workspaceId, List.of(), List.of(), false, false, false);
-    }
 }

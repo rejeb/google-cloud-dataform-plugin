@@ -21,7 +21,6 @@ import com.intellij.psi.PsiElement;
 import com.intellij.psi.tree.IElementType;
 import com.intellij.psi.util.PsiTreeUtil;
 import io.github.rejeb.dataform.language.psi.SharedTokenTypes;
-import org.jetbrains.annotations.NotNull;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -55,16 +54,5 @@ public class InjectionHelper {
             }
         }
         return false;
-    }
-
-    @NotNull
-    public static String sqlCoteJsElement(@NotNull PsiElement element) {
-        String text = element.getText();
-        if (text == null || text.isBlank()) return "NULL";
-        if (text.contains("\n") || text.contains("\r")) {
-            return ("\"\"\"" + text.substring(3, text.length() - 3) + "\"\"\"").replace("$", "a");
-        } else {
-            return ("'" + text.substring(1, text.length() - 1) + "'").replace("$", "a");
-        }
     }
 }

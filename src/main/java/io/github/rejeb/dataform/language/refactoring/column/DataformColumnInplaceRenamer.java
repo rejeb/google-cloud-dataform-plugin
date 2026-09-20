@@ -25,10 +25,12 @@ import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiManager;
+import com.intellij.psi.PsiNamedElement;
 import com.intellij.psi.PsiReference;
 import com.intellij.psi.search.SearchScope;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.refactoring.rename.inplace.MemberInplaceRenamer;
+import com.intellij.refactoring.rename.inplace.VariableInplaceRenamer;
 import com.intellij.sql.psi.SqlCompositeElementTypes;
 import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
 import io.github.rejeb.dataform.language.schema.sql.ColumnOriginService;
@@ -66,10 +68,41 @@ public final class DataformColumnInplaceRenamer extends MemberInplaceRenamer {
                                         @NotNull ColumnRenameSubject subject,
                                         @NotNull Editor editor,
                                         int hostOffset) {
-        super(anchor, subject.identifier(), editor);
+        this(anchor, subject, editor, hostOffset, subject.oldName());
+    }
+
+    private DataformColumnInplaceRenamer(@NotNull DataformColumnRenameAnchor anchor,
+                                         @NotNull ColumnRenameSubject subject,
+                                         @NotNull Editor editor,
+                                         int hostOffset,
+                                         @NotNull String initialName) {
+        super(anchor, subject.identifier(), editor, initialName, subject.oldName());
         this.hostVirtualFile = subject.hostFile().getVirtualFile();
         this.hostOffset = hostOffset;
         this.oldName = subject.oldName();
+    }
+
+    /**
+     * The renamer the platform starts over with, after the rename options were changed from the
+     * template or an invalid name was typed. The document has been rolled back by then, so the
+     * column is read again from where the gesture started; the generic renamer the platform would
+     * build otherwise renames through {@link DataformColumnRenameAnchor#setName}, which refuses.
+     */
+    @Override
+    protected @NotNull VariableInplaceRenamer createInplaceRenamerToRestart(PsiNamedElement variable,
+                                                                            Editor editor,
+                                                                            String initialName) {
+        PsiFile hostFile = hostFile();
+        Optional<ColumnRenameSubject> subject = hostFile == null
+                ? Optional.empty()
+                : ColumnRenameSubjectFactory.at(hostFile, hostOffset);
+        if (subject.isEmpty()) {
+            return super.createInplaceRenamerToRestart(variable, editor, initialName);
+        }
+        DataformColumnRenameAnchor anchor =
+                new DataformColumnRenameAnchor(subject.get().identifier(), subject.get().oldName());
+        return new DataformColumnInplaceRenamer(anchor, subject.get(), editor, hostOffset,
+                initialName == null ? subject.get().oldName() : initialName);
     }
 
     /**
@@ -77,7 +110,7 @@ public final class DataformColumnInplaceRenamer extends MemberInplaceRenamer {
      * so the platform is pointed at the identifier the caret sits on.
      */
     @Override
-    protected @NotNull PsiElement getNameIdentifier() {
+    protected @Nullable PsiElement getNameIdentifier() {
         return getVariable() instanceof DataformColumnRenameAnchor anchor
                 ? anchor.getNameIdentifier()
                 : super.getNameIdentifier();

@@ -18,16 +18,17 @@ package io.github.rejeb.dataform.language.gcp.service;
 
 import com.intellij.openapi.components.PersistentStateComponent;
 import com.intellij.openapi.components.State;
+import com.intellij.openapi.components.RoamingType;
 import com.intellij.openapi.components.Storage;
+import com.intellij.openapi.components.StoragePathMacros;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
-import java.util.Map;
 
 @State(
         name = "DataformGcpFileCache",
-        storages = @Storage("dataform-gcp-file-cache.xml")
+        storages = @Storage(value = StoragePathMacros.CACHE_FILE, roamingType = RoamingType.DISABLED)
 )
 public final class DataformGcpFileCacheImpl
         implements DataformGcpFileCache, PersistentStateComponent<DataformGcpFileCacheImpl.State> {

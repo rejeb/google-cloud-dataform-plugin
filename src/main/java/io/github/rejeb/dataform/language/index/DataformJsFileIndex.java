@@ -19,11 +19,17 @@ package io.github.rejeb.dataform.language.index;
 import com.intellij.lang.javascript.JavaScriptFileType;
 import com.intellij.lang.javascript.psi.*;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.Key;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.openapi.vfs.VirtualFileManager;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiManager;
 import com.intellij.psi.search.FileTypeIndex;
 import com.intellij.psi.search.GlobalSearchScope;
+import com.intellij.psi.util.CachedValue;
+import com.intellij.psi.util.CachedValueProvider;
+import com.intellij.psi.util.CachedValuesManager;
+import com.intellij.psi.util.PsiModificationTracker;
 import com.intellij.psi.util.PsiTreeUtil;
 import org.jetbrains.annotations.NotNull;
 
@@ -54,17 +60,6 @@ public class DataformJsFileIndex {
     }
 
     /**
-     * Every JavaScript source file of the project, under {@code definitions} as well as under
-     * {@code includes}. Unlike {@link #findDataformJsFiles}, which serves include resolution and so
-     * keeps only the unambiguously named includes, this lists the files as they are: a caller
-     * searching their text must not miss one because another file shares its name.
-     */
-    @NotNull
-    public static List<PsiFile> findAllJsSourceFiles(@NotNull Project project) {
-        return psiFilesMatching(project, DataformJsFileIndex::isJsSourceFile);
-    }
-
-    /**
      * Every include file of the project, whether or not another JavaScript file shares its name.
      * {@link #findDataformJsFiles} drops both files of such a pair, which is right for resolving an
      * include by name and wrong for a caller that has to search the text of them all.
@@ -86,15 +81,6 @@ public class DataformJsFileIndex {
                 .toList();
     }
 
-    /** Whether the file is a project JavaScript source, that is one Dataform compiles. */
-    public static boolean isJsSourceFile(@NotNull VirtualFile file) {
-        if (!"js".equals(file.getExtension())) {
-            return false;
-        }
-        String normalizedPath = file.getPath().replace('\\', '/');
-        return normalizedPath.contains("/includes/") || normalizedPath.contains("/definitions/");
-    }
-
     public static boolean isDataformJsFile(@NotNull VirtualFile file) {
         if (!"js".equals(file.getExtension())) {
             return false;
@@ -103,110 +89,104 @@ public class DataformJsFileIndex {
         return normalizedPath.contains("/includes/");
     }
 
+    private static final Key<CachedValue<Map<String, List<IncludeExport>>>> EXPORTS =
+            Key.create("dataform.include.exports");
+
+    /**
+     * The exports of every include file, by file name. Computed once per PSI or file-structure
+     * change: completion and reference contributors ask for this on every keystroke, and walking
+     * the PSI of every include each time is what made completion slow on large projects.
+     */
     @NotNull
     public static Map<String, List<IncludeExport>> getAllExports(@NotNull Project project) {
+        return CachedValuesManager.getManager(project).getCachedValue(project, EXPORTS, () ->
+                CachedValueProvider.Result.create(computeAllExports(project),
+                        PsiModificationTracker.MODIFICATION_COUNT,
+                        VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS), false);
+    }
+
+    @NotNull
+    private static Map<String, List<IncludeExport>> computeAllExports(@NotNull Project project) {
         Map<String, List<IncludeExport>> exportsByFile = new HashMap<>();
-        List<PsiFile> jsFiles = findDataformJsFiles(project);
-
-        for (PsiFile psiFile : jsFiles) {
-
-            if (!(psiFile instanceof JSFile)) {
+        for (PsiFile psiFile : findDataformJsFiles(project)) {
+            if (!(psiFile instanceof JSFile jsFile)) {
                 continue;
             }
-
-            JSFile jsFile = (JSFile) psiFile;
             VirtualFile vFile = jsFile.getVirtualFile();
             if (vFile == null) {
                 continue;
             }
-
             String fileName = vFile.getNameWithoutExtension();
-
             List<IncludeExport> exports = extractExportsFromFile(jsFile, fileName);
-
             if (!exports.isEmpty()) {
-                exportsByFile.put(fileName, exports);
+                exportsByFile.put(fileName, List.copyOf(exports));
             }
         }
-
-        return exportsByFile;
+        return Collections.unmodifiableMap(exportsByFile);
     }
 
     @NotNull
     private static List<IncludeExport> extractExportsFromFile(@NotNull JSFile jsFile, @NotNull String fileName) {
         List<IncludeExport> exports = new ArrayList<>();
-        Collection<JSAssignmentExpression> assignments =
-                PsiTreeUtil.findChildrenOfType(jsFile, JSAssignmentExpression.class);
-
-        for (JSAssignmentExpression assignment : assignments) {
+        Set<String> functionNames = null;
+        for (JSAssignmentExpression assignment : PsiTreeUtil.findChildrenOfType(jsFile, JSAssignmentExpression.class)) {
             JSExpression lhs = assignment.getLOperand();
-            if (lhs != null && "module.exports".equals(lhs.getText())) {
-                JSExpression rhs = assignment.getROperand();
-
-                if (rhs instanceof JSObjectLiteralExpression objLiteral) {
-
-                    for (JSProperty property : objLiteral.getProperties()) {
-                        String propName = property.getName();
-                        if (propName != null) {
-
-                            boolean isFunction = isExportFunction(property, jsFile);
-
-
-                            exports.add(new IncludeExport(fileName, propName, isFunction, jsFile));
-                        }
-                    }
+            if (lhs == null || !"module.exports".equals(lhs.getText())) {
+                continue;
+            }
+            if (!(assignment.getROperand() instanceof JSObjectLiteralExpression objLiteral)) {
+                continue;
+            }
+            for (JSProperty property : objLiteral.getProperties()) {
+                String propName = property.getName();
+                if (propName == null) {
+                    continue;
                 }
+                if (functionNames == null) {
+                    functionNames = functionNamesOf(jsFile);
+                }
+                boolean isFunction = isExportFunction(property, functionNames);
+                exports.add(new IncludeExport(fileName, propName, isFunction, jsFile));
             }
         }
-
         return exports;
     }
 
     /**
-     * Vérifie si une propriété d'export est une fonction
-     * Gère à la fois la syntaxe shorthand (formatDate) et explicite (formatDate: formatDate)
+     * The names bound to a function in the file: declared functions and variables initialized with
+     * a function expression. Collected once per file rather than once per exported property.
      */
-    private static boolean isExportFunction(@NotNull JSProperty property, @NotNull JSFile jsFile) {
+    @NotNull
+    private static Set<String> functionNamesOf(@NotNull JSFile jsFile) {
+        Set<String> names = new HashSet<>();
+        for (JSFunction function : PsiTreeUtil.findChildrenOfType(jsFile, JSFunction.class)) {
+            if (function.getName() != null) {
+                names.add(function.getName());
+            }
+        }
+        for (JSVariable variable : PsiTreeUtil.findChildrenOfType(jsFile, JSVariable.class)) {
+            if (variable.getName() != null && variable.getInitializer() instanceof JSFunctionExpression) {
+                names.add(variable.getName());
+            }
+        }
+        return names;
+    }
+
+    /**
+     * Whether an exported property is a function, for both the shorthand ({@code formatDate}) and
+     * the explicit ({@code formatDate: formatDate}) syntax.
+     */
+    private static boolean isExportFunction(@NotNull JSProperty property, @NotNull Set<String> functionNames) {
         JSExpression value = property.getValue();
-
-
         if (value instanceof JSFunctionExpression) {
             return true;
         }
-
-
         String referenceName = null;
-
-        if (value instanceof JSReferenceExpression) {
-
-            referenceName = ((JSReferenceExpression) value).getReferenceName();
+        if (value instanceof JSReferenceExpression reference) {
+            referenceName = reference.getReferenceName();
         } else if (property.getName() != null && value == null) {
-
             referenceName = property.getName();
         }
-
-        if (referenceName == null) {
-            return false;
-        }
-
-
-        Collection<JSFunction> functions = PsiTreeUtil.findChildrenOfType(jsFile, JSFunction.class);
-        for (JSFunction function : functions) {
-            if (referenceName.equals(function.getName())) {
-                return true;
-            }
-        }
-
-
-        Collection<JSVariable> variables = PsiTreeUtil.findChildrenOfType(jsFile, JSVariable.class);
-        for (JSVariable variable : variables) {
-            if (referenceName.equals(variable.getName())) {
-                JSExpression initializer = variable.getInitializer();
-                boolean isFunctionVar = initializer instanceof JSFunctionExpression;
-                return isFunctionVar;
-            }
-        }
-
-        return false;
+        return referenceName != null && functionNames.contains(referenceName);
     }
 }

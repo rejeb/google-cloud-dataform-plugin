@@ -115,7 +115,7 @@ public class BqGridPagingModel implements MultiPageModel<GridRow, GridColumn> {
     }
 
     /**
-     * Notifie TableResultPanel que la page a changé → met à jour les boutons Prev/Next.
+     * Tells the result panel that the page changed, so the Prev/Next buttons are updated.
      */
     public void firePageChanged() {
         pageModelListeners.getMulticaster().pageStartChanged();

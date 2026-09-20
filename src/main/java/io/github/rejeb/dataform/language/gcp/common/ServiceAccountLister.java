@@ -23,16 +23,18 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.intellij.openapi.diagnostic.Logger;
 import io.github.rejeb.dataform.language.gcp.auth.DataformCredentialsService;
+import io.github.rejeb.dataform.language.gcp.auth.SslConfig;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.net.HttpURLConnection;
 import java.net.URI;
-import java.net.URL;
 import java.net.URLEncoder;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -48,6 +50,10 @@ public final class ServiceAccountLister {
     private static final Logger LOG = Logger.getInstance(ServiceAccountLister.class);
     private static final String IAM_BASE = "https://iam.googleapis.com/v1/projects/";
     private static final int PAGE_SIZE = 100;
+    private static final Duration HTTP_TIMEOUT = Duration.ofSeconds(5);
+    private static final int HTTP_OK = 200;
+    private static final int HTTP_UNAUTHORIZED = 401;
+    private static final int HTTP_FORBIDDEN = 403;
 
     private ServiceAccountLister() {
     }
@@ -102,6 +108,9 @@ public final class ServiceAccountLister {
                 pageToken = page.nextPageToken;
             } while (pageToken != null && !pageToken.isBlank());
             return new Result(List.copyOf(emails), false);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return Result.unavailable();
         } catch (Exception e) {
             LOG.info("Failed to list service accounts for project " + projectId, e);
             return Result.unavailable();
@@ -127,33 +136,31 @@ public final class ServiceAccountLister {
     @Nullable
     private static Page fetchPage(@NotNull String projectId,
                                   @NotNull String token,
-                                  @Nullable String pageToken) throws IOException {
+                                  @Nullable String pageToken) throws IOException, InterruptedException {
         StringBuilder spec = new StringBuilder(IAM_BASE)
                 .append(URLEncoder.encode(projectId, StandardCharsets.UTF_8))
                 .append("/serviceAccounts?pageSize=").append(PAGE_SIZE);
         if (pageToken != null && !pageToken.isBlank()) {
             spec.append("&pageToken=").append(URLEncoder.encode(pageToken, StandardCharsets.UTF_8));
         }
-        URL url = URI.create(spec.toString()).toURL();
-        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-        conn.setRequestMethod("GET");
-        conn.setRequestProperty("Authorization", "Bearer " + token);
-        conn.setConnectTimeout(5_000);
-        conn.setReadTimeout(5_000);
-        try {
-            int status = conn.getResponseCode();
-            if (status == HttpURLConnection.HTTP_FORBIDDEN || status == HttpURLConnection.HTTP_UNAUTHORIZED) {
-                return Page.deniedPage();
-            }
-            if (status != HttpURLConnection.HTTP_OK) {
-                return null;
-            }
-            try (InputStream is = conn.getInputStream()) {
-                return parse(new String(is.readAllBytes(), StandardCharsets.UTF_8));
-            }
-        } finally {
-            conn.disconnect();
+        HttpRequest request = HttpRequest.newBuilder(URI.create(spec.toString()))
+                .header("Authorization", "Bearer " + token)
+                .timeout(HTTP_TIMEOUT)
+                .GET()
+                .build();
+        HttpResponse<String> response = HttpClient.newBuilder()
+                .connectTimeout(HTTP_TIMEOUT)
+                .sslContext(SslConfig.sslContext())
+                .build()
+                .send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        int status = response.statusCode();
+        if (status == HTTP_FORBIDDEN || status == HTTP_UNAUTHORIZED) {
+            return Page.deniedPage();
         }
+        if (status != HTTP_OK) {
+            return null;
+        }
+        return parse(response.body());
     }
 
     @NotNull

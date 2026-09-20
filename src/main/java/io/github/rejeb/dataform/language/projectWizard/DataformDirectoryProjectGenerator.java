@@ -17,8 +17,6 @@
 package io.github.rejeb.dataform.language.projectWizard;
 
 import com.intellij.facet.ui.ValidationResult;
-import com.intellij.ide.util.projectWizard.AbstractNewProjectStep;
-import com.intellij.ide.util.projectWizard.ProjectSettingsStepBase;
 import com.intellij.platform.DirectoryProjectGenerator;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;

@@ -18,7 +18,6 @@ package io.github.rejeb.dataform.language.lineage.view;
 
 import com.intellij.ui.JBColor;
 import com.intellij.ui.scale.JBUIScale;
-import com.intellij.util.ui.JBUI;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.Icon;

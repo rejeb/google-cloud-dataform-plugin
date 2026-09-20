@@ -21,6 +21,7 @@ import com.intellij.openapi.vfs.VirtualFile;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 public final class DataformProjectStructureBuilder {
 
@@ -47,15 +48,15 @@ public final class DataformProjectStructureBuilder {
                 settings.getDefaultSchema(),
                 settings.getDataformCoreVersion()
         );
-        workflowSettings.setBinaryContent(workflowSettingsContent.getBytes());
+        workflowSettings.setBinaryContent(workflowSettingsContent.getBytes(StandardCharsets.UTF_8));
 
         VirtualFile gitignore = baseDir.createChildData(project, ".gitignore");
         String gitignoreContent = "node_modules/\n.dataform/\n*.log";
-        gitignore.setBinaryContent(gitignoreContent.getBytes());
+        gitignore.setBinaryContent(gitignoreContent.getBytes(StandardCharsets.UTF_8));
 
         VirtualFile gcloudignore = baseDir.createChildData(project, ".gcloudignore");
         String gcloudIgnoreContent = "# ignore files when pushing to gcp dataform repository using dataform API\n";
-        gcloudignore.setBinaryContent(gcloudIgnoreContent.getBytes());
+        gcloudignore.setBinaryContent(gcloudIgnoreContent.getBytes(StandardCharsets.UTF_8));
 
         VirtualFile exampleSqlx = definitionsDir.createChildData(project, "example_table.sqlx");
         String exampleSqlxContent = String.format(
@@ -69,10 +70,10 @@ public final class DataformProjectStructureBuilder {
                         "  'example' AS name",
                 settings.getDefaultSchema()
         );
-        exampleSqlx.setBinaryContent(exampleSqlxContent.getBytes());
+        exampleSqlx.setBinaryContent(exampleSqlxContent.getBytes(StandardCharsets.UTF_8));
 
         VirtualFile readme = baseDir.createChildData(project, "README.md");
         String readmeContent = "# Dataform project for BigQuery data transformation.";
-        readme.setBinaryContent(readmeContent.getBytes());
+        readme.setBinaryContent(readmeContent.getBytes(StandardCharsets.UTF_8));
     }
 }

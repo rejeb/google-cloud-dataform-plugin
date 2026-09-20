@@ -16,8 +16,12 @@
  */
 package io.github.rejeb.dataform.language.evaluation;
 
+import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.psi.PsiFile;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class DataformExpressionEvaluationServiceTest extends BasePlatformTestCase {
 
@@ -43,5 +47,101 @@ public class DataformExpressionEvaluationServiceTest extends BasePlatformTestCas
         service.invalidateAll();
 
         assertNull(service.getCachedValue(file.getVirtualFile(), "ref(\"y\")"));
+    }
+    private DataformExpressionEvaluationServiceImpl service() {
+        return (DataformExpressionEvaluationServiceImpl)
+                DataformExpressionEvaluationService.getInstance(getProject());
+    }
+
+    @Override
+    protected void tearDown() throws Exception {
+        try {
+            service().resetEvaluator();
+        } finally {
+            super.tearDown();
+        }
+    }
+
+    private PsiFile openSqlx(String body) {
+        PsiFile file = myFixture.addFileToProject("definitions/mart.sqlx",
+                "config { type: \"table\" }\n" + body);
+        myFixture.configureFromExistingVirtualFile(file.getVirtualFile());
+        return myFixture.getFile();
+    }
+
+    /** Records what each pass asks Node for, and answers every source with its own text. */
+    private List<List<String>> recordEvaluations() {
+        List<List<String>> passes = new ArrayList<>();
+        service().setEvaluator((file, sources) -> {
+            passes.add(List.copyOf(sources));
+            List<DataformEvaluationResult> results = new ArrayList<>();
+            for (String source : sources) {
+                results.add(DataformEvaluationResult.resolved(source, "value of " + source));
+            }
+            return results;
+        });
+        return passes;
+    }
+
+    private void edit(PsiFile file) {
+        WriteCommandAction.runWriteCommandAction(getProject(),
+                () -> myFixture.getEditor().getDocument().insertString(
+                        myFixture.getEditor().getDocument().getTextLength(), " -- edited"));
+        com.intellij.psi.PsiDocumentManager.getInstance(getProject()).commitAllDocuments();
+    }
+
+    /** The value shown for a hole must not vanish under the person editing the file. */
+    public void testAnEditKeepsTheCachedValues() {
+        PsiFile file = openSqlx("SELECT ${helpers.a()} FROM t");
+        service().putCachedValue(file.getVirtualFile(), "helpers.a()", "1");
+
+        edit(file);
+
+        assertEquals("1", service().getCachedValue(file.getVirtualFile(), "helpers.a()"));
+    }
+
+    /**
+     * A pass is asked for when the file is opened or comes back into focus, and what it depends on
+     * may have moved anywhere meanwhile, so every pass evaluates every expression again.
+     */
+    public void testEveryPassEvaluatesEveryExpressionEvenWhenTheFileDidNotChange() {
+        PsiFile file = openSqlx("SELECT ${helpers.a()}, ${helpers.b()} FROM t");
+        List<List<String>> passes = recordEvaluations();
+
+        service().runPassNow(file.getVirtualFile());
+        service().runPassNow(file.getVirtualFile());
+
+        assertEquals(List.of(List.of("helpers.a()", "helpers.b()"),
+                List.of("helpers.a()", "helpers.b()")), passes);
+        assertEquals("value of helpers.a()",
+                service().getCachedValue(file.getVirtualFile(), "helpers.a()"));
+    }
+
+    /**
+     * A hole's text may stand still while what it depends on moved — a {@code js} block of the same
+     * file — so a pass after an edit evaluates every hole again, not only the ones without a value.
+     */
+    public void testAPassAfterAnEditEvaluatesEveryExpressionAgain() {
+        PsiFile file = openSqlx("SELECT ${helpers.a()}, ${helpers.b()} FROM t");
+        List<List<String>> passes = recordEvaluations();
+        service().runPassNow(file.getVirtualFile());
+
+        edit(file);
+        service().runPassNow(file.getVirtualFile());
+
+        assertEquals(2, passes.size());
+        assertEquals(List.of("helpers.a()", "helpers.b()"), passes.get(1));
+    }
+
+    /** An include changed under the file: the values stay in front of whoever is editing. */
+    public void testAnEnvironmentChangeKeepsTheValues() {
+        PsiFile file = openSqlx("SELECT ${helpers.a()} FROM t");
+        recordEvaluations();
+        service().runPassNow(file.getVirtualFile());
+
+        service().markEnvironmentChanged();
+
+        assertEquals("value of helpers.a()",
+                service().getCachedValue(file.getVirtualFile(), "helpers.a()"));
     }
 }

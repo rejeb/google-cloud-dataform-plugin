@@ -71,4 +71,39 @@ public class DataformProjectFilesResolverTest extends BasePlatformTestCase {
 
         assertTrue(paths.isEmpty());
     }
+
+    public void testResolverHonoursNegatedIgnorePatterns() {
+        myFixture.addFileToProject(".gitignore", "*.log\n!definitions/keep.log\n");
+        myFixture.addFileToProject("definitions/keep.log", "");
+        myFixture.addFileToProject("definitions/drop.log", "");
+
+        List<String> paths = DataformProjectFilesResolver.resolve(getProject());
+
+        assertTrue(paths.contains("definitions/keep.log"));
+        assertFalse(paths.contains("definitions/drop.log"));
+    }
+
+    public void testResolverHonoursGlobstarAndDirectoryPatterns() {
+        myFixture.addFileToProject(".gcloudignore", "**/scratch/\ndefinitions/**/draft_*.sqlx\n");
+        myFixture.addFileToProject("definitions/scratch/tmp.sqlx", "SELECT 1");
+        myFixture.addFileToProject("definitions/nested/deep/draft_x.sqlx", "SELECT 1");
+        myFixture.addFileToProject("definitions/nested/deep/final_x.sqlx", "SELECT 1");
+
+        List<String> paths = DataformProjectFilesResolver.resolve(getProject());
+
+        assertFalse(paths.contains("definitions/scratch/tmp.sqlx"));
+        assertFalse(paths.contains("definitions/nested/deep/draft_x.sqlx"));
+        assertTrue(paths.contains("definitions/nested/deep/final_x.sqlx"));
+    }
+
+    public void testResolverIgnoresRootAnchoredPatternsOnlyAtTheRoot() {
+        myFixture.addFileToProject(".gitignore", "/notes.md\n");
+        myFixture.addFileToProject("notes.md", "");
+        myFixture.addFileToProject("definitions/notes.md", "");
+
+        List<String> paths = DataformProjectFilesResolver.resolve(getProject());
+
+        assertFalse(paths.contains("notes.md"));
+        assertTrue(paths.contains("definitions/notes.md"));
+    }
 }

@@ -16,7 +16,6 @@
  */
 package io.github.rejeb.dataform.language.injection;
 
-import com.intellij.json.json5.Json5Language;
 import com.intellij.lang.injection.MultiHostInjector;
 import com.intellij.lang.injection.MultiHostRegistrar;
 import com.intellij.lang.javascript.JavascriptLanguage;

@@ -116,6 +116,7 @@ public class DataformJsSymbolCompletionContributorProvider extends CompletionPro
         Collection<LookupElement> variables = jsBlocks
                 .stream()
                 .flatMap(psiFile -> PsiTreeUtil.findChildrenOfType(psiFile, JSVariable.class).stream())
+                .filter(variable -> variable.getName() != null)
                 .map(this::buildJsVarElemLookup)
                 .toList();
 

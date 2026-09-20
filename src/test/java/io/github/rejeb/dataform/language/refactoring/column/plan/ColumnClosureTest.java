@@ -49,7 +49,7 @@ class ColumnClosureTest {
                 .addEdge(SILVER.id(), GOLD.id(), Confidence.DIRECT)
                 .build();
 
-        Set<ColumnRef> reached = ColumnClosure.of(lineage, SILVER).columns();
+        Set<ColumnRef> reached = ColumnClosure.of(lineage, SILVER, Set.of()).columns();
 
         assertEquals(Set.of(BRONZE, SILVER, GOLD), reached,
                 "renaming a column renames it wherever it flows under the same name");
@@ -62,7 +62,7 @@ class ColumnClosureTest {
                 .addEdge(SILVER.id(), renamed.id(), Confidence.RENAME)
                 .build();
 
-        Set<ColumnRef> reached = ColumnClosure.of(lineage, SILVER).columns();
+        Set<ColumnRef> reached = ColumnClosure.of(lineage, SILVER, Set.of()).columns();
 
         assertEquals(Set.of(SILVER), reached,
                 "a column the query renames carries another name and is another column");
@@ -75,7 +75,7 @@ class ColumnClosureTest {
                 .addEdge(SILVER.id(), derived.id(), Confidence.DERIVED)
                 .build();
 
-        assertEquals(Set.of(SILVER), ColumnClosure.of(lineage, SILVER).columns(),
+        assertEquals(Set.of(SILVER), ColumnClosure.of(lineage, SILVER, Set.of()).columns(),
                 "a column built by an expression is not the same column");
     }
 
@@ -85,7 +85,7 @@ class ColumnClosureTest {
                 .addEdge(BRONZE.id(), SILVER.id(), Confidence.STAR)
                 .build();
 
-        ColumnClosure closure = ColumnClosure.of(lineage, SILVER);
+        ColumnClosure closure = ColumnClosure.of(lineage, SILVER, Set.of());
 
         assertEquals(Set.of(SILVER), closure.columns(), "an unexpanded star is not walked through");
         assertEquals(java.util.List.of(SILVER), closure.unknownOrigins(),
@@ -99,7 +99,7 @@ class ColumnClosureTest {
                 .addEdge(SILVER.id(), BRONZE.id(), Confidence.DIRECT)
                 .build();
 
-        assertEquals(Set.of(BRONZE, SILVER), ColumnClosure.of(lineage, BRONZE).columns());
+        assertEquals(Set.of(BRONZE, SILVER), ColumnClosure.of(lineage, BRONZE, Set.of()).columns());
     }
 
     @Test
@@ -107,7 +107,7 @@ class ColumnClosureTest {
         ColumnRef unrelated = new ColumnRef("p.d.other", "order_id");
         ColumnLineageGraph lineage = graph(SILVER, unrelated).build();
 
-        assertFalse(ColumnClosure.of(lineage, SILVER).columns().contains(unrelated),
+        assertFalse(ColumnClosure.of(lineage, SILVER, Set.of()).columns().contains(unrelated),
                 "two tables having a column of the same name is not a relation");
     }
 
@@ -118,10 +118,58 @@ class ColumnClosureTest {
                 .addEdge(SILVER.id(), GOLD.id(), Confidence.DIRECT)
                 .build();
 
-        Set<ColumnRef> reached = ColumnClosure.downstreamOf(lineage, SILVER).columns();
+        Set<ColumnRef> reached = ColumnClosure.downstreamOf(lineage, SILVER, Set.of()).columns();
 
         assertEquals(Set.of(SILVER, GOLD), reached);
         assertTrue(!reached.contains(BRONZE),
                 "declaring the new name in the current file leaves everything upstream untouched");
+    }
+
+    /**
+     * A declared source is a table the project does not build: its columns are not renamed, and the
+     * first column built from one keeps reading the old name while publishing the new one.
+     */
+    @Test
+    void stopsAtADeclaredSourceAndAliasesTheColumnReadingIt() {
+        ColumnRef raw = new ColumnRef("p.d.raw", "order_id");
+        ColumnLineageGraph lineage = graph(raw, BRONZE, SILVER)
+                .addEdge(raw.id(), BRONZE.id(), Confidence.DIRECT)
+                .addEdge(BRONZE.id(), SILVER.id(), Confidence.DIRECT)
+                .build();
+
+        ColumnClosure closure = ColumnClosure.of(lineage, SILVER, Set.of("p.d.raw"));
+
+        assertEquals(Set.of(BRONZE, SILVER), closure.columns(),
+                "the source column belongs to BigQuery and is left out");
+        assertEquals(Set.of(BRONZE), closure.aliased(),
+                "the column read straight from the source is declared as old AS new");
+        assertFalse(closure.carried().contains(BRONZE),
+                "nothing upstream publishes the new name for it");
+    }
+
+    @Test
+    void startingOnASourceColumnRenamesWhatReadsIt() {
+        ColumnRef raw = new ColumnRef("p.d.raw", "order_id");
+        ColumnLineageGraph lineage = graph(raw, BRONZE, SILVER)
+                .addEdge(raw.id(), BRONZE.id(), Confidence.DIRECT)
+                .addEdge(BRONZE.id(), SILVER.id(), Confidence.DIRECT)
+                .build();
+
+        ColumnClosure closure = ColumnClosure.of(lineage, raw, Set.of("p.d.raw"));
+
+        assertEquals(Set.of(BRONZE, SILVER), closure.columns());
+        assertEquals(Set.of(BRONZE), closure.aliased());
+    }
+
+    @Test
+    void withoutSourcesTheClosureIsUnchanged() {
+        ColumnLineageGraph lineage = graph(BRONZE, SILVER)
+                .addEdge(BRONZE.id(), SILVER.id(), Confidence.DIRECT)
+                .build();
+
+        ColumnClosure closure = ColumnClosure.of(lineage, SILVER, Set.of());
+
+        assertEquals(Set.of(BRONZE, SILVER), closure.columns());
+        assertTrue(closure.aliased().isEmpty());
     }
 }

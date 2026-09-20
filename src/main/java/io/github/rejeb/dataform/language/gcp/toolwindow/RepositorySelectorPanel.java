@@ -33,7 +33,6 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ItemEvent;
 import java.util.List;
-import java.util.UUID;
 
 public class RepositorySelectorPanel extends JPanel {
 

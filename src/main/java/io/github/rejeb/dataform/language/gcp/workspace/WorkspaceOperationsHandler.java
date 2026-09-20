@@ -17,6 +17,8 @@
 package io.github.rejeb.dataform.language.gcp.workspace;
 
 import com.intellij.openapi.application.ReadAction;
+import com.intellij.openapi.fileEditor.FileDocumentManager;
+import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.WriteAction;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
@@ -34,6 +36,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 public class WorkspaceOperationsHandler implements WorkspaceOperations {
 
@@ -107,10 +110,10 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
     }
 
     @Override
-    public void pushCode(@NotNull String workspaceId) {
+    public void pushCode(@NotNull String workspaceId, @NotNull Predicate<Set<String>> deletionApproval) {
         GcpConfig config = readConfig();
         if (config == null) return;
-
+        saveDocuments();
         Map<String, String> localFiles = ReadAction.computeBlocking(() -> {
             List<String> paths = filesResolver.apply(project);
             VirtualFile[] roots = ProjectRootManager.getInstance(project).getContentRoots();
@@ -141,10 +144,22 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
 
         Set<String> toDelete = new HashSet<>(remotePaths);
         toDelete.removeAll(localFiles.keySet());
-
+        if (!toDelete.isEmpty() && !deletionApproval.test(Collections.unmodifiableSet(toDelete))) {
+            LOG.info("pushCode: deletion of " + toDelete.size() + " remote file(s) declined, push cancelled");
+            return;
+        }
         workspaceRepository.push(
                 config.projectId, config.location, config.repositoryId,
                 workspaceId, localFiles, toDelete);
+    }
+
+    /**
+     * Writes the unsaved editors to disk, so that what is pushed is what the user sees. The local
+     * contents are read from the files, not from the documents.
+     */
+    private static void saveDocuments() {
+        ApplicationManager.getApplication().invokeAndWait(
+                () -> FileDocumentManager.getInstance().saveAllDocuments());
     }
 
     public void createRepository(@NotNull DataformRepositoryConfig config) {

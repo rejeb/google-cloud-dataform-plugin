@@ -452,7 +452,14 @@
         <internalFileTemplate name="Dataform SQLX Declaration"/>
     </extensions>
 
+    <projectListeners>
+        <listener class="io.github.rejeb.dataform.language.evaluation.DataformEvaluationFocusListener"
+                  topic="com.intellij.openapi.fileEditor.FileEditorManagerListener"/>
+    </projectListeners>
+
     <applicationListeners>
+        <listener class="io.github.rejeb.dataform.language.evaluation.DataformEvaluationFocusListener"
+                  topic="com.intellij.openapi.application.ApplicationActivationListener"/>
         <listener class="io.github.rejeb.dataform.language.compilation.DataformCompileOnSaveListener"
                   topic="com.intellij.openapi.fileEditor.FileDocumentManagerListener"/>
         <listener class="io.github.rejeb.dataform.language.lineage.view.LineageTabCloseListener"

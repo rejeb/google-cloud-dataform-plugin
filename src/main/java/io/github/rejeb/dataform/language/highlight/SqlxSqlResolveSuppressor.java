@@ -35,6 +35,11 @@ import java.util.Set;
  * over: there is nothing to say about it. The query reads rows a template hole builds, and the
  * inspection is answering from the filler text the injection put there — which it reports as an
  * error, since as far as it can tell the source is a perfectly ordinary one.</p>
+ *
+ * <p>A name inside text the injection wrote is dropped as well. A {@code ${ref()}} hole becomes the
+ * full BigQuery name of its table, and the project and dataset in front of it are objects no
+ * schema of the plugin holds, so the inspection reports the project as an unresolvable symbol —
+ * an error on a name the user never typed.</p>
  */
 public final class SqlxSqlResolveSuppressor implements InspectionSuppressor {
 
@@ -47,6 +52,7 @@ public final class SqlxSqlResolveSuppressor implements InspectionSuppressor {
             return false;
         }
         return SqlxSqlProblemAnnotator.isCoveredReference(element)
+                || SqlxQuerySources.isGenerated(element)
                 || !SqlxQuerySources.areKnown(element);
     }
 

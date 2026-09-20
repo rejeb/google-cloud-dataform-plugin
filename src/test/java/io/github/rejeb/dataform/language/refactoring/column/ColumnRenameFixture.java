@@ -21,6 +21,7 @@ import com.intellij.testFramework.fixtures.BasePlatformTestCase;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.compilation.model.CompiledTable;
+import io.github.rejeb.dataform.language.compilation.model.Declaration;
 import io.github.rejeb.dataform.language.compilation.model.Target;
 import io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService;
 
@@ -50,22 +51,57 @@ public abstract class ColumnRenameFixture extends BasePlatformTestCase {
     public record Action(String name, String query, List<String> dependencies, List<String> columns) {
     }
 
+    /**
+     * A source declared to the project with {@code declare()}: a table that exists in BigQuery, no
+     * action builds, and whose columns the schema knows.
+     *
+     * @param name    the table name, as the {@code name} property of the call states it
+     * @param columns the columns its schema declares
+     */
+    public record Source(String name, List<String> columns) {
+    }
+
     private final Map<String, PsiFile> files = new LinkedHashMap<>();
 
     /** Installs the compiled graph and the schema of a project made of the given actions. */
     protected void installProject(Action... actions) {
+        installProject(List.of(), actions);
+    }
+
+    /**
+     * Installs a project made of the given actions and of sources declared in
+     * {@code definitions/sources.js}, one {@code declare()} call per source.
+     */
+    protected void installProject(List<Source> sources, Action... actions) {
         List<CompiledTable> tables = new ArrayList<>();
+        List<Declaration> declarations = new ArrayList<>();
         StringBuilder schema = new StringBuilder("{");
+        StringBuilder sourcesJs = new StringBuilder();
         for (Action action : actions) {
             tables.add(tableOf(action));
             if (schema.length() > 1) schema.append(",");
             schema.append(schemaEntry(action));
         }
+        for (Source source : sources) {
+            Declaration declaration = new Declaration();
+            set(declaration, "target", targetOf(source.name()));
+            set(declaration, "fileName", "definitions/sources.js");
+            declarations.add(declaration);
+            if (schema.length() > 1) schema.append(",");
+            schema.append(schemaEntry("p.d." + source.name(), source.columns(),
+                    "definitions/sources.js"));
+            sourcesJs.append("declare({ database: \"p\", schema: \"d\", name: \"")
+                    .append(source.name()).append("\" });\n");
+        }
         schema.append("}");
+        if (!sources.isEmpty()) {
+            files.put("sources.js",
+                    myFixture.addFileToProject("definitions/sources.js", sourcesJs.toString()));
+        }
 
         CompiledGraph graph = new CompiledGraph();
         set(graph, "tables", tables);
-        set(graph, "declarations", List.of());
+        set(graph, "declarations", declarations);
         set(graph, "operations", List.of());
         set(graph, "assertions", List.of());
         set(getProject().getService(DataformCompilationService.class), "compiledGraph", graph);
@@ -108,14 +144,19 @@ public abstract class ColumnRenameFixture extends BasePlatformTestCase {
     }
 
     private String schemaEntry(Action action) {
+        return schemaEntry("p.d." + action.name(), action.columns(),
+                "definitions/" + action.name() + ".sqlx");
+    }
+
+    private String schemaEntry(String fullName, List<String> columnNames, String fileName) {
         StringBuilder columns = new StringBuilder();
-        for (String column : action.columns()) {
+        for (String column : columnNames) {
             if (!columns.isEmpty()) columns.append(",");
             columns.append("{\"name\":\"").append(column)
                     .append("\",\"type\":\"STRING\",\"mode\":\"NULLABLE\",\"subFields\":[]}");
         }
-        return "\"p.d." + action.name() + "\":{\"columns\":[" + columns
-                + "],\"lastModified\":0,\"fileName\":\"definitions/" + action.name() + ".sqlx\"}";
+        return "\"" + fullName + "\":{\"columns\":[" + columns
+                + "],\"lastModified\":0,\"fileName\":\"" + fileName + "\"}";
     }
 
     private static void set(Object target, String field, Object value) {

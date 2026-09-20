@@ -18,7 +18,6 @@ package io.github.rejeb.dataform.language.fileEditor;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import java.util.List;
 
 record FormattedCompiledQuery(
         @NotNull String tableName,

@@ -32,8 +32,8 @@ public class RunSqlxHelper {
     private static final String TAGS_NAME_SUFFIX = " (tags)";
 
     /**
-     * Creates a tag based run configuration for the given file and opens the run configuration
-     * editor before launching, so the prefilled tags can be reviewed.
+     * Creates a temporary tag based run configuration for the given file, prefilled with its tags
+     * and the selected workspace, and launches it after the user confirmed the run.
      */
     public static void launchFromTags(@NotNull Project project,
                                       @NotNull VirtualFile file) {

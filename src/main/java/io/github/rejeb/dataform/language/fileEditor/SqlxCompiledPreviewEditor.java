@@ -38,8 +38,7 @@ import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.popup.JBPopup;
 import com.intellij.openapi.ui.popup.JBPopupFactory;
-import com.intellij.openapi.util.Key;
-import com.intellij.openapi.util.ThrowableComputable;
+import com.intellij.openapi.util.UserDataHolderBase;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.sql.SqlFileType;
 import com.intellij.util.ui.JBUI;
@@ -51,7 +50,6 @@ import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.compilation.model.CompiledQuery;
 import io.github.rejeb.dataform.language.fileEditor.lineage.LineageGraph;
 import io.github.rejeb.dataform.language.fileEditor.lineage.LineageGraphHelper;
-import io.github.rejeb.dataform.language.DataformIcons;
 import io.github.rejeb.dataform.language.lineage.extractor.LineageExtractorImpl;
 import io.github.rejeb.dataform.language.lineage.view.LineageFilePanel;
 import io.github.rejeb.dataform.language.gcp.execution.bigquery.BigQueryExecutionService;
@@ -72,7 +70,13 @@ import java.awt.*;
 import java.beans.PropertyChangeListener;
 import java.util.List;
 
-public class SqlxCompiledPreviewEditor implements FileEditor {
+/**
+ * Preview side of the SQLX split editor: lineage, compiled query and schema of the file's
+ * actions. The compiled SQL is formatted only when the Query view is shown, and once per
+ * compilation: formatting runs a write command on the EDT, which is far too costly to pay on
+ * every tab switch.
+ */
+public class SqlxCompiledPreviewEditor extends UserDataHolderBase implements FileEditor {
 
     public enum View {LINEAGE, QUERY, SCHEMA}
 
@@ -83,6 +87,8 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
     private final Project project;
     private final VirtualFile file;
     private long myLastCompiledStamp = -1;
+    private volatile List<CompiledQuery> rawQueries = List.of();
+    private boolean queryViewStale = false;
 
     public SqlxCompiledPreviewEditor(@NotNull Project project, VirtualFile file) {
         this.project = project;
@@ -108,7 +114,7 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
 
     public void updateCompiledSql() {
         ProgressManager.getInstance().run(new Task.Backgroundable(project, "Dataform: compiling", true) {
-            private List<FormattedCompiledQuery> compiledQueries;
+            private List<CompiledQuery> compiledQueries;
             private List<LineageGraph> lineageGraphs;
             private io.github.rejeb.dataform.language.lineage.graph.LineageGraph fileLineage;
 
@@ -120,13 +126,7 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
                 CompiledGraph graph = svc.getCompiledGraph();
                 if (graph != null) {
                     String path = file.getCanonicalPath();
-                    List<CompiledQuery> rawQueries = graph.findCompiledQueryByFileName(path);
-                    compiledQueries = WriteCommandAction.runWriteCommandAction(project,
-                            (ThrowableComputable<List<FormattedCompiledQuery>, RuntimeException>) () ->
-                                    rawQueries.stream()
-                                            .map(q -> toFormatted(q, project))
-                                            .toList()
-                    );
+                    compiledQueries = graph.findCompiledQueryByFileName(path);
                     lineageGraphs = LineageGraphHelper.buildGraph(graph, path);
                     fileLineage = new LineageExtractorImpl().extract(graph);
                 }
@@ -141,7 +141,11 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
             public void onSuccess() {
                 ApplicationManager.getApplication().invokeLater(() -> {
                     schemaPanel.setContent(lineageGraphs);
-                    queryPanel.setContent(compiledQueries);
+                    rawQueries = compiledQueries != null ? compiledQueries : List.of();
+                    queryViewStale = true;
+                    if (activeView == View.QUERY) {
+                        refreshQueryView();
+                    }
                     lineagePanel.setLineage(fileLineage);
                     mainPanel.revalidate();
                 }, ModalityState.nonModal());
@@ -214,15 +218,6 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
     }
 
     @Override
-    public @Nullable <T> T getUserData(@NotNull Key<T> key) {
-        return null;
-    }
-
-    @Override
-    public <T> void putUserData(@NotNull Key<T> key, @org.jspecify.annotations.Nullable T t) {
-    }
-
-    @Override
     public void selectNotify() {
         long stamp = file.getTimeStamp();
         if (stamp > myLastCompiledStamp) {
@@ -232,12 +227,14 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
     }
 
     public boolean hasQuery() {
-        return queryPanel.hasQuery();
+        return rawQueries.stream().anyMatch(q -> q.query() != null && !q.query().isBlank());
     }
 
     public void executeQuery(@NotNull AnActionEvent e) {
-        List<FormattedCompiledQuery> queries = queryPanel.getCompiledQueries();
-        if (queries == null || queries.isEmpty()) return;
+        List<FormattedCompiledQuery> queries = rawQueries.stream()
+                .map(SqlxCompiledPreviewEditor::toPlain)
+                .toList();
+        if (queries.isEmpty()) return;
 
         if (queries.size() == 1) {
             runQueries(List.of(queries.getFirst()));
@@ -293,7 +290,7 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
                                     ? Utils.withPreOperations(
                                             PreOperationsFilter.keepReadOnly(List.of(q.preOps())), q.query())
                                     : q.query();
-                            BigQueryJobResult result = svc.execute(sql, projectId, q.tableName());
+                            BigQueryJobResult result = svc.execute(sql, projectId, q.tableName(), indicator);
                             registry.put(result);
                             ServiceEventListener.ServiceEvent resetEvent =
                                     ServiceEventListener.ServiceEvent.createResetEvent(
@@ -318,8 +315,32 @@ public class SqlxCompiledPreviewEditor implements FileEditor {
 
     public void showPanel(@NotNull View view) {
         this.activeView = view;
+        if (view == View.QUERY) {
+            refreshQueryView();
+        }
         CardLayout cl = (CardLayout) mainPanel.getLayout();
         cl.show(mainPanel, view.name());
+    }
+
+    private void refreshQueryView() {
+        if (!queryViewStale) return;
+        queryViewStale = false;
+        queryPanel.setContent(rawQueries.stream().map(q -> toFormatted(q, project)).toList());
+    }
+
+    private static FormattedCompiledQuery toPlain(CompiledQuery q) {
+        return new FormattedCompiledQuery(
+                q.tableName(),
+                joinOrNull(q.preOps()),
+                joinOrNull(q.incrementalPreOps()),
+                q.query(),
+                joinOrNull(q.postOps()),
+                joinOrNull(q.compilationErrors())
+        );
+    }
+
+    private static @Nullable String joinOrNull(@Nullable List<String> parts) {
+        return parts == null || parts.isEmpty() ? null : String.join("\n", parts);
     }
 
     public View getActiveView() {

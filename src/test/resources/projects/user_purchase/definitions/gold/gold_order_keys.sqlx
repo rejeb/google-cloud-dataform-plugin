@@ -1,0 +1,9 @@
+config {
+    type: "table",
+    description: "Gold layer: the highest order key, built through an include helper.",
+    tags: ["gold", "orders"],
+}
+
+SELECT
+    ${helpers.top_value("order_id")} AS top_order
+FROM ${ref("silver_orders")}

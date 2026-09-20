@@ -30,7 +30,6 @@ import com.intellij.sql.symbols.DasSymbolUtil;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasTable;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Map;
 
 public class DataformSqlResolveExtension implements SqlResolveExtension {
 
@@ -50,14 +49,9 @@ public class DataformSqlResolveExtension implements SqlResolveExtension {
         if (!processor.mayAccept(ObjectKind.TABLE)) return true;
 
         String refName = ref.getReferenceName();
-
-        Map<String, DataformDasTable> tables = DataformTableSchemaService
-                .getInstance(place.getProject())
-                .getAllTables();
-        if (tables.isEmpty()) return true;
-
-        for (DataformDasTable table : tables.values()) {
-            if (!table.getName().equalsIgnoreCase(refName)) continue;
+        if (refName == null) return true;
+        for (DataformDasTable table : DataformTableSchemaService.getInstance(place.getProject())
+                .getTablesNamed(refName)) {
             DasSymbol tableSymbol = DasSymbolUtil.wrapObjectToSymbol(table, processor);
             if (!processor.execute(tableSymbol, ResolveState.initial())) return false;
         }

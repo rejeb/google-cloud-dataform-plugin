@@ -19,12 +19,9 @@ package io.github.rejeb.dataform.language.gcp.settings;
 import io.github.rejeb.dataform.language.gcp.common.CommitAuthorConfig;
 import io.github.rejeb.dataform.language.gcp.common.GcpConfigProvider;
 import io.github.rejeb.dataform.language.gcp.common.GcpIdentityResolver;
-import io.github.rejeb.dataform.language.service.WorkflowSettingsProperty;
-import io.github.rejeb.dataform.language.service.WorkflowSettingsService;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.Map;
 
 public class WorkflowSettingsGcpConfigProvider implements GcpConfigProvider {
 
@@ -53,8 +50,8 @@ public class WorkflowSettingsGcpConfigProvider implements GcpConfigProvider {
 
 
     /**
-     * Reads author name and email from the IntelliJ Git plugin user config.
-     * Falls back to system username if Git plugin is unavailable.
+     * Resolves the author name and email from the Google credential the plugin is signed in with.
+     * Falls back to the system user name when the identity cannot be resolved.
      */
     @Override
     @NotNull
