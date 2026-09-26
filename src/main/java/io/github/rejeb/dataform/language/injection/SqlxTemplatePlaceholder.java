@@ -59,11 +59,18 @@ final class SqlxTemplatePlaceholder {
         if (resolved != null) return resolved;
         String evaluated = evaluatedValue(hole, file);
         if (evaluated != null) return evaluated;
-        if (sqlBefore.toString().isBlank()) return STATEMENT_FILLER;
+        if (isBlank(sqlBefore)) return STATEMENT_FILLER;
         if (SqlCteSlot.opensACte(sqlBefore)) {
             return String.format(CTE_FILLER, hole.getTextRange().getStartOffset());
         }
         return EXPRESSION_FILLER;
+    }
+
+    private static boolean isBlank(@NotNull CharSequence text) {
+        for (int i = 0; i < text.length(); i++) {
+            if (!Character.isWhitespace(text.charAt(i))) return false;
+        }
+        return true;
     }
 
     private static @Nullable String evaluatedValue(@NotNull PsiElement hole,

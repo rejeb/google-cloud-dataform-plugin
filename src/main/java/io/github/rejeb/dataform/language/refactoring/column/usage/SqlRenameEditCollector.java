@@ -35,10 +35,13 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
  * Collects the SQL places of a rename: where each column is declared, and everywhere it is read.
@@ -59,6 +62,11 @@ public final class SqlRenameEditCollector {
                          @NotNull List<StarBoundary> boundaries,
                          @NotNull List<String> warnings) {
     }
+
+    private static final Comparator<ColumnRenameEdit> IN_FILE_ORDER = Comparator
+            .comparing((ColumnRenameEdit edit) -> edit.file().getPath())
+            .thenComparingInt(edit -> edit.hostRange().getStartOffset())
+            .thenComparingInt(edit -> edit.hostRange().getEndOffset());
 
     private SqlRenameEditCollector() {
     }
@@ -228,7 +236,11 @@ public final class SqlRenameEditCollector {
         return declared == null || !renamed.contains(declared);
     }
 
-    /** Every reference of the project resolving to one column of the rename. */
+    /**
+     * Every reference of the project resolving to one column of the rename. The search runs its
+     * candidate files side by side; what it finds is put in file and offset order before it joins
+     * the plan, so the plan reads the same whichever file was searched first.
+     */
     private static void collectReferences(@NotNull Project project,
                                           @NotNull ColumnOriginService origins,
                                           @NotNull ColumnRef column,
@@ -237,15 +249,22 @@ public final class SqlRenameEditCollector {
         DataformDasColumn dasColumn = origins.dasColumn(column);
         if (dasColumn == null) return;
         GlobalSearchScope scope = GlobalSearchScope.projectScope(project);
-        ReferencesSearch.search(dasColumn, scope).forEach(reference -> {
+        Queue<ColumnRenameEdit> found = new ConcurrentLinkedQueue<>();
+        ReferencesSearch.search(dasColumn, scope).allowParallelProcessing().forEach(reference -> {
             PsiElement element = reference.getElement();
             PsiElement identifier = SqlPsiParts.lastIdentifier(element);
             PsiElement target = identifier != null ? identifier : element;
-            add(edits, EditFactory.ofWhole(target, DataformColumnNameValidator.inSql(newName),
+            ColumnRenameEdit edit = EditFactory.ofWhole(target, DataformColumnNameValidator.inSql(newName),
                     ColumnRenameEdit.Kind.SQL_REFERENCE, ColumnRenameEdit.Risk.CERTAIN,
-                    "read of " + column.columnName()));
+                    "read of " + column.columnName());
+            if (edit != null) found.add(edit);
             return true;
         });
+        List<ColumnRenameEdit> ordered = new ArrayList<>(found);
+        ordered.sort(IN_FILE_ORDER);
+        for (ColumnRenameEdit edit : ordered) {
+            add(edits, edit);
+        }
     }
 
     private static void add(@NotNull Map<String, ColumnRenameEdit> edits,

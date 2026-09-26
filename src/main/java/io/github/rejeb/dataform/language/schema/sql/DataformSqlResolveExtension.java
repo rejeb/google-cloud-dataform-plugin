@@ -50,13 +50,13 @@ public class DataformSqlResolveExtension implements SqlResolveExtension {
         PsiElement place = processor.getPlace();
         if (place == null) return true;
 
+        if (ref.getReferenceElementType() != SqlCompositeElementTypes.SQL_TABLE_REFERENCE) return true;
+        if (!processor.mayAccept(ObjectKind.TABLE)) return true;
+
         PsiFile topLevel = InjectedLanguageManager
                 .getInstance(place.getProject())
                 .getTopLevelFile(place.getContainingFile());
         if (topLevel == null || !topLevel.getName().endsWith(".sqlx")) return true;
-
-        if (ref.getReferenceElementType() != SqlCompositeElementTypes.SQL_TABLE_REFERENCE) return true;
-        if (!processor.mayAccept(ObjectKind.TABLE)) return true;
 
         String refName = ref.getReferenceName();
         if (refName == null) return true;

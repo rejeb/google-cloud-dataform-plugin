@@ -67,19 +67,6 @@ public interface WorkspaceRepository {
     );
 
     /**
-     * Reads the content of the given file paths directly from the repository (no workspace).
-     *
-     * @return map of relative path → file content (UTF-8); absent paths are skipped
-     * @throws GcpApiException if the client cannot be created or a fatal API error occurs
-     */
-    @NotNull Map<String, String> readFilesFromRepository(
-            @NotNull String projectId,
-            @NotNull String location,
-            @NotNull String repositoryId,
-            @NotNull List<String> paths
-    );
-
-    /**
      * Lists and reads all files from the GCP Dataform repository (main branch)
      * or from a workspace.
      *

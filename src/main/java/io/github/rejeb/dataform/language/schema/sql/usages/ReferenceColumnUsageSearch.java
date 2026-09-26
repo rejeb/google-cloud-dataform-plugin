@@ -58,19 +58,22 @@ final class ReferenceColumnUsageSearch implements ColumnUsageSearch {
     @Override
     public void forEachRead(@NotNull Processor<PsiElement> reads, int maxReads) {
         GlobalSearchScope scope = GlobalSearchScope.projectScope(project);
+        boolean diagnosing = LOG.isDebugEnabled();
         for (PsiElement searched : target.searchTargets()) {
             AtomicInteger reported = new AtomicInteger();
             ReferencesSearch.SearchParameters parameters =
                     new ReferencesSearch.SearchParameters(searched, scope, false);
-            LOG.info("DIAG column search: " + describe(searched, parameters));
+            if (diagnosing) LOG.debug("DIAG column search: " + describe(searched, parameters));
             boolean completed = ReferencesSearch.search(parameters)
                     .allowParallelProcessing()
                     .forEach((PsiReference found) -> {
                         reported.incrementAndGet();
                         return reads.process(found.getElement());
                     });
-            LOG.info("DIAG column search done: name=" + target.name() + " reported=" + reported
-                    + " completed=" + completed);
+            if (diagnosing) {
+                LOG.debug("DIAG column search done: name=" + target.name() + " reported=" + reported
+                        + " completed=" + completed);
+            }
             if (!completed) return;
         }
     }

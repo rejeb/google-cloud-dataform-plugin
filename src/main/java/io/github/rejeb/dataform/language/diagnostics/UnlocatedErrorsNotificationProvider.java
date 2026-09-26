@@ -27,6 +27,7 @@ import com.intellij.ui.EditorNotificationProvider;
 import io.github.rejeb.dataform.language.diagnostics.compile.CompilationProblemsService;
 import io.github.rejeb.dataform.language.diagnostics.sql.bigquery.BigQueryDiagnosticsService;
 import io.github.rejeb.dataform.language.settings.DataformToolsSettings;
+import io.github.rejeb.dataform.language.util.DataformProjectLayout;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -49,7 +50,8 @@ public final class UnlocatedErrorsNotificationProvider
             @NotNull Project project,
             @NotNull VirtualFile file
     ) {
-        if (!DataformToolsSettings.getInstance().isShowInlineCompilationErrors()) {
+        if (!DataformToolsSettings.getInstance().isShowInlineCompilationErrors()
+                || !DataformProjectLayout.isDataformSource(file)) {
             return null;
         }
         List<String> messages = messages(project, file);

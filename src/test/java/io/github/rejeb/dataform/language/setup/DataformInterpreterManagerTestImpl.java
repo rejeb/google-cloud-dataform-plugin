@@ -18,7 +18,9 @@ package io.github.rejeb.dataform.language.setup;
 
 import com.intellij.execution.configurations.GeneralCommandLine;
 import com.intellij.openapi.vfs.VirtualFile;
+import org.jetbrains.annotations.NotNull;
 
+import java.util.List;
 import java.util.Optional;
 
 public class DataformInterpreterManagerTestImpl implements DataformInterpreterManager {
@@ -34,6 +36,11 @@ public class DataformInterpreterManagerTestImpl implements DataformInterpreterMa
 
     @Override
     public Optional<GeneralCommandLine> buildDataformCompileCommand() {
+        return Optional.empty();
+    }
+
+    @Override
+    public Optional<GeneralCommandLine> buildDataformCommand(@NotNull List<String> arguments) {
         return Optional.empty();
     }
 }

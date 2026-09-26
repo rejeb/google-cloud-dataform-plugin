@@ -18,7 +18,7 @@ package io.github.rejeb.dataform.language.gcp.execution.workflow.repository;
 
 import io.github.rejeb.dataform.language.gcp.common.GcpApiException;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowCreationResult;
-import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowInvocationProgress;
+import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowProgressSession;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowRunRequest;
 import org.jetbrains.annotations.NotNull;
 
@@ -42,11 +42,12 @@ public interface WorkflowRepository {
     );
 
     /**
-     * Returns a progress snapshot: run state + all action results.
+     * Opens the polling of a run. The session keeps one connection for all its polls and must be
+     * closed once the run is no longer watched.
      *
      * @throws GcpApiException on API error
      */
-    @NotNull WorkflowInvocationProgress getWorkflowRunProgress(@NotNull WorkflowCreationResult workflowRun);
+    @NotNull WorkflowProgressSession openWorkflowRunProgress(@NotNull WorkflowCreationResult workflowRun);
 
     /**
      * Cancels a running workflow.

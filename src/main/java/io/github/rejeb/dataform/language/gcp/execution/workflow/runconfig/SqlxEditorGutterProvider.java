@@ -46,8 +46,8 @@ public class SqlxEditorGutterProvider implements LineMarkerProvider {
     @Override
     public @Nullable LineMarkerInfo<?> getLineMarkerInfo(@NotNull PsiElement element) {
         if (!(element instanceof LeafPsiElement)) return null;
-        SqlxConfigBlock configBlock = PsiTreeUtil.getParentOfType(element, SqlxConfigBlock.class);
-        if (configBlock == null || PsiTreeUtil.getDeepestFirst(configBlock) != element) return null;
+        SqlxConfigBlock configBlock = configBlockStartingWith(element);
+        if (configBlock == null) return null;
         PsiFile sqlxFile = configBlock.getContainingFile();
         if (sqlxFile == null || sqlxFile.getVirtualFile() == null) return null;
         if (!isActionFile(sqlxFile.getVirtualFile())) return null;
@@ -65,6 +65,21 @@ public class SqlxEditorGutterProvider implements LineMarkerProvider {
                 GutterIconRenderer.Alignment.LEFT,
                 () -> "Run " + sqlxFile.getName()
         );
+    }
+
+    /**
+     * The config block whose first leaf is the element, found by climbing first children only: any
+     * other leaf leaves the chain after a step or two, where looking for an enclosing block would
+     * walk the whole way up to the file for each leaf of it.
+     */
+    private static @Nullable SqlxConfigBlock configBlockStartingWith(@NotNull PsiElement leaf) {
+        PsiElement node = leaf;
+        while (!(node instanceof SqlxConfigBlock block)) {
+            PsiElement parent = node.getParent();
+            if (parent == null || parent instanceof PsiFile || parent.getFirstChild() != node) return null;
+            node = parent;
+        }
+        return block;
     }
 
     private static boolean declaresTags(@NotNull SqlxConfigBlock configBlock) {

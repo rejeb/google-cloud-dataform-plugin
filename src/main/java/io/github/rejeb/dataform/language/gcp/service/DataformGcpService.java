@@ -19,7 +19,7 @@ package io.github.rejeb.dataform.language.gcp.service;
 import com.intellij.openapi.project.Project;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.BigQueryJobDetails;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowCreationResult;
-import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowInvocationProgress;
+import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowProgressSession;
 import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
 import io.github.rejeb.dataform.language.gcp.workspace.UncommittedChange;
 import io.github.rejeb.dataform.language.gcp.workspace.Workspace;
@@ -138,10 +138,10 @@ public interface DataformGcpService {
     @NotNull WorkflowCreationResult createWorkflowRun(@NotNull WorkflowRunRequest request);
 
     /**
-     * Returns a progress snapshot for the given workflow run.
+     * Opens the polling of the given workflow run, to be closed once the run is no longer watched.
      * Must be called off the EDT.
      */
-    @NotNull WorkflowInvocationProgress getWorkflowRunProgress(@NotNull WorkflowCreationResult workflowRun);
+    @NotNull WorkflowProgressSession openWorkflowRunProgress(@NotNull WorkflowCreationResult workflowRun);
 
     /**
      * Cancels a running workflow.

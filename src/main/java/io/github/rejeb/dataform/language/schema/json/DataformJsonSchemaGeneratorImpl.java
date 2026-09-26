@@ -79,7 +79,7 @@ public final class DataformJsonSchemaGeneratorImpl implements DataformJsonSchema
         }
     }
 
-    public Optional<ObjectNode> generateSqlxConfigSchema() {
+    public synchronized Optional<ObjectNode> generateSqlxConfigSchema() {
         ProtoParser protoParser = this.project.getService(ProtoParser.class);
         if (!protoParser.configProtoFileExists()) {
             return Optional.empty();
@@ -90,7 +90,7 @@ public final class DataformJsonSchemaGeneratorImpl implements DataformJsonSchema
         return this.configSchema;
     }
 
-    public Optional<VirtualFile> generateWorkflowSettingsSchema() {
+    public synchronized Optional<VirtualFile> generateWorkflowSettingsSchema() {
         ProtoParser protoParser = this.project.getService(ProtoParser.class);
         if (!protoParser.configProtoFileExists()) {
             return Optional.empty();

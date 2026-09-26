@@ -97,8 +97,8 @@ public class DataformProjectStartup implements ProjectActivity {
             });
         }
 
+        project.getService(DataformDtsGenerator.class).generateDts();
         WriteAction.runAndWait(() -> {
-            project.getService(DataformDtsGenerator.class).generateDts();
             ModuleManager moduleManager = ModuleManager.getInstance(project);
             try {
                 Module[] modules = moduleManager.getModules();

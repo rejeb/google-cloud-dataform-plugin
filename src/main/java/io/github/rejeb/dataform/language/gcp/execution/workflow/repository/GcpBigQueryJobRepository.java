@@ -19,6 +19,7 @@ package io.github.rejeb.dataform.language.gcp.execution.workflow.repository;
 import com.google.api.gax.paging.Page;
 import com.google.cloud.bigquery.*;
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.util.concurrency.AppExecutorUtil;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.BigQueryJobDetails;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.BigQueryJobDetails.BigQueryChildJob;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.InvocationActionState;
@@ -29,6 +30,8 @@ import org.jetbrains.annotations.Nullable;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.List;
 
@@ -72,6 +75,8 @@ public final class GcpBigQueryJobRepository implements BigQueryJobRepository {
         LOG.info("Fetching BigQuery job details: jobId=" + jobId
                 + " project=" + project + " location=" + location);
         BigQuery bq = GcpClientsUtils.bigQuery(project);
+        CompletableFuture<List<BigQueryChildJob>> children = CompletableFuture.supplyAsync(
+                () -> childJobsOf(bq, jobId), AppExecutorUtil.getAppExecutorService());
 
         Job job = bq.getJob(JobId.newBuilder()
                 .setProject(project)
@@ -80,6 +85,7 @@ public final class GcpBigQueryJobRepository implements BigQueryJobRepository {
                 .build());
 
         if (job == null) {
+            children.cancel(true);
             LOG.warn("BigQuery returned no job for jobId=" + jobId
                     + " project=" + project + " location=" + location
                     + ". A wrong location is the most frequent cause.");
@@ -108,8 +114,33 @@ public final class GcpBigQueryJobRepository implements BigQueryJobRepository {
         String realLocation = job.getJobId().getLocation() != null
                 ? job.getJobId().getLocation() : location;
 
+        List<BigQueryChildJob> childJobs = joined(children);
+        LOG.info("BigQuery job " + jobId + " resolved: status=" + statusStr
+                + " realProject=" + realProject + " realLocation=" + realLocation
+                + " childJobs=" + childJobs.size());
+
+        Integer statementsProcessed = childJobs.isEmpty() ? 1 : childJobs.size();
+
+        return new BigQueryJobDetails(
+                job.getJobId().getJob(),
+                realProject,
+                realLocation,
+                statusStr, errorMsg,
+                bytesProcessed, bytesBilled,
+                startTime, endTime,
+                statementsProcessed,
+                childJobs
+        );
+    }
+
+    /**
+     * The statements a script job ran, listed while the job itself is being read: the listing only
+     * needs the job id, so the two requests do not have to wait on each other.
+     */
+    @NotNull
+    private static List<BigQueryChildJob> childJobsOf(@NotNull BigQuery bq, @NotNull String jobId) {
         List<BigQueryChildJob> childJobs = new ArrayList<>();
-        Page<Job> children = bq.listJobs(
+        Page<Job> pages = bq.listJobs(
                 BigQuery.JobListOption.parentJobId(jobId),
                 BigQuery.JobListOption.fields(
                         BigQuery.JobField.STATUS,
@@ -117,7 +148,7 @@ public final class GcpBigQueryJobRepository implements BigQueryJobRepository {
                         BigQuery.JobField.CONFIGURATION
                 )
         );
-        for (Job child : children.iterateAll()) {
+        for (Job child : pages.iterateAll()) {
             JobStatus cs = child.getStatus();
             JobStatistics cStats = child.getStatistics();
 
@@ -142,25 +173,19 @@ public final class GcpBigQueryJobRepository implements BigQueryJobRepository {
                     cStatus, cStart, cEnd, cQuery, cBytes
             ));
         }
-        LOG.info("BigQuery job " + jobId + " resolved: status=" + statusStr
-                + " realProject=" + realProject + " realLocation=" + realLocation
-                + " childJobs=" + childJobs.size());
-
-        Integer statementsProcessed = childJobs.isEmpty() ? 1 : childJobs.size();
-
-        return new BigQueryJobDetails(
-                job.getJobId().getJob(),
-                realProject,
-                realLocation,
-                statusStr, errorMsg,
-                bytesProcessed, bytesBilled,
-                startTime, endTime,
-                statementsProcessed,
-                childJobs
-        );
+        return childJobs;
     }
 
-    private String computeJobStatus(JobStatus status) {
+    private static <T> T joined(@NotNull CompletableFuture<T> future) {
+        try {
+            return future.join();
+        } catch (CompletionException e) {
+            if (e.getCause() instanceof RuntimeException runtime) throw runtime;
+            throw e;
+        }
+    }
+
+    private static String computeJobStatus(JobStatus status) {
         if (status.getError() != null ||
                 (status.getExecutionErrors() != null && !status.getExecutionErrors().isEmpty())) {
             return InvocationActionState.FAILED.name();

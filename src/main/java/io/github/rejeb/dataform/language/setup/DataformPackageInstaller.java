@@ -16,22 +16,22 @@
  */
 package io.github.rejeb.dataform.language.setup;
 
-import com.intellij.execution.configurations.GeneralCommandLine;
+import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.List;
-import java.util.Optional;
+/**
+ * Installs the npm packages declared in the {@code package.json} of a Dataform project.
+ */
+public interface DataformPackageInstaller {
 
-public interface DataformInterpreterManager {
-    Optional<VirtualFile> dataformCorePath();
-    String currentDataformCoreVersion();
-    Optional<GeneralCommandLine> buildDataformCompileCommand();
+    static DataformPackageInstaller getInstance(@NotNull Project project) {
+        return project.getService(DataformPackageInstaller.class);
+    }
 
     /**
-     * Builds a {@code dataform} CLI command running the given arguments in the project base directory.
-     *
-     * @return empty when no Node.js interpreter is configured
+     * Runs {@code dataform install} in the given directory as a background task and reports the
+     * outcome with a notification.
      */
-    Optional<GeneralCommandLine> buildDataformCommand(@NotNull List<String> arguments);
+    void installAsync(@NotNull VirtualFile projectDir);
 }

@@ -17,7 +17,10 @@
 package io.github.rejeb.dataform.language.projectWizard;
 
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.startup.StartupManager;
 import com.intellij.openapi.vfs.VirtualFile;
+import io.github.rejeb.dataform.language.setup.DataformPackageInstaller;
+import io.github.rejeb.dataform.language.setup.DataformPackageJson;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
@@ -29,7 +32,8 @@ public final class DataformProjectStructureBuilder {
     }
 
     /**
-     * Creates the standard Dataform project file structure under the given base directory.
+     * Creates the standard Dataform project file structure under the given base directory, pins the
+     * Dataform core version in {@code package.json} and installs it once the project is opened.
      */
     public static void createProjectStructure(@NotNull Project project,
                                               @NotNull VirtualFile baseDir,
@@ -41,14 +45,16 @@ public final class DataformProjectStructureBuilder {
         String workflowSettingsContent = String.format(
                 "defaultProject: %s%n" +
                         "defaultLocation: %s%n" +
-                        "defaultDataset: %s%n" +
-                        "dataformCoreVersion: %s%n",
+                        "defaultDataset: %s%n",
                 settings.getGcpProjectId(),
                 settings.getDefaultLocation(),
-                settings.getDefaultSchema(),
-                settings.getDataformCoreVersion()
+                settings.getDefaultSchema()
         );
         workflowSettings.setBinaryContent(workflowSettingsContent.getBytes(StandardCharsets.UTF_8));
+
+        VirtualFile packageJson = baseDir.createChildData(project, DataformPackageJson.FILE_NAME);
+        packageJson.setBinaryContent(
+                DataformPackageJson.content(settings.getDataformCoreVersion()).getBytes(StandardCharsets.UTF_8));
 
         VirtualFile gitignore = baseDir.createChildData(project, ".gitignore");
         String gitignoreContent = "node_modules/\n.dataform/\n*.log";
@@ -75,5 +81,11 @@ public final class DataformProjectStructureBuilder {
         VirtualFile readme = baseDir.createChildData(project, "README.md");
         String readmeContent = "# Dataform project for BigQuery data transformation.";
         readme.setBinaryContent(readmeContent.getBytes(StandardCharsets.UTF_8));
+
+        StartupManager.getInstance(project).runAfterOpened(() -> {
+            if (!project.isDisposed() && baseDir.isValid()) {
+                DataformPackageInstaller.getInstance(project).installAsync(baseDir);
+            }
+        });
     }
 }

@@ -35,6 +35,7 @@ import io.github.rejeb.dataform.language.gcp.execution.workflow.model.Invocation
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.InvocationActionState;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowCreationResult;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowInvocationProgress;
+import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowProgressSession;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowInvocationState;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.ui.WorkflowExecutionConsole;
 import io.github.rejeb.dataform.language.gcp.service.DataformGcpService;
@@ -126,11 +127,13 @@ public class DataformWorkflowRunProfileState
                                    @NotNull DataformGcpService service,
                                    @NotNull WorkflowCreationResult workflowRun) throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
-        ScheduledFuture<?> poller = schedulePoller(project, indicator, console, service, workflowRun, latch);
-        try {
-            latch.await();
-        } finally {
-            poller.cancel(false);
+        try (WorkflowProgressSession session = service.openWorkflowRunProgress(workflowRun)) {
+            ScheduledFuture<?> poller = schedulePoller(project, indicator, console, session, workflowRun, latch);
+            try {
+                latch.await();
+            } finally {
+                poller.cancel(false);
+            }
         }
         if (indicator.isCanceled()) {
             service.cancelWorkflowRun(workflowRun.invocationName());
@@ -141,11 +144,11 @@ public class DataformWorkflowRunProfileState
     private ScheduledFuture<?> schedulePoller(@NotNull Project project,
                                               @NotNull ProgressIndicator indicator,
                                               @NotNull WorkflowExecutionConsole console,
-                                              @NotNull DataformGcpService service,
+                                              @NotNull WorkflowProgressSession session,
                                               @NotNull WorkflowCreationResult workflowRun,
                                               @NotNull CountDownLatch latch) {
         return AppExecutorUtil.getAppScheduledExecutorService().scheduleWithFixedDelay(
-                () -> pollOnce(project, indicator, console, service, workflowRun, latch),
+                () -> pollOnce(project, indicator, console, session, workflowRun, latch),
                 POLL_INTERVAL_MS, POLL_INTERVAL_MS, TimeUnit.MILLISECONDS
         );
     }
@@ -153,15 +156,18 @@ public class DataformWorkflowRunProfileState
     private void pollOnce(@NotNull Project project,
                           @NotNull ProgressIndicator indicator,
                           @NotNull WorkflowExecutionConsole console,
-                          @NotNull DataformGcpService service,
+                          @NotNull WorkflowProgressSession session,
                           @NotNull WorkflowCreationResult workflowRun,
                           @NotNull CountDownLatch latch) {
+        if (latch.getCount() == 0) {
+            return;
+        }
         if (indicator.isCanceled()) {
             latch.countDown();
             return;
         }
         try {
-            WorkflowInvocationProgress progress = service.getWorkflowRunProgress(workflowRun);
+            WorkflowInvocationProgress progress = session.poll();
             publishAndDisplay(project, console, progress);
             updateIndicatorText(indicator, progress, workflowRun.invocationName());
             if (progress.isTerminal()) latch.countDown();

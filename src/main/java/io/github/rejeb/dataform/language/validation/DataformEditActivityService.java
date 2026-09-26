@@ -28,7 +28,7 @@ import org.jetbrains.annotations.NotNull;
 public interface DataformEditActivityService {
 
     /** How long after the last edit the user is still considered to be typing. */
-    long QUIET_PERIOD_MS = 5_000;
+    long QUIET_PERIOD_MS = 200;
 
     static DataformEditActivityService getInstance(@NotNull Project project) {
         return project.getService(DataformEditActivityService.class);

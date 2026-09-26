@@ -87,8 +87,9 @@ final class SqlxLocalSqlHints {
         if (name == null || name.isBlank() || identifier == null) return;
         if (SqlxQuerySources.isGenerated(reference) || !SqlxQuerySources.areKnown(reference)) return;
         String unquoted = SqlPsiParts.unquoted(name);
-        List<String> suggestions = NameSuggester.closest(unquoted,
-                candidates(reference, PsiSqlScope.of(reference)), MAX_SUGGESTIONS);
+        Collection<String> candidates = candidates(reference, PsiSqlScope.of(reference));
+        if (isAmong(unquoted, candidates)) return;
+        List<String> suggestions = NameSuggester.closest(unquoted, candidates, MAX_SUGGESTIONS);
         if (suggestions.isEmpty() || isDeclaredAlias(reference, unquoted) || isResolved(reference)) return;
         HostPlace host = hostPlaceOf(identifier);
         if (host == null || isReportedByBigQuery(host)) return;
@@ -113,6 +114,13 @@ final class SqlxLocalSqlHints {
                 token.getText(), null, null, 0, 0);
         SqlHint hint = SqlHints.hintFor(new SqlErrorContext(local, host.range(), host.file().getText(), SqlScope.EMPTY));
         return hint.fixes().isEmpty() ? null : new LocalHint(host.file(), hint);
+    }
+
+    private static boolean isAmong(@NotNull String name, @NotNull Collection<String> candidates) {
+        for (String candidate : candidates) {
+            if (candidate.equalsIgnoreCase(name)) return true;
+        }
+        return false;
     }
 
     private static boolean isResolved(@NotNull SqlReferenceExpression reference) {

@@ -46,7 +46,7 @@ public class BqDataHookUp implements GridDataHookUp<GridRow, GridColumn> {
         List<StructFlattener.FlatField> flatFields = StructFlattener.flattenFields(schema, "");
         List<StructFlattener.RowExtractor> extractors = StructFlattener.buildExtractors(schema);
 
-        List<BqGridColumn> columns = IntStream.range(0, flatFields.size()).boxed().parallel()
+        List<BqGridColumn> columns = IntStream.range(0, flatFields.size()).boxed()
                 .map(i -> new BqGridColumn(i, flatFields.get(i).qualifiedName(), flatFields.get(i).field())).toList();
 
         this.model = new BqGridModel(columns, new ArrayList<>());

@@ -92,6 +92,8 @@ public class DataformJsFileIndex {
 
     private static final Key<CachedValue<Map<String, List<IncludeExport>>>> EXPORTS =
             Key.create("dataform.include.exports");
+    private static final Key<CachedValue<List<IncludeExport>>> FILE_EXPORTS =
+            Key.create("dataform.include.file.exports");
 
     /**
      * The exports of every include file, by file name. Computed once per PSI or file-structure
@@ -117,13 +119,28 @@ public class DataformJsFileIndex {
             if (vFile == null) {
                 continue;
             }
-            String fileName = vFile.getNameWithoutExtension();
-            List<IncludeExport> exports = extractExportsFromFile(jsFile, fileName);
+            List<IncludeExport> exports = exportsOf(jsFile);
             if (!exports.isEmpty()) {
-                exportsByFile.put(fileName, List.copyOf(exports));
+                exportsByFile.put(vFile.getNameWithoutExtension(), exports);
             }
         }
         return Collections.unmodifiableMap(exportsByFile);
+    }
+
+    /**
+     * The exports of one include file, kept until that file or the file tree changes, so that an
+     * edit elsewhere does not walk the PSI of every include again.
+     */
+    @NotNull
+    private static List<IncludeExport> exportsOf(@NotNull JSFile jsFile) {
+        return CachedValuesManager.getCachedValue(jsFile, FILE_EXPORTS, () -> {
+            VirtualFile vFile = jsFile.getVirtualFile();
+            List<IncludeExport> exports = vFile == null
+                    ? List.of()
+                    : List.copyOf(extractExportsFromFile(jsFile, vFile.getNameWithoutExtension()));
+            return CachedValueProvider.Result.create(exports, jsFile,
+                    VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS);
+        });
     }
 
     @NotNull

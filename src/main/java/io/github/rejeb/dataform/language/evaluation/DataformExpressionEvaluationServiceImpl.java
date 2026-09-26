@@ -153,6 +153,8 @@ public final class DataformExpressionEvaluationServiceImpl
     public void invalidate(@NotNull VirtualFile file) {
         String url = file.getUrl();
         pending.remove(url);
+        generations.remove(url);
+        running.computeIfPresent(url, (key, lock) -> lock.get() ? lock : null);
         if (cache.remove(url) != null) {
             modificationCount.incrementAndGet();
         }
@@ -310,7 +312,7 @@ public final class DataformExpressionEvaluationServiceImpl
             values.put(result.source(), result);
             resolvedAny |= result.isResolved();
             if (!result.isResolved()) {
-                LOG.info("Dataform expression not resolved in " + file.getName() + ": ["
+                LOG.debug("Dataform expression not resolved in " + file.getName() + ": ["
                         + result.source().replace('\n', ' ') + "] -> " + result.error());
             }
         }

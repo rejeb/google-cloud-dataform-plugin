@@ -54,9 +54,7 @@ import java.util.Set;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.util.concurrency.AppExecutorUtil;
 import com.intellij.psi.PsiManager;
-import java.util.ArrayList;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -320,55 +318,40 @@ public final class DataformTableSchemaServiceImpl
                 project.getService(BigQueryDryRunSchemaExtractor.class), Set.copyOf(sources));
     }
 
+    /**
+     * Dry-runs the planned actions on a bounded pool of the platform rather than on the common
+     * fork-join pool, which network calls must not tie up, and under the indicator of the
+     * extraction so cancellation reaches every dry-run. Each action starts as soon as the planned
+     * actions it reads are done.
+     */
     private void processAllWaves(@NotNull List<List<SortableAction>> waves,
                                  @NotNull ExtractionContext ctx,
                                  @NotNull ProgressIndicator indicator) {
         Map<String, List<ColumnInfo>> resolvedInThisRun = new ConcurrentHashMap<>();
         int total = waves.stream().mapToInt(List::size).sum();
         AtomicInteger processed = new AtomicInteger(0);
-        for (List<SortableAction> wave : waves) {
-            if (indicator.isCanceled()) {
-                LOG.debug("Schema extraction cancelled");
-                cache.persist();
-                return;
-            }
-            waveExtraction(ctx, indicator, resolvedInThisRun, wave, processed, total);
+        SchemaExtractionScheduler.runAll(waves, dryRunExecutor, action -> {
+            if (indicator.isCanceled()) return;
+            ProgressManager.getInstance().executeProcessUnderProgress(() -> {
+                extractSchema(ctx, resolvedInThisRun, action);
+                indicator.setFraction((double) processed.incrementAndGet() / total);
+            }, indicator);
+        });
+        cache.persist();
+        if (indicator.isCanceled()) {
+            LOG.debug("Schema extraction cancelled");
+            return;
         }
         indicator.setFraction(1d);
-        cache.persist();
-        LOG.warn("Schema extraction complete: " + resolvedInThisRun.size() + "/" + processed.get()
+        LOG.info("Schema extraction complete: " + resolvedInThisRun.size() + "/" + processed.get()
                 + " actions resolved");
-    }
-
-    /**
-     * Dry-runs the actions of one wave concurrently on a bounded pool of the platform rather than
-     * on the common fork-join pool, which network calls must not tie up, and under the indicator of
-     * the extraction so cancellation reaches every dry-run.
-     */
-    private void waveExtraction(ExtractionContext ctx,
-                                ProgressIndicator indicator,
-                                Map<String, List<ColumnInfo>> resolvedInThisRun,
-                                List<SortableAction> wave,
-                                AtomicInteger processed,
-                                int total) {
-        List<CompletableFuture<Void>> futures = new ArrayList<>(wave.size());
-        for (SortableAction action : wave) {
-            futures.add(CompletableFuture.runAsync(() -> {
-                if (indicator.isCanceled()) return;
-                ProgressManager.getInstance().executeProcessUnderProgress(() -> {
-                    extractSchema(ctx, resolvedInThisRun, action);
-                    indicator.setFraction((double) processed.incrementAndGet() / total);
-                }, indicator);
-            }, dryRunExecutor));
-        }
-        CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).join();
     }
 
     private void extractSchema(ExtractionContext ctx,
                                @NotNull Map<String, List<ColumnInfo>> resolvedInThisRun,
                                @NotNull SortableAction action) {
         String fqn = action.target().getFullName();
-        LOG.info("Resolving schema for: " + fqn);
+        LOG.debug("Resolving schema for: " + fqn);
         DryRunResult result = computeSchema(action, ctx, resolvedInThisRun);
         recordDryRunOutcome(fqn, result);
         if (!result.columns().isEmpty()) publishResult(action, result.columns(), resolvedInThisRun);
@@ -442,7 +425,7 @@ public final class DataformTableSchemaServiceImpl
         String fqn = action.target().getFullName();
         cache.put(fqn, action.target().getName(), columns, ActionSourceFiles.fileNameOf(action));
         resolvedInThisRun.put(fqn, columns);
-        LOG.info("Resolved schema for " + fqn + ": " + columns.size() + " columns");
+        LOG.debug("Resolved schema for " + fqn + ": " + columns.size() + " columns");
     }
 
     private boolean hasValidCredentials() {

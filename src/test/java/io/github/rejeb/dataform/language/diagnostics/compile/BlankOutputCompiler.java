@@ -26,6 +26,9 @@ import com.intellij.util.ui.UIUtil;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.setup.DataformInterpreterManager;
 
+import org.jetbrains.annotations.NotNull;
+
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.Future;
 
@@ -79,6 +82,11 @@ public final class BlankOutputCompiler {
         public Optional<GeneralCommandLine> buildDataformCompileCommand() {
             return Optional.of(new GeneralCommandLine(
                     ProcessHandle.current().info().command().orElseThrow(), "-version"));
+        }
+
+        @Override
+        public Optional<GeneralCommandLine> buildDataformCommand(@NotNull List<String> arguments) {
+            return Optional.empty();
         }
     }
 }

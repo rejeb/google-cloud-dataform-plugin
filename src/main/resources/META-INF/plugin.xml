@@ -93,6 +93,15 @@
                         serviceImplementation="io.github.rejeb.dataform.language.setup.DataformInterpreterManagerImpl"
                         testServiceImplementation="io.github.rejeb.dataform.language.setup.DataformInterpreterManagerTestImpl"
         />
+        <applicationService serviceInterface="io.github.rejeb.dataform.language.setup.DataformCoreVersionProvider"
+                            serviceImplementation="io.github.rejeb.dataform.language.setup.NpmRegistryDataformCoreVersionProvider"
+        />
+        <projectService serviceInterface="io.github.rejeb.dataform.language.setup.DataformPackageInstaller"
+                        serviceImplementation="io.github.rejeb.dataform.language.setup.DataformPackageInstallerImpl"
+        />
+        <projectService serviceInterface="io.github.rejeb.dataform.language.setup.DataformCoreVersionMigrator"
+                        serviceImplementation="io.github.rejeb.dataform.language.setup.DataformCoreVersionMigratorImpl"
+        />
         <projectService serviceInterface="io.github.rejeb.dataform.language.schema.json.ProtoParser"
                         serviceImplementation="io.github.rejeb.dataform.language.schema.json.ProtoParserImpl"
         />
@@ -257,6 +266,8 @@
                 implementation="io.github.rejeb.dataform.language.setup.DataformInstaller"/>
         <postStartupActivity
                 implementation="io.github.rejeb.dataform.language.startup.DataformProjectStartup"/>
+        <postStartupActivity
+                implementation="io.github.rejeb.dataform.language.setup.DataformCoreVersionMigrationActivity"/>
         <fileEditorProvider implementation="io.github.rejeb.dataform.language.fileEditor.SqlxSplitEditorProvider"/>
         <fileEditorProvider implementation="io.github.rejeb.dataform.language.lineage.view.LineageFileEditorProvider"/>
         <fileIconProvider implementation="io.github.rejeb.dataform.language.lineage.view.LineageFileIconProvider"/>

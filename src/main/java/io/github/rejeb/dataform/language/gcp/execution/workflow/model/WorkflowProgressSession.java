@@ -14,24 +14,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.rejeb.dataform.language.setup;
+package io.github.rejeb.dataform.language.gcp.execution.workflow.model;
 
-import com.intellij.execution.configurations.GeneralCommandLine;
-import com.intellij.openapi.vfs.VirtualFile;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.List;
-import java.util.Optional;
-
-public interface DataformInterpreterManager {
-    Optional<VirtualFile> dataformCorePath();
-    String currentDataformCoreVersion();
-    Optional<GeneralCommandLine> buildDataformCompileCommand();
+/**
+ * The polling of one workflow run. It holds the connection the polls share for as long as the run
+ * is watched, so closing it once the run is over is what releases that connection.
+ */
+public interface WorkflowProgressSession extends AutoCloseable {
 
     /**
-     * Builds a {@code dataform} CLI command running the given arguments in the project base directory.
-     *
-     * @return empty when no Node.js interpreter is configured
+     * Returns a progress snapshot of the run: its state and the result of every action.
+     * Must be called off the EDT.
      */
-    Optional<GeneralCommandLine> buildDataformCommand(@NotNull List<String> arguments);
+    @NotNull WorkflowInvocationProgress poll();
+
+    /**
+     * Releases the connection of the session.
+     */
+    @Override
+    void close();
 }

@@ -68,7 +68,7 @@ final class SchemaCacheStore {
     private volatile Map<String, DataformDasTable> publishedTables = Map.of();
     private volatile Map<String, List<DataformDasTable>> publishedByName = Map.of();
     private volatile DataformTableSchemaService.State currentState = new DataformTableSchemaService.State();
-    private volatile ParsedSnapshot parsedSnapshot;
+    private volatile Map<String, Long> persistedTimes = Map.of();
 
     SchemaCacheStore(@NotNull Project project) {
         this.project = project;
@@ -285,12 +285,14 @@ final class SchemaCacheStore {
     /** Restores the schemas persisted by a previous IDE run. */
     void load(@NotNull DataformTableSchemaService.State state) {
         this.currentState = state;
+        this.persistedTimes = Map.of();
         if (state.schemaCacheJson == null || state.schemaCacheJson.isBlank()) return;
         try {
             Map<String, SchemaCacheEntry> loaded = GSON.fromJson(state.schemaCacheJson, CACHE_TYPE);
             if (loaded == null) return;
             clear();
             loaded.forEach(this::restoreEntry);
+            this.persistedTimes = knownModificationTimes(loaded);
             LOG.info("Restored " + tables.size() + " schemas from persistent state");
         } catch (Exception e) {
             LOG.warn("Failed to deserialize schema cache from state: " + e.getMessage());
@@ -304,7 +306,8 @@ final class SchemaCacheStore {
     void persist() {
         Map<String, SchemaCacheEntry> toSerialize = toCacheEntries(tables, modificationTimes, fileNames);
         currentState.schemaCacheJson = GSON.toJson(toSerialize);
-        LOG.info("Persisted " + toSerialize.size() + " schemas to state");
+        persistedTimes = knownModificationTimes(toSerialize);
+        LOG.debug("Persisted " + toSerialize.size() + " schemas to state");
     }
 
     /**
@@ -314,33 +317,23 @@ final class SchemaCacheStore {
      */
     @Nullable
     Long persistedModificationTime(@NotNull String fqn) {
-        SchemaCacheEntry entry = persistedEntries().get(fqn);
-        if (entry == null || !isKnownModificationTime(entry.lastModified())) return null;
-        return entry.lastModified();
+        return persistedTimes.get(fqn);
     }
 
     /**
-     * The persisted snapshot, parsed once per version of the serialized form: the planner asks for
-     * every action of the project, and parsing the whole cache each time made that quadratic.
+     * The trusted modification times of a persisted snapshot. Only these are kept once the snapshot
+     * is written or read: holding the parsed snapshot itself kept a second copy of every column of
+     * every table for the lifetime of the project.
      */
     @NotNull
-    private Map<String, SchemaCacheEntry> persistedEntries() {
-        String json = currentState.schemaCacheJson;
-        if (json == null) return Map.of();
-        ParsedSnapshot parsed = parsedSnapshot;
-        if (parsed != null && parsed.json() == json) return parsed.entries();
-        Map<String, SchemaCacheEntry> entries;
-        try {
-            Map<String, SchemaCacheEntry> loaded = GSON.fromJson(json, CACHE_TYPE);
-            entries = loaded == null ? Map.of() : loaded;
-        } catch (Exception e) {
-            entries = Map.of();
-        }
-        parsedSnapshot = new ParsedSnapshot(json, entries);
-        return entries;
-    }
-
-    private record ParsedSnapshot(@NotNull String json, @NotNull Map<String, SchemaCacheEntry> entries) {
+    private static Map<String, Long> knownModificationTimes(@NotNull Map<String, SchemaCacheEntry> entries) {
+        Map<String, Long> times = new HashMap<>();
+        entries.forEach((fqn, entry) -> {
+            if (entry != null && isKnownModificationTime(entry.lastModified())) {
+                times.put(fqn, entry.lastModified());
+            }
+        });
+        return Map.copyOf(times);
     }
 
     /**

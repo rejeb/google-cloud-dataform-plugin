@@ -88,7 +88,8 @@ public class DataformAutoCompileServiceImplTest extends BasePlatformTestCase {
         service.scheduleCompileAfterEdit();
 
         assertFalse("a compilation must wait for the user to stop typing",
-                schemas.called.await(1, TimeUnit.SECONDS));
+                schemas.called.await(DataformAutoCompileServiceImpl.QUIET_PERIOD_MS / 2,
+                        TimeUnit.MILLISECONDS));
     }
 
     public void testAnEditCompilesOnceTheQuietPeriodHasElapsed() throws Exception {

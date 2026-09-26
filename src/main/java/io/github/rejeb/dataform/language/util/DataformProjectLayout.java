@@ -123,8 +123,8 @@ public final class DataformProjectLayout {
      */
     public static boolean isDataformSource(@Nullable VirtualFile file) {
         return file != null
-                && isInDataformProject(file)
-                && isDataformSourceName(file.getName(), file.getExtension());
+                && isDataformSourceName(file.getName(), file.getExtension())
+                && isInDataformProject(file);
     }
 
     /**

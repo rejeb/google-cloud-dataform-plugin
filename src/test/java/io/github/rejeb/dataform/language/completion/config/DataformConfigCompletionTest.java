@@ -28,6 +28,8 @@ import io.github.rejeb.dataform.language.setup.DataformInterpreterManager;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.jetbrains.annotations.NotNull;
+
 import java.util.List;
 import java.util.Optional;
 
@@ -200,6 +202,11 @@ public class DataformConfigCompletionTest extends BasePlatformTestCase {
 
         @Override
         public Optional<GeneralCommandLine> buildDataformCompileCommand() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<GeneralCommandLine> buildDataformCommand(@NotNull List<String> arguments) {
             return Optional.empty();
         }
     }

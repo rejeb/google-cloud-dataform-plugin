@@ -16,22 +16,29 @@
  */
 package io.github.rejeb.dataform.language.setup;
 
-import com.intellij.execution.configurations.GeneralCommandLine;
-import com.intellij.openapi.vfs.VirtualFile;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.List;
-import java.util.Optional;
+/**
+ * Names and content of the {@code package.json} that pins the Dataform core version of a project.
+ */
+public final class DataformPackageJson {
 
-public interface DataformInterpreterManager {
-    Optional<VirtualFile> dataformCorePath();
-    String currentDataformCoreVersion();
-    Optional<GeneralCommandLine> buildDataformCompileCommand();
+    public static final String FILE_NAME = "package.json";
+    public static final String DEPENDENCIES_KEY = "dependencies";
+    public static final String CORE_PACKAGE = "@dataform/core";
+
+    private DataformPackageJson() {
+    }
 
     /**
-     * Builds a {@code dataform} CLI command running the given arguments in the project base directory.
-     *
-     * @return empty when no Node.js interpreter is configured
+     * Returns a {@code package.json} declaring only the given {@code @dataform/core} version.
      */
-    Optional<GeneralCommandLine> buildDataformCommand(@NotNull List<String> arguments);
+    @NotNull
+    public static String content(@NotNull String coreVersion) {
+        return "{\n"
+                + "  \"" + DEPENDENCIES_KEY + "\": {\n"
+                + "    \"" + CORE_PACKAGE + "\": \"" + coreVersion + "\"\n"
+                + "  }\n"
+                + "}\n";
+    }
 }

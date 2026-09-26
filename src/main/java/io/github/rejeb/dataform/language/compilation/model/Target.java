@@ -22,6 +22,7 @@ public class Target {
     private String schema;
     private String name;
     private String database;
+    private transient String fullName;
 
     public String getSchema() {
         return schema;
@@ -35,8 +36,17 @@ public class Target {
         return database;
     }
 
+    /**
+     * The {@code database.schema.name} of the target, built once: a target is filled when the
+     * compiled graph is read and never changes afterwards.
+     */
     public String getFullName() {
-        return database + "." + schema + "." + name;
+        String result = fullName;
+        if (result == null) {
+            result = database + "." + schema + "." + name;
+            fullName = result;
+        }
+        return result;
     }
 
     @Override
