@@ -55,13 +55,21 @@ public class Utils {
         if (preOperations == null || preOperations.isEmpty()) {
             return query;
         }
-        String joined = preOperations.stream()
+        return joinPreOperations(preOperations) + "\n" + query + ";";
+    }
+
+    /**
+     * The pre-operation statements as they are put in front of a query: each one stripped, ended
+     * with a semicolon, one per line.
+     */
+    @NotNull
+    public static String joinPreOperations(@NotNull List<String> preOperations) {
+        return preOperations.stream()
                 .filter(Objects::nonNull)
                 .map(String::strip)
                 .filter(s -> !s.isBlank())
                 .map(s -> s.endsWith(";") ? s : s + ";")
                 .collect(Collectors.joining("\n"));
-        return joined + "\n" + query + ";";
     }
 
     private static String doFormat(@NotNull Project project, @NotNull String sql) {

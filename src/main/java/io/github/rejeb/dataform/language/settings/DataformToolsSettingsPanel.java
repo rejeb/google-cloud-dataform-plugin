@@ -48,7 +48,7 @@ public final class DataformToolsSettingsPanel {
     private final JBCheckBox foldTemplateExpressionsBox =
             new JBCheckBox("Fold Dataform expressions to their evaluated value");
     private final JBCheckBox showInlineCompilationErrorsBox =
-            new JBCheckBox("Show Dataform compilation errors inline in the editor");
+            new JBCheckBox("Show Dataform compilation and BigQuery errors inline in the editor");
     private final JBCheckBox compileOnSaveBox =
             new JBCheckBox("Recompile the Dataform project when a source file is saved");
     private final JButton    installButton    = new JButton("Install Dataform CLI & Core");

@@ -129,6 +129,12 @@
         <projectService serviceInterface="io.github.rejeb.dataform.language.validation.SqlxValidationService"
                         serviceImplementation="io.github.rejeb.dataform.language.validation.SqlxValidationServiceImpl"
         />
+        <projectService serviceInterface="io.github.rejeb.dataform.language.diagnostics.sql.bigquery.BigQueryDiagnosticsService"
+                        serviceImplementation="io.github.rejeb.dataform.language.diagnostics.sql.bigquery.BigQueryDiagnosticsServiceImpl"
+        />
+        <projectService serviceInterface="io.github.rejeb.dataform.language.diagnostics.compile.CompilationProblemsService"
+                        serviceImplementation="io.github.rejeb.dataform.language.diagnostics.compile.CompilationProblemsServiceImpl"
+        />
         <projectService serviceInterface="io.github.rejeb.dataform.language.diagnostics.ValidationProblemInlayManager"
                         serviceImplementation="io.github.rejeb.dataform.language.diagnostics.ValidationProblemInlayManagerImpl"
         />
@@ -281,6 +287,9 @@
 
         <annotator
                 language="SQLX"
+                implementationClass="io.github.rejeb.dataform.language.validation.DataformValidationAnnotator"/>
+        <annotator
+                language="JavaScript"
                 implementationClass="io.github.rejeb.dataform.language.validation.DataformValidationAnnotator"/>
 
         <annotator
@@ -453,6 +462,10 @@
     </extensions>
 
     <projectListeners>
+        <listener class="io.github.rejeb.dataform.language.diagnostics.sql.bigquery.BigQueryDiagnosticsRefresher"
+                  topic="io.github.rejeb.dataform.language.schema.sql.DataformSchemaEvent"/>
+        <listener class="io.github.rejeb.dataform.language.diagnostics.CompilationDiagnosticsRefresher"
+                  topic="io.github.rejeb.dataform.language.compilation.DataformCompilationEvent"/>
         <listener class="io.github.rejeb.dataform.language.evaluation.DataformEvaluationFocusListener"
                   topic="com.intellij.openapi.fileEditor.FileEditorManagerListener"/>
     </projectListeners>

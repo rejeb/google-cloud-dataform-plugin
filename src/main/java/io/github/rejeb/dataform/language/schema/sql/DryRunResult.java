@@ -17,6 +17,7 @@
 package io.github.rejeb.dataform.language.schema.sql;
 
 import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
+import io.github.rejeb.dataform.language.util.MappedText;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -24,30 +25,41 @@ import java.util.List;
 
 /**
  * Outcome of a BigQuery dry-run: either the resolved columns or the message BigQuery rejected
- * the query with. A run that resolved nothing without failing carries neither.
+ * the query with, and the query sent when the plugin built it. A run that resolved nothing
+ * without failing carries neither columns nor message.
  */
-public record DryRunResult(@NotNull List<ColumnInfo> columns, @Nullable String errorMessage) {
+public record DryRunResult(@NotNull List<ColumnInfo> columns,
+                           @Nullable String errorMessage,
+                           @Nullable MappedText query) {
 
     /** A run that resolved the given columns. */
     @NotNull
     public static DryRunResult success(@NotNull List<ColumnInfo> columns) {
-        return new DryRunResult(columns, null);
+        return new DryRunResult(columns, null, null);
     }
 
     /** A run BigQuery rejected with the given message. */
     @NotNull
     public static DryRunResult failure(@NotNull String errorMessage) {
-        return new DryRunResult(List.of(), errorMessage);
+        return new DryRunResult(List.of(), errorMessage, null);
     }
 
     /** A run that produced no schema and no error, for actions carrying no query to send. */
     @NotNull
     public static DryRunResult empty() {
-        return new DryRunResult(List.of(), null);
+        return new DryRunResult(List.of(), null, null);
     }
 
     /** Whether the dry-run failed. */
     public boolean hasError() {
         return errorMessage != null;
+    }
+
+    /**
+     * The same outcome, remembering the query that was sent.
+     */
+    @NotNull
+    public DryRunResult withQuery(@Nullable MappedText sent) {
+        return new DryRunResult(columns, errorMessage, sent);
     }
 }

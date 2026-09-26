@@ -24,6 +24,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.JTable;
+import javax.swing.ScrollPaneConstants;
 import javax.swing.table.TableCellEditor;
 import java.awt.Color;
 import java.awt.Component;
@@ -52,7 +53,8 @@ public final class ReadOnlyTextFields {
     }
 
     /**
-     * Creates a soft-wrapped multi-line read-only text on the panel background.
+     * Creates a soft-wrapped multi-line read-only text on the panel background, which scrolls when it
+     * is given less height than its text needs.
      */
     public static @NotNull EditorTextField multiLine(@Nullable String text) {
         return create(text, false, UIUtil.getPanelBackground());
@@ -89,6 +91,9 @@ public final class ReadOnlyTextFields {
             editor.setBackgroundColor(background);
             editor.getSettings().setCaretRowShown(false);
             editor.getSettings().setUseSoftWraps(!oneLine);
+            if (!oneLine) {
+                editor.getScrollPane().setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
+            }
         });
         return field;
     }

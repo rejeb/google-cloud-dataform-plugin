@@ -16,25 +16,33 @@
  */
 package io.github.rejeb.dataform.language.validation;
 
+import com.intellij.lang.annotation.AnnotationBuilder;
 import com.intellij.lang.annotation.AnnotationHolder;
 import com.intellij.lang.annotation.Annotator;
 import com.intellij.lang.annotation.HighlightSeverity;
+import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.openapi.project.DumbAware;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
+import com.intellij.xml.util.XmlStringUtil;
+import io.github.rejeb.dataform.language.diagnostics.sql.fix.ApplySqlFixAction;
+import io.github.rejeb.dataform.language.diagnostics.sql.hint.SqlFix;
 import io.github.rejeb.dataform.language.settings.DataformToolsSettings;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Highlights Dataform validation problems at their exact source ranges, once the user has stopped
- * typing. Text being edited is reported by {@link DataformEditActivityService} and left alone; the
- * refresh that follows the quiet period restarts the daemon so the problems appear then.
+ * Highlights Dataform validation problems at their exact source ranges, with the severity, hint
+ * and fixes each one carries, once the user has stopped typing. Text being edited is reported by
+ * {@link DataformEditActivityService} and left alone; the refresh that follows the quiet period
+ * restarts the daemon so the problems appear then. It runs for SQLX and JavaScript files, and
+ * leaves alone the JavaScript injected into a SQLX file, whose problems the SQLX file reports.
  */
 public final class DataformValidationAnnotator implements Annotator, DumbAware {
 
     @Override
     public void annotate(@NotNull PsiElement element, @NotNull AnnotationHolder holder) {
-        if (!(element instanceof PsiFile file)) {
+        if (!(element instanceof PsiFile file)
+                || InjectedLanguageManager.getInstance(file.getProject()).isInjectedFragment(file)) {
             return;
         }
         if (!DataformToolsSettings.getInstance().isShowInlineCompilationErrors()) {
@@ -45,13 +53,36 @@ public final class DataformValidationAnnotator implements Annotator, DumbAware {
         }
         for (SqlxValidationProblem problem :
                 SqlxValidationService.getInstance(file.getProject()).validate(file)) {
-            if (problem.range().isEmpty()
-                    || problem.range().getEndOffset() > file.getTextLength()) {
+            if (problem.range().getEndOffset() > file.getTextLength()) {
                 continue;
             }
-            holder.newAnnotation(HighlightSeverity.WEAK_WARNING, problem.message())
+            boolean empty = problem.range().isEmpty();
+            if (empty && problem.severity() != SqlxValidationProblem.Severity.ERROR) {
+                continue;
+            }
+            AnnotationBuilder builder = holder.newAnnotation(severityOf(problem), problem.chipText())
                     .range(problem.range())
-                    .create();
+                    .tooltip(tooltipOf(problem));
+            if (empty) {
+                builder = builder.afterEndOfLine();
+            }
+            for (SqlFix fix : problem.fixes()) {
+                builder = builder.withFix(new ApplySqlFixAction(file, fix));
+            }
+            builder.create();
         }
+    }
+
+    private static @NotNull HighlightSeverity severityOf(@NotNull SqlxValidationProblem problem) {
+        return problem.severity() == SqlxValidationProblem.Severity.ERROR
+                ? HighlightSeverity.ERROR
+                : HighlightSeverity.WEAK_WARNING;
+    }
+
+    private static @NotNull String tooltipOf(@NotNull SqlxValidationProblem problem) {
+        String message = XmlStringUtil.escapeString(problem.message());
+        return XmlStringUtil.wrapInHtml(problem.hint() == null
+                ? message
+                : message + "<br>" + XmlStringUtil.escapeString(problem.hint()));
     }
 }

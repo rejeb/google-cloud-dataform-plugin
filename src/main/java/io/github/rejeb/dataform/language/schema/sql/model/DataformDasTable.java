@@ -26,6 +26,7 @@ import com.intellij.navigation.ItemPresentation;
 import com.intellij.openapi.fileEditor.OpenFileDescriptor;
 import com.intellij.openapi.fileTypes.PlainTextFileType;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.openapi.vfs.VirtualFileManager;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiFileFactory;
@@ -109,9 +110,25 @@ public class DataformDasTable extends LightElement implements DasTable, DasSymbo
         return myColumns;
     }
 
-    /** The SQLX file the action building this table is declared in, {@code null} when unknown. */
+    /**
+     * The SQLX file the action building this table is declared in, as the file system has it now,
+     * {@code null} when unknown or deleted.
+     */
     public @Nullable VirtualFile getSourceFile() {
-        return mySourceFile;
+        return liveSourceFile();
+    }
+
+    /**
+     * The source file the table was built with while it still exists, else the file now at its
+     * path. A table outlives the schema refresh it was built by, and its file may be deleted or
+     * replaced in the meantime, as a checkout does: the file object it holds then stands for
+     * nothing, and handing it to the platform throws.
+     */
+    private @Nullable VirtualFile liveSourceFile() {
+        VirtualFile file = mySourceFile;
+        if (file == null || file.isValid()) return file;
+        VirtualFile current = VirtualFileManager.getInstance().findFileByUrl(file.getUrl());
+        return current != null && current.isValid() ? current : null;
     }
 
     @Override
@@ -167,8 +184,9 @@ public class DataformDasTable extends LightElement implements DasTable, DasSymbo
 
     @Override
     public PsiFile getContainingFile() {
-        if (mySourceFile != null) {
-            PsiFile file = getManager().findFile(mySourceFile);
+        VirtualFile source = liveSourceFile();
+        if (source != null) {
+            PsiFile file = getManager().findFile(source);
             if (file != null) return file;
         }
         PsiFile fallback = myFallbackFile;
@@ -231,14 +249,15 @@ public class DataformDasTable extends LightElement implements DasTable, DasSymbo
 
     @Override
     public void navigate(boolean requestFocus) {
-        if (mySourceFile != null) {
-            new OpenFileDescriptor(getProject(), mySourceFile).navigate(requestFocus);
+        VirtualFile source = liveSourceFile();
+        if (source != null) {
+            new OpenFileDescriptor(getProject(), source).navigate(requestFocus);
         }
     }
 
     @Override
     public boolean canNavigate() {
-        return mySourceFile != null;
+        return liveSourceFile() != null;
     }
 
     @Override

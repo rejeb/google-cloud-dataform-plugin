@@ -57,8 +57,11 @@ class TableQuerySection extends JPanel {
         tableLabel.setFont(JBUI.Fonts.label(12).asBold());
         tableLabel.setBorder(JBUI.Borders.emptyLeft(6));
 
-        header.add(toggleIcon, BorderLayout.WEST);
-        header.add(tableLabel, BorderLayout.CENTER);
+        JPanel title = new JPanel(new BorderLayout());
+        title.setOpaque(false);
+        title.add(toggleIcon, BorderLayout.WEST);
+        title.add(tableLabel, BorderLayout.CENTER);
+        header.add(title, BorderLayout.WEST);
 
         preOpsSection = new QuerySection("Pre Operations", fileType, project, false);
         incrementalPreOpsSection = new QuerySection("Incremental Pre Operations", fileType, project, false);

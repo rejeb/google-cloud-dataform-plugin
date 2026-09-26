@@ -140,12 +140,28 @@ public class DataformDasColumn extends LightElement implements DasColumn, DasSym
     }
 
     /**
+     * Always valid. The platform rejects any resolve result that is not, and the SQL support hands
+     * back columns it made earlier from its own caches, also after the file a column was read from
+     * has been deleted: such a column stays usable, it only has nowhere to navigate to. The
+     * inherited check searched the file for the declaration on every call, which fails on a file
+     * no longer valid.
+     */
+    @Override
+    public boolean isValid() {
+        return true;
+    }
+
+    private boolean hasLiveFile() {
+        return containingFile != null && containingFile.isValid();
+    }
+
+    /**
      * The select-list element declaring this column, so navigation lands on real source rather
      * than on this synthetic element. Falls back to itself when the file does not declare it.
      */
     @Override
     public @NotNull PsiElement getNavigationElement() {
-        if (containingFile == null) return this;
+        if (!hasLiveFile()) return this;
         PsiElement declaration =
                 SqlxOutputColumnLocator.findOutputColumn(containingFile, myInfo.name());
         return declaration != null ? declaration : this;
@@ -208,7 +224,7 @@ public class DataformDasColumn extends LightElement implements DasColumn, DasSym
 
     @Override
     public void navigate(boolean requestFocus) {
-        if (containingFile == null || containingFile.getVirtualFile() == null) return;
+        if (!hasLiveFile() || containingFile.getVirtualFile() == null) return;
         int offset = findColumnOffsetInSqlBlock();
         if (offset >= 0) {
             new OpenFileDescriptor(getProject(), containingFile.getVirtualFile(), offset).navigate(requestFocus);
@@ -273,7 +289,7 @@ public class DataformDasColumn extends LightElement implements DasColumn, DasSym
 
     @Override
     public boolean canNavigate() {
-        return containingFile != null && containingFile.getVirtualFile() != null;
+        return hasLiveFile() && containingFile.getVirtualFile() != null;
     }
 
     @Override

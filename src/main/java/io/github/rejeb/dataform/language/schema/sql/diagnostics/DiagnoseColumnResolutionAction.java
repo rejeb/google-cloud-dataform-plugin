@@ -63,7 +63,7 @@ public class DiagnoseColumnResolutionAction extends AnAction implements DumbAwar
 
             @Override
             public void run(@NotNull ProgressIndicator indicator) {
-                report = ReadAction.computeBlocking(() -> ColumnResolutionReport.build(file, offset));
+                report = buildReport(project, file, offset, indicator);
             }
 
             @Override
@@ -74,5 +74,17 @@ public class DiagnoseColumnResolutionAction extends AnAction implements DumbAwar
                 FileEditorManager.getInstance(project).openFile(reportFile, true);
             }
         }.queue();
+    }
+
+    /**
+     * Builds the report in a read action that gives way to write actions: on a large project the
+     * build takes long, and a blocking read would hold off typing for all of it.
+     */
+    static @NotNull String buildReport(@NotNull Project project, @NotNull PsiFile file, int offset,
+                                       @NotNull ProgressIndicator indicator) {
+        return ReadAction.nonBlocking(() -> ColumnResolutionReport.build(file, offset))
+                .wrapProgress(indicator)
+                .expireWith(project)
+                .executeSynchronously();
     }
 }

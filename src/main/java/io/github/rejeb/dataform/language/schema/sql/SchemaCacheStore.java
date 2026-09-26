@@ -34,6 +34,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -109,22 +110,33 @@ final class SchemaCacheStore {
     }
 
     /**
-     * The schemas a dry-run query may stub its upstream tables with: every cached schema, overlaid
-     * by the ones resolved in the current run.
+     * The schemas a dry-run query may stub its upstream tables with: the tables the action depends
+     * on, as resolved in the current run or else as cached, and every table the current run
+     * resolved. The sources the project declares are never stubbed: BigQuery holds what they are,
+     * while the copy an earlier run cached may be older.
      *
      * <p>A partial refresh re-extracts only the modified actions and their dependents. Stubbing only
      * what that run resolved would leave every unchanged upstream table to the real BigQuery table,
      * which in a development dataset is often missing or older than the code, failing the dry-run
-     * and losing the downstream schema.</p>
+     * and losing the downstream schema. Stubbing the whole cache would cost a scan of the query for
+     * every cached table, most of which the query does not read.</p>
      *
+     * @param dependencies      the full names of the tables the action depends on
      * @param resolvedInThisRun the schemas extracted so far by the running refresh
+     * @param sources           the full names of the tables the project declares
      * @return the schemas keyed by full table name
      */
     @NotNull
-    Map<String, List<ColumnInfo>> stubSchemas(@NotNull Map<String, List<ColumnInfo>> resolvedInThisRun) {
+    Map<String, List<ColumnInfo>> stubSchemas(@NotNull Collection<String> dependencies,
+                                              @NotNull Map<String, List<ColumnInfo>> resolvedInThisRun,
+                                              @NotNull Set<String> sources) {
         Map<String, List<ColumnInfo>> stubs = new HashMap<>();
-        tables.forEach((fqn, table) -> stubs.put(fqn, table.getColumns()));
+        for (String fqn : dependencies) {
+            DataformDasTable table = tables.get(fqn);
+            if (table != null) stubs.put(fqn, table.getColumns());
+        }
         stubs.putAll(resolvedInThisRun);
+        stubs.keySet().removeAll(sources);
         return stubs;
     }
 

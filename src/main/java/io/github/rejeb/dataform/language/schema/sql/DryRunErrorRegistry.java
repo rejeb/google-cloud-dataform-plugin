@@ -17,6 +17,7 @@
 package io.github.rejeb.dataform.language.schema.sql;
 
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.ModificationTracker;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -26,16 +27,22 @@ import java.util.Set;
 /**
  * Keeps the message of the last failed BigQuery dry-run per compiled action, so views can report
  * why a schema could not be resolved. Entries live until the action is dry-run again or leaves the
- * compiled graph.
+ * compiled graph. Every change is counted, so what is computed from the failures can be cached
+ * against it.
  */
-public interface DryRunErrorRegistry {
+public interface DryRunErrorRegistry extends ModificationTracker {
 
     static DryRunErrorRegistry getInstance(@NotNull Project project) {
         return project.getService(DryRunErrorRegistry.class);
     }
 
     /** Records the message the dry-run of the given action failed with. */
-    void report(@NotNull String actionFullName, @NotNull String message);
+    default void report(@NotNull String actionFullName, @NotNull String message) {
+        reportFailure(actionFullName, new DryRunFailure(message, null));
+    }
+
+    /** Records how the dry-run of the given action failed. */
+    void reportFailure(@NotNull String actionFullName, @NotNull DryRunFailure failure);
 
     /** Drops the recorded failure of an action whose dry-run succeeded. */
     void clear(@NotNull String actionFullName);
@@ -47,7 +54,11 @@ public interface DryRunErrorRegistry {
     @Nullable
     String getError(@NotNull String actionFullName);
 
-    /** An immutable snapshot of the recorded failures, keyed by action full name. */
+    /** How the last dry-run of the action failed, or {@code null} if it did not fail. */
+    @Nullable
+    DryRunFailure getFailure(@NotNull String actionFullName);
+
+    /** An immutable snapshot of the recorded failure messages, keyed by action full name. */
     @NotNull
     Map<String, String> getErrors();
 }

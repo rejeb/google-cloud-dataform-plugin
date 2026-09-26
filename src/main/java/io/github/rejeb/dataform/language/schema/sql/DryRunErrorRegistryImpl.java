@@ -24,34 +24,50 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 public final class DryRunErrorRegistryImpl implements DryRunErrorRegistry {
 
-    private final Map<String, String> errors = new ConcurrentHashMap<>();
+    private final Map<String, DryRunFailure> failures = new ConcurrentHashMap<>();
+    private final AtomicLong modificationCount = new AtomicLong();
 
     @Override
-    public void report(@NotNull String actionFullName, @NotNull String message) {
-        errors.put(actionFullName, message);
+    public void reportFailure(@NotNull String actionFullName, @NotNull DryRunFailure failure) {
+        DryRunFailure previous = failures.put(actionFullName, failure);
+        if (!failure.sameAs(previous)) modificationCount.incrementAndGet();
     }
 
     @Override
     public void clear(@NotNull String actionFullName) {
-        errors.remove(actionFullName);
+        if (failures.remove(actionFullName) != null) modificationCount.incrementAndGet();
     }
 
     @Override
     public void retainOnly(@NotNull Set<String> actionFullNames) {
         if (actionFullNames.isEmpty()) return;
-        errors.keySet().retainAll(actionFullNames);
+        if (failures.keySet().retainAll(actionFullNames)) modificationCount.incrementAndGet();
     }
 
     @Override
     public @Nullable String getError(@NotNull String actionFullName) {
-        return errors.get(actionFullName);
+        DryRunFailure failure = failures.get(actionFullName);
+        return failure == null ? null : failure.message();
+    }
+
+    @Override
+    public @Nullable DryRunFailure getFailure(@NotNull String actionFullName) {
+        return failures.get(actionFullName);
     }
 
     @Override
     public @NotNull Map<String, String> getErrors() {
-        return Collections.unmodifiableMap(new LinkedHashMap<>(errors));
+        Map<String, String> errors = new LinkedHashMap<>();
+        failures.forEach((name, failure) -> errors.put(name, failure.message()));
+        return Collections.unmodifiableMap(errors);
+    }
+
+    @Override
+    public long getModificationCount() {
+        return modificationCount.get();
     }
 }

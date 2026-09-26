@@ -16,10 +16,15 @@
  */
 package io.github.rejeb.dataform.language.schema.sql.diagnostics;
 
+import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.editor.Document;
+import com.intellij.openapi.progress.EmptyProgressIndicator;
 import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiFile;
 import io.github.rejeb.dataform.language.schema.sql.DataformProjectFixture;
+import com.intellij.util.ui.UIUtil;
+
+import java.util.concurrent.Future;
 
 /**
  * On a project where everything resolves, the report walks every step down to the lineage graph
@@ -32,6 +37,25 @@ public class ColumnResolutionReportTest extends DataformProjectFixture {
         int lineStart = document.getLineStartOffset(line - 1);
         String lineText = document.getText().substring(lineStart, document.getLineEndOffset(line - 1));
         return lineStart + lineText.indexOf(token) + 1;
+    }
+
+    public void testTheActionBuildsTheReportOffTheEventThreadInACancellableRead() throws Exception {
+        PsiFile silver = open("silver/silver_orders.sqlx");
+        int offset = offsetOf(silver, 23, "order_id");
+        String expected = ColumnResolutionReport.build(silver, offset);
+
+        Future<String> built = ApplicationManager.getApplication().executeOnPooledThread(() ->
+                DiagnoseColumnResolutionAction.buildReport(getProject(), silver, offset, new EmptyProgressIndicator()));
+        while (!built.isDone()) {
+            UIUtil.dispatchAllInvocationEvents();
+            Thread.sleep(10);
+        }
+
+        assertEquals(withoutTimings(expected), withoutTimings(built.get()));
+    }
+
+    private static String withoutTimings(String report) {
+        return report.replaceAll("\\d+ ms", "N ms");
     }
 
     public void testAResolvingColumnIsTracedDownToTheLineageGraph() throws Exception {

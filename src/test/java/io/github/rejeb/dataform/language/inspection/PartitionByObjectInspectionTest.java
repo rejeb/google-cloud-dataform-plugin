@@ -196,6 +196,11 @@ public class PartitionByObjectInspectionTest extends BasePlatformTestCase {
         @Override
         public void dispose() {
         }
+
+        @Override
+        public long getModificationCount() {
+            return 0;
+        }
     }
 
     private record StubSchemaService(Map<String, DataformDasTable> tables)

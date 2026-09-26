@@ -27,6 +27,8 @@ import com.intellij.psi.tree.IElementType;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.sql.dialects.bigquery.BigQueryDialect;
 import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
+import io.github.rejeb.dataform.language.util.BigQueryKeywords;
+import io.github.rejeb.dataform.language.util.MappedText;
 import org.jetbrains.annotations.NotNull;
 import org.jspecify.annotations.NonNull;
 
@@ -41,7 +43,21 @@ public final class DataformCteQueryBuilder {
     public static String buildDryRunQuery(@NotNull String originalQuery,
                                           @NotNull Map<String, List<ColumnInfo>> knownSchemas,
                                           @NotNull Project project) {
-        if (knownSchemas.isEmpty()) return originalQuery;
+        return buildMappedDryRunQuery(originalQuery, knownSchemas, project).text();
+    }
+
+    /**
+     * Builds the dry-run query like {@link #buildDryRunQuery}, remembering where each of its
+     * characters comes from in the compiled query, its {@link DryRunQueryText#MAIN_QUERY} source.
+     * The stub definitions stand for nothing of it, and a stub alias stands for the whole table
+     * name it replaced.
+     */
+    @NotNull
+    public static MappedText buildMappedDryRunQuery(@NotNull String originalQuery,
+                                                    @NotNull Map<String, List<ColumnInfo>> knownSchemas,
+                                                    @NotNull Project project) {
+        MappedText unchanged = MappedText.identity(DryRunQueryText.MAIN_QUERY, originalQuery);
+        if (knownSchemas.isEmpty()) return unchanged;
 
         List<TextRange> excluded = ReadAction.computeBlocking(
                 () -> collectExcludedRanges(originalQuery, project));
@@ -63,19 +79,38 @@ public final class DataformCteQueryBuilder {
             }
         }
 
-        if (substitutions.isEmpty()) return originalQuery;
+        if (substitutions.isEmpty()) return unchanged;
 
+        return mergeWithClauses(buildCteList(aliasToColumns), substitute(originalQuery, substitutions));
+    }
+
+    /**
+     * The query with each substitution written over its range. They are chosen from the end, and
+     * one touching the last one kept is skipped, as the text-only builder always did.
+     */
+    @NotNull
+    private static MappedText substitute(@NotNull String query,
+                                         @NotNull List<Pair<TextRange, String>> substitutions) {
         substitutions.sort(Comparator.comparingInt(p -> -p.first.getStartOffset()));
-
-        StringBuilder result = new StringBuilder(originalQuery);
+        List<Pair<TextRange, String>> applied = new ArrayList<>();
         TextRange lastReplaced = null;
         for (Pair<TextRange, String> sub : substitutions) {
             if (lastReplaced != null && sub.first.intersects(lastReplaced)) continue;
-            result.replace(sub.first.getStartOffset(), sub.first.getEndOffset(), sub.second);
+            applied.add(sub);
             lastReplaced = sub.first;
         }
+        Collections.reverse(applied);
 
-        return mergeWithClauses(buildCteList(aliasToColumns), result.toString());
+        MappedText.Builder builder = MappedText.builder().source(DryRunQueryText.MAIN_QUERY, query);
+        int at = 0;
+        for (Pair<TextRange, String> sub : applied) {
+            builder.copy(DryRunQueryText.MAIN_QUERY, at, sub.first.getStartOffset());
+            builder.replaceWith(withImplicitName(query, sub.first, sub.second), DryRunQueryText.MAIN_QUERY,
+                    sub.first.getStartOffset(), sub.first.getEndOffset());
+            at = sub.first.getEndOffset();
+        }
+        builder.copy(DryRunQueryText.MAIN_QUERY, at, query.length());
+        return builder.build();
     }
 
     @NotNull
@@ -198,6 +233,52 @@ public final class DataformCteQueryBuilder {
         return result;
     }
 
+    /**
+     * The stub alias to write over a table name, followed by the name the table was read by when
+     * the query gave it no alias of its own.
+     *
+     * <p>A table read without an alias is read by the last part of its path, so columns may be
+     * qualified by that name. The stub is a common table expression of another name, and read in
+     * its place without that name the query would no longer resolve those columns: BigQuery
+     * would reject a valid query, and the editor would report that as an error of the file.</p>
+     */
+    @NotNull
+    private static String withImplicitName(@NotNull String query, @NotNull TextRange range, @NotNull String alias) {
+        if (!followsTableKeyword(query, range.getStartOffset()) || isFollowedByAlias(query, range.getEndOffset())) {
+            return alias;
+        }
+        String written = range.substring(query).replace("`", "");
+        return alias + " AS " + quoteColIfNeeded(written.substring(written.lastIndexOf('.') + 1));
+    }
+
+    /** Whether the text before an offset puts a table there: {@code FROM}, {@code JOIN} or a comma. */
+    private static boolean followsTableKeyword(@NotNull String query, int start) {
+        int at = start - 1;
+        while (at >= 0 && Character.isWhitespace(query.charAt(at))) at--;
+        if (at < 0) return false;
+        if (query.charAt(at) == ',') return true;
+        int end = at + 1;
+        while (at >= 0 && isWordCharacter(query.charAt(at))) at--;
+        String word = query.substring(at + 1, end);
+        return word.equalsIgnoreCase("FROM") || word.equalsIgnoreCase("JOIN");
+    }
+
+    /**
+     * Whether what follows an offset names the table already, or goes on with its path: an
+     * alias, with or without {@code AS}, or a dot.
+     */
+    private static boolean isFollowedByAlias(@NotNull String query, int end) {
+        int at = skipWhitespaceAndComments(query, end);
+        if (at < 0) return false;
+        char next = query.charAt(at);
+        if (next == '.' || next == '`') return true;
+        if (!isWordCharacter(next)) return false;
+        int wordEnd = at;
+        while (wordEnd < query.length() && isWordCharacter(query.charAt(wordEnd))) wordEnd++;
+        String word = query.substring(at, wordEnd);
+        return word.equalsIgnoreCase("AS") || !BigQueryKeywords.isReserved(word);
+    }
+
     /** The stub definitions, as a CTE list without the {@code WITH} keyword owning them. */
     @NotNull
     private static String buildCteList(@NotNull Map<String, List<ColumnInfo>> aliasToColumns) {
@@ -262,7 +343,7 @@ public final class DataformCteQueryBuilder {
     }
 
     private static @NotNull String quoteColIfNeeded(@NotNull String name) {
-        return name.matches("[a-zA-Z_][a-zA-Z0-9_]*") ? name : "`" + name + "`";
+        return name.matches("[a-zA-Z_][a-zA-Z0-9_]*") && !BigQueryKeywords.isReserved(name) ? name : "`" + name + "`";
     }
 
     /**
@@ -280,18 +361,24 @@ public final class DataformCteQueryBuilder {
      * {@code WITH RECURSIVE} may hold definitions that do not recurse.</p>
      */
     @NotNull
-    private static String mergeWithClauses(@NotNull String cteList,
-                                           @NotNull String modifiedQuery) {
-        int keyword = ownWithKeyword(modifiedQuery);
-        if (keyword < 0) return "WITH\n" + cteList + "\n" + modifiedQuery;
+    private static MappedText mergeWithClauses(@NotNull String cteList,
+                                               @NotNull MappedText modified) {
+        String query = modified.text();
+        int keyword = ownWithKeyword(query);
+        if (keyword < 0) {
+            return MappedText.builder().synthetic("WITH\n" + cteList + "\n").append(modified).build();
+        }
 
         int body = keyword + WITH.length();
-        int afterRecursive = keywordEnd(modifiedQuery, body, RECURSIVE);
+        int afterRecursive = keywordEnd(query, body, RECURSIVE);
         boolean recursive = afterRecursive > 0;
         if (recursive) body = afterRecursive;
 
-        return "WITH" + (recursive ? " " + RECURSIVE : "") + "\n" + cteList + ",\n"
-                + modifiedQuery.substring(0, keyword) + modifiedQuery.substring(body);
+        return MappedText.builder()
+                .synthetic("WITH" + (recursive ? " " + RECURSIVE : "") + "\n" + cteList + ",\n")
+                .append(modified.subText(0, keyword))
+                .append(modified.subText(body, query.length()))
+                .build();
     }
 
     private static final String WITH = "WITH";

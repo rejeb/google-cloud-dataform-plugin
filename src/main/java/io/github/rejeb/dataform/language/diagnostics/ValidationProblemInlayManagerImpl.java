@@ -121,7 +121,7 @@ public final class ValidationProblemInlayManagerImpl implements ValidationProble
                 continue;
             }
             int line = document.getLineNumber(problem.range().getStartOffset());
-            List<String> lines = CompilationErrorChipText.wrap(problem.message());
+            List<String> lines = CompilationErrorChipText.wrap(problem.chipText());
             ValidationProblemInlayRenderer renderer = new ValidationProblemInlayRenderer(lines);
             int offset = document.getLineEndOffset(line);
 

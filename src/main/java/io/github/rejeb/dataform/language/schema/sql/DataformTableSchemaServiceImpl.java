@@ -41,8 +41,8 @@ import io.github.rejeb.dataform.language.gcp.auth.DataformCredentialsService;
 import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
 import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasTable;
+import io.github.rejeb.dataform.language.util.MappedText;
 import io.github.rejeb.dataform.language.util.PreOperationsFilter;
-import io.github.rejeb.dataform.language.util.Utils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -53,6 +53,7 @@ import java.util.Map;
 import java.util.Set;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.util.concurrency.AppExecutorUtil;
+import com.intellij.psi.PsiManager;
 import java.util.ArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.CompletableFuture;
@@ -108,7 +109,7 @@ public final class DataformTableSchemaServiceImpl
     @Override
     public void loadState(@NotNull DataformTableSchemaService.State state) {
         cache.load(state);
-        modificationCount.incrementAndGet();
+        snapshotChanged();
     }
 
     @Override
@@ -189,7 +190,7 @@ public final class DataformTableSchemaServiceImpl
     /** Publishes what the cache now holds and tells everything reading it that it changed. */
     private void announce() {
         cache.publish();
-        modificationCount.incrementAndGet();
+        snapshotChanged();
         notifyReaders();
     }
 
@@ -204,9 +205,19 @@ public final class DataformTableSchemaServiceImpl
      */
     private void announceAfterTheDocumentChange() {
         cache.publish();
-        modificationCount.incrementAndGet();
+        snapshotChanged();
         ApplicationManager.getApplication()
                 .invokeLater(this::notifyReaders, ModalityState.defaultModalityState());
+    }
+
+    /**
+     * Counts a new snapshot as a change, once resolution has let go of the tables of the previous
+     * one. A table a reference resolved to holds the columns of the snapshot it was read from, and
+     * the platform keeps what it resolved until the PSI changes, which a schema refresh does not do.
+     */
+    private void snapshotChanged() {
+        if (!project.isDisposed()) PsiManager.getInstance(project).dropResolveCaches();
+        modificationCount.incrementAndGet();
     }
 
     private void notifyReaders() {
@@ -259,7 +270,7 @@ public final class DataformTableSchemaServiceImpl
 
     private void onTaskFinished() {
         cache.publish();
-        modificationCount.incrementAndGet();
+        snapshotChanged();
         PendingRefresh next;
         synchronized (pendingLock) {
             running.set(false);
@@ -303,8 +314,10 @@ public final class DataformTableSchemaServiceImpl
             DataformAuthState.getInstance().markAuthRequired(AuthTrigger.BACKGROUND);
             return null;
         }
+        Set<String> sources = new HashSet<>();
+        graph.getDeclarations().forEach(declaration -> addFullName(sources, declaration.getTarget()));
         return new ExtractionContext(projectId, config.getDefaultLocation(),
-                project.getService(BigQueryDryRunSchemaExtractor.class));
+                project.getService(BigQueryDryRunSchemaExtractor.class), Set.copyOf(sources));
     }
 
     private void processAllWaves(@NotNull List<List<SortableAction>> waves,
@@ -362,13 +375,14 @@ public final class DataformTableSchemaServiceImpl
     }
 
     /**
-     * Keeps the dry-run failure of an action, or drops the previous one once it runs clean, so the
-     * query view can report why a schema is missing.
+     * Keeps the dry-run failure of an action with the query that was sent, or drops the previous
+     * one once it runs clean, so the query view can report why a schema is missing and the editor
+     * can place the error in the file.
      */
     private void recordDryRunOutcome(@NotNull String fqn, @NotNull DryRunResult result) {
         DryRunErrorRegistry registry = DryRunErrorRegistry.getInstance(project);
         if (result.hasError()) {
-            registry.report(fqn, result.errorMessage());
+            registry.reportFailure(fqn, new DryRunFailure(result.errorMessage(), result.query()));
         } else {
             registry.clear(fqn);
         }
@@ -392,16 +406,17 @@ public final class DataformTableSchemaServiceImpl
     }
 
     @NotNull
-    private DryRunResult extractTableSchema(@NotNull CompiledTable table,
-                                            @NotNull ExtractionContext ctx,
-                                            @NotNull Map<String, List<ColumnInfo>> resolvedInThisRun) {
-        String mainQuery = ReadAction.computeBlocking(() ->
-                DataformCteQueryBuilder.buildDryRunQuery(
-                        table.getQuery(), cache.stubSchemas(resolvedInThisRun), project)
+    DryRunResult extractTableSchema(@NotNull CompiledTable table,
+                                    @NotNull ExtractionContext ctx,
+                                    @NotNull Map<String, List<ColumnInfo>> resolvedInThisRun) {
+        List<String> dependencies = table.getDependencyTargets().stream().map(Target::getFullName).toList();
+        MappedText mainQuery = ReadAction.computeBlocking(() ->
+                DataformCteQueryBuilder.buildMappedDryRunQuery(table.getQuery(),
+                        cache.stubSchemas(dependencies, resolvedInThisRun, ctx.sources()), project)
         );
-        String query = Utils.withPreOperations(
+        MappedText query = DryRunQueryText.withPreOperations(
                 PreOperationsFilter.keepReadOnly(table.getPreOps()), mainQuery);
-        return runDryRun(ctx, query);
+        return runDryRun(ctx, query.text()).withQuery(query);
     }
 
     @NotNull

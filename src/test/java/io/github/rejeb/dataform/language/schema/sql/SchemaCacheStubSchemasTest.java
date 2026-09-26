@@ -21,6 +21,7 @@ import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * A partial refresh dry-runs only the modified actions and their dependents. Their upstream tables
@@ -39,7 +40,7 @@ public class SchemaCacheStubSchemasTest extends BasePlatformTestCase {
         SchemaCacheStore cache = new SchemaCacheStore(getProject());
         cache.put("p.d.customers", "customers", columns("customer_id", "name"), null);
 
-        Map<String, List<ColumnInfo>> stubs = cache.stubSchemas(Map.of());
+        Map<String, List<ColumnInfo>> stubs = cache.stubSchemas(List.of("p.d.customers"), Map.of(), Set.of());
 
         assertEquals(columns("customer_id", "name"), stubs.get("p.d.customers"));
     }
@@ -48,8 +49,8 @@ public class SchemaCacheStubSchemasTest extends BasePlatformTestCase {
         SchemaCacheStore cache = new SchemaCacheStore(getProject());
         cache.put("p.d.customers", "customers", columns("customer_id"), null);
 
-        Map<String, List<ColumnInfo>> stubs = cache.stubSchemas(
-                Map.of("p.d.customers", columns("customer_id", "email")));
+        Map<String, List<ColumnInfo>> stubs = cache.stubSchemas(List.of("p.d.customers"),
+                Map.of("p.d.customers", columns("customer_id", "email")), Set.of());
 
         assertEquals(columns("customer_id", "email"), stubs.get("p.d.customers"));
     }
@@ -58,10 +59,30 @@ public class SchemaCacheStubSchemasTest extends BasePlatformTestCase {
         SchemaCacheStore cache = new SchemaCacheStore(getProject());
         cache.put("p.d.customers", "customers", columns("customer_id"), null);
 
-        Map<String, List<ColumnInfo>> stubs = cache.stubSchemas(
-                Map.of("p.d.orders", columns("order_id")));
+        Map<String, List<ColumnInfo>> stubs = cache.stubSchemas(List.of("p.d.customers"),
+                Map.of("p.d.orders", columns("order_id")), Set.of());
 
         assertEquals(2, stubs.size());
         assertEquals(columns("order_id"), stubs.get("p.d.orders"));
+    }
+
+    public void testACachedTableTheActionDoesNotDependOnIsNotStubbed() {
+        SchemaCacheStore cache = new SchemaCacheStore(getProject());
+        cache.put("p.d.customers", "customers", columns("customer_id"), null);
+        cache.put("p.d.unrelated", "unrelated", columns("x"), null);
+
+        Map<String, List<ColumnInfo>> stubs = cache.stubSchemas(List.of("p.d.customers"), Map.of(), Set.of());
+
+        assertEquals(Set.of("p.d.customers"), stubs.keySet());
+    }
+
+    public void testADeclaredSourceIsNeverStubbed() {
+        SchemaCacheStore cache = new SchemaCacheStore(getProject());
+        cache.put("p.d.raw_events", "raw_events", columns("id"), null);
+
+        Map<String, List<ColumnInfo>> stubs = cache.stubSchemas(List.of("p.d.raw_events"),
+                Map.of("p.d.raw_events", columns("id", "new_col")), Set.of("p.d.raw_events"));
+
+        assertEquals(Map.of(), stubs);
     }
 }

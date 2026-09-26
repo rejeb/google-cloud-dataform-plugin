@@ -22,6 +22,7 @@ import com.intellij.testFramework.fixtures.BasePlatformTestCase;
 import com.intellij.ui.EditorTextField;
 import com.intellij.ui.table.JBTable;
 
+import javax.swing.ScrollPaneConstants;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableCellEditor;
 
@@ -36,6 +37,30 @@ public class ReadOnlyTextFieldsTest extends BasePlatformTestCase {
             assertTrue(editor.isViewer());
             assertEquals("orders_daily", editor.getDocument().getText());
             assertEquals(IdeActions.GROUP_BASIC_EDITOR_POPUP, editor.getContextMenuGroupId());
+        } finally {
+            field.removeNotify();
+        }
+    }
+
+    public void testAMultiLineTextScrollsWhenItDoesNotFit() {
+        EditorTextField field = ReadOnlyTextFields.multiLine("first line\nsecond line");
+        field.addNotify();
+        try {
+            EditorEx editor = (EditorEx) field.getEditor();
+            assertEquals(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
+                    editor.getScrollPane().getVerticalScrollBarPolicy());
+        } finally {
+            field.removeNotify();
+        }
+    }
+
+    public void testASingleLineTextNeverScrolls() {
+        EditorTextField field = ReadOnlyTextFields.singleLine("orders_daily");
+        field.addNotify();
+        try {
+            EditorEx editor = (EditorEx) field.getEditor();
+            assertEquals(ScrollPaneConstants.VERTICAL_SCROLLBAR_NEVER,
+                    editor.getScrollPane().getVerticalScrollBarPolicy());
         } finally {
             field.removeNotify();
         }

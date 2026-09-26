@@ -125,7 +125,11 @@ public final class SqlxOutputColumnLocator {
         return statement == null ? null : selectClauseOf(statement);
     }
 
-    private static @Nullable PsiElement mainSelectClause(@NotNull PsiFile file) {
+    /**
+     * The query producing the rows of the table a SQLX file builds, or {@code null} when the file
+     * holds none.
+     */
+    public static @Nullable PsiElement mainQuery(@NotNull PsiFile file) {
         InjectedLanguageManager manager = InjectedLanguageManager.getInstance(file.getProject());
         for (SqlxSqlBlock block : PsiTreeUtil.findChildrenOfType(file, SqlxSqlBlock.class)) {
             if (block.getNode().getElementType() != SharedTokenTypes.SQL_CONTENT) continue;
@@ -135,11 +139,19 @@ public final class SqlxOutputColumnLocator {
                 PsiElement statement = SqlPsiParts.childOfType(pair.getFirst().getContainingFile(),
                         SqlCompositeElementTypes.SQL_SELECT_STATEMENT);
                 if (statement == null) continue;
-                PsiElement clause = selectClauseOf(statement);
-                if (clause != null) return clause;
+                PsiElement query = rowProducingQuery(statement);
+                if (query != null
+                        && SqlPsiParts.childOfType(query, SqlCompositeElementTypes.SQL_SELECT_CLAUSE) != null) {
+                    return query;
+                }
             }
         }
         return null;
+    }
+
+    private static @Nullable PsiElement mainSelectClause(@NotNull PsiFile file) {
+        PsiElement query = mainQuery(file);
+        return query == null ? null : SqlPsiParts.childOfType(query, SqlCompositeElementTypes.SQL_SELECT_CLAUSE);
     }
 
     /**
@@ -169,7 +181,11 @@ public final class SqlxOutputColumnLocator {
             SqlCompositeElementTypes.SQL_PARENTHESIZED_QUERY_EXPRESSION
     };
 
-    private static @Nullable PsiElement rowProducingQuery(@NotNull PsiElement element) {
+    /**
+     * The query producing the rows of a statement or of a query wrapper, walking through WITH,
+     * set operations and parentheses; {@code null} when there is none.
+     */
+    public static @Nullable PsiElement rowProducingQuery(@NotNull PsiElement element) {
         PsiElement query = SqlPsiParts.childOfType(element,
                 SqlCompositeElementTypes.SQL_QUERY_EXPRESSION);
         if (query != null) return query;
@@ -187,7 +203,7 @@ public final class SqlxOutputColumnLocator {
      * expression, or the last identifier of a column reference. Any other item, a star for
      * instance, names no single column.
      */
-    private static @Nullable PsiElement outputNameOf(@NotNull PsiElement item) {
+    public static @Nullable PsiElement outputNameOf(@NotNull PsiElement item) {
         IElementType type = item.getNode().getElementType();
         if (type != SqlCompositeElementTypes.SQL_AS_EXPRESSION
                 && type != SqlCompositeElementTypes.SQL_COLUMN_REFERENCE) {
