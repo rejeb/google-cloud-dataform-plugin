@@ -16,16 +16,18 @@
  */
 package io.github.rejeb.dataform.language.compilation.model;
 
+import io.github.rejeb.dataform.language.util.DataformPaths;
+
 public class Declaration {
     private Target target;
     private String fileName;
     private Target canonicalTarget;
 
     public Target getTarget() { return target; }
-    public String getFileName() { return fileName; }
+    public String getFileName() { return DataformPaths.normalize(fileName); }
     public Target getCanonicalTarget() { return canonicalTarget; }
 
     public boolean matchFileName(String fileName){
-        return fileName.endsWith(this.fileName.replace("\\","/"));
+        return DataformPaths.pointsTo(fileName, this.fileName);
     }
 }

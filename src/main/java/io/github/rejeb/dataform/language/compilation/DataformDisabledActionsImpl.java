@@ -18,6 +18,7 @@ package io.github.rejeb.dataform.language.compilation;
 
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
+import io.github.rejeb.dataform.language.util.DataformPaths;
 import io.github.rejeb.dataform.language.SqlxFileType;
 import io.github.rejeb.dataform.language.compilation.model.CompiledAssertion;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
@@ -66,22 +67,16 @@ public final class DataformDisabledActionsImpl implements DataformDisabledAction
      */
     static boolean allActionsDisabled(@Nullable CompiledGraph graph, @NotNull String path) {
         if (graph == null) return false;
-        String normalized = path.replace("\\", "/");
         List<Boolean> states = new ArrayList<>();
         for (CompiledTable table : graph.getTables()) {
-            if (matches(table.getFileName(), normalized)) states.add(table.isDisabled());
+            if (DataformPaths.pointsTo(path, table.getFileName())) states.add(table.isDisabled());
         }
         for (CompiledOperation operation : graph.getOperations()) {
-            if (matches(operation.getFileName(), normalized)) states.add(operation.isDisabled());
+            if (DataformPaths.pointsTo(path, operation.getFileName())) states.add(operation.isDisabled());
         }
         for (CompiledAssertion assertion : graph.getAssertions()) {
-            if (matches(assertion.getFileName(), normalized)) states.add(assertion.isDisabled());
+            if (DataformPaths.pointsTo(path, assertion.getFileName())) states.add(assertion.isDisabled());
         }
         return !states.isEmpty() && states.stream().allMatch(Boolean::booleanValue);
-    }
-
-    private static boolean matches(@Nullable String actionFileName, @NotNull String path) {
-        if (actionFileName == null || actionFileName.isBlank()) return false;
-        return path.endsWith(actionFileName.replace("\\", "/"));
     }
 }

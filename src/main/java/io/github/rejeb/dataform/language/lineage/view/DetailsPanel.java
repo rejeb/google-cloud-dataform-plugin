@@ -19,6 +19,7 @@ package io.github.rejeb.dataform.language.lineage.view;
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.popup.IconButton;
+import com.intellij.ui.EditorTextField;
 import com.intellij.ui.InplaceButton;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBScrollPane;
@@ -30,8 +31,8 @@ import io.github.rejeb.dataform.language.lineage.column.ColumnLineageGraph;
 import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
 import io.github.rejeb.dataform.language.lineage.graph.LineageNode;
 import io.github.rejeb.dataform.language.lineage.model.LineageModel;
+import io.github.rejeb.dataform.language.ui.ReadOnlyTextFields;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -105,7 +106,7 @@ public final class DetailsPanel extends JPanel {
         }
         if (node != null) {
             headerHolder.add(header(node), BorderLayout.CENTER);
-            content.add(new JBLabel(node.schema() + "." + node.name()));
+            content.add(ReadOnlyTextFields.singleLine(node.schema() + "." + node.name()));
             content.add(metaRow("Type", LineageTheme.glyphFor(node.dataformType()) + "  " + node.dataformType()));
             content.add(metaRow("Schema", node.schema()));
             content.add(metaRow("File", node.fileName() != null ? node.fileName() : "—"));
@@ -126,7 +127,7 @@ public final class DetailsPanel extends JPanel {
     private JComponent header(@NotNull LineageNode node) {
         JPanel panel = new JPanel(new BorderLayout(JBUIScale.scale(6), 0));
         panel.setOpaque(false);
-        JBLabel title = new JBLabel(node.name());
+        EditorTextField title = ReadOnlyTextFields.singleLine(node.name());
         title.setToolTipText(node.fullName());
         title.setFont(title.getFont().deriveFont(Font.BOLD));
         panel.add(title, BorderLayout.CENTER);
@@ -144,7 +145,7 @@ public final class DetailsPanel extends JPanel {
         k.setForeground(UIUtil.getLabelDisabledForeground());
         k.setPreferredSize(new Dimension(JBUIScale.scale(60), k.getPreferredSize().height));
         panel.add(k, BorderLayout.WEST);
-        JBLabel v = new JBLabel("<html>" + escape(value) + "</html>");
+        EditorTextField v = ReadOnlyTextFields.multiLine(value);
         panel.add(v, BorderLayout.CENTER);
         return panel;
     }
@@ -159,7 +160,7 @@ public final class DetailsPanel extends JPanel {
             panel.add(new JBLabel("—"));
         } else {
             for (String tag : node.tags()) {
-                JBLabel chip = new JBLabel(tag);
+                EditorTextField chip = ReadOnlyTextFields.singleLine(tag);
                 chip.setBorder(BorderFactory.createCompoundBorder(
                         JBUI.Borders.customLine(UIUtil.getBoundsColor()), JBUI.Borders.empty(1, 6)));
                 panel.add(chip);
@@ -235,7 +236,7 @@ public final class DetailsPanel extends JPanel {
         panel.add(title);
 
         if (selected != null) {
-            JBLabel col = new JBLabel(selected.columnName() + "   " + selected.tableFullName());
+            EditorTextField col = ReadOnlyTextFields.singleLine(selected.columnName() + "   " + selected.tableFullName());
             col.setAlignmentX(Component.LEFT_ALIGNMENT);
             panel.add(col);
         }
@@ -275,10 +276,5 @@ public final class DetailsPanel extends JPanel {
 
     private static @NotNull Font monospaceBold(@NotNull Font base) {
         return new Font(Font.MONOSPACED, Font.BOLD, base.getSize() + 1);
-    }
-
-    private static @NotNull String escape(@Nullable String text) {
-        if (text == null) return "";
-        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }
 }

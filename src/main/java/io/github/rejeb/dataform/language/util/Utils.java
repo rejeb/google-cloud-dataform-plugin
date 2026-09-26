@@ -65,11 +65,12 @@ public class Utils {
     }
 
     private static String doFormat(@NotNull Project project, @NotNull String sql) {
-        PsiFile file = PsiFileFactory.getInstance(project)
-                .createFileFromText("temp.sql", BigQueryDialect.INSTANCE, sql);
-        Runnable r = () -> CodeStyleManager.getInstance(project).reformat(file);
-        WriteCommandAction.runWriteCommandAction(project, null, null, r);
-        return file.getText();
+        return WriteCommandAction.writeCommandAction(project).compute(() -> {
+            PsiFile file = PsiFileFactory.getInstance(project)
+                    .createFileFromText("temp.sql", BigQueryDialect.INSTANCE, sql);
+            CodeStyleManager.getInstance(project).reformat(file);
+            return file.getText();
+        });
     }
 
     public static void flushFiles(Project project) {
@@ -80,7 +81,7 @@ public class Utils {
     }
 
     public static boolean isActionFile(@NotNull VirtualFile file) {
-        String normalizedPath = file.getPath().replace('\\', '/');
+        String normalizedPath = DataformPaths.normalize(file.getPath());
         return normalizedPath.contains("/definitions/") &&
                 (normalizedPath.endsWith(".sqlx") || normalizedPath.endsWith(".js")) &&
                 file.isWritable();

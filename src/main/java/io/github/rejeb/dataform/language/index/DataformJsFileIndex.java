@@ -16,6 +16,7 @@
  */
 package io.github.rejeb.dataform.language.index;
 
+import io.github.rejeb.dataform.language.util.DataformPaths;
 import com.intellij.lang.javascript.JavaScriptFileType;
 import com.intellij.lang.javascript.psi.*;
 import com.intellij.openapi.project.Project;
@@ -85,7 +86,7 @@ public class DataformJsFileIndex {
         if (!"js".equals(file.getExtension())) {
             return false;
         }
-        String normalizedPath = file.getPath().replace('\\', '/');
+        String normalizedPath = DataformPaths.normalize(file.getPath());
         return normalizedPath.contains("/includes/");
     }
 

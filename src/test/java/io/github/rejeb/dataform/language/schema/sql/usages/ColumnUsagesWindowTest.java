@@ -26,10 +26,7 @@ import com.intellij.psi.PsiFile;
 import io.github.rejeb.dataform.language.evaluation.DataformExpressionEvaluationService;
 import io.github.rejeb.dataform.language.evaluation.DataformExpressionEvaluationServiceImpl;
 import io.github.rejeb.dataform.language.injection.SqlxInjectionRefresher;
-import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
-import io.github.rejeb.dataform.language.schema.sql.ColumnOriginService;
 import io.github.rejeb.dataform.language.schema.sql.DataformProjectFixture;
-import io.github.rejeb.dataform.language.schema.sql.model.DataformDasColumn;
 import io.github.rejeb.dataform.language.schema.sql.SqlxColumnAtCaret;
 
 import java.util.ArrayList;
@@ -355,47 +352,6 @@ public class ColumnUsagesWindowTest extends DataformProjectFixture {
                         .isTruncated());
         assertFalse("a heading holding every read must not",
                 ColumnUsageRow.heading(ColumnUsageRows.USAGES, 3, false).isTruncated());
-    }
-
-    /**
-     * A column of a source declared with {@code declare()} has no query building it; its declaration
-     * is the call naming the source, in the JavaScript file holding it.
-     */
-    public void testAColumnOfADeclaredSourceIsDeclaredByTheDeclareCall() throws Exception {
-        open("sources.js");
-        PsiFile bronze = open("bronze/bronze_events.sqlx");
-        List<ColumnUsageRow> rows = rowsAt(bronze, 8, "event_id");
-        List<String> described = describe(rows);
-        assertTrue("the declare() call of the source is the declaration, got " + described,
-                described.contains("DECLARATION sources.js:4"));
-        ColumnUsageRow declaration = rows.stream()
-                .filter(r -> !r.isHeading() && r.location().equals("sources.js:4"))
-                .findFirst().orElseThrow();
-        assertEquals("the row shows the line naming the source",
-                "name: \"raw_events\"", declaration.before() + declaration.name() + declaration.after());
-    }
-
-    /**
-     * The schema column of a source carries the file holding the {@code declare()} call, the very
-     * file its declaration row points into. A schema column has no range of its own, and comparing
-     * the two places must say they differ rather than fail.
-     */
-    public void testASourceColumnAndItsDeclareCallAreNotTheSamePlace() throws Exception {
-        open("sources.js");
-        ColumnOriginService origins = ColumnOriginService.getInstance(getProject());
-        ColumnRef reference = new ColumnRef("proj.ds.raw_events", "event_id");
-        DataformDasColumn column = origins.dasColumn(reference);
-        PsiElement declaration = origins.sourceDeclaration(reference);
-        assertNotNull(column);
-        assertNotNull(declaration);
-        assertEquals("the schema column reports the file of the declare() call",
-                declaration.getContainingFile(), column.getContainingFile());
-
-        ColumnWindowTarget target = new ColumnWindowTarget(List.of(column), "event_id",
-                List.of(declaration), null);
-        List<String> rows = describe(ColumnUsageRows.of(getProject(), target, null));
-        assertTrue("the declare() call is listed as the declaration, got " + rows,
-                rows.contains("DECLARATION sources.js:4"));
     }
 
     /**

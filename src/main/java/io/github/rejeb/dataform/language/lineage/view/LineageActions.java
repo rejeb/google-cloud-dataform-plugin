@@ -22,6 +22,7 @@ import com.intellij.openapi.fileEditor.OpenFileDescriptor;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
+import io.github.rejeb.dataform.language.util.DataformPaths;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.RunSqlxHelper;
 import io.github.rejeb.dataform.language.lineage.graph.LineageNode;
 import org.jetbrains.annotations.NotNull;
@@ -54,7 +55,7 @@ final class LineageActions {
         if (node == null || node.fileName() == null) return;
         String basePath = project.getBasePath();
         if (basePath == null) return;
-        String absolutePath = basePath + "/" + node.fileName();
+        String absolutePath = basePath + "/" + DataformPaths.normalize(node.fileName());
         ApplicationManager.getApplication().executeOnPooledThread(() -> {
             VirtualFile vf = LocalFileSystem.getInstance().refreshAndFindFileByPath(absolutePath);
             if (vf == null) return;

@@ -112,8 +112,15 @@ public class CompiledGraph {
     }
 
 
+    /**
+     * The table compiled under a name, or, when none is, the table whose name before any table
+     * prefix is that name.
+     */
     public Optional<CompiledTable> findTableByName(String name) {
-        return this.getTables().stream().filter(t -> t.getTarget().getName().equals(name)).findFirst();
+        ActionReference reference = ActionReference.named(name);
+        return this.getTables().stream().filter(t -> reference.matches(t.getTarget())).findFirst()
+                .or(() -> this.getTables().stream()
+                        .filter(t -> reference.matches(t.getCanonicalTarget())).findFirst());
     }
 
     public Optional<CompiledAssertion> findAssertionByName(String name) {
@@ -124,15 +131,46 @@ public class CompiledGraph {
         return this.getOperations().stream().filter(t -> t.getTarget().getName().equals(name)).findFirst();
     }
 
+    /**
+     * The declaration of a name, or, when none declares it, the one whose canonical name it is.
+     */
     public Optional<Declaration> findDeclarationByName(String name) {
-        return this.getDeclarations().stream().filter(t -> t.getTarget().getName().equals(name)).findFirst();
+        ActionReference reference = ActionReference.named(name);
+        return this.getDeclarations().stream().filter(d -> reference.matches(d.getTarget())).findFirst()
+                .or(() -> this.getDeclarations().stream()
+                        .filter(d -> reference.matches(d.getCanonicalTarget())).findFirst());
     }
 
     public Optional<Target> findTargetByRefName(String refName) {
-        return findTableByName(refName).map(CompiledTable::getTarget)
-                .or(() -> findDeclarationByName(refName).map(Declaration::getTarget))
-                .or(() -> findAssertionByName(refName).map(CompiledAssertion::getTarget))
-                .or(() -> findOperationByName(refName).map(CompiledOperation::getTarget));
+        return findTargetByReference(ActionReference.named(refName));
+    }
+
+    /**
+     * The target a {@code ref()} designates. Actions are first matched on the target they compile
+     * to, then on their canonical target, which is what the project wrote before any table prefix
+     * or schema suffix was applied.
+     *
+     * @param reference the name, schema and database the call gave
+     * @return the target of the first action designated
+     */
+    public Optional<Target> findTargetByReference(ActionReference reference) {
+        return targetsOfEveryAction()
+                .filter(targets -> reference.matches(targets[0]))
+                .map(targets -> targets[0])
+                .findFirst()
+                .or(() -> targetsOfEveryAction()
+                        .filter(targets -> reference.matches(targets[1]))
+                        .map(targets -> targets[0])
+                        .findFirst());
+    }
+
+    private Stream<Target[]> targetsOfEveryAction() {
+        return Stream.of(
+                getTables().stream().map(t -> new Target[]{t.getTarget(), t.getCanonicalTarget()}),
+                getDeclarations().stream().map(d -> new Target[]{d.getTarget(), d.getCanonicalTarget()}),
+                getAssertions().stream().map(a -> new Target[]{a.getTarget(), null}),
+                getOperations().stream().map(o -> new Target[]{o.getTarget(), null})
+        ).flatMap(s -> s);
     }
 
     public List<String> getTags(String fileName) {

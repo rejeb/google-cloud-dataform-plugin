@@ -26,6 +26,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiManager;
+import io.github.rejeb.dataform.language.util.DataformPaths;
 import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasTable;
 import org.jetbrains.annotations.NotNull;
@@ -108,13 +109,33 @@ final class SchemaCacheStore {
     }
 
     /**
+     * The schemas a dry-run query may stub its upstream tables with: every cached schema, overlaid
+     * by the ones resolved in the current run.
+     *
+     * <p>A partial refresh re-extracts only the modified actions and their dependents. Stubbing only
+     * what that run resolved would leave every unchanged upstream table to the real BigQuery table,
+     * which in a development dataset is often missing or older than the code, failing the dry-run
+     * and losing the downstream schema.</p>
+     *
+     * @param resolvedInThisRun the schemas extracted so far by the running refresh
+     * @return the schemas keyed by full table name
+     */
+    @NotNull
+    Map<String, List<ColumnInfo>> stubSchemas(@NotNull Map<String, List<ColumnInfo>> resolvedInThisRun) {
+        Map<String, List<ColumnInfo>> stubs = new HashMap<>();
+        tables.forEach((fqn, table) -> stubs.put(fqn, table.getColumns()));
+        stubs.putAll(resolvedInThisRun);
+        return stubs;
+    }
+
+    /**
      * Stores a freshly extracted schema together with the time of the source it was read from.
      */
     void put(@NotNull String fqn,
              @NotNull String tableName,
              @NotNull java.util.List<ColumnInfo> columns,
              @Nullable String fileName) {
-        tables.put(fqn, buildTable(tableName, columns, fileName));
+        tables.put(fqn, buildTable(fqn, tableName, columns, fileName));
         if (guesses.remove(fqn) != null && guesses.isEmpty()) guessedFrom.clear();
         if (fileName == null) return;
         fileNames.put(fqn, fileName);
@@ -142,7 +163,7 @@ final class SchemaCacheStore {
         List<ColumnInfo> columns = renamed(table.getColumns(), columnPath, newName);
         if (columns == null) return false;
         guesses.putIfAbsent(fqn, table.getColumns());
-        tables.put(fqn, buildTable(table.getName(), columns, fileNames.get(fqn)));
+        tables.put(fqn, buildTable(fqn, table.getName(), columns, fileNames.get(fqn)));
         return true;
     }
 
@@ -170,7 +191,7 @@ final class SchemaCacheStore {
         if (guesses.isEmpty() || !isDisowned()) return false;
         for (Map.Entry<String, List<ColumnInfo>> entry : guesses.entrySet()) {
             tables.put(entry.getKey(),
-                    buildTable(tableNameOf(entry.getKey()), entry.getValue(),
+                    buildTable(entry.getKey(), tableNameOf(entry.getKey()), entry.getValue(),
                             fileNames.get(entry.getKey())));
         }
         guesses.clear();
@@ -340,7 +361,7 @@ final class SchemaCacheStore {
     }
 
     private void restoreEntry(@NotNull String fqn, @NotNull SchemaCacheEntry entry) {
-        tables.put(fqn, buildTable(tableNameOf(fqn), entry.columns(), entry.fileName()));
+        tables.put(fqn, buildTable(fqn, tableNameOf(fqn), entry.columns(), entry.fileName()));
         if (entry.fileName() != null) fileNames.put(fqn, entry.fileName());
         if (isKnownModificationTime(entry.lastModified())) {
             modificationTimes.put(fqn, entry.lastModified());
@@ -356,10 +377,11 @@ final class SchemaCacheStore {
     }
 
     @NotNull
-    private DataformDasTable buildTable(@NotNull String tableName,
+    private DataformDasTable buildTable(@NotNull String fqn,
+                                        @NotNull String tableName,
                                         @NotNull java.util.List<ColumnInfo> columns,
                                         @Nullable String fileName) {
-        return new DataformDasTable(PsiManager.getInstance(project), tableName, columns,
+        return new DataformDasTable(PsiManager.getInstance(project), fqn, tableName, columns,
                 resolveSourceFile(fileName));
     }
 
@@ -368,7 +390,7 @@ final class SchemaCacheStore {
         if (fileName == null) return null;
         String basePath = project.getBasePath();
         if (basePath == null) return null;
-        return LocalFileSystem.getInstance().findFileByPath(basePath + "/" + fileName);
+        return LocalFileSystem.getInstance().findFileByPath(basePath + "/" + DataformPaths.normalize(fileName));
     }
 
     @NotNull

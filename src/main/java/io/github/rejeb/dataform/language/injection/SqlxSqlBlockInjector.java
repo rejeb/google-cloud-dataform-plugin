@@ -89,10 +89,10 @@ public class SqlxSqlBlockInjector implements MultiHostInjector {
             }
 
             PsiElement jsElement = jsElements.get(jsRange);
-            boolean opensTheQuery = text.substring(0, jsRange.getStartOffset()).isBlank();
             String placeholder = jsElement == null
                     ? "NULL"
-                    : SqlxTemplatePlaceholder.of(jsElement, vFile, currentFileName, opensTheQuery);
+                    : SqlxTemplatePlaceholder.of(jsElement, vFile, currentFileName,
+                            text.subSequence(0, jsRange.getStartOffset()));
 
             registrar.addPlace(
                     placeholder,

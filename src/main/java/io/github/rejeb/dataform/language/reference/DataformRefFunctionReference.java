@@ -20,12 +20,12 @@ import com.intellij.codeInsight.completion.PrioritizedLookupElement;
 import com.intellij.codeInsight.lookup.LookupElement;
 import com.intellij.codeInsight.lookup.LookupElementBuilder;
 import com.intellij.icons.AllIcons;
-import com.intellij.openapi.project.ProjectUtil;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiManager;
 import com.intellij.psi.PsiReferenceBase;
+import io.github.rejeb.dataform.language.util.DataformPaths;
 import io.github.rejeb.dataform.language.compilation.model.*;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import org.jetbrains.annotations.NotNull;
@@ -80,12 +80,7 @@ public class DataformRefFunctionReference extends PsiReferenceBase<PsiElement> {
     }
 
     private PsiElement resolveFile(String fileName) {
-        VirtualFile projectRoot = ProjectUtil.guessProjectDir(myElement.getProject());
-        if (projectRoot == null) {
-            return null;
-        }
-
-        VirtualFile file = projectRoot.findFileByRelativePath(fileName.replace("\\", "/"));
+        VirtualFile file = DataformPaths.findInProject(myElement.getProject(), fileName);
         if (file != null) {
             return PsiManager.getInstance(myElement.getProject()).findFile(file);
         }

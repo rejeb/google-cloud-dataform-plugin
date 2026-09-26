@@ -19,12 +19,13 @@ package io.github.rejeb.dataform.language.injection;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiElement;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
+import io.github.rejeb.dataform.language.compilation.model.ActionReference;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.compilation.model.Target;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.regex.Matcher;
+import java.util.Optional;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -32,10 +33,6 @@ import java.util.stream.Stream;
 import static io.github.rejeb.dataform.language.util.Utils.DATAFORM_SCHEMA_PREFIX;
 
 public final class SqlxRefSelfResolver {
-
-    private static final Pattern REF_PATTERN = Pattern.compile(
-            "\\$\\{\\s*ref\\s*\\(\\s*['\"]([^'\"]+)['\"]\\s*\\)\\s*\\}"
-    );
 
     private static final Pattern SELF_PATTERN = Pattern.compile(
             "\\$\\{\\s*self\\s*\\(\\s*\\)\\s*\\}"
@@ -58,10 +55,9 @@ public final class SqlxRefSelfResolver {
         CompiledGraph graph = compilationService.getCompiledGraph();
         if (graph == null) return null;
 
-        Matcher refMatcher = REF_PATTERN.matcher(text);
-        if (refMatcher.matches()) {
-            String refName = refMatcher.group(1);
-            return graph.findTargetByRefName(refName)
+        Optional<ActionReference> reference = SqlxRefCall.parse(text);
+        if (reference.isPresent()) {
+            return graph.findTargetByReference(reference.get())
                     .map(SqlxRefSelfResolver::toBigQueryIdentifier)
                     .orElse(null);
         }

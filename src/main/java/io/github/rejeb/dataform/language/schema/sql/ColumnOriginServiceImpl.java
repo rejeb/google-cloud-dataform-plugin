@@ -18,12 +18,11 @@ package io.github.rejeb.dataform.language.schema.sql;
 
 import com.intellij.database.model.DasTable;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.project.ProjectUtil;
-import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiManager;
+import io.github.rejeb.dataform.language.util.DataformPaths;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.compilation.model.CompiledTable;
@@ -60,18 +59,20 @@ public final class ColumnOriginServiceImpl implements ColumnOriginService {
 
     @Override
     public @Nullable PsiElement declaringElement(@NotNull ColumnRef column) {
-        PsiFile file = sourceFileOf(column.tableFullName());
+        PsiFile file = builtFileOf(column.tableFullName());
         if (file == null) return null;
         return SqlxOutputColumnLocator.findOutputColumn(file, column.columnName());
     }
 
     @Override
-    public @Nullable PsiElement sourceDeclaration(@NotNull ColumnRef column) {
-        PsiFile file = sourceFileOf(column.tableFullName());
-        if (file == null) return null;
+    public boolean isSource(@NotNull ColumnRef column) {
+        CompiledGraph graph = DataformCompilationService.getInstance(project).getCompiledGraph();
+        if (graph == null) return false;
         String tableFullName = column.tableFullName();
-        String shortName = tableFullName.substring(tableFullName.lastIndexOf('.') + 1);
-        return JsDeclarationLocator.findDeclaration(file, shortName);
+        boolean built = graph.getTables().stream()
+                .anyMatch(t -> t.getTarget() != null && tableFullName.equals(t.getTarget().getFullName()));
+        return !built && graph.getDeclarations().stream()
+                .anyMatch(d -> d.getTarget() != null && tableFullName.equals(d.getTarget().getFullName()));
     }
 
     @Override
@@ -84,7 +85,7 @@ public final class ColumnOriginServiceImpl implements ColumnOriginService {
     public @Nullable PsiElement declaringElement(@NotNull StructColumnPath path) {
         ColumnRef column = reference(path.root());
         if (column == null) return null;
-        PsiFile file = sourceFileOf(column.tableFullName());
+        PsiFile file = builtFileOf(column.tableFullName());
         return file == null
                 ? null
                 : StructFieldDeclarationLocator.declaringElement(file, path.segments());
@@ -150,26 +151,29 @@ public final class ColumnOriginServiceImpl implements ColumnOriginService {
      * The action a SQLX file builds, matched through the compiled graph rather than through the
      * file system: the graph records the project-relative file name of every action, and matching
      * on it holds wherever the project is opened from.
+     *
+     * <p>The match is the one every other feature of the plugin makes, through
+     * {@link CompiledGraph#findTableByFileName}: the compiler writes the file name with the
+     * separator of the system it runs on, so on Windows the graph holds
+     * {@code definitions\x.sqlx} for the file the IDE names {@code definitions/x.sqlx}. Compared as
+     * written, the two never match, and no file would be recognised as building its table.</p>
      */
     private @Nullable String fullNameOf(@NotNull PsiFile file) {
-        String relativePath = relativePathOf(file);
-        if (relativePath == null) return null;
+        VirtualFile virtualFile = file.getVirtualFile();
+        if (virtualFile == null) return null;
         CompiledGraph graph = DataformCompilationService.getInstance(project).getCompiledGraph();
         if (graph == null) return null;
-        for (CompiledTable table : graph.getTables()) {
-            if (relativePath.equals(table.getFileName()) && table.getTarget() != null) {
-                return table.getTarget().getFullName();
-            }
+        for (CompiledTable table : graph.findTableByFileName(virtualFile.getPath())) {
+            if (table.getTarget() != null) return table.getTarget().getFullName();
         }
         return null;
     }
 
     /**
-     * The file an action was compiled from: the SQLX file of a table, or the JavaScript file
-     * holding the {@code declare()} call of a source. A source has no query, but it has a line
-     * declaring it, and a column of it is declared there as far as the project is concerned.
+     * The SQLX file of the action building a table, or {@code null} when no action of the project
+     * builds it, as for a source.
      */
-    private @Nullable PsiFile sourceFileOf(@NotNull String tableFullName) {
+    private @Nullable PsiFile builtFileOf(@NotNull String tableFullName) {
         CompiledGraph graph = DataformCompilationService.getInstance(project).getCompiledGraph();
         if (graph == null) return null;
         for (CompiledTable table : graph.getTables()) {
@@ -177,6 +181,18 @@ public final class ColumnOriginServiceImpl implements ColumnOriginService {
                 return fileAt(table.getFileName());
             }
         }
+        return null;
+    }
+
+    /**
+     * The file an action was compiled from: the SQLX file of a table, or the file holding the
+     * declaration of a source. A schema column carries it as its containing file.
+     */
+    private @Nullable PsiFile sourceFileOf(@NotNull String tableFullName) {
+        PsiFile built = builtFileOf(tableFullName);
+        if (built != null) return built;
+        CompiledGraph graph = DataformCompilationService.getInstance(project).getCompiledGraph();
+        if (graph == null) return null;
         for (Declaration declaration : graph.getDeclarations()) {
             if (declaration.getTarget() != null
                     && tableFullName.equals(declaration.getTarget().getFullName())) {
@@ -187,18 +203,7 @@ public final class ColumnOriginServiceImpl implements ColumnOriginService {
     }
 
     private @Nullable PsiFile fileAt(@Nullable String relativePath) {
-        if (relativePath == null) return null;
-        VirtualFile projectDir = ProjectUtil.guessProjectDir(project);
-        if (projectDir == null) return null;
-        VirtualFile source = projectDir.findFileByRelativePath(relativePath.replace("\\", "/"));
+        VirtualFile source = DataformPaths.findInProject(project, relativePath);
         return source == null ? null : PsiManager.getInstance(project).findFile(source);
-    }
-
-    private @Nullable String relativePathOf(@NotNull PsiFile file) {
-        VirtualFile virtualFile = file.getVirtualFile();
-        if (virtualFile == null) return null;
-        VirtualFile projectDir = ProjectUtil.guessProjectDir(project);
-        if (projectDir == null) return null;
-        return VfsUtilCore.getRelativePath(virtualFile, projectDir);
     }
 }

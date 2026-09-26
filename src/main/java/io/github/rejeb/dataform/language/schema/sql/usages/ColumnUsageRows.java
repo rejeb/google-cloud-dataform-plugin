@@ -23,6 +23,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiElement;
 import com.intellij.sql.psi.SqlCompositeElementTypes;
+import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
 import io.github.rejeb.dataform.language.schema.sql.ColumnOriginService;
 import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
 import io.github.rejeb.dataform.language.schema.sql.model.StructColumnPath;
@@ -123,10 +124,13 @@ public final class ColumnUsageRows {
         search(project, target, caretReference, locator, name, declarations.keySet(), usages,
                 collected, maxReads);
 
+        List<ColumnUsageRow> bigQuerySources = bigQuerySources(target);
         List<ColumnUsageRow> rows = new ArrayList<>();
-        if (!declarations.isEmpty()) {
-            rows.add(ColumnUsageRow.heading(DECLARATION, declarations.size(), false));
+        if (!declarations.isEmpty() || !bigQuerySources.isEmpty()) {
+            rows.add(ColumnUsageRow.heading(DECLARATION,
+                    declarations.size() + bigQuerySources.size(), false));
             rows.addAll(declarations.values());
+            rows.addAll(bigQuerySources);
         }
         if (!fields.isEmpty()) {
             rows.add(ColumnUsageRow.heading(FIELDS, fields.size(), false));
@@ -158,6 +162,18 @@ public final class ColumnUsageRows {
             if (row != null) declarations.put(located.place().key(), row);
         }
         return declarations;
+    }
+
+    /**
+     * The columns this one is built from that belong to BigQuery tables the project reads but does
+     * not build. Each names its table and opens nothing.
+     */
+    private static @NotNull List<ColumnUsageRow> bigQuerySources(@NotNull ColumnWindowTarget target) {
+        List<ColumnUsageRow> rows = new ArrayList<>();
+        for (ColumnRef source : target.bigQuerySources()) {
+            rows.add(ColumnUsageRow.bigQueryColumn(DECLARATION, source.columnName(), source.tableFullName()));
+        }
+        return rows;
     }
 
     /**

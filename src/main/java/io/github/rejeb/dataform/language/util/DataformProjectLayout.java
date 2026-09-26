@@ -100,7 +100,7 @@ public final class DataformProjectLayout {
         if (file == null) {
             return false;
         }
-        String path = file.getPath().replace('\\', '/');
+        String path = DataformPaths.normalize(file.getPath());
         if (path.contains("/" + DEFINITIONS_DIR + "/") || path.contains("/" + INCLUDES_DIR + "/")) {
             return true;
         }
@@ -132,7 +132,7 @@ public final class DataformProjectLayout {
      * JavaScript of a dependency from the JavaScript a project is written in.
      */
     public static boolean isUnderIgnoredDirectory(@NotNull String path) {
-        for (String segment : path.replace('\\', '/').split("/")) {
+        for (String segment : DataformPaths.normalize(path).split("/")) {
             if (IGNORED_DIRECTORIES.contains(segment)) {
                 return true;
             }

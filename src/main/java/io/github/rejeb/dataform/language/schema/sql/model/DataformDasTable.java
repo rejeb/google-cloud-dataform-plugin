@@ -43,6 +43,8 @@ import java.util.Objects;
 import java.util.Set;
 
 public class DataformDasTable extends LightElement implements DasTable, DasSymbol, PsiNamedElement {
+    @Nullable
+    private final String myFullName;
     private final String myName;
     private final List<ColumnInfo> myColumns;
     @Nullable
@@ -53,10 +55,40 @@ public class DataformDasTable extends LightElement implements DasTable, DasSymbo
                             @NotNull String table,
                             @NotNull List<ColumnInfo> columns,
                             @Nullable VirtualFile sourceFile) {
+        this(psiManager, null, table, columns, sourceFile);
+    }
+
+    /**
+     * A table known by its full {@code database.schema.name}, which tells it apart from a table of
+     * the same name in another dataset.
+     */
+    public DataformDasTable(@NotNull PsiManager psiManager,
+                            @Nullable String fullName,
+                            @NotNull String table,
+                            @NotNull List<ColumnInfo> columns,
+                            @Nullable VirtualFile sourceFile) {
         super(psiManager, BigQueryDialect.INSTANCE);
+        this.myFullName = fullName;
         this.myName = table;
         this.myColumns = columns;
         this.mySourceFile = sourceFile;
+    }
+
+    /** The full {@code database.schema.name} of the table, {@code null} when unknown. */
+    public @Nullable String getFullName() {
+        return myFullName;
+    }
+
+    /**
+     * Whether the table lives in a dataset. A table whose full name is unknown may live in any.
+     *
+     * @param schema the dataset name, compared without regard to case
+     * @return whether the table lives in it
+     */
+    public boolean isInSchema(@NotNull String schema) {
+        if (myFullName == null) return true;
+        String[] parts = myFullName.split("\\.");
+        return parts.length >= 2 && parts[parts.length - 2].equalsIgnoreCase(schema);
     }
 
     @Override
@@ -96,6 +128,9 @@ public class DataformDasTable extends LightElement implements DasTable, DasSymbo
     public boolean isEquivalentTo(PsiElement another) {
         if (this == another) return true;
         if (!(another instanceof DataformDasTable other)) return false;
+        if (myFullName != null && other.myFullName != null) {
+            return myFullName.equalsIgnoreCase(other.myFullName);
+        }
         return myName.equalsIgnoreCase(other.myName)
                 && Objects.equals(mySourceFile, other.mySourceFile);
     }

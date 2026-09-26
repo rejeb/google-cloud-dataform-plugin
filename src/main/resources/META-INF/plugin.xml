@@ -477,6 +477,12 @@
             <add-to-group group-id="EditorPopupMenu" anchor="first"/>
             <keyboard-shortcut keymap="$default" first-keystroke="control alt shift U"/>
         </action>
+        <action id="Dataform.DiagnoseColumnResolution"
+                class="io.github.rejeb.dataform.language.schema.sql.diagnostics.DiagnoseColumnResolutionAction"
+                text="Diagnose Dataform Column Resolution"
+                description="Report step by step how the Dataform column under the caret is resolved">
+            <add-to-group group-id="EditorPopupMenu" anchor="after" relative-to-action="Dataform.ShowColumnUsages"/>
+        </action>
         <action id="Dataform.CompareFileWithRemote"
                 class="io.github.rejeb.dataform.language.gcp.action.CompareFileWithRemoteAction"
                 text="Compare File with Remote"

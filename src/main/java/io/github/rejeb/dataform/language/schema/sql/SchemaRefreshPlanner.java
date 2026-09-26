@@ -17,6 +17,7 @@
 package io.github.rejeb.dataform.language.schema.sql;
 
 import com.intellij.openapi.diagnostic.Logger;
+import io.github.rejeb.dataform.language.util.DataformPaths;
 import io.github.rejeb.dataform.language.compilation.model.SortableAction;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -112,10 +113,8 @@ final class SchemaRefreshPlanner {
         if (failedFileNames.isEmpty()) return false;
         String fileName = ActionSourceFiles.fileNameOf(action);
         if (fileName == null) return false;
-        String normalized = fileName.replace("\\", "/");
         return failedFileNames.stream()
-                .map(f -> f.replace("\\", "/"))
-                .anyMatch(f -> normalized.endsWith(f) || f.endsWith(normalized));
+                .anyMatch(f -> DataformPaths.pointsTo(fileName, f) || DataformPaths.pointsTo(f, fileName));
     }
 
     @NotNull

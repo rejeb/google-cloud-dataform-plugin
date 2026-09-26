@@ -21,7 +21,11 @@ import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.refactoring.BaseRefactoringProcessor;
 import com.intellij.testFramework.fixtures.CodeInsightTestUtil;
+import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
+import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
+import io.github.rejeb.dataform.language.compilation.model.CompiledTable;
 
+import java.lang.reflect.Field;
 import java.util.List;
 
 /**
@@ -120,5 +124,26 @@ public class ColumnRenameDeclaredSourceTest extends ColumnRenameFixture {
                 bronze.contains("WHERE event_id IS NOT NULL"));
         assertTrue("the caret's own file is renamed\n" + fileOf("silver_events").getText(),
                 fileOf("silver_events").getText().contains("    event_ref,"));
+    }
+
+    /**
+     * On Windows the compiler writes {@code definitions\bronze_events.sqlx}, and the IDE names the
+     * same file {@code definitions/bronze_events.sqlx}. The rename must still know which file builds
+     * which table, or it has no column to start from.
+     */
+    public void testTheActionsDownstreamAreRenamedWhenTheCompilerWritesWindowsPaths() throws Exception {
+        installChainFromASource();
+        CompiledGraph graph = DataformCompilationService.getInstance(getProject()).getCompiledGraph();
+        Field fileName = CompiledTable.class.getDeclaredField("fileName");
+        fileName.setAccessible(true);
+        for (CompiledTable table : graph.getTables()) {
+            fileName.set(table, table.getFileName().replace('/', '\\'));
+        }
+
+        renameSelectItem("bronze_events", "event_ref");
+
+        String silver = fileOf("silver_events").getText();
+        assertTrue("the reader of the renamed action reads the new name\n" + silver,
+                silver.contains("    event_ref,"));
     }
 }

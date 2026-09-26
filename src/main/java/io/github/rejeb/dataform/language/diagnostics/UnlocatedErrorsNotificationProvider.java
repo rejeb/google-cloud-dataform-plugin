@@ -28,13 +28,14 @@ import org.jetbrains.annotations.Nullable;
 import javax.swing.JComponent;
 import java.util.List;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
  * Shows a banner listing compilation errors that could not be mapped to a source line.
  */
 public final class UnlocatedErrorsNotificationProvider
         implements EditorNotificationProvider, DumbAware {
+
+    private static final int MAX_VISIBLE_LINES = 1;
 
     @Override
     public @Nullable Function<? super FileEditor, ? extends JComponent> collectNotificationData(
@@ -49,21 +50,13 @@ public final class UnlocatedErrorsNotificationProvider
         if (errors.isEmpty()) {
             return null;
         }
-        String tooltip = errors.stream()
-                .map(CompilationDiagnostic::message)
-                .collect(Collectors.joining("\n"));
         String text = bannerText(errors.stream().map(CompilationDiagnostic::message).toList());
-        return fileEditor -> {
-            WrappingEditorNotificationPanel panel =
-                    new WrappingEditorNotificationPanel(fileEditor, text);
-            panel.setToolTipText(tooltip);
-            return panel;
-        };
+        return fileEditor -> new WrappingEditorNotificationPanel(fileEditor, text, MAX_VISIBLE_LINES);
     }
 
     /**
      * Renders the compilation error messages as plain text. Line breaks are left to the banner,
-     * which wraps to the editor width.
+     * which shows it on a single line and expands to full size on hover.
      */
     static String bannerText(@NotNull List<String> messages) {
         return BannerText.of("Dataform:", messages, "Compilation error");

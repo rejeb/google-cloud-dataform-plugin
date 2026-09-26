@@ -195,7 +195,7 @@ public final class ColumnUsagesPopup {
             popup.showInBestPositionFor(editor);
         }
 
-        /** A heading folds, an entry opens. */
+        /** A heading folds, an entry opens, and an entry with nowhere to open does nothing. */
         private void activate(@Nullable ColumnUsageRow row) {
             if (row == null) return;
             if (row.isHeading()) {
@@ -204,8 +204,9 @@ public final class ColumnUsagesPopup {
                 return;
             }
             OpenFileDescriptor target = row.target();
+            if (target == null || !target.canNavigate()) return;
             if (popup != null) popup.cancel();
-            if (target != null && target.canNavigate()) target.navigate(true);
+            target.navigate(true);
         }
 
         private void openFindWindow() {

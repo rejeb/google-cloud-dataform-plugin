@@ -16,12 +16,11 @@
  */
 package io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.ui;
 
-import com.intellij.util.ui.UIUtil;
+import com.intellij.ui.EditorTextField;
+import io.github.rejeb.dataform.language.ui.ReadOnlyTextFields;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import javax.swing.JTextArea;
-import javax.swing.JTextField;
 import java.time.Duration;
 import java.time.Instant;
 
@@ -31,27 +30,13 @@ public final class RunConfigUiUtils {
     }
 
     @NotNull
-    public static JTextField selectableValue(@Nullable String text) {
-        JTextField field = new JTextField(text != null ? text : "—");
-        field.setEditable(false);
-        field.setBorder(null);
-        field.setBackground(UIUtil.getPanelBackground());
-        field.setForeground(UIUtil.getLabelForeground());
-        field.setFont(UIUtil.getLabelFont());
-        return field;
+    public static EditorTextField selectableValue(@Nullable String text) {
+        return ReadOnlyTextFields.singleLine(text != null ? text : "—");
     }
 
     @NotNull
-    public static JTextArea selectableTextArea(@Nullable String text) {
-        JTextArea area = new JTextArea(text != null ? text : "");
-        area.setEditable(false);
-        area.setLineWrap(true);
-        area.setWrapStyleWord(true);
-        area.setBorder(null);
-        area.setBackground(UIUtil.getPanelBackground());
-        area.setForeground(UIUtil.getLabelForeground());
-        area.setFont(UIUtil.getLabelFont());
-        return area;
+    public static EditorTextField selectableTextArea(@Nullable String text) {
+        return ReadOnlyTextFields.multiLine(text);
     }
 
     @NotNull

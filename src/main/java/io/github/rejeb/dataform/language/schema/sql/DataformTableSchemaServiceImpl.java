@@ -396,7 +396,8 @@ public final class DataformTableSchemaServiceImpl
                                             @NotNull ExtractionContext ctx,
                                             @NotNull Map<String, List<ColumnInfo>> resolvedInThisRun) {
         String mainQuery = ReadAction.computeBlocking(() ->
-                DataformCteQueryBuilder.buildDryRunQuery(table.getQuery(), resolvedInThisRun, project)
+                DataformCteQueryBuilder.buildDryRunQuery(
+                        table.getQuery(), cache.stubSchemas(resolvedInThisRun), project)
         );
         String query = Utils.withPreOperations(
                 PreOperationsFilter.keepReadOnly(table.getPreOps()), mainQuery);

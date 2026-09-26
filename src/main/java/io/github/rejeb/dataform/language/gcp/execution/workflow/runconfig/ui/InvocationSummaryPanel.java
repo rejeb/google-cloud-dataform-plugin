@@ -17,6 +17,7 @@
 package io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.ui;
 
 import com.intellij.ui.AnimatedIcon;
+import com.intellij.ui.EditorTextField;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
@@ -48,13 +49,13 @@ public class InvocationSummaryPanel extends JPanel {
 
     private final JLabel urlLabel = new JBLabel();
     private final JLabel sourceLabel = new JBLabel();
-    private final JTextField startTimeLabel = RunConfigUiUtils.selectableValue("");
-    private final JTextField statusLabel = RunConfigUiUtils.selectableValue("");
-    private final JTextField durationLabel = RunConfigUiUtils.selectableValue("—");
-    private final JTextField compilationLabel = RunConfigUiUtils.selectableValue("");
-    private final JTextField sourceTypeLabel = RunConfigUiUtils.selectableValue("");
-    private final JTextField contentsLabel = RunConfigUiUtils.selectableValue("");
-    private final JTextArea errorText = RunConfigUiUtils.selectableTextArea("");
+    private final EditorTextField startTimeLabel = RunConfigUiUtils.selectableValue("");
+    private final EditorTextField statusLabel = RunConfigUiUtils.selectableValue("");
+    private final EditorTextField durationLabel = RunConfigUiUtils.selectableValue("—");
+    private final EditorTextField compilationLabel = RunConfigUiUtils.selectableValue("");
+    private final EditorTextField sourceTypeLabel = RunConfigUiUtils.selectableValue("");
+    private final EditorTextField contentsLabel = RunConfigUiUtils.selectableValue("");
+    private final EditorTextField errorText = RunConfigUiUtils.selectableTextArea("");
 
     public InvocationSummaryPanel() {
         super(new BorderLayout());
@@ -78,7 +79,7 @@ public class InvocationSummaryPanel extends JPanel {
         title.setFont(title.getFont().deriveFont(Font.BOLD));
 
         panel.add(title, BorderLayout.NORTH);
-        panel.add(new JScrollPane(errorText), BorderLayout.CENTER);
+        panel.add(errorText, BorderLayout.CENTER);
         return panel;
     }
 

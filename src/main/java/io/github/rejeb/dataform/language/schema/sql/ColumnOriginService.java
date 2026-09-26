@@ -47,23 +47,21 @@ public interface ColumnOriginService {
     ColumnRef declaredColumn(@NotNull PsiFile file, @NotNull PsiElement element);
 
     /**
-     * The element declaring a column, in the file of the action building it. A column of a declared
-     * source is built by no action and has none: see {@link #sourceDeclaration}.
+     * The element declaring a column, in the file of the action building it. A column of a source
+     * is built by no action and has none: see {@link #isSource}.
      */
     @Nullable
     PsiElement declaringElement(@NotNull ColumnRef column);
 
     /**
-     * The declaration of the source a column belongs to — the {@code declare()} call in a
-     * JavaScript file, or the {@code config} block of a SQLX file of type {@code declaration} —
-     * when the column belongs to a source declared to the project rather than to an action
-     * building it.
+     * Whether a column belongs to a source: a BigQuery table the project reads but does not build,
+     * declared with {@code declare()} or a SQLX file of type {@code declaration}.
      *
-     * <p>Kept apart from {@link #declaringElement}: what is answered here names the table and not
-     * the column, so it is a place to read and never a place a rename may write.</p>
+     * <p>The code declaring a source may compute its name, in a loop or by concatenation, so no line
+     * of the project is reliably the one naming it. A source column is shown as a column of its
+     * BigQuery table and is never resolved to a place in the project.</p>
      */
-    @Nullable
-    PsiElement sourceDeclaration(@NotNull ColumnRef column);
+    boolean isSource(@NotNull ColumnRef column);
 
     /**
      * The element declaring a schema column, whichever way the column was built.

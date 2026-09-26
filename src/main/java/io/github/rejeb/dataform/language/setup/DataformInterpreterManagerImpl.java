@@ -25,6 +25,7 @@ import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VirtualFile;
+import io.github.rejeb.dataform.language.util.DataformPaths;
 import io.github.rejeb.dataform.language.settings.DataformToolsSettings;
 import org.jetbrains.annotations.NotNull;
 
@@ -177,8 +178,7 @@ public final class DataformInterpreterManagerImpl implements DataformInterpreter
 
     private GeneralCommandLine buildGitBashCommand(@NotNull Path bashExe,
                                                    @NotNull String pathEnv) {
-        String posixPathEnv = pathEnv
-                .replace("\\", "/")
+        String posixPathEnv = DataformPaths.normalize(pathEnv)
                 .replaceAll("^([A-Za-z]):", "/$1")
                 .toLowerCase(java.util.Locale.ROOT);
 

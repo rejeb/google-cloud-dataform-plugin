@@ -23,6 +23,7 @@ import com.intellij.psi.PsiPolyVariantReference;
 import com.intellij.psi.PsiReference;
 import com.intellij.psi.ResolveResult;
 import com.intellij.psi.tree.IElementType;
+import com.intellij.sql.psi.SqlAsExpression;
 import com.intellij.sql.psi.SqlCompositeElementTypes;
 import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
 import io.github.rejeb.dataform.language.schema.sql.ColumnOriginService;
@@ -51,14 +52,17 @@ import java.util.List;
  * or on the alias declaring it — a reader asks the same question from either end, and nothing
  * references the alias of a field, so a search over references answers only one of them.</p>
  *
- * @param searchTargets the elements whose references make up the usage rows
- * @param name          the column name, as written
- * @param declarations  the columns this one is built from, each in the file declaring it
- * @param structPath    the field inside a struct column, {@code null} for a column of a table
+ * @param searchTargets   the elements whose references make up the usage rows
+ * @param name            the column name, as written
+ * @param declarations    the columns this one is built from, each in the file declaring it
+ * @param bigQuerySources the columns this one is built from that belong to a source, a BigQuery
+ *                        table the project reads but does not build, and that no line declares
+ * @param structPath      the field inside a struct column, {@code null} for a column of a table
  */
 public record ColumnWindowTarget(@NotNull List<PsiElement> searchTargets,
                                  @NotNull String name,
                                  @NotNull List<PsiElement> declarations,
+                                 @NotNull List<ColumnRef> bigQuerySources,
                                  @Nullable StructColumnPath structPath) {
 
     /**
@@ -95,14 +99,15 @@ public record ColumnWindowTarget(@NotNull List<PsiElement> searchTargets,
 
         ColumnOriginService origins = ColumnOriginService.getInstance(identifier.getProject());
         List<PsiElement> declarations = new ArrayList<>();
+        List<ColumnRef> sources = new ArrayList<>();
         PsiElement renamed = renamedExpression(expression);
         for (PsiElement read : columnReferencesIn(renamed)) {
-            PsiElement declaration = declarationOf(read, origins, null);
+            PsiElement declaration = declarationOf(read, origins, null, sources);
             if (declaration != null) declarations.add(declaration);
         }
         if (renamed != null) {
             for (DataformDasColumn handed : HelperColumnStrings.columnsHandedTo(renamed, identifier)) {
-                PsiElement declaration = declarationOf(handed, origins);
+                PsiElement declaration = declarationOf(handed, origins, sources);
                 if (declaration != null) declarations.add(declaration);
             }
         }
@@ -111,7 +116,7 @@ public record ColumnWindowTarget(@NotNull List<PsiElement> searchTargets,
         DataformDasColumn output = SqlxColumnAtCaret.declaredColumnOf(expression);
         if (output != null) searched.add(output);
         return new ColumnWindowTarget(searched,
-                identifier.getText().replace("`", ""), distinct(declarations),
+                identifier.getText().replace("`", ""), distinct(declarations), distinct(sources),
                 StructColumnPathResolver.getInstance(identifier.getProject())
                         .declaredPathAt(identifier));
     }
@@ -126,7 +131,8 @@ public record ColumnWindowTarget(@NotNull List<PsiElement> searchTargets,
         ColumnOriginService origins = ColumnOriginService.getInstance(reference.getProject());
         ColumnRef declaredRef = origins.declaredColumn(topLevel, reference);
         DataformDasColumn declared = declaredRef == null ? null : origins.dasColumn(declaredRef);
-        PsiElement declaration = declarationOf(reference, origins, declared);
+        List<ColumnRef> sources = new ArrayList<>();
+        PsiElement declaration = declarationOf(reference, origins, declared, sources);
 
         List<PsiElement> searched = new ArrayList<>();
         if (declared != null) {
@@ -135,10 +141,29 @@ public record ColumnWindowTarget(@NotNull List<PsiElement> searchTargets,
             DataformDasColumn read = readColumn(reference, null);
             if (read == null) return null;
             searched.add(read);
+            DataformDasColumn built = outputColumnBuiltFrom(reference);
+            if (built != null) searched.add(built);
         }
         return new ColumnWindowTarget(searched,
                 declared != null ? declared.getName() : columnName(reference),
-                declaration == null ? List.of() : List.of(declaration), null);
+                declaration == null ? List.of() : List.of(declaration), distinct(sources), null);
+    }
+
+    /**
+     * The output column of the table the file builds that an expression reading a column declares,
+     * when the read sits inside an aliased item of the main select list:
+     * {@code CAST(TRIM(name) AS STRING) AS name}. The reader of that line asks where the column goes
+     * next, which is wherever the output column is read, not only where the column read is.
+     */
+    private static @Nullable DataformDasColumn outputColumnBuiltFrom(@NotNull PsiElement reference) {
+        for (PsiElement parent = reference.getParent();
+             parent != null && !(parent instanceof PsiFile);
+             parent = parent.getParent()) {
+            if (!(parent instanceof SqlAsExpression)) continue;
+            DataformDasColumn output = SqlxColumnAtCaret.declaredColumnOf(parent);
+            if (output != null) return output;
+        }
+        return null;
     }
 
     /**
@@ -158,25 +183,35 @@ public record ColumnWindowTarget(@NotNull List<PsiElement> searchTargets,
         PsiElement read = resolver.segmentAt(token);
         ColumnOriginService origins = ColumnOriginService.getInstance(token.getProject());
         PsiElement declaration = origins.declaringElement(path);
-        if (declaration == null) declaration = sourceDeclarationOf(path.root(), origins);
+        ColumnRef root = declaration == null ? origins.reference(path.root()) : null;
+        List<ColumnRef> sources = root != null && origins.isSource(root)
+                ? List.of(new ColumnRef(root.tableFullName(), path.dottedName()))
+                : List.of();
         return new ColumnWindowTarget(read == null ? List.of() : List.of(read),
                 path.leafName(),
                 declaration == null ? List.of() : List.of(declaration),
+                sources,
                 path);
     }
 
     /**
      * Where a column read by an expression is declared: the select-list item of the action that
-     * builds it when the schema knows it, the {@code declare()} call of its source when no action
-     * builds it, and otherwise whatever the reference resolves to inside the file, such as the alias
-     * of an earlier common table expression.
+     * builds it when the schema knows it, and otherwise whatever the reference resolves to inside
+     * the file, such as the alias of an earlier common table expression. A column of a source is
+     * declared by no line of the project: it is added to {@code sources} and has no declaration.
      */
     private static @Nullable PsiElement declarationOf(@NotNull PsiElement reference,
                                                       @NotNull ColumnOriginService origins,
-                                                      @Nullable DataformDasColumn exclude) {
+                                                      @Nullable DataformDasColumn exclude,
+                                                      @NotNull List<ColumnRef> sources) {
         DataformDasColumn column = readColumn(reference, exclude);
         if (column != null) {
-            PsiElement declaring = declarationOf(column, origins);
+            ColumnRef source = sourceOf(column, origins);
+            if (source != null) {
+                sources.add(source);
+                return null;
+            }
+            PsiElement declaring = origins.declaringElement(column);
             if (declaring != null) return declaring;
         }
         PsiElement field = structFieldDeclarationOf(reference, origins);
@@ -189,24 +224,25 @@ public record ColumnWindowTarget(@NotNull List<PsiElement> searchTargets,
     }
 
     /**
-     * Where a schema column is declared: the select-list item of the action building it, or the
-     * {@code declare()} call of its source when no action builds it.
+     * Where a schema column is declared: the select-list item of the action building it. A column
+     * of a source is added to {@code sources} instead and has no declaration.
      */
     private static @Nullable PsiElement declarationOf(@NotNull DataformDasColumn column,
-                                                      @NotNull ColumnOriginService origins) {
-        PsiElement declaring = origins.declaringElement(column);
-        return declaring != null ? declaring : sourceDeclarationOf(column, origins);
+                                                      @NotNull ColumnOriginService origins,
+                                                      @NotNull List<ColumnRef> sources) {
+        ColumnRef source = sourceOf(column, origins);
+        if (source != null) {
+            sources.add(source);
+            return null;
+        }
+        return origins.declaringElement(column);
     }
 
-    /**
-     * The {@code declare()} call of the source a column belongs to, for a column no action of the
-     * project builds. The schema of a source comes from BigQuery, so the call naming the table is
-     * the only line of the project a reader can be sent to.
-     */
-    private static @Nullable PsiElement sourceDeclarationOf(@NotNull DataformDasColumn column,
-                                                            @NotNull ColumnOriginService origins) {
+    /** The reference of a schema column when it belongs to a source, {@code null} otherwise. */
+    private static @Nullable ColumnRef sourceOf(@NotNull DataformDasColumn column,
+                                                @NotNull ColumnOriginService origins) {
         ColumnRef reference = origins.reference(column);
-        return reference == null ? null : origins.sourceDeclaration(reference);
+        return reference != null && origins.isSource(reference) ? reference : null;
     }
 
     /**
@@ -296,7 +332,7 @@ public record ColumnWindowTarget(@NotNull List<PsiElement> searchTargets,
         return last == null ? reference.getText() : last.getText().replace("`", "");
     }
 
-    private static @NotNull List<PsiElement> distinct(@NotNull List<PsiElement> elements) {
+    private static <T> @NotNull List<T> distinct(@NotNull List<T> elements) {
         return List.copyOf(new LinkedHashSet<>(elements));
     }
 
