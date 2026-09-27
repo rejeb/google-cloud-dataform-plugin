@@ -21,6 +21,7 @@ import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import io.github.rejeb.dataform.language.fileEditor.SqlxCompiledPreviewEditor;
+import io.github.rejeb.dataform.language.fileEditor.SqlxPreviewMode;
 import org.jetbrains.annotations.NotNull;
 
 public class ExecuteQueryAction extends AnAction {
@@ -39,6 +40,11 @@ public class ExecuteQueryAction extends AnAction {
 
     @Override
     public void update(@NotNull AnActionEvent e) {
+        boolean unitTest = preview.getMode() == SqlxPreviewMode.UNIT_TEST;
+        e.getPresentation().setText(unitTest ? "Execute Test Query" : "Execute Query");
+        e.getPresentation().setDescription(unitTest
+                ? "Execute the test query or the expected output on BigQuery"
+                : "Execute the compiled BigQuery SQL");
         e.getPresentation().setEnabled(preview.hasQuery());
     }
 

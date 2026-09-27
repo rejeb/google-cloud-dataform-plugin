@@ -61,6 +61,15 @@ class SqlxFileLexerRestartTest {
             "SELECT 1 -- js\n",
             "pre_operations {\n  if (x) {\n    ${a}\n  }\n}\nSELECT 1\n",
             "config { type: \"table\" }\n\nSELECT\n  ${when(true, 'a', 'b')}\n",
+            "config { type: \"test\", dataset: \"orders\" }\ninput \"src\" {\n  SELECT 1 AS id\n}\nSELECT 1 AS id\n",
+            "input \"raw\", \"src\" {SELECT ${n} AS id}\nSELECT 1\n",
+            "input \"src\"\nSELECT 1\n",
+            "input \"sr\nSELECT 1\n",
+            "input \"src\"\n{\n  SELECT 1\n}\n",
+            "input \"src\" {\r\n  SELECT 1\r\n}\r\n",
+            "SELECT\ninput,\n  x\nFROM t\n",
+            "input \"a\" x\n",
+            "input \"a\",",
     };
 
     private record Tok(IElementType type, int start, int end) {
@@ -124,7 +133,7 @@ class SqlxFileLexerRestartTest {
     void anyInputAndAnyStateTerminatesWithoutBadCharacters() {
         String[] atoms = {"config", "js", "pre_operations", "post_operations", "{", "}", "\n",
                 " ", "  ", "$", "${", "SELECT", "1", "\"", "'", "ref(\"a\")", "\t", ";", "//",
-                "/*", "*/", "\\", "`", "%", "\u20ac", "\u0000", "a"};
+                "/*", "*/", "\\", "`", "%", "\u20ac", "\u0000", "a", "input", "input \"", "\"src\"", ","};
         Random random = new Random(42);
         StringBuilder report = new StringBuilder();
         for (int iteration = 0; iteration < 20000 && report.length() < 2000; iteration++) {

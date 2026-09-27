@@ -60,6 +60,13 @@
                 <li>One-click gutter icons in the SQLX editor to execute the current action's workflow without leaving the file.</li>
             </ul>
 
+            <h2>Unit Tests</h2>
+            <ul>
+                <li>Create Dataform Test from the Project view or editor context menu of a table or view: generates <code>definitions/tests/test_&lt;action&gt;.sqlx</code> with one input per dependency and the expected output, pre-filled from the resolved schemas.</li>
+                <li>Column completion after <code>AS</code> in <code>input</code> blocks and in the expected output, including the fields of <code>STRUCT</code> and arrays of structs.</li>
+                <li>Generate SELECT from schema intention (<code>Alt+Enter</code>) filling an input or the expected output with a typed placeholder row.</li>
+            </ul>
+
             <h2>Formatting</h2>
             <ul>
                 <li>Built-in formatter aware of injected SQL, JavaScript and config blocks inside SQLX files.</li>
@@ -101,6 +108,12 @@
         />
         <projectService serviceInterface="io.github.rejeb.dataform.language.setup.DataformCoreVersionMigrator"
                         serviceImplementation="io.github.rejeb.dataform.language.setup.DataformCoreVersionMigratorImpl"
+        />
+        <projectService serviceInterface="io.github.rejeb.dataform.language.unittest.schema.TestSchemaResolver"
+                        serviceImplementation="io.github.rejeb.dataform.language.unittest.schema.TestSchemaResolverImpl"
+        />
+        <projectService serviceInterface="io.github.rejeb.dataform.language.unittest.columns.TestColumnAliases"
+                        serviceImplementation="io.github.rejeb.dataform.language.unittest.columns.TestColumnAliasesImpl"
         />
         <projectService serviceInterface="io.github.rejeb.dataform.language.schema.json.ProtoParser"
                         serviceImplementation="io.github.rejeb.dataform.language.schema.json.ProtoParserImpl"
@@ -216,6 +229,15 @@
                 language="SQL"
                 implementationClass="io.github.rejeb.dataform.language.completion.SqlxMissingCommaCompletionContributor"
                 order="last"/>
+        <completion.contributor
+                language="SQL"
+                implementationClass="io.github.rejeb.dataform.language.unittest.completion.SqlxTestColumnCompletionContributor"/>
+        <gotoDeclarationHandler
+                implementation="io.github.rejeb.dataform.language.unittest.navigation.TestAliasGotoDeclarationHandler"/>
+        <intentionAction>
+            <className>io.github.rejeb.dataform.language.unittest.generation.GenerateTestSelectIntention</className>
+            <category>Dataform</category>
+        </intentionAction>
         <renameHandler
                 implementation="io.github.rejeb.dataform.language.refactoring.column.DataformColumnRenameHandler"
                 order="first"/>
@@ -372,6 +394,11 @@
                 implementationClass="io.github.rejeb.dataform.language.completion.DataformRefCompletionContributor"/>
 
         <completion.contributor
+                language="JavaScript" order="first, before dataformConfigValueCompletion"
+                id="dataformTestDatasetCompletion"
+                implementationClass="io.github.rejeb.dataform.language.unittest.DataformTestDatasetCompletionContributor"/>
+
+        <completion.contributor
                 language="JavaScript" order="first"
                 id="dataformJsSymbolCompletion"
                 implementationClass="io.github.rejeb.dataform.language.completion.DataformJsSymbolCompletionContributor"/>
@@ -383,6 +410,10 @@
         <completion.contributor
                 language="SQL"
                 implementationClass="io.github.rejeb.dataform.language.completion.SqlxKeywordCompletionContributor"/>
+
+        <completion.contributor
+                language="SQLX"
+                implementationClass="io.github.rejeb.dataform.language.unittest.SqlxInputNameCompletionContributor"/>
 
         <completion.contributor
                 language="SQL"
@@ -424,6 +455,10 @@
 
         <psi.referenceContributor
                 language="JavaScript"
+                implementation="io.github.rejeb.dataform.language.unittest.navigation.TestedDatasetReferenceContributor"/>
+
+        <psi.referenceContributor
+                language="JavaScript"
                 implementation="io.github.rejeb.dataform.language.reference.DataformWorkflowSettingsReferenceContributor"/>
 
         <psi.referenceContributor
@@ -457,12 +492,21 @@
         <!-- Program Runner -->
         <programRunner
                 implementation="io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.DataformWorkflowProgramRunner"/>
+        <configurationType
+                implementation="io.github.rejeb.dataform.language.gcp.execution.unittest.runconfig.DataformTestConfigurationType"/>
+        <programRunner
+                implementation="io.github.rejeb.dataform.language.gcp.execution.unittest.runconfig.DataformTestProgramRunner"/>
 
         <codeInsight.lineMarkerProvider
                 language="SQLX"
                 implementationClass="io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.SqlxEditorGutterProvider"/>
         <runConfigurationProducer
                 implementation="io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.DataformSqlxRunConfigurationProducer"/>
+        <runConfigurationProducer
+                implementation="io.github.rejeb.dataform.language.gcp.execution.unittest.runconfig.DataformTestRunConfigurationProducer"/>
+        <runLineMarkerContributor
+                language="SQLX"
+                implementationClass="io.github.rejeb.dataform.language.gcp.execution.unittest.runconfig.DataformTestRunLineMarkerContributor"/>
 
         <internalFileTemplate name="Dataform SQLX Table"/>
         <internalFileTemplate name="Dataform SQLX View"/>
@@ -470,6 +514,7 @@
         <internalFileTemplate name="Dataform SQLX Assertion"/>
         <internalFileTemplate name="Dataform SQLX Operations"/>
         <internalFileTemplate name="Dataform SQLX Declaration"/>
+        <internalFileTemplate name="Dataform SQLX Test"/>
     </extensions>
 
     <projectListeners>
@@ -518,6 +563,17 @@
             <add-to-group group-id="EditorPopupMenu"
                           anchor="before"
                           relative-to-action="CompareClipboardWithSelection"/>
+        </action>
+        <action id="Dataform.CreateTest"
+                class="io.github.rejeb.dataform.language.unittest.creation.CreateDataformTestAction"
+                text="Create Dataform Test"
+                description="Create a unit test for a Dataform table or view">
+            <add-to-group group-id="ProjectViewPopupMenu"
+                          anchor="after"
+                          relative-to-action="Dataform.CompareFileWithRemote"/>
+            <add-to-group group-id="EditorPopupMenu"
+                          anchor="after"
+                          relative-to-action="Dataform.CompareFileWithRemote"/>
         </action>
         <action id="Dataform.OpenLineageView"
                 class="io.github.rejeb.dataform.language.lineage.view.OpenLineageViewAction"

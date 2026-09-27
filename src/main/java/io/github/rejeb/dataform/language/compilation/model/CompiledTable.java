@@ -21,6 +21,7 @@ import io.github.rejeb.dataform.language.util.DataformPaths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 public class CompiledTable {
     private String type;
@@ -51,6 +52,16 @@ public class CompiledTable {
 
     public String getType() {
         return materialized ? "materialized_view" : "view";
+    }
+
+    /**
+     * Returns the kind of action as Dataform compiled it: {@code table}, {@code view} or
+     * {@code incremental}, read from {@code type}, or from {@code enumType} when the graph gives
+     * no {@code type}. Lower case; null when the graph gives neither.
+     */
+    public String getActionKind() {
+        String kind = type != null && !type.isBlank() ? type : enumType;
+        return kind == null ? null : kind.toLowerCase(Locale.ROOT);
     }
 
     public Target getTarget() {

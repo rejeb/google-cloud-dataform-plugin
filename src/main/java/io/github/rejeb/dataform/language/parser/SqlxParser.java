@@ -57,6 +57,12 @@ public class SqlxParser implements PsiParser {
                 markElement(builder, SharedTokenTypes.POST_OPERATIONS_KEYWORD);
                 parseOperationsBlock(builder, SharedTokenTypes.POST_OPERATIONS_CONTENT);
                 blockMarker.done(SharedTokenTypes.POST_OPERATIONS_BLOCK);
+            } else if (tokenType == SharedTokenTypes.INPUT_KEYWORD) {
+                PsiBuilder.Marker blockMarker = builder.mark();
+                markElement(builder, SharedTokenTypes.INPUT_KEYWORD);
+                parseInputLabel(builder);
+                parseOperationsBlock(builder, SharedTokenTypes.INPUT_CONTENT);
+                blockMarker.done(SharedTokenTypes.INPUT_BLOCK);
             } else {
                 parseSqlBlock(builder);
             }
@@ -85,6 +91,19 @@ public class SqlxParser implements PsiParser {
         markOptionalElement(builder, SharedTokenTypes.RBRACE);
     }
 
+    private void parseInputLabel(PsiBuilder builder) {
+        while (!builder.eof()) {
+            IElementType tokenType = builder.getTokenType();
+            if (tokenType == SharedTokenTypes.INPUT_NAME) {
+                markElement(builder, SharedTokenTypes.INPUT_NAME);
+            } else if (tokenType == SharedTokenTypes.INPUT_NAME_SEPARATOR) {
+                builder.advanceLexer();
+            } else {
+                break;
+            }
+        }
+    }
+
     private void parseSqlBlock(PsiBuilder builder) {
         PsiBuilder.Marker sqlMarker = builder.mark();
 
@@ -94,7 +113,8 @@ public class SqlxParser implements PsiParser {
             if (tokenType == SharedTokenTypes.CONFIG_KEYWORD ||
                     tokenType == SharedTokenTypes.JS_KEYWORD ||
                     tokenType == SharedTokenTypes.PRE_OPERATIONS_KEYWORD ||
-                    tokenType == SharedTokenTypes.POST_OPERATIONS_KEYWORD) {
+                    tokenType == SharedTokenTypes.POST_OPERATIONS_KEYWORD ||
+                    tokenType == SharedTokenTypes.INPUT_KEYWORD) {
                 break;
             }
             if (tokenType == SharedTokenTypes.TEMPLATE_EXPRESSION) {

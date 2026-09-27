@@ -18,6 +18,7 @@ package io.github.rejeb.dataform.language.schema.sql;
 
 import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.openapi.editor.Document;
+import com.intellij.openapi.util.Disposer;
 import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
@@ -146,7 +147,10 @@ public abstract class DataformProjectFixture extends BasePlatformTestCase {
         set(graph, "declarations", List.of(source));
         set(graph, "operations", List.of());
         set(graph, "assertions", List.of());
-        set(getProject().getService(DataformCompilationService.class), "compiledGraph", graph);
+        DataformCompilationService service = getProject().getService(DataformCompilationService.class);
+        CompiledGraph previous = service.getCompiledGraph();
+        Disposer.register(getTestRootDisposable(), () -> set(service, "compiledGraph", previous));
+        set(service, "compiledGraph", graph);
     }
 
     private void installSchema() {

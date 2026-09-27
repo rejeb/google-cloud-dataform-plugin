@@ -66,9 +66,21 @@ public class DataformColumnInsertContributor extends CompletionContributor {
                 result.passResult(completionResult);
                 return;
             }
+            LookupElement element = completionResult.getLookupElement();
             result.passResult(completionResult.withLookupElement(
-                    unqualified(completionResult.getLookupElement(), column.getName())));
+                    unqualified(element, writtenText(element, column))));
         });
+    }
+
+    /**
+     * What a picked element writes: the name of its column, or, for the element the SQL completion
+     * offers for all the columns of a table at once, the whole list it shows. That element stands
+     * for its first column only, so writing the name of that column would drop all the others.
+     */
+    private static @NotNull String writtenText(@NotNull LookupElement element,
+                                               @NotNull DataformDasColumn column) {
+        String shown = element.getLookupString();
+        return shown.contains(",") ? shown : column.getName();
     }
 
     /** The element writes the name and nothing else, whatever the delegate would have written. */

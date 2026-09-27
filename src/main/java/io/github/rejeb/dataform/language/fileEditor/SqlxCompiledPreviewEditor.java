@@ -25,6 +25,7 @@ import com.intellij.notification.Notifications;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ModalityState;
+import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.editor.ex.EditorEx;
 import com.intellij.openapi.fileEditor.FileEditor;
@@ -40,14 +41,18 @@ import com.intellij.openapi.ui.popup.JBPopup;
 import com.intellij.openapi.ui.popup.JBPopupFactory;
 import com.intellij.openapi.util.UserDataHolderBase;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.psi.PsiFile;
+import com.intellij.psi.PsiManager;
 import com.intellij.sql.SqlFileType;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
 import icons.DatabaseIcons;
 import io.github.rejeb.dataform.language.compilation.CompilationFailures;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
+import io.github.rejeb.dataform.language.compilation.model.CompilationError;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.compilation.model.CompiledQuery;
+import io.github.rejeb.dataform.language.compilation.model.CompiledTest;
 import io.github.rejeb.dataform.language.fileEditor.lineage.LineageGraph;
 import io.github.rejeb.dataform.language.fileEditor.lineage.LineageGraphHelper;
 import io.github.rejeb.dataform.language.lineage.extractor.LineageExtractorImpl;
@@ -61,6 +66,7 @@ import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
 import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
 import io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService;
 import io.github.rejeb.dataform.language.util.PreOperationsFilter;
+import io.github.rejeb.dataform.language.unittest.SqlxUnitTests;
 import io.github.rejeb.dataform.language.util.Utils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -69,6 +75,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.beans.PropertyChangeListener;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Preview side of the SQLX split editor: lineage, compiled query and schema of the file's
@@ -78,7 +85,7 @@ import java.util.List;
  */
 public class SqlxCompiledPreviewEditor extends UserDataHolderBase implements FileEditor {
 
-    public enum View {LINEAGE, QUERY, SCHEMA}
+    public enum View {LINEAGE, QUERY, SCHEMA, TEST}
 
     private final JPanel mainPanel = new JPanel(new CardLayout());
     private final SchemaPanel schemaPanel;
@@ -89,6 +96,11 @@ public class SqlxCompiledPreviewEditor extends UserDataHolderBase implements Fil
     private long myLastCompiledStamp = -1;
     private volatile List<CompiledQuery> rawQueries = List.of();
     private boolean queryViewStale = false;
+    private final TestPreviewPanel testPanel;
+    private volatile SqlxPreviewMode mode = SqlxPreviewMode.ACTION;
+    private volatile CompiledTest compiledTest;
+    private volatile String testCompilationErrors;
+    private boolean testViewStale = false;
 
     public SqlxCompiledPreviewEditor(@NotNull Project project, VirtualFile file) {
         this.project = project;
@@ -96,12 +108,14 @@ public class SqlxCompiledPreviewEditor extends UserDataHolderBase implements Fil
         schemaPanel = new SchemaPanel(project);
         lineagePanel = new LineageFilePanel(project, file);
         queryPanel = new QueryPanel(project, resolveFileType(file));
+        testPanel = new TestPreviewPanel(project);
 
         mainPanel.setOpaque(true);
         mainPanel.setBackground(UIUtil.getPanelBackground());
         mainPanel.add(lineagePanel, View.LINEAGE.name());
         mainPanel.add(withHeader("Query", DatabaseIcons.Sql, queryPanel), View.QUERY.name());
         mainPanel.add(withHeader("Schema", AllIcons.Nodes.DataTables, schemaPanel), View.SCHEMA.name());
+        mainPanel.add(withHeader("Test", AllIcons.Nodes.Test, testPanel), View.TEST.name());
 
         showPanel(View.LINEAGE);
         updateCompiledSql();
@@ -117,18 +131,37 @@ public class SqlxCompiledPreviewEditor extends UserDataHolderBase implements Fil
             private List<CompiledQuery> compiledQueries;
             private List<LineageGraph> lineageGraphs;
             private io.github.rejeb.dataform.language.lineage.graph.LineageGraph fileLineage;
+            private boolean unitTestFile;
+            private CompiledTest foundTest;
+            private String foundErrors;
 
             @Override
             public void run(@NotNull ProgressIndicator indicator) {
                 indicator.setIndeterminate(true);
                 indicator.setText("Compiling " + file.getName() + "...");
+                unitTestFile = ReadAction.nonBlocking(() -> {
+                    PsiFile psiFile = PsiManager.getInstance(project).findFile(file);
+                    return psiFile != null && SqlxUnitTests.isUnitTestFile(psiFile);
+                }).executeSynchronously();
                 DataformCompilationService svc = DataformCompilationService.getInstance(project);
                 CompiledGraph graph = svc.getCompiledGraph();
                 if (graph != null) {
                     String path = file.getCanonicalPath();
-                    compiledQueries = graph.findCompiledQueryByFileName(path);
-                    lineageGraphs = LineageGraphHelper.buildGraph(graph, path);
-                    fileLineage = new LineageExtractorImpl().extract(graph);
+                    if (unitTestFile) {
+                        foundTest = graph.findTestByFileName(path).stream().findFirst().orElse(null);
+                        foundErrors = graph.getGraphErrors() == null || graph.getGraphErrors().getCompilationErrors() == null
+                                ? null
+                                : graph.getGraphErrors().getCompilationErrors().stream()
+                                        .filter(error -> error.matchFileName(path))
+                                        .map(CompilationError::getMessage)
+                                        .filter(Objects::nonNull)
+                                        .reduce((a, b) -> a + "\n" + b)
+                                        .orElse(null);
+                    } else {
+                        compiledQueries = graph.findCompiledQueryByFileName(path);
+                        lineageGraphs = LineageGraphHelper.buildGraph(graph, path);
+                        fileLineage = new LineageExtractorImpl().extract(graph);
+                    }
                 }
                 if (graph != null) {
                     DataformTableSchemaService.getInstance(project)
@@ -140,13 +173,23 @@ public class SqlxCompiledPreviewEditor extends UserDataHolderBase implements Fil
             @Override
             public void onSuccess() {
                 ApplicationManager.getApplication().invokeLater(() -> {
-                    schemaPanel.setContent(lineageGraphs);
+                    mode = unitTestFile ? SqlxPreviewMode.UNIT_TEST : SqlxPreviewMode.ACTION;
+                    compiledTest = foundTest;
+                    testCompilationErrors = foundErrors;
+                    testViewStale = true;
+                    schemaPanel.setContent(lineageGraphs != null ? lineageGraphs : List.of());
                     rawQueries = compiledQueries != null ? compiledQueries : List.of();
                     queryViewStale = true;
-                    if (activeView == View.QUERY) {
+                    if (!mode.shows(activeView)) {
+                        showPanel(mode.defaultView());
+                    } else if (activeView == View.QUERY) {
                         refreshQueryView();
+                    } else if (activeView == View.TEST) {
+                        refreshTestView();
                     }
-                    lineagePanel.setLineage(fileLineage);
+                    if (fileLineage != null) {
+                        lineagePanel.setLineage(fileLineage);
+                    }
                     mainPanel.revalidate();
                 }, ModalityState.nonModal());
             }
@@ -215,6 +258,7 @@ public class SqlxCompiledPreviewEditor extends UserDataHolderBase implements Fil
     @Override
     public void dispose() {
         queryPanel.dispose();
+        testPanel.dispose();
     }
 
     @Override
@@ -227,13 +271,18 @@ public class SqlxCompiledPreviewEditor extends UserDataHolderBase implements Fil
     }
 
     public boolean hasQuery() {
+        if (mode == SqlxPreviewMode.UNIT_TEST) {
+            return !TestQueries.of(compiledTest).isEmpty();
+        }
         return rawQueries.stream().anyMatch(q -> q.query() != null && !q.query().isBlank());
     }
 
     public void executeQuery(@NotNull AnActionEvent e) {
-        List<FormattedCompiledQuery> queries = rawQueries.stream()
-                .map(SqlxCompiledPreviewEditor::toPlain)
-                .toList();
+        List<FormattedCompiledQuery> queries = mode == SqlxPreviewMode.UNIT_TEST
+                ? TestQueries.of(compiledTest).stream()
+                        .map(q -> new FormattedCompiledQuery(q.label(), null, null, q.sql(), null, null))
+                        .toList()
+                : rawQueries.stream().map(SqlxCompiledPreviewEditor::toPlain).toList();
         if (queries.isEmpty()) return;
 
         if (queries.size() == 1) {
@@ -318,6 +367,9 @@ public class SqlxCompiledPreviewEditor extends UserDataHolderBase implements Fil
         if (view == View.QUERY) {
             refreshQueryView();
         }
+        if (view == View.TEST) {
+            refreshTestView();
+        }
         CardLayout cl = (CardLayout) mainPanel.getLayout();
         cl.show(mainPanel, view.name());
     }
@@ -326,6 +378,24 @@ public class SqlxCompiledPreviewEditor extends UserDataHolderBase implements Fil
         if (!queryViewStale) return;
         queryViewStale = false;
         queryPanel.setContent(rawQueries.stream().map(q -> toFormatted(q, project)).toList());
+    }
+
+    private void refreshTestView() {
+        if (!testViewStale) return;
+        testViewStale = false;
+        CompiledTest test = compiledTest;
+        testPanel.setContent(
+                test == null ? null : Utils.formatSql(project, test.getTestQuery()),
+                test == null ? null : Utils.formatSql(project, test.getExpectedOutputQuery()),
+                testCompilationErrors);
+    }
+
+    /**
+     * Returns whether the preview shows an action (lineage, query, schema) or a unit test.
+     */
+    @NotNull
+    public SqlxPreviewMode getMode() {
+        return mode;
     }
 
     private static FormattedCompiledQuery toPlain(CompiledQuery q) {

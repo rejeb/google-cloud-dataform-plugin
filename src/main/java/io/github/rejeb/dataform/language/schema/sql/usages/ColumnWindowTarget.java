@@ -17,6 +17,7 @@
 package io.github.rejeb.dataform.language.schema.sql.usages;
 
 import com.intellij.lang.injection.InjectedLanguageManager;
+import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiPolyVariantReference;
@@ -29,8 +30,12 @@ import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
 import io.github.rejeb.dataform.language.schema.sql.ColumnOriginService;
 import io.github.rejeb.dataform.language.schema.sql.SqlxColumnAtCaret;
 import io.github.rejeb.dataform.language.schema.sql.StructColumnPathResolver;
+import io.github.rejeb.dataform.language.schema.sql.StructColumnPaths;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasColumn;
 import io.github.rejeb.dataform.language.schema.sql.model.StructColumnPath;
+import io.github.rejeb.dataform.language.unittest.SqlxUnitTests;
+import io.github.rejeb.dataform.language.unittest.columns.TestColumnAlias;
+import io.github.rejeb.dataform.language.unittest.columns.TestColumnAliases;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -75,6 +80,10 @@ public record ColumnWindowTarget(@NotNull List<PsiElement> searchTargets,
                 .findInjectedElementAt(hostFile, offset);
         if (injected == null) return null;
 
+        if (SqlxUnitTests.isUnitTestFile(hostFile)) {
+            ColumnWindowTarget test = fromTestAlias(injected);
+            if (test != null) return test;
+        }
         ColumnWindowTarget alias = fromAlias(injected);
         if (alias != null) return alias;
         ColumnWindowTarget read = fromReference(injected);
@@ -122,6 +131,35 @@ public record ColumnWindowTarget(@NotNull List<PsiElement> searchTargets,
     }
 
     /** A column read by name, which is declared by whatever it resolves to. */
+    /**
+     * The column a unit test alias stands for, searched the way a read of it would be. The alias
+     * itself is among the searched elements, so the window does not list it as a usage.
+     */
+    private static @Nullable ColumnWindowTarget fromTestAlias(@NotNull PsiElement token) {
+        Project project = token.getProject();
+        TestColumnAlias alias = TestColumnAliases.getInstance(project).at(token).orElse(null);
+        if (alias == null) return null;
+        ColumnOriginService origins = ColumnOriginService.getInstance(project);
+        ColumnRef column = alias.column();
+        if (column.columnName().contains(".")) {
+            StructColumnPath path = StructColumnPaths.of(project, column).orElse(null);
+            if (path == null) return null;
+            PsiElement declaration = origins.declaringElement(path);
+            ColumnRef root = origins.reference(path.root());
+            List<ColumnRef> sources = declaration == null && root != null && origins.isSource(root)
+                    ? List.of(new ColumnRef(root.tableFullName(), path.dottedName()))
+                    : List.of();
+            return new ColumnWindowTarget(List.of(alias.identifier()), path.leafName(),
+                    declaration == null ? List.of() : List.of(declaration), sources, path);
+        }
+        DataformDasColumn das = origins.dasColumn(column);
+        if (das == null) return null;
+        List<ColumnRef> sources = new ArrayList<>();
+        PsiElement declaration = declarationOf(das, origins, sources);
+        return new ColumnWindowTarget(List.of(das, alias.identifier()), das.getName(),
+                declaration == null ? List.of() : List.of(declaration), distinct(sources), null);
+    }
+
     private static @Nullable ColumnWindowTarget fromReference(@NotNull PsiElement token) {
         PsiElement reference = SqlxColumnAtCaret.referenceOf(token);
         if (reference == null) return null;

@@ -47,7 +47,10 @@ public class SqlxParserDefinition implements ParserDefinition {
             SharedTokenTypes.JS_CONTENT, SqlxJsBlock::new,
             SharedTokenTypes.TEMPLATE_EXPRESSION, SqlxJsLiteralExpression::new,
             SharedTokenTypes.PRE_OPERATIONS_CONTENT, SqlxSqlBlock::new,
-            SharedTokenTypes.POST_OPERATIONS_CONTENT, SqlxSqlBlock::new
+            SharedTokenTypes.POST_OPERATIONS_CONTENT, SqlxSqlBlock::new,
+            SharedTokenTypes.INPUT_CONTENT, SqlxSqlBlock::new,
+            SharedTokenTypes.INPUT_BLOCK, SqlxInputBlock::new,
+            SharedTokenTypes.INPUT_NAME, SqlxInputName::new
     );
 
     @NotNull

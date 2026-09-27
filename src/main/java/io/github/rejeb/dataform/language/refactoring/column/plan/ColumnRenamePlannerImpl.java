@@ -36,6 +36,7 @@ import io.github.rejeb.dataform.language.refactoring.column.usage.HostRanges;
 import io.github.rejeb.dataform.language.refactoring.column.usage.JsRenameEditCollector;
 import io.github.rejeb.dataform.language.refactoring.column.usage.SqlRenameEditCollector;
 import io.github.rejeb.dataform.language.refactoring.column.usage.SqlxStarExpander;
+import io.github.rejeb.dataform.language.refactoring.column.usage.TestRenameEditCollector;
 import io.github.rejeb.dataform.language.schema.sql.ColumnOriginService;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -68,7 +69,7 @@ public final class ColumnRenamePlannerImpl implements ColumnRenamePlanner {
                     "The project has not been compiled yet, so the columns reading this one are unknown");
         }
         return build(subject, newName,
-                ColumnClosure.of(graph, subject.column(), sourceTables()), List.of());
+                ColumnClosure.of(graph, subject.column(), sourceTables()), List.of(), graph);
     }
 
     /**
@@ -93,7 +94,7 @@ public final class ColumnRenamePlannerImpl implements ColumnRenamePlanner {
             case CANCEL -> ColumnRenamePlan.refused(plan.subject(), plan.newName(),
                     "The rename was cancelled");
             case EXPAND -> expand(plan);
-            case ALIAS_IN_CURRENT_FILE -> aliasInCurrentFile(plan);
+            case ALIAS_AT_READERS -> aliasAtReaders(plan);
         };
     }
 
@@ -118,7 +119,7 @@ public final class ColumnRenamePlannerImpl implements ColumnRenamePlanner {
                     boundary.column().columnName(), plan.newName());
             if (!expansion.isPossible()) {
                 unresolved.add(new StarBoundary(boundary.column(), boundary.file(), boundary.star(),
-                        expansion.blockers()));
+                        expansion.blockers()).withReaders(boundary.readers(), boundary.readerFiles()));
                 warnings.add("The star of " + hostFile.getName() + " could not be expanded: "
                         + String.join(", ", expansion.blockers()));
                 continue;
@@ -182,29 +183,40 @@ public final class ColumnRenamePlannerImpl implements ColumnRenamePlanner {
     }
 
     /**
-     * The plan reduced to the file of the caret and everything downstream of it: the column keeps
-     * its old name where it is produced, and the file of the caret declares it under the new one.
+     * The plan reduced to the actions reading a column straight from a star and everything
+     * downstream of them: the column keeps its old name where the star produces it, and each of
+     * those actions declares it under the new one.
      */
-    private @NotNull ColumnRenamePlan aliasInCurrentFile(@NotNull ColumnRenamePlan plan) {
+    private @NotNull ColumnRenamePlan aliasAtReaders(@NotNull ColumnRenamePlan plan) {
         ColumnRenameSubject subject = plan.subject();
-        if (!subject.declaresColumn()) {
+        Set<ColumnRef> readers = new LinkedHashSet<>();
+        plan.starBoundaries().forEach(boundary -> readers.addAll(boundary.readers()));
+        if (readers.isEmpty()) {
             return ColumnRenamePlan.refused(subject, plan.newName(),
-                    "The caret is on a read, so there is no declaration here to give the new name to");
+                    "No action of the rename reads the column from the star, so there is nowhere to declare the new name");
         }
         ColumnLineageGraph graph = LineageGraphService.getInstance(project).columnGraph();
         if (graph == null) {
             return ColumnRenamePlan.refused(subject, plan.newName(),
                     "The project has not been compiled yet");
         }
-        ColumnRenamePlan reduced = build(subject, plan.newName(),
-                ColumnClosure.downstreamOf(graph, subject.column(), sourceTables()), List.of());
-        return new ColumnRenamePlan(subject, plan.newName(), reduced.columns(),
-                withDeclarationAliased(reduced.edits(), subject, plan.newName()),
-                List.of(), reduced.warnings(), reduced.refusal());
+        Map<String, ColumnRenameEdit> edits = new LinkedHashMap<>();
+        Set<ColumnRef> columns = new LinkedHashSet<>();
+        List<String> warnings = new ArrayList<>();
+        for (ColumnRef reader : readers) {
+            ColumnRenamePlan reduced = build(subject, plan.newName(),
+                    ColumnClosure.downstreamOf(graph, reader, sourceTables()), List.of(), graph);
+            columns.addAll(reduced.columns());
+            reduced.warnings().stream().filter(warning -> !warnings.contains(warning)).forEach(warnings::add);
+            withDeclarationAliased(reduced.edits(), reader, plan.newName())
+                    .forEach(edit -> edits.put(edit.key(), edit));
+        }
+        return new ColumnRenamePlan(subject, plan.newName(), Set.copyOf(columns),
+                List.copyOf(edits.values()), List.of(), List.copyOf(warnings), null);
     }
 
     /**
-     * The declaration of the caret's file rewritten as {@code old AS new}, so the file starts
+     * The declaration of {@code column} rewritten as {@code old AS new}, so its action starts
      * producing the new name while still reading the old one from its source.
      *
      * <p>A declaration that is already the alias of an {@code AS} expression is only renamed: the
@@ -213,13 +225,12 @@ public final class ColumnRenamePlannerImpl implements ColumnRenamePlanner {
      */
     private @NotNull List<ColumnRenameEdit> withDeclarationAliased(
             @NotNull List<ColumnRenameEdit> edits,
-            @NotNull ColumnRenameSubject subject,
+            @NotNull ColumnRef column,
             @NotNull String newName) {
-        PsiElement declaration = ColumnOriginService.getInstance(project)
-                .declaringElement(subject.column());
+        PsiElement declaration = ColumnOriginService.getInstance(project).declaringElement(column);
         if (declaration == null) return edits;
         ColumnRenameEdit aliased = SqlRenameEditCollector.aliasedDeclaration(declaration,
-                subject.oldName(), newName);
+                column.columnName(), newName);
         if (aliased == null) return edits;
 
         List<ColumnRenameEdit> result = new ArrayList<>();
@@ -245,13 +256,16 @@ public final class ColumnRenamePlannerImpl implements ColumnRenamePlanner {
     private @NotNull ColumnRenamePlan build(@NotNull ColumnRenameSubject subject,
                                             @NotNull String newName,
                                             @NotNull ColumnClosure closure,
-                                            @NotNull List<String> knownWarnings) {
+                                            @NotNull List<String> knownWarnings,
+                                            @NotNull ColumnLineageGraph graph) {
         Set<ColumnRef> columns = closure.columns();
         SqlRenameEditCollector.Result sql =
                 SqlRenameEditCollector.collect(project, columns, closure.carried(),
                         closure.aliased(), newName);
         Map<String, ColumnRenameEdit> edits = new LinkedHashMap<>();
         sql.edits().forEach(edit -> edits.putIfAbsent(edit.key(), edit));
+        TestRenameEditCollector.collect(project, columns, newName)
+                .forEach(edit -> edits.putIfAbsent(edit.key(), edit));
 
         Set<PsiFile> declaringFiles = declaringFilesOf(columns);
         if (subject.declaresColumn()) declaringFiles.add(subject.hostFile());
@@ -271,7 +285,32 @@ public final class ColumnRenamePlannerImpl implements ColumnRenamePlanner {
                     + " comes from could not be determined; its sources keep the old name");
         }
         return new ColumnRenamePlan(subject, newName, Set.copyOf(columns), List.copyOf(edits.values()),
-                sql.boundaries(), List.copyOf(warnings), null);
+                withReaders(sql.boundaries(), graph, columns), List.copyOf(warnings), null);
+    }
+
+    /**
+     * The boundaries with, for each, the columns of the rename reading it straight from the star
+     * and the files declaring them, which is where the new name can be declared instead.
+     */
+    private @NotNull List<StarBoundary> withReaders(@NotNull List<StarBoundary> boundaries,
+                                                    @NotNull ColumnLineageGraph graph,
+                                                    @NotNull Set<ColumnRef> columns) {
+        List<StarBoundary> result = new ArrayList<>(boundaries.size());
+        for (StarBoundary boundary : boundaries) {
+            List<ColumnRef> readers = new ArrayList<>();
+            Set<VirtualFile> files = new LinkedHashSet<>();
+            for (String id : graph.successors(boundary.column().id())) {
+                ColumnRef reader = graph.column(id);
+                if (reader == null || !columns.contains(reader)) continue;
+                PsiElement declaration = ColumnOriginService.getInstance(project).declaringElement(reader);
+                PsiFile hostFile = declaration == null ? null : HostRanges.hostPsiFileOf(declaration);
+                if (hostFile == null || hostFile.getVirtualFile() == null) continue;
+                readers.add(reader);
+                files.add(hostFile.getVirtualFile());
+            }
+            result.add(boundary.withReaders(readers, List.copyOf(files)));
+        }
+        return List.copyOf(result);
     }
 
     private @NotNull Set<PsiFile> declaringFilesOf(@NotNull Set<ColumnRef> columns) {

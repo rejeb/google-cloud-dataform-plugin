@@ -160,4 +160,28 @@ public class SelectListInsertionCompletionTest extends DataformProjectFixture {
                 "config { type: \"table\" }\nSELECT <caret> order_id FROM `proj.ds.bronze_orders`"),
                 "customer_id");
     }
+
+
+    public void testPickingAllColumnsWritesEveryColumn() {
+        String[] result = new String[1];
+        try {
+            LoggedErrorProcessor.executeWith(IGNORING_SQL_LOOKUP_LEAK, () -> {
+                myFixture.configureByText("probe.sqlx",
+                        "config { type: \"table\" }\nSELECT o<caret> FROM `proj.ds.bronze_orders` bo");
+                LookupElement[] elements = myFixture.completeBasic();
+                LookupElement chosen = Arrays.stream(elements)
+                        .filter(element -> element.getLookupString().contains(", "))
+                        .findFirst().orElseThrow();
+                myFixture.getLookup().setCurrentItem(chosen);
+                myFixture.type('\n');
+                result[0] = com.intellij.lang.injection.InjectedLanguageManager.getInstance(getProject())
+                        .getTopLevelFile(myFixture.getFile()).getText();
+            });
+        } catch (Throwable e) {
+            throw new AssertionError(e);
+        }
+        assertEquals("config { type: \"table\" }\n"
+                        + "SELECT order_id, customer_id, order_ts, order_status FROM `proj.ds.bronze_orders` bo",
+                result[0]);
+    }
 }

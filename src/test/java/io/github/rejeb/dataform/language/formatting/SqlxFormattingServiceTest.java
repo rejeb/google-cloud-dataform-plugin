@@ -47,4 +47,15 @@ public class SqlxFormattingServiceTest extends BasePlatformTestCase {
                         + myFixture.getEditor().getDocument().getText(),
                 myFixture.getEditor().getDocument().getText().startsWith("config {"));
     }
+
+    public void testAnInputBlockHeaderAndBracesAreNormalised() {
+        PsiFile file = sqlx("config {\n  type: \"test\",\n  dataset: \"orders\"\n}\n"
+                + "input   \"raw\" ,\"src\"{SELECT 1 AS id}\n"
+                + "SELECT 1 AS id\n");
+        reformat(file);
+
+        String text = myFixture.getEditor().getDocument().getText();
+        assertTrue("got [" + text + "]", text.contains("input \"raw\", \"src\" {\nSELECT 1 AS id\n}"));
+        assertTrue("got [" + text + "]", text.endsWith("SELECT 1 AS id\n"));
+    }
 }

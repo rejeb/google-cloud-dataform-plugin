@@ -37,7 +37,30 @@ import java.util.List;
 public record StarBoundary(@NotNull ColumnRef column,
                            @Nullable VirtualFile file,
                            @Nullable SmartPsiElementPointer<PsiElement> star,
-                           @NotNull List<String> blockers) {
+                           @NotNull List<String> blockers,
+                           @NotNull List<ColumnRef> readers,
+                           @NotNull List<VirtualFile> readerFiles) {
+
+    public StarBoundary(@NotNull ColumnRef column,
+                        @Nullable VirtualFile file,
+                        @Nullable SmartPsiElementPointer<PsiElement> star,
+                        @NotNull List<String> blockers) {
+        this(column, file, star, blockers, List.of(), List.of());
+    }
+
+    /**
+     * The same boundary, with the columns of the rename reading it straight from the star and the
+     * files declaring them.
+     */
+    public @NotNull StarBoundary withReaders(@NotNull List<ColumnRef> readers,
+                                             @NotNull List<VirtualFile> readerFiles) {
+        return new StarBoundary(column, file, star, blockers, List.copyOf(readers), List.copyOf(readerFiles));
+    }
+
+    /** Whether the new name can be declared where the column is read from the star. */
+    public boolean canAlias() {
+        return !readerFiles.isEmpty();
+    }
 
     /** Whether expanding the star into an explicit column list is possible here. */
     public boolean canExpand() {

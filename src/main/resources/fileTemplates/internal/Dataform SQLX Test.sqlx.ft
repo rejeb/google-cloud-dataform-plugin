@@ -1,0 +1,16 @@
+config {
+  type: "test",
+  dataset: {
+    schema: "my_dataset",
+    name: "my_table"
+  }
+}
+
+input "my_source" {
+  SELECT
+    1 AS id
+}
+
+-- Expected output
+SELECT
+  1 AS id

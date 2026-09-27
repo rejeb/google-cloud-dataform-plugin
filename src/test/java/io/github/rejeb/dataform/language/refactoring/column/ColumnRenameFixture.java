@@ -21,6 +21,7 @@ import com.intellij.testFramework.fixtures.BasePlatformTestCase;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.compilation.model.CompiledTable;
+import io.github.rejeb.dataform.language.compilation.model.CompiledTest;
 import io.github.rejeb.dataform.language.compilation.model.Declaration;
 import io.github.rejeb.dataform.language.compilation.model.Target;
 import io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService;
@@ -117,6 +118,25 @@ public abstract class ColumnRenameFixture extends BasePlatformTestCase {
         files.put(action, file);
         myFixture.configureFromExistingVirtualFile(file.getVirtualFile());
         return myFixture.getFile();
+    }
+
+    /**
+     * Adds a unit test file of {@code dataset} under {@code definitions/tests} and registers it in
+     * the compiled graph, as a compilation of the project would.
+     */
+    protected PsiFile addTest(String name, String dataset, String text) {
+        String fileName = "definitions/tests/" + name + ".sqlx";
+        PsiFile file = myFixture.addFileToProject(fileName, text);
+        files.put(name, file);
+        CompiledGraph graph = getProject().getService(DataformCompilationService.class).getCompiledGraph();
+        CompiledTest test = new CompiledTest();
+        set(test, "name", name);
+        set(test, "fileName", fileName);
+        set(test, "target", targetOf(dataset));
+        List<CompiledTest> tests = new ArrayList<>(graph.getTests());
+        tests.add(test);
+        set(graph, "tests", tests);
+        return file;
     }
 
     /** The file of an action, as it stands now. */

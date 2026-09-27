@@ -16,10 +16,14 @@
  */
 package io.github.rejeb.dataform.language.schema.sql;
 
+import com.intellij.psi.PsiManager;
+import com.intellij.testFramework.PlatformTestUtil;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
+import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasTable;
 
 import java.util.Map;
+import java.util.Set;
 
 /**
  * The map returned by {@code getAllTables} feeds SQL reference resolution inside
@@ -64,6 +68,20 @@ public class DataformTableSchemaSnapshotTest extends BasePlatformTestCase {
         } catch (UnsupportedOperationException expected) {
             // expected
         }
+    }
+
+    public void testAChangedSchemaInvalidatesWhatWasComputedFromThePsi() {
+        DataformTableSchemaService service = DataformTableSchemaService.getInstance(getProject());
+        service.loadState(state(CACHE_JSON));
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue();
+        long before = PsiManager.getInstance(getProject()).getModificationTracker().getModificationCount();
+
+        service.renameColumn(Set.of(new ColumnRef("p.d.orders", "order_id")), "order_ref", Set.of());
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue();
+
+        assertTrue("the SQL plugin keeps what it resolved until the PSI modification count moves, "
+                        + "so a new schema must move it",
+                PsiManager.getInstance(getProject()).getModificationTracker().getModificationCount() > before);
     }
 
     private static DataformTableSchemaService.State state(String json) {

@@ -60,7 +60,6 @@ public final class ColumnRenameProcessor extends BaseRefactoringProcessor {
     public ColumnRenameProcessor(@NotNull Project project, @NotNull ColumnRenamePlan plan) {
         super(project);
         this.plan = plan;
-        setPreviewUsages(plan.needsPreview());
     }
 
     @Override
@@ -104,7 +103,8 @@ public final class ColumnRenameProcessor extends BaseRefactoringProcessor {
         int written = ColumnRenameEdits.apply(myProject, kept);
         int excluded = plan.edits().size() - kept.length;
         publishNewName(renamed);
-        notify(message(written, kept, excluded), NotificationType.INFORMATION);
+        notify(message(written, kept, excluded),
+                plan.warnings().isEmpty() ? NotificationType.INFORMATION : NotificationType.WARNING);
         kept = UsageInfo.EMPTY_ARRAY;
         DataformEditorRefresher.refresh(myProject);
     }

@@ -31,6 +31,8 @@ public class SqlxFileLexer extends LexerBase {
     private static final int SQL_CONTENT = 3;
     private static final int PRE_OPERATIONS_BLOCK = 4;
     private static final int POST_OPERATIONS_BLOCK = 5;
+    private static final int INPUT_HEADER = 6;
+    private static final int INPUT_BLOCK = 7;
 
     private static final int BLOCK_STATE_MASK = 0x7;
     private static final int AFTER_OPEN_BRACE_FLAG = 0x8;
@@ -41,6 +43,7 @@ public class SqlxFileLexer extends LexerBase {
     private static final String JS_KEYWORD = "js";
     private static final String PRE_OPERATIONS_KEYWORD = "pre_operations";
     private static final String POST_OPERATIONS_KEYWORD = "post_operations";
+    private static final String INPUT_KEYWORD = "input";
 
     private CharSequence buffer;
     private int endOffset;
@@ -144,6 +147,12 @@ public class SqlxFileLexer extends LexerBase {
             case POST_OPERATIONS_BLOCK:
                 locateOperationsBlock(SharedTokenTypes.POST_OPERATIONS_CONTENT);
                 break;
+            case INPUT_HEADER:
+                locateInputHeader();
+                break;
+            case INPUT_BLOCK:
+                locateOperationsBlock(SharedTokenTypes.INPUT_CONTENT);
+                break;
             case SQL_CONTENT:
                 locateTokenSqlContent();
                 break;
@@ -182,6 +191,10 @@ public class SqlxFileLexer extends LexerBase {
         }
         if (matchKeyword(POST_OPERATIONS_KEYWORD)) {
             continueInKeywordBlock(POST_OPERATIONS_KEYWORD, SharedTokenTypes.POST_OPERATIONS_KEYWORD, POST_OPERATIONS_BLOCK);
+            return;
+        }
+        if (matchInputHeader()) {
+            continueInKeywordBlock(INPUT_KEYWORD, SharedTokenTypes.INPUT_KEYWORD, INPUT_HEADER);
             return;
         }
 
@@ -371,6 +384,77 @@ public class SqlxFileLexer extends LexerBase {
         }
     }
 
+    private void locateInputHeader() {
+        char first = buffer.charAt(currentPosition);
+
+        if (Character.isWhitespace(first)) {
+            int start = currentPosition;
+            skipWhitespace();
+            boolean crossesLine = containsLineBreak(start, currentPosition);
+            if (crossesLine && (currentPosition >= endOffset || buffer.charAt(currentPosition) != '{')) {
+                state = YYINITIAL;
+            }
+            currentTokenType = TokenType.WHITE_SPACE;
+            currentTokenEnd = currentPosition;
+            return;
+        }
+
+        if (first == '"') {
+            currentPosition++;
+            while (currentPosition < endOffset) {
+                char c = buffer.charAt(currentPosition);
+                if (c == '\n' || c == '\r') {
+                    break;
+                }
+                currentPosition++;
+                if (c == '"') {
+                    break;
+                }
+            }
+            currentTokenType = SharedTokenTypes.INPUT_NAME;
+            currentTokenEnd = currentPosition;
+            return;
+        }
+
+        if (first == ',') {
+            currentPosition++;
+            currentTokenType = SharedTokenTypes.INPUT_NAME_SEPARATOR;
+            currentTokenEnd = currentPosition;
+            return;
+        }
+
+        if (first == '{') {
+            state = INPUT_BLOCK;
+            braceDepth = 0;
+            locateOperationsBlock(SharedTokenTypes.INPUT_CONTENT);
+            return;
+        }
+
+        state = SQL_CONTENT;
+        locateTokenSqlContent();
+    }
+
+    private boolean matchInputHeader() {
+        if (!matchKeyword(INPUT_KEYWORD)) {
+            return false;
+        }
+        int afterKeyword = currentPosition + INPUT_KEYWORD.length();
+        int position = afterKeyword;
+        while (position < endOffset && (buffer.charAt(position) == ' ' || buffer.charAt(position) == '\t')) {
+            position++;
+        }
+        return position > afterKeyword && position < endOffset && buffer.charAt(position) == '"';
+    }
+
+    private boolean containsLineBreak(int from, int to) {
+        for (int i = from; i < to; i++) {
+            if (buffer.charAt(i) == '\n') {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void locateTokenSqlContent() {
         if (currentPosition >= endOffset) {
             currentTokenType = null;
@@ -479,7 +563,8 @@ public class SqlxFileLexer extends LexerBase {
         return matchKeyword(CONFIG_KEYWORD)
                 || matchKeyword(JS_KEYWORD)
                 || matchKeyword(PRE_OPERATIONS_KEYWORD)
-                || matchKeyword(POST_OPERATIONS_KEYWORD);
+                || matchKeyword(POST_OPERATIONS_KEYWORD)
+                || matchInputHeader();
     }
 
     private boolean matchKeyword(String keyword) {

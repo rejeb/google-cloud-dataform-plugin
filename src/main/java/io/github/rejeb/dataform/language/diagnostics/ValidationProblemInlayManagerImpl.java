@@ -104,6 +104,7 @@ public final class ValidationProblemInlayManagerImpl implements ValidationProble
 
         ReadAction.nonBlocking(() -> SqlxValidationService.getInstance(project).validate(psiFile))
                 .expireWith(project)
+                .expireWhen(() -> !psiFile.isValid())
                 .coalesceBy(this, editor)
                 .finishOnUiThread(ModalityState.defaultModalityState(),
                         problems -> applyProblems(editor, problems))

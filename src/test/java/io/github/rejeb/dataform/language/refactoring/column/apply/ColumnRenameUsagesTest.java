@@ -16,6 +16,8 @@
  */
 package io.github.rejeb.dataform.language.refactoring.column.apply;
 
+import java.lang.reflect.Method;
+import com.intellij.refactoring.BaseRefactoringProcessor;
 import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.util.Segment;
@@ -142,15 +144,18 @@ public class ColumnRenameUsagesTest extends ColumnRenameFixture {
                 .at(file, file.getText().indexOf("AS order_id") + 4).orElseThrow();
         ColumnRenamePlan plan = ColumnRenamePlanner.getInstance(getProject()).plan(subject, "order_ref");
 
-        assertFalse("nothing was guessed, so there is nothing to review", plan.needsPreview());
         assertEquals("the plan of a clean rename holds only certain places", plan.edits().size(),
                 new ColumnRenameProcessor(getProject(), plan).findUsages().length);
     }
 
-    public void testAPlanHoldingAGuessIsReviewedFirst() {
+    public void testAPlanHoldingAGuessIsWrittenWithoutThePreview() throws Exception {
         ColumnRenamePlan plan = plan("order_ref");
+        ColumnRenameProcessor processor = new ColumnRenameProcessor(getProject(), plan);
+        Method previewed = BaseRefactoringProcessor.class.getDeclaredMethod("isPreviewUsages", UsageInfo[].class);
+        previewed.setAccessible(true);
 
-        assertTrue("a place found by matching text is shown before it is written",
-                plan.needsPreview());
+        assertFalse("the preview is only opened when the user asks for it from the rename dialog",
+                (Boolean) previewed.invoke(processor, (Object) processor.findUsages()));
     }
+
 }

@@ -31,6 +31,7 @@ public class CompiledGraph {
     private List<CompiledAssertion> assertions;
     private List<CompiledOperation> operations;
     private List<Declaration> declarations;
+    private List<CompiledTest> tests;
     private ProjectConfig projectConfig;
     private GraphErrors graphErrors;
     private transient volatile FileNameIndex fileNameIndex;
@@ -49,6 +50,14 @@ public class CompiledGraph {
 
     public List<Declaration> getDeclarations() {
         return declarations != null ? declarations : Collections.emptyList();
+    }
+
+    public List<CompiledTest> getTests() {
+        return tests != null ? tests : Collections.emptyList();
+    }
+
+    public List<CompiledTest> findTestByFileName(String fileName) {
+        return getTests().stream().filter(test -> test.matchFileName(fileName)).toList();
     }
 
     public ProjectConfig getProjectConfig() {

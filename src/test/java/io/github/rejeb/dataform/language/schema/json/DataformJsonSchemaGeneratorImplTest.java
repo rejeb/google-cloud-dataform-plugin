@@ -86,7 +86,7 @@ public class DataformJsonSchemaGeneratorImplTest {
             types.add(branch.path("properties").path("type").path("enum").get(0).asText());
             assertFalse(branch.get("additionalProperties").asBoolean());
         }
-        assertEquals(List.of("table", "view", "incremental", "assertion", "operations", "declaration"), types);
+        assertEquals(List.of("table", "view", "incremental", "assertion", "operations", "declaration", "test"), types);
     }
 
     @Test
@@ -185,6 +185,18 @@ public class DataformJsonSchemaGeneratorImplTest {
         JsonNode incremental = branch("incremental").get("properties").get("bigquery").get("properties");
         assertTrue(incremental.has("updatePartitionFilter"));
         assertTrue(incremental.has("iceberg"));
+    }
+
+    @Test
+    public void unitTestBranchHasOnlyTheTestConfigKeys() {
+        JsonNode test = branch("test");
+        List<String> keys = new ArrayList<>();
+        test.get("properties").fieldNames().forEachRemaining(keys::add);
+
+        assertEquals(List.of("type", "dataset", "name", "tags"), keys);
+        assertEquals("dataset", test.get("required").get(1).asText());
+        assertFalse(test.get("additionalProperties").asBoolean());
+        assertEquals(2, test.get("properties").get("dataset").get("oneOf").size());
     }
 
     private JsonNode branch(String type) {

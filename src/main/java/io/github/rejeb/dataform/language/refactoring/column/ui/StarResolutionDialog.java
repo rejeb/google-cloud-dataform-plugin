@@ -64,13 +64,13 @@ public final class StarResolutionDialog implements StarResolutionChooser {
             super(project, false);
             this.plan = plan;
             this.alias = new JRadioButton("Declare \"" + plan.newName() + "\" in "
-                    + plan.subject().hostFile().getName() + " and leave the sources unchanged");
+                    + readerFileNames(plan) + " and leave the sources unchanged");
             setTitle("Rename Column Produced by a Star");
             init();
         }
 
         private @NotNull StarResolution choice() {
-            return expand.isSelected() ? StarResolution.EXPAND : StarResolution.ALIAS_IN_CURRENT_FILE;
+            return expand.isSelected() ? StarResolution.EXPAND : StarResolution.ALIAS_AT_READERS;
         }
 
         @Override
@@ -81,7 +81,7 @@ public final class StarResolutionDialog implements StarResolutionChooser {
             JPanel options = new JPanel();
             options.setLayout(new BoxLayout(options, BoxLayout.Y_AXIS));
             boolean expandable = plan.starBoundaries().stream().anyMatch(StarBoundary::canExpand);
-            boolean aliasable = plan.subject().declaresColumn();
+            boolean aliasable = plan.starBoundaries().stream().anyMatch(StarBoundary::canAlias);
             expand.setEnabled(expandable);
             alias.setEnabled(aliasable);
             expand.setSelected(expandable || !aliasable);
@@ -97,6 +97,14 @@ public final class StarResolutionDialog implements StarResolutionChooser {
             options.add(new JLabel("<html><i>Everything upstream keeps the old name.</i></html>"));
             panel.add(options, BorderLayout.CENTER);
             return panel;
+        }
+
+        private static @NotNull String readerFileNames(@NotNull ColumnRenamePlan plan) {
+            Set<String> names = new LinkedHashSet<>();
+            for (StarBoundary boundary : plan.starBoundaries()) {
+                boundary.readerFiles().forEach(file -> names.add(file.getName()));
+            }
+            return names.isEmpty() ? "the actions reading it" : String.join(", ", names);
         }
 
         private @NotNull String explanation() {

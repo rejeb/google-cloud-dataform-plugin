@@ -86,9 +86,14 @@ final class SchemaCacheStore {
         return publishedTables;
     }
 
-    /** Publishes the working cache as the new snapshot returned by {@link #published()}. */
-    void publish() {
+    /**
+     * Publishes the working cache as the new snapshot returned by {@link #published()}.
+     *
+     * @return whether the snapshot names other tables or other columns than the previous one
+     */
+    boolean publish() {
         Map<String, DataformDasTable> snapshot = Collections.unmodifiableMap(new LinkedHashMap<>(tables));
+        boolean changed = !sameColumns(publishedTables, snapshot);
         Map<String, List<DataformDasTable>> byName = new HashMap<>();
         for (DataformDasTable table : snapshot.values()) {
             byName.computeIfAbsent(table.getName().toLowerCase(Locale.ROOT), k -> new ArrayList<>()).add(table);
@@ -96,6 +101,17 @@ final class SchemaCacheStore {
         byName.replaceAll((k, v) -> List.copyOf(v));
         publishedTables = snapshot;
         publishedByName = Collections.unmodifiableMap(byName);
+        return changed;
+    }
+
+    private static boolean sameColumns(@NotNull Map<String, DataformDasTable> previous,
+                                       @NotNull Map<String, DataformDasTable> next) {
+        if (previous.size() != next.size()) return false;
+        for (Map.Entry<String, DataformDasTable> entry : next.entrySet()) {
+            DataformDasTable before = previous.get(entry.getKey());
+            if (before == null || !before.getColumns().equals(entry.getValue().getColumns())) return false;
+        }
+        return true;
     }
 
     /** The published tables carrying the short name, compared without regard to case. */

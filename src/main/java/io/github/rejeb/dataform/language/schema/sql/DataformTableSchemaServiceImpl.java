@@ -16,6 +16,10 @@
  */
 package io.github.rejeb.dataform.language.schema.sql;
 
+import io.github.rejeb.dataform.language.util.DataformProjectLayout;
+import com.intellij.psi.PsiFile;
+import com.intellij.openapi.fileEditor.FileEditorManager;
+import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.progress.ProcessCanceledException;
 import com.intellij.openapi.application.ApplicationManager;
@@ -107,7 +111,7 @@ public final class DataformTableSchemaServiceImpl
     @Override
     public void loadState(@NotNull DataformTableSchemaService.State state) {
         cache.load(state);
-        snapshotChanged();
+        snapshotChanged(true);
     }
 
     @Override
@@ -187,8 +191,7 @@ public final class DataformTableSchemaServiceImpl
 
     /** Publishes what the cache now holds and tells everything reading it that it changed. */
     private void announce() {
-        cache.publish();
-        snapshotChanged();
+        snapshotChanged(cache.publish());
         notifyReaders();
     }
 
@@ -202,8 +205,7 @@ public final class DataformTableSchemaServiceImpl
      * corrected answer either way.</p>
      */
     private void announceAfterTheDocumentChange() {
-        cache.publish();
-        snapshotChanged();
+        snapshotChanged(cache.publish());
         ApplicationManager.getApplication()
                 .invokeLater(this::notifyReaders, ModalityState.defaultModalityState());
     }
@@ -212,10 +214,40 @@ public final class DataformTableSchemaServiceImpl
      * Counts a new snapshot as a change, once resolution has let go of the tables of the previous
      * one. A table a reference resolved to holds the columns of the snapshot it was read from, and
      * the platform keeps what it resolved until the PSI changes, which a schema refresh does not do.
+     *
+     * <p>Dropping the resolve caches is not enough when columns changed: the SQL plugin also keeps
+     * what it resolved in values cached against the PSI modification count, so a file whose PSI
+     * changed while the schema was out of date — an undo right after a rename — would go on showing
+     * its columns as unknown until it is reopened. Those caches are dropped on the event thread, in
+     * a write-safe context, and the open files are highlighted again.</p>
+     *
+     * @param columnsChanged whether the new snapshot names other tables or columns
      */
-    private void snapshotChanged() {
+    private void snapshotChanged(boolean columnsChanged) {
         if (!project.isDisposed()) PsiManager.getInstance(project).dropResolveCaches();
         modificationCount.incrementAndGet();
+        if (columnsChanged) {
+            ApplicationManager.getApplication().invokeLater(this::dropWhatWasResolvedInOpenFiles,
+                    ModalityState.nonModal(), project.getDisposed());
+        }
+    }
+
+    /**
+     * Drops the injected SQL of the open Dataform files with the PSI caches, so that the SQL plugin
+     * resolves their columns again against the new snapshot. The injected file keeps what was
+     * resolved in it for as long as its host is not edited, which a schema change never does.
+     */
+    private void dropWhatWasResolvedInOpenFiles() {
+        if (project.isDisposed()) return;
+        PsiManager psiManager = PsiManager.getInstance(project);
+        InjectedLanguageManager injections = InjectedLanguageManager.getInstance(project);
+        for (VirtualFile file : FileEditorManager.getInstance(project).getOpenFiles()) {
+            if (!file.isValid() || !DataformProjectLayout.isDataformSource(file)) continue;
+            PsiFile psiFile = psiManager.findFile(file);
+            if (psiFile != null) injections.dropFileCaches(psiFile);
+        }
+        psiManager.dropPsiCaches();
+        DataformEditorRefresher.refresh(project);
     }
 
     private void notifyReaders() {
@@ -267,8 +299,7 @@ public final class DataformTableSchemaServiceImpl
     }
 
     private void onTaskFinished() {
-        cache.publish();
-        snapshotChanged();
+        snapshotChanged(cache.publish());
         PendingRefresh next;
         synchronized (pendingLock) {
             running.set(false);

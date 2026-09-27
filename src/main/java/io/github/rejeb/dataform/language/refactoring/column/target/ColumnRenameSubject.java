@@ -44,12 +44,14 @@ public record ColumnRenameSubject(@NotNull ColumnRef column,
         /** A bare item of the main select list, which declares the column and reads another. */
         SELECT_ITEM,
         /** An expression reading the column. */
-        READ
+        READ,
+        /** The alias of a unit test standing for the column in a mocked input or the expected output. */
+        TEST_ALIAS
     }
 
     /** Whether the file the caret is in declares the column being renamed. */
     public boolean declaresColumn() {
-        return kind != Kind.READ;
+        return kind != Kind.READ && kind != Kind.TEST_ALIAS;
     }
 
     /** The name the column carries today. */

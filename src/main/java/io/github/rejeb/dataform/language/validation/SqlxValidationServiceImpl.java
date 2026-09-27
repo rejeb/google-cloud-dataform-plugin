@@ -59,6 +59,9 @@ public final class SqlxValidationServiceImpl implements SqlxValidationService {
 
     @Override
     public @NotNull List<SqlxValidationProblem> validate(@NotNull PsiFile file) {
+        if (!file.isValid()) {
+            return List.of();
+        }
         List<SqlxValidator> applicable = validatorsFor(file);
         if (applicable.isEmpty()) {
             return List.of();

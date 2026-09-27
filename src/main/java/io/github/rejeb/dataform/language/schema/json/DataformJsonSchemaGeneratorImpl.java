@@ -54,6 +54,7 @@ public final class DataformJsonSchemaGeneratorImpl implements DataformJsonSchema
             "defaultProject", "defaultDataset", "defaultLocation", "defaultAssertionDataset");
 
     private static final String SQLX_COLUMN_DEF_KEY = "SqlxColumnDescriptor";
+    private static final String TEST_TYPE = "test";
 
     private final Map<String, ProtoModel.ProtoMessage> messageIndex = new HashMap<>();
     private final Map<String, ProtoModel.ProtoEnum> enumIndex = new HashMap<>();
@@ -165,6 +166,7 @@ public final class DataformJsonSchemaGeneratorImpl implements DataformJsonSchema
             for (Map.Entry<String, String> entry : SQLX_TYPES.entrySet()) {
                 oneOf.add(buildActionBranch(entry.getKey(), requireMessage(entry.getValue()), defs));
             }
+            oneOf.add(buildTestBranch());
 
             if (!defs.isEmpty()) {
                 ObjectNode defsNode = root.putObject("$defs");
@@ -234,6 +236,47 @@ public final class DataformJsonSchemaGeneratorImpl implements DataformJsonSchema
         if (SQLX_BIGQUERY_TYPES.contains(sqlxType)) {
             props.set("bigquery", buildBigQueryWrapper(sqlxType));
         }
+
+        return branch;
+    }
+
+    private ObjectNode buildTestBranch() {
+        ObjectNode branch = obj();
+        branch.put("type", "object");
+        branch.put("additionalProperties", false);
+        branch.putArray("required").add("type").add("dataset");
+        branch.put("description", "Unit test: runs the query of the dataset action on the rows of the input "
+                + "blocks and compares the result with the query of this file. Requires Dataform core 3.0.56+.");
+
+        ObjectNode props = branch.putObject("properties");
+
+        ObjectNode typeFixed = props.putObject("type");
+        typeFixed.put("type", "string");
+        typeFixed.putArray("enum").add(TEST_TYPE);
+        typeFixed.put("description", "Action type: " + TEST_TYPE + ".");
+
+        ObjectNode dataset = props.putObject("dataset");
+        dataset.put("description", "The table or view under test, as given to ref().");
+        ArrayNode datasetShapes = dataset.putArray("oneOf");
+        datasetShapes.add(scalar("string"));
+        ObjectNode target = obj();
+        target.put("type", "object");
+        target.put("additionalProperties", false);
+        target.putArray("required").add("name");
+        ObjectNode targetProps = target.putObject("properties");
+        targetProps.set("database", scalar("string"));
+        targetProps.set("schema", scalar("string"));
+        targetProps.set("name", scalar("string"));
+        datasetShapes.add(target);
+
+        ObjectNode name = props.putObject("name");
+        name.put("type", "string");
+        name.put("description", "Name of the test. Defaults to the file name.");
+
+        ObjectNode tags = props.putObject("tags");
+        tags.put("type", "array");
+        tags.put("description", "Tags of the test.");
+        tags.putObject("items").put("type", "string");
 
         return branch;
     }
