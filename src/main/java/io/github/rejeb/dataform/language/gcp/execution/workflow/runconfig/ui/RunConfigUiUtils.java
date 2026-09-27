@@ -16,7 +16,8 @@
  */
 package io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.ui;
 
-import com.intellij.ui.EditorTextField;
+import com.intellij.ui.components.JBTextArea;
+import com.intellij.ui.components.JBTextField;
 import io.github.rejeb.dataform.language.ui.ReadOnlyTextFields;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -30,12 +31,12 @@ public final class RunConfigUiUtils {
     }
 
     @NotNull
-    public static EditorTextField selectableValue(@Nullable String text) {
+    public static JBTextField selectableValue(@Nullable String text) {
         return ReadOnlyTextFields.singleLine(text != null ? text : "—");
     }
 
     @NotNull
-    public static EditorTextField selectableTextArea(@Nullable String text) {
+    public static JBTextArea selectableTextArea(@Nullable String text) {
         return ReadOnlyTextFields.multiLine(text);
     }
 

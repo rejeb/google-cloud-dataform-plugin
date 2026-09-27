@@ -14,30 +14,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.rejeb.dataform.language.validation;
+package io.github.rejeb.dataform.language.schema.dts;
 
-import java.util.concurrent.atomic.AtomicLong;
+import org.junit.jupiter.api.Test;
 
-public final class DataformEditActivityServiceImpl implements DataformEditActivityService {
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
-    private final AtomicLong lastEditAt = new AtomicLong();
+/**
+ * Arrays of a union keep the union on their items rather than on the whole array.
+ */
+public class DataformDtsGeneratorImplTest {
 
-    @Override
-    public void noteEdit() {
-        lastEditAt.set(System.currentTimeMillis());
+    @Test
+    public void anArrayOfAUnionWrapsTheUnion() {
+        assertEquals("(string | I_ActionConfig_Target)[]",
+                DataformDtsGeneratorImpl.arrayOf("string | I_ActionConfig_Target"));
     }
 
-    @Override
-    public boolean isEditing() {
-        return remainingQuietPeriodMs() > 0;
-    }
-
-    @Override
-    public long remainingQuietPeriodMs(long quietPeriodMs) {
-        long last = lastEditAt.get();
-        if (last == 0) {
-            return 0;
-        }
-        return Math.max(0, quietPeriodMs - (System.currentTimeMillis() - last));
+    @Test
+    public void anArrayOfASingleTypeIsLeftAsIs() {
+        assertEquals("string[]", DataformDtsGeneratorImpl.arrayOf("string"));
     }
 }

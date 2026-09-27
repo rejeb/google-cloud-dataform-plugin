@@ -51,7 +51,7 @@ public final class DataformAutoCompileServiceImpl implements DataformAutoCompile
 
     private static final Logger LOG = Logger.getInstance(DataformAutoCompileServiceImpl.class);
     private static final long SAVE_DEBOUNCE_MS = 300;
-    static final long QUIET_PERIOD_MS = DataformEditActivityService.QUIET_PERIOD_MS;
+    static final long QUIET_PERIOD_MS = 2_000;
     private static final long COMPLETION_RETRY_MS = 1_000;
 
     private final Project project;
@@ -103,7 +103,7 @@ public final class DataformAutoCompileServiceImpl implements DataformAutoCompile
             return;
         }
         long remainingQuietPeriod =
-                DataformEditActivityService.getInstance(project).remainingQuietPeriodMs();
+                DataformEditActivityService.getInstance(project).remainingQuietPeriodMs(QUIET_PERIOD_MS);
         if (remainingQuietPeriod > 0) {
             scheduleFire(requested, remainingQuietPeriod);
             return;

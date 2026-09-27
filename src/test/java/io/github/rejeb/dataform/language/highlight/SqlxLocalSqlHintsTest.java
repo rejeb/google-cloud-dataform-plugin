@@ -129,7 +129,7 @@ public class SqlxLocalSqlHintsTest extends DataformProjectFixture {
         }
 
         @Override
-        public long remainingQuietPeriodMs() {
+        public long remainingQuietPeriodMs(long quietPeriodMs) {
             return 0;
         }
     }

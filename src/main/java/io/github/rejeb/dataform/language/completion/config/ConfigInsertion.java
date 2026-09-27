@@ -73,14 +73,48 @@ public final class ConfigInsertion {
      * line, and everything after it, holds none.
      */
     static char nextNonBlank(@NotNull Document document, int offset) {
+        int index = nextNonBlankOffset(document, offset);
+        return index < document.getTextLength() ? document.getCharsSequence().charAt(index) : '\0';
+    }
+
+    /**
+     * The offset of the first character after the given one that is neither a space nor a tab, the
+     * document length when there is none.
+     */
+    static int nextNonBlankOffset(@NotNull Document document, int offset) {
         CharSequence text = document.getCharsSequence();
-        for (int i = offset; i < text.length(); i++) {
-            char c = text.charAt(i);
-            if (c != ' ' && c != '\t') {
-                return c;
-            }
+        int i = offset;
+        while (i < text.length() && (text.charAt(i) == ' ' || text.charAt(i) == '\t')) {
+            i++;
         }
-        return '\0';
+        return i;
+    }
+
+    /**
+     * The offset where the value already written after the property name ending at the given offset
+     * starts, {@code -1} when no colon follows the name or no value follows the colon on its line.
+     */
+    static int existingValueOffset(@NotNull Document document, int offset) {
+        if (nextNonBlank(document, offset) != ':') {
+            return -1;
+        }
+        int valueStart = nextNonBlankOffset(document, nextNonBlankOffset(document, offset) + 1);
+        char c = nextNonBlank(document, valueStart);
+        return c == '\0' || c == '\n' || c == '\r' || c == ',' || c == '}' || c == ']'
+                ? -1
+                : valueStart;
+    }
+
+    /**
+     * The offset right after the colon, and the blanks following it, written after the property name
+     * ending at the given offset; the offset itself when no colon follows the name.
+     */
+    static int afterExistingColon(@NotNull Document document, int offset) {
+        int colon = nextNonBlankOffset(document, offset);
+        if (nextNonBlank(document, offset) != ':') {
+            return offset;
+        }
+        return nextNonBlankOffset(document, colon + 1);
     }
 
     static String lineIndent(@NotNull Document document, int offset) {

@@ -17,6 +17,7 @@
 package io.github.rejeb.dataform.language.unittest.completion;
 
 import com.intellij.psi.PsiElement;
+import com.intellij.psi.tree.IElementType;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.util.PsiTreeUtil;
 import io.github.rejeb.dataform.language.schema.sql.SqlPsiParts;
@@ -41,7 +42,7 @@ public record TestAliasSlot(@NotNull List<String> recordPath,
         ARRAY
     }
 
-    private static final String AS_EXPRESSION = TestAliasPaths.AS_EXPRESSION;
+    private static final IElementType AS_EXPRESSION = TestAliasPaths.AS_EXPRESSION;
     private static final Pattern ARRAY_VALUE = Pattern.compile("(?is)^(\\[|ARRAY\\b).*");
     private static final Pattern STRUCT_VALUE = Pattern.compile("(?is)^(STRUCT\\b|\\().*");
 
@@ -117,17 +118,17 @@ public record TestAliasSlot(@NotNull List<String> recordPath,
     }
 
     @Nullable
-    private static PsiElement ancestor(@Nullable PsiElement element, @NotNull String simpleName) {
+    private static PsiElement ancestor(@Nullable PsiElement element, @NotNull IElementType type) {
         for (PsiElement current = element; current != null && !(current instanceof PsiFile);
              current = current.getParent()) {
-            if (isType(current, simpleName)) {
+            if (isType(current, type)) {
                 return current;
             }
         }
         return null;
     }
 
-    private static boolean isType(@Nullable PsiElement element, @NotNull String simpleName) {
-        return TestAliasPaths.isType(element, simpleName);
+    private static boolean isType(@Nullable PsiElement element, @NotNull IElementType type) {
+        return TestAliasPaths.isType(element, type);
     }
 }

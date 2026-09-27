@@ -21,9 +21,13 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.util.io.HttpRequests;
+import io.github.rejeb.dataform.language.settings.DataformToolsSettings;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -48,6 +52,28 @@ public final class NpmRegistryDataformCoreVersionProvider implements DataformCor
             return version;
         } catch (Exception e) {
             LOG.info("Unable to fetch the latest @dataform/core version: " + e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    @Override
+    public Optional<String> installedCliVersion() {
+        String corePath = DataformToolsSettings.getInstance().getCoreInstallPath();
+        return corePath.isBlank() ? Optional.empty() : cliVersionNextTo(Path.of(corePath));
+    }
+
+    /**
+     * Reads the version of the {@code @dataform/cli} package installed beside a {@code @dataform/core}
+     * package directory.
+     */
+    static Optional<String> cliVersionNextTo(@NotNull Path coreDir) {
+        Path cliPackageJson = coreDir.resolveSibling("cli").resolve("package.json");
+        try {
+            return Files.isRegularFile(cliPackageJson)
+                    ? Optional.ofNullable(parseVersion(Files.readString(cliPackageJson)))
+                    : Optional.empty();
+        } catch (IOException | RuntimeException e) {
+            LOG.info("Unable to read the installed @dataform/cli version: " + e.getMessage());
             return Optional.empty();
         }
     }

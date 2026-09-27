@@ -150,7 +150,7 @@ public class DataformDtsGeneratorImpl implements DataformDtsGenerator {
                 String itemType = items != null
                         ? schemaToTs((ObjectNode) items, defNames, indent)
                         : "unknown";
-                yield itemType + "[]";
+                yield arrayOf(itemType);
             }
             case "object" -> {
                 JsonNode addProps = schema.get("additionalProperties");
@@ -233,6 +233,10 @@ public class DataformDtsGeneratorImpl implements DataformDtsGenerator {
         } catch (Exception e) {
             Logger.getInstance(getClass()).error("Failed to write dataform.d.ts", e);
         }
+    }
+
+    static String arrayOf(String itemType) {
+        return itemType.contains(" | ") ? "(" + itemType + ")[]" : itemType + "[]";
     }
 
     private String capitalize(String s) {

@@ -23,10 +23,10 @@ import com.intellij.psi.PsiReference;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.lang.javascript.psi.ecma6.JSStringTemplateExpression;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
-import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.compilation.model.CompiledTable;
 import io.github.rejeb.dataform.language.compilation.model.Target;
+import io.github.rejeb.dataform.language.testing.ProjectStateInstaller;
 
 import java.lang.reflect.Field;
 import java.util.List;
@@ -59,7 +59,7 @@ public class SqlxJsQueryInjectorRefCompletionTest extends BasePlatformTestCase {
         set(graph, "declarations", List.of());
         set(graph, "operations", List.of());
         set(graph, "assertions", List.of());
-        set(getProject().getService(DataformCompilationService.class), "compiledGraph", graph);
+        ProjectStateInstaller.installGraph(getProject(), getTestRootDisposable(), graph);
     }
 
     private PsiFile configureDefinition(String name, String text) {

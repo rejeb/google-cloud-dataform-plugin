@@ -118,6 +118,11 @@ public final class LineageGraphServiceImpl implements LineageGraphService, Dispo
     }
 
     @Override
+    public @Nullable ColumnLineageGraph lastBuiltColumnGraph() {
+        return cached.graphs().columnGraph();
+    }
+
+    @Override
     public void dispose() {
         prebuildRequests.incrementAndGet();
         prebuildScheduler.shutdownNow();

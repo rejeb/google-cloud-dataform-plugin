@@ -25,6 +25,8 @@ import com.intellij.psi.PsiFile;
 import com.intellij.testFramework.ServiceContainerUtil;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
 import io.github.rejeb.dataform.language.setup.DataformInterpreterManager;
+import io.github.rejeb.dataform.language.validation.ConfigBlockValidator;
+import io.github.rejeb.dataform.language.validation.SqlxValidationProblem;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -134,6 +136,52 @@ public class DataformConfigCompletionTest extends BasePlatformTestCase {
                 "config {\n  type: \"table\",\n  partitionB<caret>\n}", "partitionBy");
 
         assertTrue("got [" + inserted + "]", inserted.contains("  partitionBy: \"\",\n"));
+    }
+
+    public void testCompletingAPropertyWithAValueMovesTheCaretToTheValue() {
+        if (!protoAvailable) return;
+        String inserted = completeAndInsert(
+                "config {\n  type<caret>: \"table\",\n  tags: []\n}", "type");
+
+        assertTrue("got [" + inserted + "]",
+                inserted.startsWith("config {\n  type: \"table\",\n  tags: []\n}"));
+        assertEquals(inserted.indexOf("\"table\""), hostEditor().getCaretModel().getOffset());
+    }
+
+    public void testCompletingAPropertyWithAColonButNoValueInsertsTheValueOnly() {
+        if (!protoAvailable) return;
+        String inserted = completeAndInsert(
+                "config {\n  type: \"table\",\n  bigquery: {\n    partitionB<caret>:\n  }\n}",
+                "partitionBy");
+
+        assertTrue("got [" + inserted + "]", inserted.contains("    partitionBy: \"\",\n"));
+        assertEquals(inserted.indexOf("partitionBy: \"\"") + "partitionBy: \"".length(),
+                hostEditor().getCaretModel().getOffset());
+    }
+
+    public void testDependencyTargetObjectsAreCheckedAgainstTheTargetKeys() {
+        if (!protoAvailable) return;
+        PsiFile file = myFixture.addFileToProject("definitions/deps.sqlx",
+                "config {\n  type: \"table\",\n"
+                        + "  dependencies: [\"a\", { dataset: \"d\", name: \"b\", nme: \"c\" }]\n}\n\nSELECT 1\n");
+
+        List<String> unknown = new ConfigBlockValidator().validate(file).stream()
+                .filter(problem -> problem.kind() == SqlxValidationProblem.Kind.UNKNOWN_CONFIG_KEY)
+                .map(problem -> file.getText().substring(
+                        problem.range().getStartOffset(), problem.range().getEndOffset()))
+                .toList();
+
+        assertEquals(List.of("nme"), unknown);
+    }
+
+    public void testLegacyAssertionShapesYieldNoUnknownKeys() {
+        if (!protoAvailable) return;
+        PsiFile file = myFixture.addFileToProject("definitions/legacy_assertions.sqlx",
+                "config {\n  type: \"table\",\n  assertions: {\n    uniqueKey: \"id\",\n"
+                        + "    nonNull: \"id\",\n    uniqueKeys: [[\"a\", \"b\"], { uniqueKey: [\"c\"] }]\n  }\n}\n\nSELECT 1\n");
+
+        assertTrue(new ConfigBlockValidator().validate(file).stream()
+                .noneMatch(problem -> problem.kind() == SqlxValidationProblem.Kind.UNKNOWN_CONFIG_KEY));
     }
 
     private List<String> completeAgain() {

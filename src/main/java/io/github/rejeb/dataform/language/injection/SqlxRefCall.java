@@ -57,8 +57,16 @@ public final class SqlxRefCall {
     public static @NotNull Optional<ActionReference> parse(@NotNull String holeText) {
         Matcher call = REF_CALL.matcher(holeText.trim());
         if (!call.matches()) return Optional.empty();
-        String arguments = call.group(1);
+        return parseArguments(call.group(1));
+    }
 
+    /**
+     * The action the arguments of a {@code ref()} call designate.
+     *
+     * @param arguments the text between the parentheses of the call
+     * @return the reference, empty when the arguments are not literal
+     */
+    public static @NotNull Optional<ActionReference> parseArguments(@NotNull String arguments) {
         Matcher strings = STRING_ARGUMENTS.matcher(arguments);
         if (strings.matches()) return Optional.of(fromStrings(strings));
 

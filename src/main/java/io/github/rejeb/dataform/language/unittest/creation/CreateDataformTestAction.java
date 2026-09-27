@@ -25,6 +25,8 @@ import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.command.WriteCommandAction;
+import com.intellij.openapi.editor.Document;
+import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.project.DumbAware;
 import com.intellij.openapi.project.Project;
@@ -37,6 +39,7 @@ import io.github.rejeb.dataform.language.compilation.model.CompiledTable;
 import io.github.rejeb.dataform.language.compilation.model.Target;
 import io.github.rejeb.dataform.language.unittest.TestableActions;
 import io.github.rejeb.dataform.language.unittest.schema.TestSchemaResolver;
+import io.github.rejeb.dataform.language.util.DataformPaths;
 import io.github.rejeb.dataform.language.util.DataformProjectLayout;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -136,11 +139,19 @@ public final class CreateDataformTestAction extends AnAction implements DumbAwar
         for (CompiledTable action : chosen) {
             Target tested = TestFileNames.testedTarget(action);
             List<Target> inputs = action.getDependencyTargets() == null ? List.of() : action.getDependencyTargets();
+            TestInputLabels labels = TestInputLabels.of(graph, sourceOf(project, action));
             contents.put(names.get(action), TestFileContent.of(tested,
-                    inputs, target -> TestFileNames.isAmbiguous(graph, target),
+                    inputs, target -> labels.partsOf(target, TestFileNames.isAmbiguous(graph, target)),
                     target -> target == tested ? resolver.columnsOf(action.getTarget()) : resolver.columnsOf(target)));
         }
         return contents;
+    }
+
+    @Nullable
+    private static String sourceOf(@NotNull Project project, @NotNull CompiledTable action) {
+        VirtualFile file = DataformPaths.findInProject(project, action.getFileName());
+        Document document = file == null ? null : FileDocumentManager.getInstance().getDocument(file);
+        return document == null ? null : document.getText();
     }
 
     private static void write(@NotNull Project project, @NotNull VirtualFile definitions,

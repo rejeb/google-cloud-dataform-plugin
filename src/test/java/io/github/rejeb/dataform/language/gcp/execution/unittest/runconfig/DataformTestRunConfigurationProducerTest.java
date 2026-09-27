@@ -20,7 +20,10 @@ import com.google.gson.Gson;
 import com.intellij.execution.PsiLocation;
 import com.intellij.execution.actions.ConfigurationContext;
 import com.intellij.execution.actions.ConfigurationFromContext;
+import com.intellij.openapi.project.ProjectUtil;
 import com.intellij.openapi.util.Disposer;
+import com.intellij.psi.PsiDirectory;
+import com.intellij.psi.PsiManager;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.util.PsiTreeUtil;
@@ -34,6 +37,7 @@ import io.github.rejeb.dataform.language.psi.SqlxConfigBlock;
 
 import java.lang.reflect.Field;
 import java.util.List;
+import java.util.Objects;
 
 public class DataformTestRunConfigurationProducerTest extends BasePlatformTestCase {
 
@@ -80,6 +84,24 @@ public class DataformTestRunConfigurationProducerTest extends BasePlatformTestCa
                 .findFirst().orElseThrow();
         assertEquals(DataformTestScope.DIRECTORY, configuration.getScope());
         assertEquals("definitions/tests", configuration.getTargetPath());
+    }
+
+    public void testTheProjectRootRunsAllTestsWithAValidConfiguration() throws Exception {
+        PsiFile file = myFixture.addFileToProject("definitions/tests/orders_test.sqlx", TEST_FILE);
+        installGraph("{\"tests\": [{\"name\": \"orders_test\", \"fileName\": \"definitions/tests/orders_test.sqlx\"}],"
+                + " \"graphErrors\": {\"compilationErrors\": []}}");
+        PsiDirectory root = PsiManager.getInstance(getProject()).findDirectory(
+                Objects.requireNonNull(ProjectUtil.guessProjectDir(getProject())));
+
+        DataformTestRunConfiguration configuration = (DataformTestRunConfiguration) configurationsFor(root).stream()
+                .map(ConfigurationFromContext::getConfiguration)
+                .filter(c -> c instanceof DataformTestRunConfiguration)
+                .findFirst().orElseThrow();
+
+        assertNotNull(file);
+        assertEquals(DataformTestScope.ALL, configuration.getScope());
+        assertEquals("All Dataform tests", configuration.getName());
+        configuration.checkConfiguration();
     }
 
     public void testWorkflowGutterSkipsTestFiles() {

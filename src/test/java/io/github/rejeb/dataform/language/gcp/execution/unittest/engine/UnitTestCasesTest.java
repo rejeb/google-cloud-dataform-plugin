@@ -21,6 +21,7 @@ import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.function.Predicate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -39,23 +40,25 @@ class UnitTestCasesTest {
                {"fileName": "definitions/broken_test.sqlx", "message": "Input for dataset \\"raw\\" has not been provided."}
              ]}}""", CompiledGraph.class);
 
+    private static final Predicate<String> NONE_IS_A_TEST = fileName -> false;
+
     private static List<String> names(List<UnitTestCase> cases) {
         return cases.stream().map(UnitTestCase::name).toList();
     }
 
     @Test
     void allScopeSelectsEveryTest() {
-        assertEquals(List.of("orders_test", "stats_test"), names(UnitTestCases.select(GRAPH, DataformTestScope.ALL, "")));
+        assertEquals(List.of("orders_test", "stats_test"), names(UnitTestCases.select(GRAPH, DataformTestScope.ALL, "", NONE_IS_A_TEST)));
     }
 
     @Test
     void directoryAndFileScopes() {
         assertEquals(List.of("orders_test"),
-                names(UnitTestCases.select(GRAPH, DataformTestScope.DIRECTORY, "definitions/tests")));
+                names(UnitTestCases.select(GRAPH, DataformTestScope.DIRECTORY, "definitions/tests", NONE_IS_A_TEST)));
         assertEquals(List.of("stats_test"),
-                names(UnitTestCases.select(GRAPH, DataformTestScope.FILE, "definitions/stats_test.sqlx")));
+                names(UnitTestCases.select(GRAPH, DataformTestScope.FILE, "definitions/stats_test.sqlx", NONE_IS_A_TEST)));
         assertEquals(List.of("orders_test", "stats_test"),
-                names(UnitTestCases.select(GRAPH, DataformTestScope.DIRECTORY, "")));
+                names(UnitTestCases.select(GRAPH, DataformTestScope.DIRECTORY, "", NONE_IS_A_TEST)));
     }
 
     @Test
@@ -68,19 +71,37 @@ class UnitTestCasesTest {
 
     @Test
     void disabledTestsAreKeptAndFlagged() {
-        assertTrue(UnitTestCases.select(GRAPH, DataformTestScope.FILE, "definitions/stats_test.sqlx").getFirst().disabled());
+        assertTrue(UnitTestCases.select(GRAPH, DataformTestScope.FILE, "definitions/stats_test.sqlx", NONE_IS_A_TEST).getFirst().disabled());
     }
 
     @Test
     void fileScopeReportsTheCompileErrorOfATestThatDidNotCompile() {
-        List<UnitTestCase> cases = UnitTestCases.select(GRAPH, DataformTestScope.FILE, "definitions/broken_test.sqlx");
+        List<UnitTestCase> cases = UnitTestCases.select(GRAPH, DataformTestScope.FILE, "definitions/broken_test.sqlx", NONE_IS_A_TEST);
 
         assertEquals(List.of("broken_test"), names(cases));
         assertEquals("Input for dataset \"raw\" has not been provided.", cases.getFirst().compilationError());
     }
 
     @Test
+    void allAndDirectoryScopesReportATestFileThatDidNotCompile() {
+        Predicate<String> brokenIsATest = fileName -> fileName.endsWith("broken_test.sqlx");
+
+        assertEquals(List.of("orders_test", "stats_test", "broken_test"),
+                names(UnitTestCases.select(GRAPH, DataformTestScope.ALL, "", brokenIsATest)));
+        assertEquals(List.of("orders_test", "stats_test", "broken_test"),
+                names(UnitTestCases.select(GRAPH, DataformTestScope.DIRECTORY, "definitions", brokenIsATest)));
+        assertEquals(List.of("orders_test"),
+                names(UnitTestCases.select(GRAPH, DataformTestScope.DIRECTORY, "definitions/tests", brokenIsATest)));
+    }
+
+    @Test
+    void aBrokenFileThatIsNoTestIsLeftToTheCompilation() {
+        assertEquals(List.of("orders_test", "stats_test"),
+                names(UnitTestCases.select(GRAPH, DataformTestScope.ALL, "", NONE_IS_A_TEST)));
+    }
+
+    @Test
     void anUnknownFileSelectsNothing() {
-        assertEquals(List.of(), UnitTestCases.select(GRAPH, DataformTestScope.FILE, "definitions/nope.sqlx"));
+        assertEquals(List.of(), UnitTestCases.select(GRAPH, DataformTestScope.FILE, "definitions/nope.sqlx", NONE_IS_A_TEST));
     }
 }

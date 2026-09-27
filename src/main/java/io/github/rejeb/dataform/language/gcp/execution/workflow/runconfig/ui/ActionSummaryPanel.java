@@ -22,7 +22,7 @@ import com.intellij.openapi.editor.EditorSettings;
 import com.intellij.openapi.editor.ex.EditorEx;
 import com.intellij.openapi.fileTypes.FileTypeManager;
 import com.intellij.openapi.project.Project;
-import com.intellij.ui.EditorTextField;
+import com.intellij.ui.components.JBTextField;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBScrollPane;
 import com.intellij.util.ui.JBUI;
@@ -53,10 +53,10 @@ public class ActionSummaryPanel extends JPanel {
 
     private final JLabel urlLabel = new JBLabel("—");
     private final JLabel jobIdLabel = new JBLabel("—");
-    private final EditorTextField startLabel = RunConfigUiUtils.selectableValue("—");
-    private final EditorTextField statusLabel = RunConfigUiUtils.selectableValue("—");
-    private final EditorTextField errorLabel = RunConfigUiUtils.selectableValue("—");
-    private final EditorTextField durationLabel = RunConfigUiUtils.selectableValue("—");
+    private final JBTextField startLabel = RunConfigUiUtils.selectableValue("—");
+    private final JBTextField statusLabel = RunConfigUiUtils.selectableValue("—");
+    private final JBTextField errorLabel = RunConfigUiUtils.selectableValue("—");
+    private final JBTextField durationLabel = RunConfigUiUtils.selectableValue("—");
 
     private Editor sqlEditor;
     private final JPanel sqlContainer = new JPanel(new BorderLayout());

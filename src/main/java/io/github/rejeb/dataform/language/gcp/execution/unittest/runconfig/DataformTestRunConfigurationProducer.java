@@ -87,7 +87,9 @@ public class DataformTestRunConfigurationProducer extends LazyRunConfigurationPr
             if (path == null || !holdsCompiledTests(project, path)) {
                 return null;
             }
-            return new Target(DataformTestScope.DIRECTORY, path, path.isEmpty() ? "All Dataform tests" : "Tests in " + path);
+            return path.isEmpty()
+                    ? new Target(DataformTestScope.ALL, "", "All Dataform tests")
+                    : new Target(DataformTestScope.DIRECTORY, path, "Tests in " + path);
         }
         PsiFile file = element.getContainingFile();
         VirtualFile virtualFile = file == null ? null : file.getVirtualFile();

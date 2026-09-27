@@ -25,7 +25,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 public final class TestFileContent {
 
@@ -37,14 +37,15 @@ public final class TestFileContent {
 
     /**
      * Returns the text of a unit test of {@code tested}: its config, naming the tested action by its
-     * schema and name, one input per distinct dependency and the expected output, each filled from
+     * schema and name, one input per distinct dependency labelled by {@code labels} and the expected
+     * output, each filled from
      * the columns known for its target. A target without known columns gets a placeholder row and a
      * reminder comment.
      */
     @NotNull
     public static String of(@NotNull Target tested,
                             @NotNull List<Target> inputs,
-                            @NotNull Predicate<Target> ambiguous,
+                            @NotNull Function<Target, List<String>> labels,
                             @NotNull Function<Target, List<ColumnInfo>> columns) {
         StringBuilder text = new StringBuilder()
                 .append("config {\n  type: \"test\",\n  dataset: {\n    schema: \"")
@@ -57,7 +58,7 @@ public final class TestFileContent {
             if (inputColumns.isEmpty()) {
                 text.append(reminder(input));
             }
-            text.append("input ").append(label(input, ambiguous.test(input))).append(" {\n")
+            text.append("input ").append(label(labels.apply(input))).append(" {\n")
                     .append(INPUT_INDENT).append(select(inputColumns, INPUT_INDENT)).append("\n}\n\n");
         }
         List<ColumnInfo> expected = columns.apply(tested);
@@ -75,10 +76,8 @@ public final class TestFileContent {
         return "-- TODO: schema of " + target.getName() + " not extracted yet\n";
     }
 
-    private static String label(@NotNull Target target, boolean ambiguous) {
-        return ambiguous
-                ? "\"" + target.getSchema() + "\", \"" + target.getName() + "\""
-                : "\"" + target.getName() + "\"";
+    private static String label(@NotNull List<String> parts) {
+        return parts.stream().map(part -> "\"" + part + "\"").collect(Collectors.joining(", "));
     }
 
     private static List<Target> distinct(@NotNull List<Target> targets) {

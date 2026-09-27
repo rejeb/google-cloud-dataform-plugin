@@ -130,7 +130,17 @@ public class CompiledGraph {
      * prefix is that name.
      */
     public Optional<CompiledTable> findTableByName(String name) {
-        ActionReference reference = ActionReference.named(name);
+        return findTableByReference(ActionReference.named(name));
+    }
+
+    /**
+     * The table a reference designates, matched on the target it compiles to, then on its
+     * canonical target.
+     *
+     * @param reference the name, schema and database to match
+     * @return the first table designated
+     */
+    public Optional<CompiledTable> findTableByReference(ActionReference reference) {
         return this.getTables().stream().filter(t -> reference.matches(t.getTarget())).findFirst()
                 .or(() -> this.getTables().stream()
                         .filter(t -> reference.matches(t.getCanonicalTarget())).findFirst());

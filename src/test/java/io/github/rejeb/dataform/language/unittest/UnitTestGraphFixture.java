@@ -65,9 +65,13 @@ public final class UnitTestGraphFixture {
     }
 
     public static void install(Project project, Disposable disposable) {
+        install(project, disposable, GRAPH);
+    }
+
+    public static void install(Project project, Disposable disposable, String graphJson) {
         CompiledGraph previous = project.getService(DataformCompilationService.class).getCompiledGraph();
         Disposer.register(disposable, () -> set(project, previous));
-        set(project, new Gson().fromJson(GRAPH, CompiledGraph.class));
+        set(project, new Gson().fromJson(graphJson, CompiledGraph.class));
     }
 
     public static void installWithBackslashes(Project project, Disposable disposable) {

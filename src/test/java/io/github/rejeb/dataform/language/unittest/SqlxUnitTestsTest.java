@@ -18,6 +18,7 @@ package io.github.rejeb.dataform.language.unittest;
 
 import com.intellij.psi.PsiFile;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
+import io.github.rejeb.dataform.language.compilation.model.ActionReference;
 
 import java.util.Optional;
 
@@ -39,12 +40,18 @@ public class SqlxUnitTestsTest extends BasePlatformTestCase {
         assertFalse(SqlxUnitTests.isUnitTestFile(sqlx("SELECT 1\n")));
     }
 
+    public void testAQuotedTypeKeyIsATestFile() {
+        assertTrue(SqlxUnitTests.isUnitTestFile(sqlx("config { \"type\": \"test\", \"dataset\": \"orders\" }\nSELECT 1\n")));
+        assertTrue(SqlxUnitTests.isUnitTestFile(sqlx("config { 'type': 'test' }\nSELECT 2\n")));
+        assertFalse(SqlxUnitTests.isUnitTestFile(sqlx("config { \"subtype\": \"test\" }\nSELECT 1\n")));
+    }
+
     public void testTheTestedDatasetIsReadFromAStringOrATarget() {
-        assertEquals(Optional.of("orders"), SqlxUnitTests.testedDatasetName(
+        assertEquals(Optional.of(ActionReference.named("orders")), SqlxUnitTests.testedDataset(
                 sqlx("config {\n  type: \"test\",\n  dataset: \"orders\"\n}\nSELECT 1\n")));
-        assertEquals(Optional.of("orders"), SqlxUnitTests.testedDatasetName(
+        assertEquals(Optional.of(new ActionReference(null, "d", "orders")), SqlxUnitTests.testedDataset(
                 sqlx("config {\n  type: \"test\",\n  dataset: {schema: \"d\", name: \"orders\"}\n}\nSELECT 1\n")));
-        assertEquals(Optional.empty(), SqlxUnitTests.testedDatasetName(
+        assertEquals(Optional.empty(), SqlxUnitTests.testedDataset(
                 sqlx("config {\n  type: \"table\",\n  dataset: \"orders\"\n}\nSELECT 1\n")));
     }
 }

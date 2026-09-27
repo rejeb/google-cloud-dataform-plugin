@@ -209,7 +209,7 @@ public class CompilationProblemsServiceImplTest extends BasePlatformTestCase {
         }
 
         @Override
-        public long remainingQuietPeriodMs() {
+        public long remainingQuietPeriodMs(long quietPeriodMs) {
             return 0;
         }
     }

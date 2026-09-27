@@ -55,6 +55,7 @@ public final class DataformJsonSchemaGeneratorImpl implements DataformJsonSchema
 
     private static final String SQLX_COLUMN_DEF_KEY = "SqlxColumnDescriptor";
     private static final String TEST_TYPE = "test";
+    private static final String TABLE_ASSERTIONS_DEF_KEY = "ActionConfig_TableAssertionsConfig";
 
     private final Map<String, ProtoModel.ProtoMessage> messageIndex = new HashMap<>();
     private final Map<String, ProtoModel.ProtoEnum> enumIndex = new HashMap<>();
@@ -153,6 +154,7 @@ public final class DataformJsonSchemaGeneratorImpl implements DataformJsonSchema
             for (String qualifiedName : SQLX_TYPES.values()) {
                 collectDefs(requireMessage(qualifiedName), defs, new HashSet<>());
             }
+            acceptLegacyAssertionShapes(defs);
 
             ObjectNode root = obj();
             root.put("$schema", "http://json-schema.org/draft-07/schema#");
@@ -212,7 +214,9 @@ public final class DataformJsonSchemaGeneratorImpl implements DataformJsonSchema
                 depsAlias.put("type", "array");
                 depsAlias.put("description",
                         "Shorthand dependency names (alternative to dependencyTargets).");
-                depsAlias.putObject("items").put("type", "string");
+                ArrayNode dependencyShapes = depsAlias.putObject("items").putArray("oneOf");
+                dependencyShapes.add(scalar("string"));
+                dependencyShapes.add(fieldSchema.get("items").deepCopy());
                 props.set("dependencies", depsAlias);
                 continue;
             }
@@ -238,6 +242,40 @@ public final class DataformJsonSchemaGeneratorImpl implements DataformJsonSchema
         }
 
         return branch;
+    }
+
+    private void acceptLegacyAssertionShapes(Map<String, ObjectNode> defs) {
+        ObjectNode assertions = defs.get(TABLE_ASSERTIONS_DEF_KEY);
+        if (assertions == null || !assertions.path("properties").isObject()) {
+            return;
+        }
+        ObjectNode props = (ObjectNode) assertions.get("properties");
+        for (String name : List.of("uniqueKey", "nonNull")) {
+            if (props.get(name) instanceof ObjectNode columns) {
+                props.set(name, withStringShorthand(columns));
+            }
+        }
+        if (props.get("uniqueKeys") instanceof ObjectNode uniqueKeys
+                && uniqueKeys.get("items") instanceof ObjectNode uniqueKey) {
+            ObjectNode columnList = obj();
+            columnList.put("type", "array");
+            columnList.putObject("items").put("type", "string");
+            ObjectNode items = obj();
+            items.putArray("oneOf").add(uniqueKey).add(columnList);
+            uniqueKeys.set("items", items);
+        }
+    }
+
+    private ObjectNode withStringShorthand(ObjectNode columns) {
+        ObjectNode schema = obj();
+        String description = columns.path("description").asText("");
+        if (!description.isEmpty()) {
+            schema.put("description", description);
+        }
+        ObjectNode list = columns.deepCopy();
+        list.remove("description");
+        schema.putArray("oneOf").add(list).add(scalar("string"));
+        return schema;
     }
 
     private ObjectNode buildTestBranch() {

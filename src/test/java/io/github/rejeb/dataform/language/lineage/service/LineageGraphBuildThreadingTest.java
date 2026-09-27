@@ -19,10 +19,9 @@ package io.github.rejeb.dataform.language.lineage.service;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
 import com.intellij.util.concurrency.AppExecutorUtil;
-import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
+import io.github.rejeb.dataform.language.testing.ProjectStateInstaller;
 
-import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -92,7 +91,7 @@ public class LineageGraphBuildThreadingTest extends BasePlatformTestCase {
 
     public void testGraphsBuiltWithoutAReadActionAreTheOnesTheNextCallerGets() throws Exception {
         CompiledGraph compiled = new CompiledGraph();
-        setField(DataformCompilationService.getInstance(getProject()), "compiledGraph", compiled);
+        ProjectStateInstaller.installGraph(getProject(), getTestRootDisposable(), compiled);
         LineageGraphService service = LineageGraphService.getInstance(getProject());
 
         LineageGraphService.Graphs built = ApplicationManager.getApplication()
@@ -101,11 +100,5 @@ public class LineageGraphBuildThreadingTest extends BasePlatformTestCase {
 
         assertNotNull(built.columnGraph());
         assertSame(built, service.graphs(compiled));
-    }
-
-    private static void setField(Object target, String name, Object value) throws ReflectiveOperationException {
-        Field field = target.getClass().getDeclaredField(name);
-        field.setAccessible(true);
-        field.set(target, value);
     }
 }

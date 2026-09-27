@@ -24,7 +24,7 @@ import io.github.rejeb.dataform.language.compilation.model.CompiledTable;
 import io.github.rejeb.dataform.language.compilation.model.CompiledTest;
 import io.github.rejeb.dataform.language.compilation.model.Declaration;
 import io.github.rejeb.dataform.language.compilation.model.Target;
-import io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService;
+import io.github.rejeb.dataform.language.testing.ProjectStateInstaller;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -105,11 +105,9 @@ public abstract class ColumnRenameFixture extends BasePlatformTestCase {
         set(graph, "declarations", declarations);
         set(graph, "operations", List.of());
         set(graph, "assertions", List.of());
-        set(getProject().getService(DataformCompilationService.class), "compiledGraph", graph);
+        ProjectStateInstaller.installGraph(getProject(), getTestRootDisposable(), graph);
 
-        DataformTableSchemaService.State state = new DataformTableSchemaService.State();
-        state.schemaCacheJson = schema.toString();
-        DataformTableSchemaService.getInstance(getProject()).loadState(state);
+        ProjectStateInstaller.installSchemas(getProject(), getTestRootDisposable(), schema.toString());
     }
 
     /** Adds the SQLX file of an action to the project and opens it. */

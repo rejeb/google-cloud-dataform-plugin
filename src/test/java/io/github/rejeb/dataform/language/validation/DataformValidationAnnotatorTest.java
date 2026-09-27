@@ -71,8 +71,8 @@ public class DataformValidationAnnotatorTest extends BasePlatformTestCase {
         }
 
         @Override
-        public long remainingQuietPeriodMs() {
-            return editing ? QUIET_PERIOD_MS : 0;
+        public long remainingQuietPeriodMs(long quietPeriodMs) {
+            return editing ? quietPeriodMs : 0;
         }
     }
 

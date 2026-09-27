@@ -67,7 +67,8 @@ public final class ColumnRenameSubjectFactory {
 
     /**
      * The column a unit test alias stands for. A field of a struct is only a subject when the
-     * lineage knows it as a column of its own, since the rename is planned on that lineage.
+     * lineage knows it as a column of its own, since the rename is planned on that lineage. The
+     * lineage last built answers: this runs on the EDT, where building one would freeze the UI.
      */
     private static @NotNull Optional<ColumnRenameSubject> fromTestAlias(@NotNull PsiElement token,
                                                                         @NotNull PsiFile hostFile) {
@@ -80,7 +81,7 @@ public final class ColumnRenameSubjectFactory {
 
     private static boolean isRenamable(@NotNull Project project, @NotNull ColumnRef column) {
         if (!column.columnName().contains(".")) return true;
-        ColumnLineageGraph graph = LineageGraphService.getInstance(project).columnGraph();
+        ColumnLineageGraph graph = LineageGraphService.getInstance(project).lastBuiltColumnGraph();
         return graph != null && graph.column(column.id()) != null;
     }
 

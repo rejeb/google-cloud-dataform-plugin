@@ -16,22 +16,27 @@
  */
 package io.github.rejeb.dataform.language.ui;
 
-import com.intellij.ui.EditorTextField;
+import com.intellij.ui.components.JBTextArea;
+import com.intellij.ui.components.JBTextField;
 import com.intellij.util.ui.AbstractTableCellEditor;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import javax.swing.JMenuItem;
+import javax.swing.JPopupMenu;
 import javax.swing.JTable;
-import javax.swing.ScrollPaneConstants;
 import javax.swing.table.TableCellEditor;
+import javax.swing.text.JTextComponent;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Cursor;
 
 /**
- * Factory of read-only text components backed by the IntelliJ editor in viewer mode: the text shows a
- * text cursor, can be partially selected with the mouse and offers the editor context menu (Copy, Select All).
+ * Factory of read-only Swing text components: the text shows a text cursor, can be partially
+ * selected with the mouse and offers a context menu (Copy, Select All). Plain text components hold
+ * no editor, so building many of them and updating their text on every refresh stays cheap.
  */
 public final class ReadOnlyTextFields {
 
@@ -41,23 +46,27 @@ public final class ReadOnlyTextFields {
     /**
      * Creates a single-line read-only text on the panel background.
      */
-    public static @NotNull EditorTextField singleLine(@Nullable String text) {
-        return create(text, true, UIUtil.getPanelBackground());
+    public static @NotNull JBTextField singleLine(@Nullable String text) {
+        return singleLine(text, UIUtil.getPanelBackground());
     }
 
     /**
      * Creates a single-line read-only text on the given background.
      */
-    public static @NotNull EditorTextField singleLine(@Nullable String text, @NotNull Color background) {
-        return create(text, true, background);
+    public static @NotNull JBTextField singleLine(@Nullable String text, @NotNull Color background) {
+        JBTextField field = new JBTextField(text != null ? text : "");
+        return configure(field, background);
     }
 
     /**
-     * Creates a soft-wrapped multi-line read-only text on the panel background, which scrolls when it
-     * is given less height than its text needs.
+     * Creates a word-wrapped multi-line read-only text on the panel background. Put it in a scroll
+     * pane when it may be given less height than its text needs.
      */
-    public static @NotNull EditorTextField multiLine(@Nullable String text) {
-        return create(text, false, UIUtil.getPanelBackground());
+    public static @NotNull JBTextArea multiLine(@Nullable String text) {
+        JBTextArea area = new JBTextArea(text != null ? text : "");
+        area.setLineWrap(true);
+        area.setWrapStyleWord(true);
+        return configure(area, UIUtil.getPanelBackground());
     }
 
     /**
@@ -65,7 +74,7 @@ public final class ReadOnlyTextFields {
      * lets the user select part of its text.
      */
     public static @NotNull TableCellEditor cellEditor(@NotNull JTable table) {
-        EditorTextField field = create("", true, table.getBackground());
+        JBTextField field = singleLine("", table.getBackground());
         return new AbstractTableCellEditor() {
             @Override
             public Object getCellEditorValue() {
@@ -80,21 +89,32 @@ public final class ReadOnlyTextFields {
         };
     }
 
-    private static @NotNull EditorTextField create(@Nullable String text, boolean oneLine, @NotNull Color background) {
-        EditorTextField field = new EditorTextField(text != null ? text : "");
-        field.setOneLineMode(oneLine);
-        field.setViewer(true);
-        field.setBorder(JBUI.Borders.empty());
-        field.setBackground(background);
-        field.addSettingsProvider(editor -> {
-            editor.setBorder(JBUI.Borders.empty());
-            editor.setBackgroundColor(background);
-            editor.getSettings().setCaretRowShown(false);
-            editor.getSettings().setUseSoftWraps(!oneLine);
-            if (!oneLine) {
-                editor.getScrollPane().setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
+    private static <T extends JTextComponent> @NotNull T configure(@NotNull T component, @NotNull Color background) {
+        component.setEditable(false);
+        component.setBorder(JBUI.Borders.empty());
+        component.setBackground(background);
+        component.setCursor(Cursor.getPredefinedCursor(Cursor.TEXT_CURSOR));
+        component.getCaret().setVisible(false);
+        component.setComponentPopupMenu(copyMenu(component));
+        return component;
+    }
+
+    private static @NotNull JPopupMenu copyMenu(@NotNull JTextComponent component) {
+        JPopupMenu menu = new JPopupMenu();
+        JMenuItem copy = new JMenuItem("Copy");
+        copy.addActionListener(e -> {
+            if (component.getSelectedText() == null) {
+                component.selectAll();
             }
+            component.copy();
         });
-        return field;
+        JMenuItem selectAll = new JMenuItem("Select All");
+        selectAll.addActionListener(e -> {
+            component.requestFocusInWindow();
+            component.selectAll();
+        });
+        menu.add(copy);
+        menu.add(selectAll);
+        return menu;
     }
 }

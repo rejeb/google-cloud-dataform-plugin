@@ -44,6 +44,16 @@ public interface DataformCoreVersionProvider {
     Optional<String> fetchLatestVersion();
 
     /**
+     * Returns the version of the installed {@code @dataform/cli}, found next to the configured
+     * {@code @dataform/core} install. The CLI compiles only with a core of its own major and minor
+     * version, so this is the version to propose when the CLI is installed. Reads the disk: never
+     * call it on the EDT.
+     *
+     * @return empty when no CLI install is known or its version cannot be read
+     */
+    Optional<String> installedCliVersion();
+
+    /**
      * Returns the latest version already fetched during this session, or {@link #FALLBACK_VERSION}.
      * Never performs I/O.
      */

@@ -27,8 +27,11 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.function.Predicate;
 
 public final class UnitTestCases {
 
@@ -37,12 +40,14 @@ public final class UnitTestCases {
 
     /**
      * Returns the tests of the graph within the scope. A file whose test did not compile yields one
-     * failed case carrying the compile error.
+     * failed case carrying the compile error: the file run on its own, or any file in the scope that
+     * {@code isTestFile} recognises as a unit test.
      */
     @NotNull
     public static List<UnitTestCase> select(@NotNull CompiledGraph graph,
                                             @NotNull DataformTestScope scope,
-                                            @NotNull String projectRelativePath) {
+                                            @NotNull String projectRelativePath,
+                                            @NotNull Predicate<String> isTestFile) {
         List<UnitTestCase> cases = new ArrayList<>();
         for (CompiledTest test : graph.getTests()) {
             if (selects(scope, projectRelativePath, test.getFileName())) {
@@ -50,15 +55,44 @@ public final class UnitTestCases {
                         test.getExpectedOutputQuery(), test.isDisabled(), compilationError(graph, test.getFileName())));
             }
         }
-        if (cases.isEmpty() && scope == DataformTestScope.FILE) {
-            String error = compilationError(graph, projectRelativePath);
-            if (error != null) {
-                String fileName = trim(projectRelativePath);
-                cases.add(new UnitTestCase(FileUtilRt.getNameWithoutExtension(StringUtil.substringAfterLast("/" + fileName, "/")),
-                        fileName, "", "", false, error));
+        if (scope == DataformTestScope.FILE) {
+            if (cases.isEmpty()) {
+                addFailedFile(cases, graph, projectRelativePath);
+            }
+            return cases;
+        }
+        Set<String> reported = new HashSet<>();
+        cases.forEach(testCase -> reported.add(trim(testCase.fileName())));
+        for (String fileName : compilationErrorFiles(graph)) {
+            if (selects(scope, projectRelativePath, fileName) && reported.add(trim(fileName))
+                    && isTestFile.test(fileName)) {
+                addFailedFile(cases, graph, fileName);
             }
         }
         return cases;
+    }
+
+    private static void addFailedFile(@NotNull List<UnitTestCase> cases, @NotNull CompiledGraph graph,
+                                      @NotNull String projectRelativePath) {
+        String error = compilationError(graph, projectRelativePath);
+        if (error != null) {
+            String fileName = trim(projectRelativePath);
+            cases.add(new UnitTestCase(FileUtilRt.getNameWithoutExtension(StringUtil.substringAfterLast("/" + fileName, "/")),
+                    fileName, "", "", false, error));
+        }
+    }
+
+    @NotNull
+    private static List<String> compilationErrorFiles(@NotNull CompiledGraph graph) {
+        GraphErrors errors = graph.getGraphErrors();
+        if (errors == null || errors.getCompilationErrors() == null) {
+            return List.of();
+        }
+        return errors.getCompilationErrors().stream()
+                .map(CompilationError::getFileName)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
     }
 
     /**

@@ -16,6 +16,8 @@
  */
 package io.github.rejeb.dataform.language.psi;
 
+import com.intellij.openapi.command.WriteCommandAction;
+import com.intellij.psi.ElementManipulators;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.util.PsiTreeUtil;
@@ -76,5 +78,29 @@ public class SqlxInputBlockTest extends BasePlatformTestCase {
         assertTrue(PsiTreeUtil.findChildrenOfType(file, SqlxSqlBlock.class).stream()
                 .anyMatch(block -> block.getNode().getElementType() == SharedTokenTypes.SQL_CONTENT
                         && block.getText().startsWith("SELECT 1")));
+    }
+
+    public void testAnEditOfTheInputBodyKeepsItAnInputBody() {
+        PsiFile file = sqlx(TEST_FILE);
+        SqlxSqlBlock body = PsiTreeUtil.findChildOfType(file, SqlxInputBlock.class).content();
+
+        SqlxSqlBlock edited = WriteCommandAction.writeCommandAction(getProject()).compute(() ->
+                ElementManipulators.handleContentChange(body, "SELECT 3 AS id"));
+
+        assertEquals(SharedTokenTypes.INPUT_CONTENT, edited.getNode().getElementType());
+        assertEquals("SELECT 3 AS id", edited.getText());
+        assertInstanceOf(edited.getParent(), SqlxInputBlock.class);
+    }
+
+    public void testAnEditOfPreOperationsKeepsThemPreOperations() {
+        PsiFile file = sqlx("pre_operations {\n  DECLARE x INT64\n}\n\nSELECT 1\n");
+        SqlxSqlBlock body = PsiTreeUtil.findChildrenOfType(file, SqlxSqlBlock.class).stream()
+                .filter(block -> block.getNode().getElementType() == SharedTokenTypes.PRE_OPERATIONS_CONTENT)
+                .findFirst().orElseThrow();
+
+        SqlxSqlBlock edited = WriteCommandAction.writeCommandAction(getProject()).compute(() ->
+                ElementManipulators.handleContentChange(body, "DECLARE y INT64"));
+
+        assertEquals(SharedTokenTypes.PRE_OPERATIONS_CONTENT, edited.getNode().getElementType());
     }
 }

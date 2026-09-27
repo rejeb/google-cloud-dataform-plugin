@@ -17,6 +17,11 @@
 package io.github.rejeb.dataform.language.setup;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -44,5 +49,21 @@ public class NpmRegistryDataformCoreVersionProviderTest {
     public void proposesTheFallbackUntilAVersionIsFetched() {
         assertEquals(DataformCoreVersionProvider.FALLBACK_VERSION,
                 new NpmRegistryDataformCoreVersionProvider().knownLatestVersion());
+    }
+
+    @Test
+    public void readsTheCliVersionInstalledBesideTheCore(@TempDir Path dataformDir) throws Exception {
+        Path core = Files.createDirectories(dataformDir.resolve("core"));
+        Path cli = Files.createDirectories(dataformDir.resolve("cli"));
+        Files.writeString(cli.resolve("package.json"), "{\"name\":\"@dataform/cli\",\"version\":\"3.0.46\"}");
+
+        assertEquals(Optional.of("3.0.46"), NpmRegistryDataformCoreVersionProvider.cliVersionNextTo(core));
+    }
+
+    @Test
+    public void noCliBesideTheCoreGivesNoVersion(@TempDir Path dataformDir) throws Exception {
+        Path core = Files.createDirectories(dataformDir.resolve("core"));
+
+        assertEquals(Optional.empty(), NpmRegistryDataformCoreVersionProvider.cliVersionNextTo(core));
     }
 }

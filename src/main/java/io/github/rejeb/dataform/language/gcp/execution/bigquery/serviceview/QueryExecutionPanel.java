@@ -30,7 +30,9 @@ import com.intellij.icons.AllIcons;
 import com.intellij.openapi.actionSystem.ActionGroup;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.project.Project;
-import com.intellij.ui.EditorTextField;
+import com.intellij.ui.ScrollPaneFactory;
+import com.intellij.ui.components.JBTextArea;
+import com.intellij.ui.components.JBTextField;
 import com.intellij.ui.HyperlinkLabel;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBScrollPane;
@@ -118,7 +120,7 @@ public class QueryExecutionPanel extends JPanel {
     }
 
 
-    private static EditorTextField readOnlyValue(@Nullable String text) {
+    private static JBTextField readOnlyValue(@Nullable String text) {
         return ReadOnlyTextFields.singleLine(text != null ? text : "-");
     }
 
@@ -155,15 +157,14 @@ public class QueryExecutionPanel extends JPanel {
         titleLabel.setFont(titleLabel.getFont().deriveFont(Font.BOLD, JBUIScale.scaleFontSize(13f)));
         titleLabel.setBorder(JBUI.Borders.empty(12, 12, 8, 12));
 
-        EditorTextField textArea = ReadOnlyTextFields.multiLine(message);
-        textArea.setFontInheritedFromLAF(false);
+        JBTextArea textArea = ReadOnlyTextFields.multiLine(message);
         textArea.setBorder(JBUI.Borders.empty(0, 12, 12, 12));
 
         JPanel panel = new JPanel(new BorderLayout());
         panel.setOpaque(true);
         panel.setBackground(UIUtil.getPanelBackground());
         panel.add(titleLabel, BorderLayout.NORTH);
-        panel.add(textArea, BorderLayout.CENTER);
+        panel.add(ScrollPaneFactory.createScrollPane(textArea, true), BorderLayout.CENTER);
         return panel;
     }
 

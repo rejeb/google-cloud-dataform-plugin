@@ -16,54 +16,58 @@
  */
 package io.github.rejeb.dataform.language.ui;
 
-import com.intellij.openapi.actionSystem.IdeActions;
-import com.intellij.openapi.editor.ex.EditorEx;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
-import com.intellij.ui.EditorTextField;
+import com.intellij.ui.components.JBTextArea;
+import com.intellij.ui.components.JBTextField;
 import com.intellij.ui.table.JBTable;
 
-import javax.swing.ScrollPaneConstants;
+import javax.swing.JMenuItem;
+import javax.swing.JPopupMenu;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableCellEditor;
+import javax.swing.text.JTextComponent;
+import java.awt.Cursor;
+import java.util.Arrays;
+import java.util.List;
 
 public class ReadOnlyTextFieldsTest extends BasePlatformTestCase {
 
-    public void testTheTextIsAReadOnlyViewerWithTheEditorContextMenu() {
-        EditorTextField field = ReadOnlyTextFields.singleLine("orders_daily");
-        field.addNotify();
-        try {
-            EditorEx editor = (EditorEx) field.getEditor();
-            assertTrue(field.isViewer());
-            assertTrue(editor.isViewer());
-            assertEquals("orders_daily", editor.getDocument().getText());
-            assertEquals(IdeActions.GROUP_BASIC_EDITOR_POPUP, editor.getContextMenuGroupId());
-        } finally {
-            field.removeNotify();
-        }
+    private static List<String> menuItems(JTextComponent component) {
+        JPopupMenu menu = component.getComponentPopupMenu();
+        assertNotNull(menu);
+        return Arrays.stream(menu.getComponents())
+                .filter(JMenuItem.class::isInstance)
+                .map(item -> ((JMenuItem) item).getText())
+                .toList();
     }
 
-    public void testAMultiLineTextScrollsWhenItDoesNotFit() {
-        EditorTextField field = ReadOnlyTextFields.multiLine("first line\nsecond line");
-        field.addNotify();
-        try {
-            EditorEx editor = (EditorEx) field.getEditor();
-            assertEquals(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
-                    editor.getScrollPane().getVerticalScrollBarPolicy());
-        } finally {
-            field.removeNotify();
-        }
+    public void testTheTextIsReadOnlySelectableAndCopyable() {
+        JBTextField field = ReadOnlyTextFields.singleLine("orders_daily");
+
+        assertFalse(field.isEditable());
+        assertEquals("orders_daily", field.getText());
+        assertEquals(Cursor.TEXT_CURSOR, field.getCursor().getType());
+        assertEquals(List.of("Copy", "Select All"), menuItems(field));
+
+        field.select(0, 6);
+        assertEquals("orders", field.getSelectedText());
     }
 
-    public void testASingleLineTextNeverScrolls() {
-        EditorTextField field = ReadOnlyTextFields.singleLine("orders_daily");
-        field.addNotify();
-        try {
-            EditorEx editor = (EditorEx) field.getEditor();
-            assertEquals(ScrollPaneConstants.VERTICAL_SCROLLBAR_NEVER,
-                    editor.getScrollPane().getVerticalScrollBarPolicy());
-        } finally {
-            field.removeNotify();
-        }
+    public void testAMultiLineTextWrapsItsWords() {
+        JBTextArea area = ReadOnlyTextFields.multiLine("first line\nsecond line");
+
+        assertFalse(area.isEditable());
+        assertTrue(area.getLineWrap());
+        assertTrue(area.getWrapStyleWord());
+        assertEquals(List.of("Copy", "Select All"), menuItems(area));
+    }
+
+    public void testUpdatingTheTextNeedsNoWriteAction() {
+        JBTextField field = ReadOnlyTextFields.singleLine("—");
+
+        field.setText("RUNNING");
+
+        assertEquals("RUNNING", field.getText());
     }
 
     public void testAMissingTextIsShownEmpty() {
@@ -74,11 +78,12 @@ public class ReadOnlyTextFieldsTest extends BasePlatformTestCase {
         JBTable table = new JBTable(new DefaultTableModel(new Object[][]{{"customer_id", null}}, new Object[]{"a", "b"}));
         TableCellEditor cellEditor = ReadOnlyTextFields.cellEditor(table);
 
-        EditorTextField first = (EditorTextField) cellEditor.getTableCellEditorComponent(table, "customer_id", false, 0, 0);
+        JTextComponent first = (JTextComponent) cellEditor.getTableCellEditorComponent(table, "customer_id", false, 0, 0);
         assertEquals("customer_id", first.getText());
         assertEquals("customer_id", cellEditor.getCellEditorValue());
+        assertFalse(first.isEditable());
 
-        EditorTextField second = (EditorTextField) cellEditor.getTableCellEditorComponent(table, null, false, 0, 1);
+        JTextComponent second = (JTextComponent) cellEditor.getTableCellEditorComponent(table, null, false, 0, 1);
         assertEquals("", second.getText());
     }
 }

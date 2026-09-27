@@ -19,7 +19,8 @@ package io.github.rejeb.dataform.language.lineage.view;
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.popup.IconButton;
-import com.intellij.ui.EditorTextField;
+import com.intellij.ui.components.JBTextArea;
+import com.intellij.ui.components.JBTextField;
 import com.intellij.ui.InplaceButton;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBScrollPane;
@@ -127,7 +128,7 @@ public final class DetailsPanel extends JPanel {
     private JComponent header(@NotNull LineageNode node) {
         JPanel panel = new JPanel(new BorderLayout(JBUIScale.scale(6), 0));
         panel.setOpaque(false);
-        EditorTextField title = ReadOnlyTextFields.singleLine(node.name());
+        JBTextField title = ReadOnlyTextFields.singleLine(node.name());
         title.setToolTipText(node.fullName());
         title.setFont(title.getFont().deriveFont(Font.BOLD));
         panel.add(title, BorderLayout.CENTER);
@@ -145,7 +146,7 @@ public final class DetailsPanel extends JPanel {
         k.setForeground(UIUtil.getLabelDisabledForeground());
         k.setPreferredSize(new Dimension(JBUIScale.scale(60), k.getPreferredSize().height));
         panel.add(k, BorderLayout.WEST);
-        EditorTextField v = ReadOnlyTextFields.multiLine(value);
+        JBTextArea v = ReadOnlyTextFields.multiLine(value);
         panel.add(v, BorderLayout.CENTER);
         return panel;
     }
@@ -160,7 +161,7 @@ public final class DetailsPanel extends JPanel {
             panel.add(new JBLabel("—"));
         } else {
             for (String tag : node.tags()) {
-                EditorTextField chip = ReadOnlyTextFields.singleLine(tag);
+                JBTextField chip = ReadOnlyTextFields.singleLine(tag);
                 chip.setBorder(BorderFactory.createCompoundBorder(
                         JBUI.Borders.customLine(UIUtil.getBoundsColor()), JBUI.Borders.empty(1, 6)));
                 panel.add(chip);
@@ -236,7 +237,7 @@ public final class DetailsPanel extends JPanel {
         panel.add(title);
 
         if (selected != null) {
-            EditorTextField col = ReadOnlyTextFields.singleLine(selected.columnName() + "   " + selected.tableFullName());
+            JBTextField col = ReadOnlyTextFields.singleLine(selected.columnName() + "   " + selected.tableFullName());
             col.setAlignmentX(Component.LEFT_ALIGNMENT);
             panel.add(col);
         }

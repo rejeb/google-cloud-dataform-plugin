@@ -16,6 +16,7 @@
  */
 package io.github.rejeb.dataform.language.gcp.execution.unittest.engine;
 
+import com.intellij.openapi.diagnostic.ControlFlowException;
 import com.intellij.openapi.progress.ProgressIndicator;
 import org.jetbrains.annotations.NotNull;
 
@@ -67,6 +68,11 @@ public final class UnitTestRunner {
             return UnitTestComparator.compare(actual, expected);
         } catch (UnitTestQueryException e) {
             return UnitTestOutcome.error(String.valueOf(e.getMessage()));
+        } catch (RuntimeException e) {
+            if (e instanceof ControlFlowException) {
+                throw e;
+            }
+            return UnitTestOutcome.error(e.getMessage() != null ? e.getMessage() : e.toString());
         }
     }
 }

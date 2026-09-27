@@ -116,7 +116,7 @@ public final class TestSchemaResolverImpl implements TestSchemaResolver {
         if (kind == TestBlockKind.INPUT) {
             return inputReference(((SqlxInputBlock) block.getParent()).labelParts());
         }
-        return SqlxUnitTests.testedDatasetName(file).map(ActionReference::named);
+        return SqlxUnitTests.testedDataset(file);
     }
 
     private static Optional<ActionReference> inputReference(@NotNull List<String> parts) {

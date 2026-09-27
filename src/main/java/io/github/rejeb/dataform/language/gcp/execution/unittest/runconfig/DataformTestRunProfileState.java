@@ -28,9 +28,13 @@ import com.intellij.execution.runners.ExecutionEnvironment;
 import com.intellij.execution.runners.ProgramRunner;
 import com.intellij.execution.testframework.sm.SMTestRunnerConnectionUtil;
 import com.intellij.execution.testframework.ui.BaseTestsOutputConsoleView;
+import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.psi.PsiFile;
+import com.intellij.psi.PsiManager;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.gcp.execution.unittest.bigquery.BigQueryUnitTestQueryExecutor;
@@ -40,6 +44,8 @@ import io.github.rejeb.dataform.language.gcp.execution.unittest.engine.UnitTestR
 import io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.DataformProcessHandler;
 import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
 import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
+import io.github.rejeb.dataform.language.unittest.SqlxUnitTests;
+import io.github.rejeb.dataform.language.util.DataformPaths;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
@@ -99,7 +105,8 @@ public final class DataformTestRunProfileState implements RunProfileState {
             error(handler, "Dataform compilation failed.");
             return 1;
         }
-        List<UnitTestCase> cases = UnitTestCases.select(graph, configuration.getScope(), configuration.getTargetPath());
+        List<UnitTestCase> cases = UnitTestCases.select(graph, configuration.getScope(), configuration.getTargetPath(),
+                fileName -> isUnitTestFile(project, fileName));
         if (cases.isEmpty()) {
             error(handler, "No unit tests found.");
             return 1;
@@ -110,6 +117,14 @@ public final class DataformTestRunProfileState implements RunProfileState {
         new UnitTestRunner(new BigQueryUnitTestQueryExecutor(project, config.projectId()), listener)
                 .run(cases, indicator);
         return listener.failureCount() == 0 ? 0 : 1;
+    }
+
+    private static boolean isUnitTestFile(@NotNull Project project, @NotNull String projectRelativePath) {
+        return ReadAction.computeBlocking(() -> {
+            VirtualFile file = DataformPaths.findInProject(project, projectRelativePath);
+            PsiFile psiFile = file == null || !file.isValid() ? null : PsiManager.getInstance(project).findFile(file);
+            return psiFile != null && SqlxUnitTests.isUnitTestFile(psiFile);
+        });
     }
 
     private static void error(@NotNull DataformProcessHandler handler, @NotNull String message) {

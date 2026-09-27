@@ -25,6 +25,7 @@ import com.intellij.psi.util.PsiTreeUtil;
 import io.github.rejeb.dataform.language.compilation.model.ActionReference;
 import io.github.rejeb.dataform.language.injection.InjectedFiles;
 import io.github.rejeb.dataform.language.psi.SqlxConfigBlock;
+import io.github.rejeb.dataform.language.psi.SqlxFile;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -39,7 +40,7 @@ public final class SqlxUnitTests {
     private static final String DATASET_KEY = "dataset";
     private static final String NAME_KEY = "name";
     private static final Pattern TEST_TYPE_DECLARATION =
-            Pattern.compile("(?<![\\w$])type\\s*:\\s*([\"'`])" + TEST_TYPE + "\\1");
+            Pattern.compile("(?<![\\w$])([\"'`]?)type\\1\\s*:\\s*([\"'`])" + TEST_TYPE + "\\2");
 
     private SqlxUnitTests() {
     }
@@ -53,24 +54,38 @@ public final class SqlxUnitTests {
 
     /**
      * Tells whether the config block of the given SQLX file declares a unit test. Reads only the host
-     * text of the config block, never injected PSI, so it is safe on the EDT under a read action.
+     * text of the config block, never injected PSI, so it is safe on the EDT under a read action. Any
+     * other kind of file is answered at once, without walking its tree.
      */
     public static boolean isUnitTestFile(@NotNull PsiFile sqlxFile) {
+        if (!(sqlxFile instanceof SqlxFile)) {
+            return false;
+        }
         SqlxConfigBlock config = PsiTreeUtil.findChildOfType(sqlxFile, SqlxConfigBlock.class);
         return config != null && TEST_TYPE_DECLARATION.matcher(config.getText()).find();
     }
 
     /**
-     * Returns the name of the action under test, given by {@code dataset} as a string or as the
-     * {@code name} of a target object. Reads injected PSI: call it under a read action, off the EDT.
+     * Returns the action under test, given by {@code dataset} as a name or as a target object whose
+     * {@code schema} and {@code database} narrow its {@code name}. Reads injected PSI: call it under
+     * a read action, off the EDT.
      */
-    public static Optional<String> testedDatasetName(@NotNull PsiFile sqlxFile) {
+    public static Optional<ActionReference> testedDataset(@NotNull PsiFile sqlxFile) {
         return configObject(sqlxFile)
                 .filter(SqlxUnitTests::isUnitTestConfig)
                 .map(config -> config.findProperty(DATASET_KEY))
-                .map(dataset -> dataset.getValue() instanceof JSObjectLiteralExpression target
-                        ? stringValue(target, NAME_KEY)
-                        : literalString(dataset.getValue()));
+                .map(SqlxUnitTests::datasetReference);
+    }
+
+    @Nullable
+    private static ActionReference datasetReference(@NotNull JSProperty dataset) {
+        if (dataset.getValue() instanceof JSObjectLiteralExpression target) {
+            String name = stringValue(target, NAME_KEY);
+            return name == null ? null
+                    : new ActionReference(stringValue(target, "database"), stringValue(target, "schema"), name);
+        }
+        String name = literalString(dataset.getValue());
+        return name == null ? null : ActionReference.named(name);
     }
 
     /**

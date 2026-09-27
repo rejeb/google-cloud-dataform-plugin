@@ -31,6 +31,8 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VirtualFile;
+import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
+import io.github.rejeb.dataform.language.diagnostics.DataformEditorRefresher;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.charset.StandardCharsets;
@@ -90,12 +92,26 @@ public final class DataformPackageInstallerImpl implements DataformPackageInstal
             }
             VfsUtil.markDirtyAndRefresh(true, true, true, projectDir);
             notify("Dataform packages installed", "", NotificationType.INFORMATION, projectDir, false);
+            recompile(indicator);
         } catch (Exception e) {
             LOG.warn("Unable to run dataform install", e);
             notify("Dataform packages not installed",
                     StringUtil.escapeXmlEntities(StringUtil.notNullize(e.getMessage())),
                     NotificationType.ERROR, projectDir, true);
         }
+    }
+
+    /**
+     * Compiles again once {@code @dataform/core} is installed: a compilation run before, by the
+     * project startup or by the edit that triggered the install, could not find it and left no graph.
+     */
+    private void recompile(@NotNull ProgressIndicator indicator) {
+        if (project.isDisposed()) {
+            return;
+        }
+        indicator.setText("Dataform: compiling");
+        DataformCompilationService.getInstance(project).compile(true);
+        DataformEditorRefresher.refresh(project);
     }
 
     @NotNull

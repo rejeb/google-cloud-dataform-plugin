@@ -46,13 +46,14 @@ public class DataformModuleWizardStep extends ModuleWizardStep {
                 .addLabeledComponent("Dataform core version",dataformCoreVersionField)
                 .addComponentFillVertically(new JPanel(), 0)
                 .getPanel();
-        proposeLatestCoreVersion();
+        proposeCoreVersion();
     }
 
-    private void proposeLatestCoreVersion() {
+    private void proposeCoreVersion() {
         String proposed = dataformCoreVersionField.getText();
+        DataformCoreVersionProvider versions = DataformCoreVersionProvider.getInstance();
         ApplicationManager.getApplication().executeOnPooledThread(() ->
-                DataformCoreVersionProvider.getInstance().fetchLatestVersion().ifPresent(latest ->
+                versions.installedCliVersion().or(versions::fetchLatestVersion).ifPresent(latest ->
                         ApplicationManager.getApplication().invokeLater(() -> {
                             if (proposed.equals(dataformCoreVersionField.getText())) {
                                 dataformCoreVersionField.setText(latest);

@@ -118,7 +118,9 @@ public class DataformJsonSchemaGeneratorImplTest {
         assertEquals("string", props.get("database").get("type").asText());
         assertTrue(props.get("database").get("description").asText().startsWith("Alias for project"));
         assertEquals("array", props.get("dependencies").get("type").asText());
-        assertEquals("string", props.get("dependencies").get("items").get("type").asText());
+        JsonNode dependencyShapes = props.get("dependencies").get("items").get("oneOf");
+        assertEquals("string", dependencyShapes.get(0).get("type").asText());
+        assertEquals("#/$defs/ActionConfig_Target", dependencyShapes.get(1).get("$ref").asText());
         assertEquals("#/$defs/ActionConfig_Target",
                 props.get("dependencyTargets").get("items").get("$ref").asText());
     }
@@ -148,6 +150,29 @@ public class DataformJsonSchemaGeneratorImplTest {
         JsonNode assertions = branch("table").get("properties").get("assertions");
         assertEquals("#/$defs/ActionConfig_TableAssertionsConfig", assertions.get("$ref").asText());
         assertTrue(schema.get("$defs").has("ActionConfig_TableAssertionsConfig"));
+    }
+
+    @Test
+    public void assertionsAcceptTheLegacySqlxShapes() {
+        JsonNode props = schema.get("$defs").get("ActionConfig_TableAssertionsConfig").get("properties");
+
+        for (String name : List.of("uniqueKey", "nonNull")) {
+            JsonNode shapes = props.get(name).get("oneOf");
+            assertEquals("array", shapes.get(0).get("type").asText(), name);
+            assertEquals("string", shapes.get(0).get("items").get("type").asText(), name);
+            assertEquals("string", shapes.get(1).get("type").asText(), name);
+            assertTrue(props.get(name).get("description").asText().length() > 0, name);
+        }
+
+        JsonNode uniqueKeys = props.get("uniqueKeys");
+        assertEquals("array", uniqueKeys.get("type").asText());
+        JsonNode itemShapes = uniqueKeys.get("items").get("oneOf");
+        assertEquals("#/$defs/ActionConfig_TableAssertionsConfig_UniqueKey",
+                itemShapes.get(0).get("$ref").asText());
+        assertEquals("array", itemShapes.get(1).get("type").asText());
+        assertEquals("string", itemShapes.get(1).get("items").get("type").asText());
+
+        assertEquals("array", props.get("rowConditions").get("type").asText());
     }
 
     @Test

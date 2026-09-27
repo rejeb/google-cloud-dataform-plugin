@@ -22,10 +22,9 @@ import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiReference;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
-import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
+import io.github.rejeb.dataform.language.testing.ProjectStateInstaller;
 
-import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.List;
 
@@ -139,13 +138,6 @@ public class DataformRefFunctionReferenceTest extends BasePlatformTestCase {
     }
 
     private void installGraph(CompiledGraph graph) {
-        try {
-            DataformCompilationService service = getProject().getService(DataformCompilationService.class);
-            Field field = service.getClass().getDeclaredField("compiledGraph");
-            field.setAccessible(true);
-            field.set(service, graph);
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException(e);
-        }
+        ProjectStateInstaller.installGraph(getProject(), getTestRootDisposable(), graph);
     }
 }

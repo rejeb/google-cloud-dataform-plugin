@@ -18,12 +18,12 @@ package io.github.rejeb.dataform.language.schema.sql;
 
 import com.intellij.testFramework.LoggedErrorProcessor;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
-import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.compilation.model.CompiledTable;
 import io.github.rejeb.dataform.language.compilation.model.Target;
 import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasTable;
+import io.github.rejeb.dataform.language.testing.ProjectStateInstaller;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -98,13 +98,12 @@ public class DuplicateTableNameResolveTest extends BasePlatformTestCase {
         set(graph, "declarations", List.of());
         set(graph, "operations", List.of());
         set(graph, "assertions", List.of());
-        set(getProject().getService(DataformCompilationService.class), "compiledGraph", graph);
+        ProjectStateInstaller.installGraph(getProject(), getTestRootDisposable(), graph);
     }
 
     private void installSchema() {
-        DataformTableSchemaService.State state = new DataformTableSchemaService.State();
-        state.schemaCacheJson = "{" + entry("staging", "staging_only") + "," + entry("mart", "mart_only") + "}";
-        DataformTableSchemaService.getInstance(getProject()).loadState(state);
+        ProjectStateInstaller.installSchemas(getProject(), getTestRootDisposable(),
+                "{" + entry("staging", "staging_only") + "," + entry("mart", "mart_only") + "}");
     }
 
     private static String entry(String schema, String column) {

@@ -17,7 +17,7 @@
 package io.github.rejeb.dataform.language.fileEditor;
 
 import com.intellij.icons.AllIcons;
-import com.intellij.ui.EditorTextField;
+import com.intellij.ui.components.JBTextField;
 import com.intellij.ui.table.JBTable;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
@@ -52,7 +52,7 @@ class TableSchemaSection extends JPanel {
         header.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
 
         JLabel toggleIcon = new JLabel(AllIcons.General.ArrowDown);
-        EditorTextField tableLabel = ReadOnlyTextFields.singleLine(
+        JBTextField tableLabel = ReadOnlyTextFields.singleLine(
                 tableName != null ? tableName : "Unknown table", header.getBackground());
         tableLabel.setFont(JBUI.Fonts.label(12).asBold());
         tableLabel.setBorder(JBUI.Borders.emptyLeft(6));

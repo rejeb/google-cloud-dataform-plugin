@@ -108,4 +108,22 @@ public class UnitTestRunnerTest extends BasePlatformTestCase {
 
         assertEquals(List.of("run 2", "start first", "pass first []", "done"), listener.events);
     }
+
+    public void testAnUnexpectedFailureErrsThatTestAndTheRunGoesOn() {
+        RecordingListener listener = new RecordingListener();
+        UnitTestQueryExecutor executor = (sql, indicator) -> {
+            if (sql.equals("NETWORK")) throw new IllegalStateException("Connection reset");
+            return one("1");
+        };
+
+        new UnitTestRunner(executor, listener).run(List.of(
+                test("flaky", "NETWORK", "A"),
+                test("next", "A", "A")), new EmptyProgressIndicator());
+
+        assertEquals(List.of(
+                "run 2",
+                "start flaky", "fail flaky [Error thrown: Connection reset.]",
+                "start next", "pass next []",
+                "done"), listener.events);
+    }
 }

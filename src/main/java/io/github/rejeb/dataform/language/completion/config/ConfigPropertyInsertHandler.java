@@ -47,6 +47,13 @@ public class ConfigPropertyInsertHandler implements InsertHandler<LookupElement>
         Document document = editor.getDocument();
         int offset = ConfigInsertion.hostOffset(context, context.getTailOffset());
 
+        int valueOffset = ConfigInsertion.existingValueOffset(document, offset);
+        if (valueOffset >= 0) {
+            editor.getCaretModel().moveToOffset(valueOffset);
+            return;
+        }
+        document.deleteString(offset, ConfigInsertion.afterExistingColon(document, offset));
+
         ConfigValueSkeletonBuilder.Skeleton skeleton = skeletonBuilder
                 .build(propertyName, propertySchema, ConfigInsertion.lineIndent(document, offset));
 

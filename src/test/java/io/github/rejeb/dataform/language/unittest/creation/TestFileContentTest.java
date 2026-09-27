@@ -79,8 +79,9 @@ class TestFileContentTest {
         Target tested = TestFileNames.testedTarget(orders);
         Map<Target, List<ColumnInfo>> schemas = Map.of(
                 tested, ORDERS, orders.getDependencyTargets().get(0), UnitTestSchemaFixture.RAW_ORDERS);
+        TestInputLabels labels = TestInputLabels.of(graph, null);
         String content = TestFileContent.of(tested, orders.getDependencyTargets(),
-                target -> TestFileNames.isAmbiguous(graph, target),
+                target -> labels.partsOf(target, TestFileNames.isAmbiguous(graph, target)),
                 target -> schemas.getOrDefault(target, List.of()));
         assertEquals("""
                 config {
@@ -109,4 +110,37 @@ class TestFileContentTest {
                 """, content);
     }
 
+    @Test
+    void anInputIsLabelledAsTheTestedQueryWroteItsRef() {
+        TestInputLabels labels = TestInputLabels.of(graph,
+                "SELECT * FROM ${ref(\"raw\", \"raw_orders\")} JOIN ${ctx.ref('customers')}");
+        List<Target> dependencies = orders().getDependencyTargets();
+
+        assertEquals(List.of("raw", "raw_orders"), labels.partsOf(dependencies.get(0), false));
+        assertEquals(List.of("customers"), labels.partsOf(dependencies.get(1), true));
+    }
+
+    @Test
+    void aRefToAPrefixedTableKeepsTheNameTheQueryWrote() {
+        CompiledGraph prefixed = new Gson().fromJson("""
+                {"tables": [
+                  {"type": "view", "target": {"database": "p", "schema": "d", "name": "dev_customers"},
+                   "canonicalTarget": {"database": "p", "schema": "d", "name": "customers"},
+                   "fileName": "definitions/customers.sqlx"}]}
+                """, CompiledGraph.class);
+        Target compiled = prefixed.getTables().get(0).getTarget();
+
+        TestInputLabels labels = TestInputLabels.of(prefixed, "SELECT * FROM ${ref(\"customers\")}");
+
+        assertEquals(List.of("customers"), labels.partsOf(compiled, false));
+    }
+
+    @Test
+    void anInputWithoutRefFallsBackToItsName() {
+        TestInputLabels labels = TestInputLabels.of(graph, "SELECT 1");
+        Target customers = graph.getTables().get(1).getTarget();
+
+        assertEquals(List.of("d", "customers"), labels.partsOf(customers, true));
+        assertEquals(List.of("customers"), labels.partsOf(customers, false));
+    }
 }

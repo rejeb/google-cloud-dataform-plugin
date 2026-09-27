@@ -59,8 +59,8 @@ public class SqlxInputNameCompletionContributor extends CompletionContributor {
             }
             CompletionResultSet names = result.withPrefixMatcher(prefix(position, parameters.getOffset()));
             Set<String> seen = new HashSet<>();
-            SqlxUnitTests.testedDatasetName(parameters.getOriginalFile())
-                    .flatMap(graph::findTableByName)
+            SqlxUnitTests.testedDataset(parameters.getOriginalFile())
+                    .flatMap(graph::findTableByReference)
                     .ifPresent(table -> table.getDependencyTargets().forEach(target -> {
                         if (target != null && target.getName() != null && seen.add(target.getName())) {
                             names.addElement(DataformActionLookups.lookup(target, AllIcons.Nodes.DataTables,

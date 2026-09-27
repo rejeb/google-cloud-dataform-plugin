@@ -18,6 +18,9 @@ package io.github.rejeb.dataform.language.unittest.columns;
 
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
+import com.intellij.psi.tree.IElementType;
+import com.intellij.sql.dialects.bigquery.BigQueryTypes;
+import com.intellij.sql.psi.SqlCompositeElementTypes;
 import io.github.rejeb.dataform.language.schema.sql.SqlPsiParts;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -30,18 +33,18 @@ import java.util.Optional;
 
 public final class TestAliasPaths {
 
-    public static final String AS_EXPRESSION = "BigQueryAsExpressionImpl";
-    private static final String STRUCT_EXPRESSION = "BigQueryParenthesizedExpression";
-    private static final String SELECT_CLAUSE = "SqlSelectClauseImpl";
+    public static final IElementType AS_EXPRESSION = SqlCompositeElementTypes.SQL_AS_EXPRESSION;
+    private static final IElementType STRUCT_EXPRESSION = BigQueryTypes.BQ_PARENTHESIZED_EXPRESSION;
+    private static final IElementType SELECT_CLAUSE = SqlCompositeElementTypes.SQL_SELECT_CLAUSE;
 
     private TestAliasPaths() {
     }
 
     /**
-     * Tells whether an element is an instance of the PSI class of the given simple name.
+     * Tells whether an element is a node of the given element type.
      */
-    public static boolean isType(@Nullable PsiElement element, @NotNull String simpleName) {
-        return element != null && element.getClass().getSimpleName().equals(simpleName);
+    public static boolean isType(@Nullable PsiElement element, @NotNull IElementType type) {
+        return SqlPsiParts.isType(element, type);
     }
 
     /**

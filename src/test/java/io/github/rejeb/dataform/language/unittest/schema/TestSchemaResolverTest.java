@@ -27,6 +27,7 @@ import io.github.rejeb.dataform.language.unittest.UnitTestGraphFixture;
 import io.github.rejeb.dataform.language.unittest.UnitTestSchemaFixture;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 public class TestSchemaResolverTest extends BasePlatformTestCase {
@@ -83,6 +84,28 @@ public class TestSchemaResolverTest extends BasePlatformTestCase {
     public void testTheTestedDatasetMayBeGivenAsATargetObject() {
         PsiFile file = file("config {\n  type: \"test\",\n  dataset: { schema: \"d\", name: \"orders\" }\n}\n\nSELECT 1 AS order_id\n");
         assertEquals("orders", resolver().resolve(mainBody(file)).orElseThrow().target().getName());
+    }
+
+    public void testATargetObjectPicksTheTableOfItsSchemaAmongHomonyms() {
+        UnitTestGraphFixture.install(getProject(), getTestRootDisposable(), """
+                {
+                  "tables": [
+                    {"type": "table", "target": {"database": "p", "schema": "staging", "name": "customers"},
+                     "fileName": "definitions/staging/customers.sqlx", "disabled": false},
+                    {"type": "table", "target": {"database": "p", "schema": "mart", "name": "customers"},
+                     "fileName": "definitions/mart/customers.sqlx", "disabled": false}
+                  ],
+                  "graphErrors": {"compilationErrors": []}
+                }""");
+        UnitTestSchemaFixture.install(getProject(), getTestRootDisposable(), Map.of(
+                "p.staging.customers", UnitTestSchemaFixture.RAW_ORDERS,
+                "p.mart.customers", UnitTestSchemaFixture.CUSTOMERS));
+        PsiFile file = file("config {\n  type: \"test\",\n  dataset: { schema: \"mart\", name: \"customers\" }\n}\n\nSELECT 1 AS customer_id\n");
+
+        Optional<TestBlockSchema> schema = resolver().resolve(mainBody(file));
+
+        assertEquals("mart", schema.orElseThrow().target().getSchema());
+        assertEquals(List.of("customer_id", "name"), names(schema));
     }
 
     public void testAFileThatIsNoTestResolvesNothing() {
