@@ -16,6 +16,7 @@
  */
 package io.github.rejeb.dataform.language.settings;
 
+import io.github.rejeb.dataform.language.util.DataformPaths;
 import com.intellij.openapi.components.PersistentStateComponent;
 import com.intellij.openapi.components.State;
 import com.intellij.openapi.components.Storage;
@@ -43,7 +44,7 @@ public final class DataformToolsSettingsImpl
 
     @Override
     public @NotNull String getCoreInstallPath() {
-        return state.coreInstallPath.replace("\\", "/");
+        return DataformPaths.normalize(state.coreInstallPath);
     }
 
     @Override
@@ -53,12 +54,12 @@ public final class DataformToolsSettingsImpl
 
     @Override
     public @NotNull String getSqlfluffExecutablePath() {
-        return state.sqlfluffExecutablePath.replace("\\", "/");
+        return DataformPaths.normalize(state.sqlfluffExecutablePath);
     }
 
     @Override
     public @NotNull String getSqlfluffConfigPath() {
-        return state.sqlfluffConfigPath.replace("\\", "/");
+        return DataformPaths.normalize(state.sqlfluffConfigPath);
     }
 
     @Override

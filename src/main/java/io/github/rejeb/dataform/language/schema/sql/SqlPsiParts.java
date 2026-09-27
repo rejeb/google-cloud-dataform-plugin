@@ -18,9 +18,13 @@ package io.github.rejeb.dataform.language.schema.sql;
 
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.tree.IElementType;
+import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.sql.psi.SqlCompositeElementTypes;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * The pieces of a SQL element every reader of the SQL PSI needs: the identifier naming it, a child
@@ -87,5 +91,18 @@ public final class SqlPsiParts {
     /** The text of an identifier without the quoting BigQuery allows around it. */
     public static @NotNull String unquoted(@NotNull String text) {
         return text.replace("`", "");
+    }
+
+    /**
+     * Every descendant of an element of the given type, in document order, the element excluded.
+     */
+    public static @NotNull List<PsiElement> childrenOfTypeDeep(@NotNull PsiElement parent,
+                                                              @NotNull IElementType type) {
+        List<PsiElement> found = new ArrayList<>();
+        PsiTreeUtil.processElements(parent, element -> {
+            if (element != parent && isType(element, type)) found.add(element);
+            return true;
+        });
+        return found;
     }
 }

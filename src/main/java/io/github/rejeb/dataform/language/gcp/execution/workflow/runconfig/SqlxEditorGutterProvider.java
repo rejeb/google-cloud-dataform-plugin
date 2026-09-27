@@ -29,6 +29,8 @@ import com.intellij.psi.PsiFile;
 import com.intellij.psi.impl.source.tree.LeafPsiElement;
 import com.intellij.psi.util.PsiTreeUtil;
 import io.github.rejeb.dataform.language.psi.SqlxConfigBlock;
+import io.github.rejeb.dataform.language.psi.SqlxConfigBlocks;
+import io.github.rejeb.dataform.language.unittest.SqlxUnitTests;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -46,11 +48,12 @@ public class SqlxEditorGutterProvider implements LineMarkerProvider {
     @Override
     public @Nullable LineMarkerInfo<?> getLineMarkerInfo(@NotNull PsiElement element) {
         if (!(element instanceof LeafPsiElement)) return null;
-        SqlxConfigBlock configBlock = PsiTreeUtil.getParentOfType(element, SqlxConfigBlock.class);
-        if (configBlock == null || PsiTreeUtil.getDeepestFirst(configBlock) != element) return null;
+        SqlxConfigBlock configBlock = SqlxConfigBlocks.startingWith(element);
+        if (configBlock == null) return null;
         PsiFile sqlxFile = configBlock.getContainingFile();
         if (sqlxFile == null || sqlxFile.getVirtualFile() == null) return null;
         if (!isActionFile(sqlxFile.getVirtualFile())) return null;
+        if (SqlxUnitTests.isUnitTestFile(sqlxFile)) return null;
         if (!declaresTags(configBlock)) return null;
 
         return new LineMarkerInfo<>(

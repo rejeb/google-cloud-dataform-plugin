@@ -34,6 +34,34 @@
                 <li>JSON Schema-powered validation and autocompletion for <code>workflow_settings.yaml</code>, generated dynamically from your project's Dataform configuration.</li>
             </ul>
 
+            <h2>Config Block Assistance</h2>
+            <ul>
+                <li>Property completion in <code>config { }</code> blocks, scoped to the declared action type and generated from the <code>@dataform/core</code> version installed in the project; inserts a value skeleton matching the property type, or moves the caret to the existing value.</li>
+                <li>Value completion for enumerated properties, tags already used in the project, and the action's own columns in <code>columns</code>, <code>clusterBy</code>, <code>uniqueKey</code> and <code>assertions</code>.</li>
+                <li><code>partitionBy</code> completion with the BigQuery partitioning expressions matching the column types, plus an inspection and quick fix for <code>partitionBy</code> written as an object.</li>
+                <li>Validation of unknown config keys and invalid enumerated values, including legacy shorthand forms (<code>uniqueKey: "id"</code>, dependency targets as objects).</li>
+                <li>Quick Documentation (<code>Ctrl+Q</code>) on config keys, describing what each key expects.</li>
+            </ul>
+
+            <h2>Template Expression Evaluation</h2>
+            <ul>
+                <li><code>${...}</code> expressions and workflow settings references are folded to their evaluated value, computed with the project Node.js interpreter; click the value to show the source again.</li>
+                <li>Quick Documentation on an expression shows its evaluated value.</li>
+            </ul>
+
+            <h2>Compilation &amp; Diagnostics</h2>
+            <ul>
+                <li>Background project compilation on save and while editing.</li>
+                <li>Dataform compilation errors and BigQuery dry-run errors placed on the exact tokens of the SQLX file, with inline error chips.</li>
+                <li>Editor banner listing the errors that cannot be placed in the file.</li>
+            </ul>
+
+            <h2>SQLX Preview Editor</h2>
+            <ul>
+                <li>Split editor next to each SQLX file with the action's lineage graph, compiled query and resolved table schema.</li>
+                <li>Test preview for unit test files.</li>
+            </ul>
+
             <h2>Navigation &amp; Code Intelligence</h2>
             <ul>
                 <li>Jump between references, includes and declarations with <code>Ctrl+Click</code> / <code>Ctrl+B</code>.</li>
@@ -41,6 +69,7 @@
                 <li>Show Column Usages (<code>Ctrl+Alt+Shift+U</code>, also available from the editor context menu): list every downstream place where a given column is read across the project &mdash; the reverse direction of Go to Declaration.</li>
                 <li>Quick Documentation (<code>Ctrl+Q</code>) for table references, resolved schemas, column metadata, and the built-in BigQuery function catalog (signatures, descriptions, examples).</li>
                 <li>Clickable links to workflow configuration properties.</li>
+                <li>Find Usages on the fields of <code>STRUCT</code> columns.</li>
             </ul>
 
             <h2>Refactoring</h2>
@@ -60,6 +89,23 @@
                 <li>One-click gutter icons in the SQLX editor to execute the current action's workflow without leaving the file.</li>
             </ul>
 
+            <h2>Unit Tests</h2>
+            <ul>
+                <li>Create Dataform Test from the Project view or editor context menu of a table or view: generates <code>definitions/tests/test_&lt;action&gt;.sqlx</code> with one input per dependency and the expected output, pre-filled from the resolved schemas.</li>
+                <li>Column completion after <code>AS</code> in <code>input</code> blocks and in the expected output, including the fields of <code>STRUCT</code> and arrays of structs.</li>
+                <li>Generate SELECT from schema intention (<code>Alt+Enter</code>) filling an input or the expected output with a typed placeholder row.</li>
+                <li>Completion and navigation for the tested dataset and the input names of a test.</li>
+                <li>Run tests from the gutter or a dedicated run configuration; results appear in the IDE test runner, with an expected/actual diff for failing tests.</li>
+            </ul>
+
+            <h2>Google Cloud Integration</h2>
+            <ul>
+                <li>Dataform Tools tool window: manage repositories, browse and create workspaces, and push or pull files between the local project and a GCP Dataform workspace.</li>
+                <li>Compare File with Remote to diff a local file with its version in the workspace.</li>
+                <li>BigQuery query execution in the Services view, with paged results in a data grid.</li>
+                <li>Google Cloud authentication status and sign-in prompts in the editor.</li>
+            </ul>
+
             <h2>Formatting</h2>
             <ul>
                 <li>Built-in formatter aware of injected SQL, JavaScript and config blocks inside SQLX files.</li>
@@ -69,8 +115,10 @@
             <h2>Project Tooling</h2>
             <ul>
                 <li>New Project wizard to scaffold Dataform projects with the correct structure.</li>
-                <li>New SQLX File action with ready-made templates for every Dataform action type: Table, View, Incremental table, Assertion, Operations, and Declaration.</li>
+                <li>New SQLX File action with ready-made templates for every Dataform action type: Table, View, Incremental table, Assertion, Operations, Declaration, and Test.</li>
                 <li>Automatic Dataform CLI detection, installation and setup.</li>
+                <li>Suggests moving <code>dataformCoreVersion</code> from <code>workflow_settings.yaml</code> to the <code>@dataform/core</code> dependency of <code>package.json</code>.</li>
+                <li>Disabled actions (<code>disabled: true</code>) are greyed out in the Project view.</li>
                 <li>Fast project indexing of Dataform core definitions and JavaScript symbols for responsive completion and search.</li>
             </ul>
     ]]></description>
@@ -92,6 +140,21 @@
         <projectService serviceInterface="io.github.rejeb.dataform.language.setup.DataformInterpreterManager"
                         serviceImplementation="io.github.rejeb.dataform.language.setup.DataformInterpreterManagerImpl"
                         testServiceImplementation="io.github.rejeb.dataform.language.setup.DataformInterpreterManagerTestImpl"
+        />
+        <applicationService serviceInterface="io.github.rejeb.dataform.language.setup.DataformCoreVersionProvider"
+                            serviceImplementation="io.github.rejeb.dataform.language.setup.NpmRegistryDataformCoreVersionProvider"
+        />
+        <projectService serviceInterface="io.github.rejeb.dataform.language.setup.DataformPackageInstaller"
+                        serviceImplementation="io.github.rejeb.dataform.language.setup.DataformPackageInstallerImpl"
+        />
+        <projectService serviceInterface="io.github.rejeb.dataform.language.setup.DataformCoreVersionMigrator"
+                        serviceImplementation="io.github.rejeb.dataform.language.setup.DataformCoreVersionMigratorImpl"
+        />
+        <projectService serviceInterface="io.github.rejeb.dataform.language.unittest.schema.TestSchemaResolver"
+                        serviceImplementation="io.github.rejeb.dataform.language.unittest.schema.TestSchemaResolverImpl"
+        />
+        <projectService serviceInterface="io.github.rejeb.dataform.language.unittest.columns.TestColumnAliases"
+                        serviceImplementation="io.github.rejeb.dataform.language.unittest.columns.TestColumnAliasesImpl"
         />
         <projectService serviceInterface="io.github.rejeb.dataform.language.schema.json.ProtoParser"
                         serviceImplementation="io.github.rejeb.dataform.language.schema.json.ProtoParserImpl"
@@ -128,6 +191,12 @@
         />
         <projectService serviceInterface="io.github.rejeb.dataform.language.validation.SqlxValidationService"
                         serviceImplementation="io.github.rejeb.dataform.language.validation.SqlxValidationServiceImpl"
+        />
+        <projectService serviceInterface="io.github.rejeb.dataform.language.diagnostics.sql.bigquery.BigQueryDiagnosticsService"
+                        serviceImplementation="io.github.rejeb.dataform.language.diagnostics.sql.bigquery.BigQueryDiagnosticsServiceImpl"
+        />
+        <projectService serviceInterface="io.github.rejeb.dataform.language.diagnostics.compile.CompilationProblemsService"
+                        serviceImplementation="io.github.rejeb.dataform.language.diagnostics.compile.CompilationProblemsServiceImpl"
         />
         <projectService serviceInterface="io.github.rejeb.dataform.language.diagnostics.ValidationProblemInlayManager"
                         serviceImplementation="io.github.rejeb.dataform.language.diagnostics.ValidationProblemInlayManagerImpl"
@@ -201,6 +270,15 @@
                 language="SQL"
                 implementationClass="io.github.rejeb.dataform.language.completion.SqlxMissingCommaCompletionContributor"
                 order="last"/>
+        <completion.contributor
+                language="SQL"
+                implementationClass="io.github.rejeb.dataform.language.unittest.completion.SqlxTestColumnCompletionContributor"/>
+        <gotoDeclarationHandler
+                implementation="io.github.rejeb.dataform.language.unittest.navigation.TestAliasGotoDeclarationHandler"/>
+        <intentionAction>
+            <className>io.github.rejeb.dataform.language.unittest.generation.GenerateTestSelectIntention</className>
+            <category>Dataform</category>
+        </intentionAction>
         <renameHandler
                 implementation="io.github.rejeb.dataform.language.refactoring.column.DataformColumnRenameHandler"
                 order="first"/>
@@ -251,6 +329,8 @@
                 implementation="io.github.rejeb.dataform.language.setup.DataformInstaller"/>
         <postStartupActivity
                 implementation="io.github.rejeb.dataform.language.startup.DataformProjectStartup"/>
+        <postStartupActivity
+                implementation="io.github.rejeb.dataform.language.setup.DataformCoreVersionMigrationActivity"/>
         <fileEditorProvider implementation="io.github.rejeb.dataform.language.fileEditor.SqlxSplitEditorProvider"/>
         <fileEditorProvider implementation="io.github.rejeb.dataform.language.lineage.view.LineageFileEditorProvider"/>
         <fileIconProvider implementation="io.github.rejeb.dataform.language.lineage.view.LineageFileIconProvider"/>
@@ -281,6 +361,9 @@
 
         <annotator
                 language="SQLX"
+                implementationClass="io.github.rejeb.dataform.language.validation.DataformValidationAnnotator"/>
+        <annotator
+                language="JavaScript"
                 implementationClass="io.github.rejeb.dataform.language.validation.DataformValidationAnnotator"/>
 
         <annotator
@@ -352,6 +435,11 @@
                 implementationClass="io.github.rejeb.dataform.language.completion.DataformRefCompletionContributor"/>
 
         <completion.contributor
+                language="JavaScript" order="first, before dataformConfigValueCompletion"
+                id="dataformTestDatasetCompletion"
+                implementationClass="io.github.rejeb.dataform.language.unittest.DataformTestDatasetCompletionContributor"/>
+
+        <completion.contributor
                 language="JavaScript" order="first"
                 id="dataformJsSymbolCompletion"
                 implementationClass="io.github.rejeb.dataform.language.completion.DataformJsSymbolCompletionContributor"/>
@@ -363,6 +451,10 @@
         <completion.contributor
                 language="SQL"
                 implementationClass="io.github.rejeb.dataform.language.completion.SqlxKeywordCompletionContributor"/>
+
+        <completion.contributor
+                language="SQLX"
+                implementationClass="io.github.rejeb.dataform.language.unittest.SqlxInputNameCompletionContributor"/>
 
         <completion.contributor
                 language="SQL"
@@ -404,6 +496,10 @@
 
         <psi.referenceContributor
                 language="JavaScript"
+                implementation="io.github.rejeb.dataform.language.unittest.navigation.TestedDatasetReferenceContributor"/>
+
+        <psi.referenceContributor
+                language="JavaScript"
                 implementation="io.github.rejeb.dataform.language.reference.DataformWorkflowSettingsReferenceContributor"/>
 
         <psi.referenceContributor
@@ -437,12 +533,21 @@
         <!-- Program Runner -->
         <programRunner
                 implementation="io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.DataformWorkflowProgramRunner"/>
+        <configurationType
+                implementation="io.github.rejeb.dataform.language.gcp.execution.unittest.runconfig.DataformTestConfigurationType"/>
+        <programRunner
+                implementation="io.github.rejeb.dataform.language.gcp.execution.unittest.runconfig.DataformTestProgramRunner"/>
 
         <codeInsight.lineMarkerProvider
                 language="SQLX"
                 implementationClass="io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.SqlxEditorGutterProvider"/>
         <runConfigurationProducer
                 implementation="io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.DataformSqlxRunConfigurationProducer"/>
+        <runConfigurationProducer
+                implementation="io.github.rejeb.dataform.language.gcp.execution.unittest.runconfig.DataformTestRunConfigurationProducer"/>
+        <runLineMarkerContributor
+                language="SQLX"
+                implementationClass="io.github.rejeb.dataform.language.gcp.execution.unittest.runconfig.DataformTestRunLineMarkerContributor"/>
 
         <internalFileTemplate name="Dataform SQLX Table"/>
         <internalFileTemplate name="Dataform SQLX View"/>
@@ -450,9 +555,14 @@
         <internalFileTemplate name="Dataform SQLX Assertion"/>
         <internalFileTemplate name="Dataform SQLX Operations"/>
         <internalFileTemplate name="Dataform SQLX Declaration"/>
+        <internalFileTemplate name="Dataform SQLX Test"/>
     </extensions>
 
     <projectListeners>
+        <listener class="io.github.rejeb.dataform.language.diagnostics.sql.bigquery.BigQueryDiagnosticsRefresher"
+                  topic="io.github.rejeb.dataform.language.schema.sql.DataformSchemaEvent"/>
+        <listener class="io.github.rejeb.dataform.language.diagnostics.CompilationDiagnosticsRefresher"
+                  topic="io.github.rejeb.dataform.language.compilation.DataformCompilationEvent"/>
         <listener class="io.github.rejeb.dataform.language.evaluation.DataformEvaluationFocusListener"
                   topic="com.intellij.openapi.fileEditor.FileEditorManagerListener"/>
     </projectListeners>
@@ -477,6 +587,12 @@
             <add-to-group group-id="EditorPopupMenu" anchor="first"/>
             <keyboard-shortcut keymap="$default" first-keystroke="control alt shift U"/>
         </action>
+        <action id="Dataform.DiagnoseColumnResolution"
+                class="io.github.rejeb.dataform.language.schema.sql.diagnostics.DiagnoseColumnResolutionAction"
+                text="Diagnose Dataform Column Resolution"
+                description="Report step by step how the Dataform column under the caret is resolved">
+            <add-to-group group-id="EditorPopupMenu" anchor="after" relative-to-action="Dataform.ShowColumnUsages"/>
+        </action>
         <action id="Dataform.CompareFileWithRemote"
                 class="io.github.rejeb.dataform.language.gcp.action.CompareFileWithRemoteAction"
                 text="Compare File with Remote"
@@ -488,6 +604,17 @@
             <add-to-group group-id="EditorPopupMenu"
                           anchor="before"
                           relative-to-action="CompareClipboardWithSelection"/>
+        </action>
+        <action id="Dataform.CreateTest"
+                class="io.github.rejeb.dataform.language.unittest.creation.CreateDataformTestAction"
+                text="Create Dataform Test"
+                description="Create a unit test for a Dataform table or view">
+            <add-to-group group-id="ProjectViewPopupMenu"
+                          anchor="after"
+                          relative-to-action="Dataform.CompareFileWithRemote"/>
+            <add-to-group group-id="EditorPopupMenu"
+                          anchor="after"
+                          relative-to-action="Dataform.CompareFileWithRemote"/>
         </action>
         <action id="Dataform.OpenLineageView"
                 class="io.github.rejeb.dataform.language.lineage.view.OpenLineageViewAction"

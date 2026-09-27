@@ -16,12 +16,14 @@
  */
 package io.github.rejeb.dataform.language.schema.sql;
 
+import io.github.rejeb.dataform.language.util.MappedText;
 import org.junit.jupiter.api.Test;
 
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -84,5 +86,38 @@ public class DryRunErrorRegistryImplTest {
         assertThrows(UnsupportedOperationException.class,
                 () -> registry.getErrors().put("p.ds.other", "boom"));
         assertTrue(registry.getErrors().containsKey("p.ds.users"));
+    }
+
+    @Test
+    public void aFailureKeepsTheQueryThatWasSent() {
+        MappedText sent = MappedText.identity(DryRunQueryText.MAIN_QUERY, "SELECT x");
+        registry.reportFailure("p.ds.users", new DryRunFailure("Unrecognized name: x at [1:8]", sent));
+
+        assertSame(sent, registry.getFailure("p.ds.users").query());
+        assertEquals("Unrecognized name: x at [1:8]", registry.getError("p.ds.users"));
+    }
+
+    @Test
+    public void aMessageAloneIsAFailureWithoutQuery() {
+        registry.report("p.ds.users", "boom");
+
+        assertNull(registry.getFailure("p.ds.users").query());
+    }
+
+    @Test
+    public void onlyActualChangesAreCounted() {
+        long start = registry.getModificationCount();
+        registry.report("p.ds.users", "boom");
+        long afterReport = registry.getModificationCount();
+        registry.report("p.ds.users", "boom");
+        long afterSameReport = registry.getModificationCount();
+        registry.clear("p.ds.users");
+        long afterClear = registry.getModificationCount();
+        registry.clear("p.ds.users");
+
+        assertTrue(afterReport > start);
+        assertEquals(afterReport, afterSameReport);
+        assertTrue(afterClear > afterSameReport);
+        assertEquals(afterClear, registry.getModificationCount());
     }
 }

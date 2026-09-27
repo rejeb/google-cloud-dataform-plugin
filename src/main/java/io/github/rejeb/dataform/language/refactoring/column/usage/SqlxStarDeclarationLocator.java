@@ -16,6 +16,7 @@
  */
 package io.github.rejeb.dataform.language.refactoring.column.usage;
 
+import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.util.PsiTreeUtil;
@@ -41,7 +42,9 @@ public final class SqlxStarDeclarationLocator {
 
     /**
      * The identifiers naming {@code columnName} outside the select list of the main query, which is
-     * where a starred query takes the name from. Empty when the file names it nowhere.
+     * where a starred query takes the name from. Empty when the file names it nowhere: an alias
+     * standing in the value a template hole evaluated to is not written in the file, so it is not
+     * counted.
      */
     public static @NotNull List<PsiElement> findStructAliases(@NotNull PsiFile hostFile,
                                                               @NotNull String columnName) {
@@ -56,7 +59,8 @@ public final class SqlxStarDeclarationLocator {
                 }
                 PsiElement identifier = SqlPsiParts.lastIdentifier(expression);
                 if (identifier != null
-                        && SqlPsiParts.unquoted(identifier.getText()).equalsIgnoreCase(columnName)) {
+                        && SqlPsiParts.unquoted(identifier.getText()).equalsIgnoreCase(columnName)
+                        && HostRanges.hostRangeOf(identifier, TextRange.from(0, identifier.getTextLength())) != null) {
                     found.add(identifier);
                 }
             }

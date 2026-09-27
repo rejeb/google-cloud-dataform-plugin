@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 
 /**
  * Default {@link ColumnLineageExtractor}. Column identity is owned by the resolved table
@@ -47,9 +48,15 @@ public final class ColumnLineageExtractorImpl implements ColumnLineageExtractor 
     private static final Logger LOG = Logger.getInstance(ColumnLineageExtractorImpl.class);
 
     private final SelectAnalyzer analyzer;
+    private final UnitAnalysisRunner runner;
 
     public ColumnLineageExtractorImpl(@NotNull SelectAnalyzer analyzer) {
+        this(analyzer, UnitAnalysisRunner.SEQUENTIAL);
+    }
+
+    public ColumnLineageExtractorImpl(@NotNull SelectAnalyzer analyzer, @NotNull UnitAnalysisRunner runner) {
         this.analyzer = analyzer;
+        this.runner = runner;
     }
 
     @Override
@@ -57,8 +64,11 @@ public final class ColumnLineageExtractorImpl implements ColumnLineageExtractor 
                                                @NotNull Map<String, List<ColumnInfo>> schemas) {
         List<Analyzable> units = collectAnalyzables(graph, schemas);
 
-        List<TableAnalysis> analyses = units.parallelStream()
-                .map(this::analyzeUnit)
+        List<Supplier<TableAnalysis>> tasks = new ArrayList<>(units.size());
+        for (Analyzable unit : units) {
+            tasks.add(() -> analyzeUnit(unit));
+        }
+        List<TableAnalysis> analyses = runner.runAll(tasks).stream()
                 .filter(Objects::nonNull)
                 .toList();
 

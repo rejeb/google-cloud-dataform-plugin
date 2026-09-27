@@ -52,4 +52,11 @@ public interface LineageGraphService {
      */
     @Nullable
     ColumnLineageGraph columnGraph();
+
+    /**
+     * Returns the column lineage graph last built, possibly of an earlier compilation, or
+     * {@code null} when none was built yet. Never builds, so it is safe on the EDT.
+     */
+    @Nullable
+    ColumnLineageGraph lastBuiltColumnGraph();
 }

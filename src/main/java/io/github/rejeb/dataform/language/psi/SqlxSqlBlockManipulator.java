@@ -20,6 +20,7 @@ import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.AbstractElementManipulator;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiFileFactory;
+import com.intellij.psi.tree.IElementType;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.IncorrectOperationException;
 import io.github.rejeb.dataform.language.SqlxLanguage;
@@ -37,13 +38,30 @@ public class SqlxSqlBlockManipulator extends AbstractElementManipulator<SqlxSqlB
         String newText = oldText.substring(0, range.getStartOffset())
                 + newContent
                 + oldText.substring(range.getEndOffset());
+        IElementType type = element.getNode().getElementType();
         PsiFile fileFromText = PsiFileFactory.getInstance(element.getProject())
                 .createFileFromText("dummy.sqlx",
                         SqlxLanguage.INSTANCE,
-                        newText);
+                        enclosed(type, newText));
 
-        SqlxSqlBlock newElement = PsiTreeUtil.findChildOfType(fileFromText, SqlxSqlBlock.class);
+        SqlxSqlBlock newElement = PsiTreeUtil.findChildrenOfType(fileFromText, SqlxSqlBlock.class).stream()
+                .filter(block -> block.getNode().getElementType() == type)
+                .findFirst()
+                .orElseThrow(() -> new IncorrectOperationException("Cannot re-parse the edited " + type + " block"));
         return (SqlxSqlBlock) element.replace(newElement);
+    }
+
+    private static String enclosed(@NotNull IElementType type, @NotNull String body) {
+        if (type == SharedTokenTypes.INPUT_CONTENT) {
+            return "input \"input\" {" + body + "}";
+        }
+        if (type == SharedTokenTypes.PRE_OPERATIONS_CONTENT) {
+            return "pre_operations {" + body + "}";
+        }
+        if (type == SharedTokenTypes.POST_OPERATIONS_CONTENT) {
+            return "post_operations {" + body + "}";
+        }
+        return body;
     }
 
     @Override

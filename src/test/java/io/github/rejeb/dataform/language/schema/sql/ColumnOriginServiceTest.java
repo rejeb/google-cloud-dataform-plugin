@@ -69,25 +69,21 @@ public class ColumnOriginServiceTest extends DataformProjectFixture {
     }
 
     /**
-     * A source is declared, not built: no select-list item of the project declares its columns, and
-     * a rename must never be pointed at one. The place a reader is sent to is the call declaring
-     * the source, which is answered apart.
+     * A source is a table of BigQuery the project reads but does not build: nothing of the project
+     * declares its columns, and navigation is never pointed at the code declaring the table.
      */
-    public void testAColumnOfADeclaredSourceHasNoDeclaringElementButASourceDeclaration() throws Exception {
+    public void testAColumnOfADeclaredSourceIsASourceWithNoDeclaringElement() throws Exception {
         open("sources.js");
         ColumnOriginService origins = ColumnOriginService.getInstance(getProject());
         ColumnRef column = new ColumnRef("proj.ds.raw_events", "event_id");
+        assertTrue(origins.isSource(column));
         assertNull("no action builds a source, so nothing declares its column",
                 origins.declaringElement(column));
-        PsiElement source = origins.sourceDeclaration(column);
-        assertNotNull("the declare() call names the source", source);
-        assertEquals("\"raw_events\"", source.getText());
-        assertEquals("sources.js", source.getContainingFile().getName());
     }
 
-    public void testAColumnOfATableHasNoSourceDeclaration() throws Exception {
+    public void testAColumnOfATableIsNotASource() throws Exception {
         open("bronze/bronze_orders.sqlx");
-        assertNull(ColumnOriginService.getInstance(getProject())
-                .sourceDeclaration(new ColumnRef("proj.ds.bronze_orders", "order_id")));
+        assertFalse(ColumnOriginService.getInstance(getProject())
+                .isSource(new ColumnRef("proj.ds.bronze_orders", "order_id")));
     }
 }

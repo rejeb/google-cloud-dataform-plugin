@@ -80,7 +80,8 @@ public record ColumnRenameEdit(@NotNull VirtualFile file,
         CONFIG_PARTITION_EXPRESSION,
         CONFIG_ROW_CONDITION,
         JS_STRING,
-        JS_IDENTIFIER
+        JS_IDENTIFIER,
+        TEST_ALIAS
     }
 
     /**

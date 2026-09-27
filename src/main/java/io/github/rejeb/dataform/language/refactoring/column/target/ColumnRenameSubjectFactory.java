@@ -17,15 +17,20 @@
 package io.github.rejeb.dataform.language.refactoring.column.target;
 
 import com.intellij.lang.injection.InjectedLanguageManager;
+import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiReference;
 import com.intellij.sql.psi.SqlCompositeElementTypes;
+import io.github.rejeb.dataform.language.lineage.column.ColumnLineageGraph;
 import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
+import io.github.rejeb.dataform.language.lineage.service.LineageGraphService;
 import io.github.rejeb.dataform.language.schema.sql.ColumnOriginService;
 import io.github.rejeb.dataform.language.schema.sql.SqlPsiParts;
 import io.github.rejeb.dataform.language.schema.sql.SqlxColumnAtCaret;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasColumn;
+import io.github.rejeb.dataform.language.unittest.SqlxUnitTests;
+import io.github.rejeb.dataform.language.unittest.columns.TestColumnAliases;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -52,8 +57,32 @@ public final class ColumnRenameSubjectFactory {
                 .findInjectedElementAt(hostFile, offset);
         if (injected == null) return Optional.empty();
 
+        if (SqlxUnitTests.isUnitTestFile(hostFile)) {
+            Optional<ColumnRenameSubject> test = fromTestAlias(injected, hostFile);
+            if (test.isPresent()) return test;
+        }
         Optional<ColumnRenameSubject> alias = fromAlias(injected, hostFile);
         return alias.isPresent() ? alias : fromReference(injected, hostFile);
+    }
+
+    /**
+     * The column a unit test alias stands for. A field of a struct is only a subject when the
+     * lineage knows it as a column of its own, since the rename is planned on that lineage. The
+     * lineage last built answers: this runs on the EDT, where building one would freeze the UI.
+     */
+    private static @NotNull Optional<ColumnRenameSubject> fromTestAlias(@NotNull PsiElement token,
+                                                                        @NotNull PsiFile hostFile) {
+        Project project = hostFile.getProject();
+        return TestColumnAliases.getInstance(project).at(token)
+                .filter(alias -> isRenamable(project, alias.column()))
+                .map(alias -> new ColumnRenameSubject(alias.column(), alias.identifier(), hostFile,
+                        ColumnRenameSubject.Kind.TEST_ALIAS));
+    }
+
+    private static boolean isRenamable(@NotNull Project project, @NotNull ColumnRef column) {
+        if (!column.columnName().contains(".")) return true;
+        ColumnLineageGraph graph = LineageGraphService.getInstance(project).lastBuiltColumnGraph();
+        return graph != null && graph.column(column.id()) != null;
     }
 
     /**

@@ -22,8 +22,11 @@ package io.github.rejeb.dataform.language.refactoring.column.plan;
 public enum StarResolution {
     /** Replace the star by the explicit column list, then rename through it. */
     EXPAND,
-    /** Leave everything upstream alone and declare the new name in the file of the caret. */
-    ALIAS_IN_CURRENT_FILE,
+    /**
+     * Leave the column produced by the star and everything upstream of it alone, and declare the
+     * new name in the actions reading that column from the star.
+     */
+    ALIAS_AT_READERS,
     /** Write nothing at all. */
     CANCEL
 }

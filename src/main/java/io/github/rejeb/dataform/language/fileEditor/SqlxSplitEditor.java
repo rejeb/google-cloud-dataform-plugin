@@ -91,6 +91,11 @@ public class SqlxSplitEditor extends TextEditorWithPreview {
                 IconUtil.colorize(AllIcons.CodeWithMe.CwmShared, JBColor.BLUE),
                 SqlxCompiledPreviewEditor.View.LINEAGE
         ));
+        group.add(new ShowViewAction(
+                "Test", "Show the compiled test and expected output queries",
+                AllIcons.Nodes.Test,
+                SqlxCompiledPreviewEditor.View.TEST
+        ));
         return group;
     }
 
@@ -127,6 +132,7 @@ public class SqlxSplitEditor extends TextEditorWithPreview {
 
         @Override
         public void update(@NotNull AnActionEvent e) {
+            e.getPresentation().setVisible(myPreview.getMode().shows(view));
             boolean active = getLayout() == Layout.SHOW_EDITOR_AND_PREVIEW
                     && myPreview.getActiveView() == view;
             Toggleable.setSelected(e.getPresentation(), active);

@@ -16,6 +16,7 @@
  */
 package io.github.rejeb.dataform.language.injection;
 
+import io.github.rejeb.dataform.language.util.DataformPaths;
 import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.lang.injection.MultiHostInjector;
 import com.intellij.lang.injection.MultiHostRegistrar;
@@ -150,7 +151,7 @@ public class SqlxJsQueryInjector implements MultiHostInjector {
                 .getTopLevelFile(element);
         VirtualFile file = topLevel == null ? null : topLevel.getVirtualFile();
         if (file == null) return false;
-        String path = file.getPath().replace('\\', '/');
+        String path = DataformPaths.normalize(file.getPath());
         return path.contains("/definitions/") && (path.endsWith(".js") || path.endsWith(".ts"));
     }
 }

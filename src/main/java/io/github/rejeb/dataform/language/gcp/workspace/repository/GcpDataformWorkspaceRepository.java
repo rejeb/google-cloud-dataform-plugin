@@ -248,9 +248,9 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository, Disp
 
         try (DataformClient client = GcpClientsUtils.dataformClient(projectId)) {
             if (workspaceId != null) {
-                return listAllWorkspacePaths(projectId, location, repositoryId, workspaceId, "", client).toList();
+                return listAllWorkspacePaths(projectId, location, repositoryId, workspaceId, "", client);
             } else {
-                return listAllRepositoryPaths(projectId, location, repositoryId, "", client).toList();
+                return listAllRepositoryPaths(projectId, location, repositoryId, "", client);
             }
         } catch (Exception e) {
             if (isEmptyRepoException(e)) {
@@ -260,35 +260,6 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository, Disp
             throw new GcpApiException("Error listing files of GCP Dataform "
                     + (workspaceId != null ? "workspace \"" + workspaceId + "\"" : "repository")
                     + ": " + e.getMessage(), e);
-        }
-    }
-
-    @Override
-    @NotNull
-    public Map<String, String> readFilesFromRepository(
-            @NotNull String projectId,
-            @NotNull String location,
-            @NotNull String repositoryId,
-            @NotNull List<String> paths
-    ) {
-        Map<String, String> result = new LinkedHashMap<>();
-        String repoName = RepositoryName.of(projectId, location, repositoryId).toString();
-        try (DataformClient client = GcpClientsUtils.dataformClient(projectId)) {
-            for (String path : paths) {
-                try {
-                    ReadRepositoryFileRequest request = ReadRepositoryFileRequest.newBuilder()
-                            .setName(repoName)
-                            .setPath(path)
-                            .build();
-                    ReadRepositoryFileResponse response = client.readRepositoryFile(request);
-                    result.put(path, response.getContents().toStringUtf8());
-                } catch (RuntimeException e) {
-                    LOG.warn("Skipping file not found in repository: " + path, e);
-                }
-            }
-            return result;
-        } catch (Exception e) {
-            throw new GcpApiException("Error reading files from GCP Dataform repository: " + e.getMessage(), e);
         }
     }
 

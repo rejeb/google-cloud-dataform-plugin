@@ -19,8 +19,23 @@ package io.github.rejeb.dataform.language.schema.sql;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Set;
+
+/**
+ * What a schema extraction run works with.
+ *
+ * @param sources the full names of the tables the project declares as sources: BigQuery holds
+ *                what they are, so they are read there rather than from a cached copy
+ */
 record ExtractionContext(
         @NotNull String projectId,
         @Nullable String location,
-        @NotNull BigQueryDryRunSchemaExtractor extractor
-) {}
+        @NotNull BigQueryDryRunSchemaExtractor extractor,
+        @NotNull Set<String> sources
+) {
+
+    ExtractionContext(@NotNull String projectId, @Nullable String location,
+                      @NotNull BigQueryDryRunSchemaExtractor extractor) {
+        this(projectId, location, extractor, Set.of());
+    }
+}

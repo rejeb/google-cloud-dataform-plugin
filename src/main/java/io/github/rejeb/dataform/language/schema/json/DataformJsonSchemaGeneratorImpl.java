@@ -54,6 +54,8 @@ public final class DataformJsonSchemaGeneratorImpl implements DataformJsonSchema
             "defaultProject", "defaultDataset", "defaultLocation", "defaultAssertionDataset");
 
     private static final String SQLX_COLUMN_DEF_KEY = "SqlxColumnDescriptor";
+    private static final String TEST_TYPE = "test";
+    private static final String TABLE_ASSERTIONS_DEF_KEY = "ActionConfig_TableAssertionsConfig";
 
     private final Map<String, ProtoModel.ProtoMessage> messageIndex = new HashMap<>();
     private final Map<String, ProtoModel.ProtoEnum> enumIndex = new HashMap<>();
@@ -79,7 +81,7 @@ public final class DataformJsonSchemaGeneratorImpl implements DataformJsonSchema
         }
     }
 
-    public Optional<ObjectNode> generateSqlxConfigSchema() {
+    public synchronized Optional<ObjectNode> generateSqlxConfigSchema() {
         ProtoParser protoParser = this.project.getService(ProtoParser.class);
         if (!protoParser.configProtoFileExists()) {
             return Optional.empty();
@@ -90,7 +92,7 @@ public final class DataformJsonSchemaGeneratorImpl implements DataformJsonSchema
         return this.configSchema;
     }
 
-    public Optional<VirtualFile> generateWorkflowSettingsSchema() {
+    public synchronized Optional<VirtualFile> generateWorkflowSettingsSchema() {
         ProtoParser protoParser = this.project.getService(ProtoParser.class);
         if (!protoParser.configProtoFileExists()) {
             return Optional.empty();
@@ -152,6 +154,7 @@ public final class DataformJsonSchemaGeneratorImpl implements DataformJsonSchema
             for (String qualifiedName : SQLX_TYPES.values()) {
                 collectDefs(requireMessage(qualifiedName), defs, new HashSet<>());
             }
+            acceptLegacyAssertionShapes(defs);
 
             ObjectNode root = obj();
             root.put("$schema", "http://json-schema.org/draft-07/schema#");
@@ -165,6 +168,7 @@ public final class DataformJsonSchemaGeneratorImpl implements DataformJsonSchema
             for (Map.Entry<String, String> entry : SQLX_TYPES.entrySet()) {
                 oneOf.add(buildActionBranch(entry.getKey(), requireMessage(entry.getValue()), defs));
             }
+            oneOf.add(buildTestBranch());
 
             if (!defs.isEmpty()) {
                 ObjectNode defsNode = root.putObject("$defs");
@@ -210,7 +214,9 @@ public final class DataformJsonSchemaGeneratorImpl implements DataformJsonSchema
                 depsAlias.put("type", "array");
                 depsAlias.put("description",
                         "Shorthand dependency names (alternative to dependencyTargets).");
-                depsAlias.putObject("items").put("type", "string");
+                ArrayNode dependencyShapes = depsAlias.putObject("items").putArray("oneOf");
+                dependencyShapes.add(scalar("string"));
+                dependencyShapes.add(fieldSchema.get("items").deepCopy());
                 props.set("dependencies", depsAlias);
                 continue;
             }
@@ -234,6 +240,81 @@ public final class DataformJsonSchemaGeneratorImpl implements DataformJsonSchema
         if (SQLX_BIGQUERY_TYPES.contains(sqlxType)) {
             props.set("bigquery", buildBigQueryWrapper(sqlxType));
         }
+
+        return branch;
+    }
+
+    private void acceptLegacyAssertionShapes(Map<String, ObjectNode> defs) {
+        ObjectNode assertions = defs.get(TABLE_ASSERTIONS_DEF_KEY);
+        if (assertions == null || !assertions.path("properties").isObject()) {
+            return;
+        }
+        ObjectNode props = (ObjectNode) assertions.get("properties");
+        for (String name : List.of("uniqueKey", "nonNull")) {
+            if (props.get(name) instanceof ObjectNode columns) {
+                props.set(name, withStringShorthand(columns));
+            }
+        }
+        if (props.get("uniqueKeys") instanceof ObjectNode uniqueKeys
+                && uniqueKeys.get("items") instanceof ObjectNode uniqueKey) {
+            ObjectNode columnList = obj();
+            columnList.put("type", "array");
+            columnList.putObject("items").put("type", "string");
+            ObjectNode items = obj();
+            items.putArray("oneOf").add(uniqueKey).add(columnList);
+            uniqueKeys.set("items", items);
+        }
+    }
+
+    private ObjectNode withStringShorthand(ObjectNode columns) {
+        ObjectNode schema = obj();
+        String description = columns.path("description").asText("");
+        if (!description.isEmpty()) {
+            schema.put("description", description);
+        }
+        ObjectNode list = columns.deepCopy();
+        list.remove("description");
+        schema.putArray("oneOf").add(list).add(scalar("string"));
+        return schema;
+    }
+
+    private ObjectNode buildTestBranch() {
+        ObjectNode branch = obj();
+        branch.put("type", "object");
+        branch.put("additionalProperties", false);
+        branch.putArray("required").add("type").add("dataset");
+        branch.put("description", "Unit test: runs the query of the dataset action on the rows of the input "
+                + "blocks and compares the result with the query of this file. Requires Dataform core 3.0.56+.");
+
+        ObjectNode props = branch.putObject("properties");
+
+        ObjectNode typeFixed = props.putObject("type");
+        typeFixed.put("type", "string");
+        typeFixed.putArray("enum").add(TEST_TYPE);
+        typeFixed.put("description", "Action type: " + TEST_TYPE + ".");
+
+        ObjectNode dataset = props.putObject("dataset");
+        dataset.put("description", "The table or view under test, as given to ref().");
+        ArrayNode datasetShapes = dataset.putArray("oneOf");
+        datasetShapes.add(scalar("string"));
+        ObjectNode target = obj();
+        target.put("type", "object");
+        target.put("additionalProperties", false);
+        target.putArray("required").add("name");
+        ObjectNode targetProps = target.putObject("properties");
+        targetProps.set("database", scalar("string"));
+        targetProps.set("schema", scalar("string"));
+        targetProps.set("name", scalar("string"));
+        datasetShapes.add(target);
+
+        ObjectNode name = props.putObject("name");
+        name.put("type", "string");
+        name.put("description", "Name of the test. Defaults to the file name.");
+
+        ObjectNode tags = props.putObject("tags");
+        tags.put("type", "array");
+        tags.put("description", "Tags of the test.");
+        tags.putObject("items").put("type", "string");
 
         return branch;
     }

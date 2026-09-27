@@ -26,6 +26,7 @@ import com.intellij.navigation.ItemPresentation;
 import com.intellij.openapi.fileEditor.OpenFileDescriptor;
 import com.intellij.openapi.fileTypes.PlainTextFileType;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.openapi.vfs.VirtualFileManager;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiFileFactory;
@@ -43,6 +44,8 @@ import java.util.Objects;
 import java.util.Set;
 
 public class DataformDasTable extends LightElement implements DasTable, DasSymbol, PsiNamedElement {
+    @Nullable
+    private final String myFullName;
     private final String myName;
     private final List<ColumnInfo> myColumns;
     @Nullable
@@ -53,10 +56,40 @@ public class DataformDasTable extends LightElement implements DasTable, DasSymbo
                             @NotNull String table,
                             @NotNull List<ColumnInfo> columns,
                             @Nullable VirtualFile sourceFile) {
+        this(psiManager, null, table, columns, sourceFile);
+    }
+
+    /**
+     * A table known by its full {@code database.schema.name}, which tells it apart from a table of
+     * the same name in another dataset.
+     */
+    public DataformDasTable(@NotNull PsiManager psiManager,
+                            @Nullable String fullName,
+                            @NotNull String table,
+                            @NotNull List<ColumnInfo> columns,
+                            @Nullable VirtualFile sourceFile) {
         super(psiManager, BigQueryDialect.INSTANCE);
+        this.myFullName = fullName;
         this.myName = table;
         this.myColumns = columns;
         this.mySourceFile = sourceFile;
+    }
+
+    /** The full {@code database.schema.name} of the table, {@code null} when unknown. */
+    public @Nullable String getFullName() {
+        return myFullName;
+    }
+
+    /**
+     * Whether the table lives in a dataset. A table whose full name is unknown may live in any.
+     *
+     * @param schema the dataset name, compared without regard to case
+     * @return whether the table lives in it
+     */
+    public boolean isInSchema(@NotNull String schema) {
+        if (myFullName == null) return true;
+        String[] parts = myFullName.split("\\.");
+        return parts.length >= 2 && parts[parts.length - 2].equalsIgnoreCase(schema);
     }
 
     @Override
@@ -77,9 +110,25 @@ public class DataformDasTable extends LightElement implements DasTable, DasSymbo
         return myColumns;
     }
 
-    /** The SQLX file the action building this table is declared in, {@code null} when unknown. */
+    /**
+     * The SQLX file the action building this table is declared in, as the file system has it now,
+     * {@code null} when unknown or deleted.
+     */
     public @Nullable VirtualFile getSourceFile() {
-        return mySourceFile;
+        return liveSourceFile();
+    }
+
+    /**
+     * The source file the table was built with while it still exists, else the file now at its
+     * path. A table outlives the schema refresh it was built by, and its file may be deleted or
+     * replaced in the meantime, as a checkout does: the file object it holds then stands for
+     * nothing, and handing it to the platform throws.
+     */
+    private @Nullable VirtualFile liveSourceFile() {
+        VirtualFile file = mySourceFile;
+        if (file == null || file.isValid()) return file;
+        VirtualFile current = VirtualFileManager.getInstance().findFileByUrl(file.getUrl());
+        return current != null && current.isValid() ? current : null;
     }
 
     @Override
@@ -96,6 +145,9 @@ public class DataformDasTable extends LightElement implements DasTable, DasSymbo
     public boolean isEquivalentTo(PsiElement another) {
         if (this == another) return true;
         if (!(another instanceof DataformDasTable other)) return false;
+        if (myFullName != null && other.myFullName != null) {
+            return myFullName.equalsIgnoreCase(other.myFullName);
+        }
         return myName.equalsIgnoreCase(other.myName)
                 && Objects.equals(mySourceFile, other.mySourceFile);
     }
@@ -132,8 +184,9 @@ public class DataformDasTable extends LightElement implements DasTable, DasSymbo
 
     @Override
     public PsiFile getContainingFile() {
-        if (mySourceFile != null) {
-            PsiFile file = getManager().findFile(mySourceFile);
+        VirtualFile source = liveSourceFile();
+        if (source != null) {
+            PsiFile file = getManager().findFile(source);
             if (file != null) return file;
         }
         PsiFile fallback = myFallbackFile;
@@ -196,14 +249,15 @@ public class DataformDasTable extends LightElement implements DasTable, DasSymbo
 
     @Override
     public void navigate(boolean requestFocus) {
-        if (mySourceFile != null) {
-            new OpenFileDescriptor(getProject(), mySourceFile).navigate(requestFocus);
+        VirtualFile source = liveSourceFile();
+        if (source != null) {
+            new OpenFileDescriptor(getProject(), source).navigate(requestFocus);
         }
     }
 
     @Override
     public boolean canNavigate() {
-        return mySourceFile != null;
+        return liveSourceFile() != null;
     }
 
     @Override

@@ -98,4 +98,18 @@ public class DataformProjectLayoutTest extends BasePlatformTestCase {
         assertTrue("dataform.json must reach every listener, not only the compiler",
                 DataformProjectLayout.isDataformSource(file.getVirtualFile()));
     }
+
+    public void testAScriptOfAProjectKeptUnderABuildDirectoryIsStillAScript() {
+        myFixture.addFileToProject("build/proj/workflow_settings.yaml", "defaultProject: p\n");
+        PsiFile script = myFixture.addFileToProject("build/proj/definitions/publish.js", "publish(\"a\");\n");
+
+        assertTrue(DataformProjectLayout.isDataformScript(script.getVirtualFile()));
+    }
+
+    public void testTheIncludesOfADependencyAreNotScriptsOfTheProject() {
+        myFixture.addFileToProject("proj/workflow_settings.yaml", "defaultProject: p\n");
+        PsiFile dependency = myFixture.addFileToProject("proj/node_modules/pkg/includes/helpers.js", "module.exports = {};\n");
+
+        assertFalse(DataformProjectLayout.isDataformScript(dependency.getVirtualFile()));
+    }
 }

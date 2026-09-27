@@ -30,6 +30,9 @@ import com.intellij.icons.AllIcons;
 import com.intellij.openapi.actionSystem.ActionGroup;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.project.Project;
+import com.intellij.ui.ScrollPaneFactory;
+import com.intellij.ui.components.JBTextArea;
+import com.intellij.ui.components.JBTextField;
 import com.intellij.ui.HyperlinkLabel;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBScrollPane;
@@ -42,6 +45,7 @@ import io.github.rejeb.dataform.language.gcp.execution.bigquery.BigQueryJobResul
 import io.github.rejeb.dataform.language.gcp.execution.bigquery.BigQueryJobStats;
 import io.github.rejeb.dataform.language.gcp.execution.bigquery.BigQueryPagedResult;
 import io.github.rejeb.dataform.language.gcp.execution.bigquery.grid.BqDataHookUp;
+import io.github.rejeb.dataform.language.ui.ReadOnlyTextFields;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -77,8 +81,8 @@ public class QueryExecutionPanel extends JPanel {
         FormBuilder builder = FormBuilder.createFormBuilder();
 
         if (!result.isSuccess()) {
-            builder.addLabeledComponent("Status:", new JBLabel("FAILED"));
-            builder.addLabeledComponent("Error:", new JBLabel(
+            builder.addLabeledComponent("Status:", readOnlyValue("FAILED"));
+            builder.addLabeledComponent("Error:", ReadOnlyTextFields.multiLine(
                     result.errorMessage() != null ? result.errorMessage() : "-"));
         } else {
             BigQueryJobStats s = result.stats();
@@ -90,19 +94,19 @@ public class QueryExecutionPanel extends JPanel {
                 gcpLink.setHyperlinkTarget(url);
 
                 builder
-                        .addLabeledComponent("Status:", new JBLabel("SUCCESS"))
-                        .addLabeledComponent("Job ID:", new JBLabel(s.jobId()))
+                        .addLabeledComponent("Status:", readOnlyValue("SUCCESS"))
+                        .addLabeledComponent("Job ID:", readOnlyValue(s.jobId()))
                         .addLabeledComponent("GCP console:", gcpLink)
-                        .addLabeledComponent("Project:", new JBLabel(s.projectId()))
-                        .addLabeledComponent("Location:", new JBLabel(s.location() != null ? s.location() : "-"))
-                        .addLabeledComponent("Statement type:", new JBLabel(s.statementType() != null ? s.statementType() : "-"))
-                        .addLabeledComponent("Cache hit:", new JBLabel(String.valueOf(s.cacheHit())))
-                        .addLabeledComponent("Bytes processed:", new JBLabel(formatBytes(s.bytesProcessed())))
-                        .addLabeledComponent("Duration:", new JBLabel(duration + " ms"))
-                        .addLabeledComponent("Created at:", new JBLabel(formatTs(s.creationTime())))
-                        .addLabeledComponent("Started at:", new JBLabel(formatTs(s.startTime())))
-                        .addLabeledComponent("Ended at:", new JBLabel(formatTs(s.endTime())))
-                        .addLabeledComponent("Rows (total):", new JBLabel(String.valueOf(s.totalRows())));
+                        .addLabeledComponent("Project:", readOnlyValue(s.projectId()))
+                        .addLabeledComponent("Location:", readOnlyValue(s.location() != null ? s.location() : "-"))
+                        .addLabeledComponent("Statement type:", readOnlyValue(s.statementType() != null ? s.statementType() : "-"))
+                        .addLabeledComponent("Cache hit:", readOnlyValue(String.valueOf(s.cacheHit())))
+                        .addLabeledComponent("Bytes processed:", readOnlyValue(formatBytes(s.bytesProcessed())))
+                        .addLabeledComponent("Duration:", readOnlyValue(duration + " ms"))
+                        .addLabeledComponent("Created at:", readOnlyValue(formatTs(s.creationTime())))
+                        .addLabeledComponent("Started at:", readOnlyValue(formatTs(s.startTime())))
+                        .addLabeledComponent("Ended at:", readOnlyValue(formatTs(s.endTime())))
+                        .addLabeledComponent("Rows (total):", readOnlyValue(String.valueOf(s.totalRows())));
             }
         }
 
@@ -115,6 +119,10 @@ public class QueryExecutionPanel extends JPanel {
         return scroll;
     }
 
+
+    private static JBTextField readOnlyValue(@Nullable String text) {
+        return ReadOnlyTextFields.singleLine(text != null ? text : "-");
+    }
 
     private static String buildJobUrl(@NotNull String projectId,
                                       @Nullable String location,
@@ -149,24 +157,14 @@ public class QueryExecutionPanel extends JPanel {
         titleLabel.setFont(titleLabel.getFont().deriveFont(Font.BOLD, JBUIScale.scaleFontSize(13f)));
         titleLabel.setBorder(JBUI.Borders.empty(12, 12, 8, 12));
 
-        JTextArea textArea = new JTextArea(message);
-        textArea.setEditable(false);
-        textArea.setLineWrap(true);
-        textArea.setWrapStyleWord(false);
-        textArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, JBUIScale.scaleFontSize(12f)));
-        textArea.setForeground(UIUtil.getErrorForeground());
-        textArea.setBackground(UIUtil.getPanelBackground());
+        JBTextArea textArea = ReadOnlyTextFields.multiLine(message);
         textArea.setBorder(JBUI.Borders.empty(0, 12, 12, 12));
-        textArea.setCaretPosition(0);
-
-        JBScrollPane scroll = new JBScrollPane(textArea);
-        scroll.setBorder(JBUI.Borders.empty());
 
         JPanel panel = new JPanel(new BorderLayout());
         panel.setOpaque(true);
         panel.setBackground(UIUtil.getPanelBackground());
         panel.add(titleLabel, BorderLayout.NORTH);
-        panel.add(scroll, BorderLayout.CENTER);
+        panel.add(ScrollPaneFactory.createScrollPane(textArea, true), BorderLayout.CENTER);
         return panel;
     }
 

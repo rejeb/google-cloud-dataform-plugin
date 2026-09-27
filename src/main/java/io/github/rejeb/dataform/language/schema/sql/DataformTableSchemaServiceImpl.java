@@ -16,6 +16,10 @@
  */
 package io.github.rejeb.dataform.language.schema.sql;
 
+import io.github.rejeb.dataform.language.util.DataformProjectLayout;
+import com.intellij.psi.PsiFile;
+import com.intellij.openapi.fileEditor.FileEditorManager;
+import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.progress.ProcessCanceledException;
 import com.intellij.openapi.application.ApplicationManager;
@@ -41,8 +45,8 @@ import io.github.rejeb.dataform.language.gcp.auth.DataformCredentialsService;
 import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
 import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasTable;
+import io.github.rejeb.dataform.language.util.MappedText;
 import io.github.rejeb.dataform.language.util.PreOperationsFilter;
-import io.github.rejeb.dataform.language.util.Utils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -53,9 +57,8 @@ import java.util.Map;
 import java.util.Set;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.util.concurrency.AppExecutorUtil;
-import java.util.ArrayList;
+import com.intellij.psi.PsiManager;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -108,7 +111,7 @@ public final class DataformTableSchemaServiceImpl
     @Override
     public void loadState(@NotNull DataformTableSchemaService.State state) {
         cache.load(state);
-        modificationCount.incrementAndGet();
+        snapshotChanged(true);
     }
 
     @Override
@@ -188,8 +191,7 @@ public final class DataformTableSchemaServiceImpl
 
     /** Publishes what the cache now holds and tells everything reading it that it changed. */
     private void announce() {
-        cache.publish();
-        modificationCount.incrementAndGet();
+        snapshotChanged(cache.publish());
         notifyReaders();
     }
 
@@ -203,10 +205,49 @@ public final class DataformTableSchemaServiceImpl
      * corrected answer either way.</p>
      */
     private void announceAfterTheDocumentChange() {
-        cache.publish();
-        modificationCount.incrementAndGet();
+        snapshotChanged(cache.publish());
         ApplicationManager.getApplication()
                 .invokeLater(this::notifyReaders, ModalityState.defaultModalityState());
+    }
+
+    /**
+     * Counts a new snapshot as a change, once resolution has let go of the tables of the previous
+     * one. A table a reference resolved to holds the columns of the snapshot it was read from, and
+     * the platform keeps what it resolved until the PSI changes, which a schema refresh does not do.
+     *
+     * <p>Dropping the resolve caches is not enough when columns changed: the SQL plugin also keeps
+     * what it resolved in values cached against the PSI modification count, so a file whose PSI
+     * changed while the schema was out of date — an undo right after a rename — would go on showing
+     * its columns as unknown until it is reopened. Those caches are dropped on the event thread, in
+     * a write-safe context, and the open files are highlighted again.</p>
+     *
+     * @param columnsChanged whether the new snapshot names other tables or columns
+     */
+    private void snapshotChanged(boolean columnsChanged) {
+        if (!project.isDisposed()) PsiManager.getInstance(project).dropResolveCaches();
+        modificationCount.incrementAndGet();
+        if (columnsChanged) {
+            ApplicationManager.getApplication().invokeLater(this::dropWhatWasResolvedInOpenFiles,
+                    ModalityState.nonModal(), project.getDisposed());
+        }
+    }
+
+    /**
+     * Drops the injected SQL of the open Dataform files with the PSI caches, so that the SQL plugin
+     * resolves their columns again against the new snapshot. The injected file keeps what was
+     * resolved in it for as long as its host is not edited, which a schema change never does.
+     */
+    private void dropWhatWasResolvedInOpenFiles() {
+        if (project.isDisposed()) return;
+        PsiManager psiManager = PsiManager.getInstance(project);
+        InjectedLanguageManager injections = InjectedLanguageManager.getInstance(project);
+        for (VirtualFile file : FileEditorManager.getInstance(project).getOpenFiles()) {
+            if (!file.isValid() || !DataformProjectLayout.isDataformSource(file)) continue;
+            PsiFile psiFile = psiManager.findFile(file);
+            if (psiFile != null) injections.dropFileCaches(psiFile);
+        }
+        psiManager.dropPsiCaches();
+        DataformEditorRefresher.refresh(project);
     }
 
     private void notifyReaders() {
@@ -258,8 +299,7 @@ public final class DataformTableSchemaServiceImpl
     }
 
     private void onTaskFinished() {
-        cache.publish();
-        modificationCount.incrementAndGet();
+        snapshotChanged(cache.publish());
         PendingRefresh next;
         synchronized (pendingLock) {
             running.set(false);
@@ -303,72 +343,60 @@ public final class DataformTableSchemaServiceImpl
             DataformAuthState.getInstance().markAuthRequired(AuthTrigger.BACKGROUND);
             return null;
         }
+        Set<String> sources = new HashSet<>();
+        graph.getDeclarations().forEach(declaration -> addFullName(sources, declaration.getTarget()));
         return new ExtractionContext(projectId, config.getDefaultLocation(),
-                project.getService(BigQueryDryRunSchemaExtractor.class));
+                project.getService(BigQueryDryRunSchemaExtractor.class), Set.copyOf(sources));
     }
 
+    /**
+     * Dry-runs the planned actions on a bounded pool of the platform rather than on the common
+     * fork-join pool, which network calls must not tie up, and under the indicator of the
+     * extraction so cancellation reaches every dry-run. Each action starts as soon as the planned
+     * actions it reads are done.
+     */
     private void processAllWaves(@NotNull List<List<SortableAction>> waves,
                                  @NotNull ExtractionContext ctx,
                                  @NotNull ProgressIndicator indicator) {
         Map<String, List<ColumnInfo>> resolvedInThisRun = new ConcurrentHashMap<>();
         int total = waves.stream().mapToInt(List::size).sum();
         AtomicInteger processed = new AtomicInteger(0);
-        for (List<SortableAction> wave : waves) {
-            if (indicator.isCanceled()) {
-                LOG.debug("Schema extraction cancelled");
-                cache.persist();
-                return;
-            }
-            waveExtraction(ctx, indicator, resolvedInThisRun, wave, processed, total);
+        SchemaExtractionScheduler.runAll(waves, dryRunExecutor, action -> {
+            if (indicator.isCanceled()) return;
+            ProgressManager.getInstance().executeProcessUnderProgress(() -> {
+                extractSchema(ctx, resolvedInThisRun, action);
+                indicator.setFraction((double) processed.incrementAndGet() / total);
+            }, indicator);
+        });
+        cache.persist();
+        if (indicator.isCanceled()) {
+            LOG.debug("Schema extraction cancelled");
+            return;
         }
         indicator.setFraction(1d);
-        cache.persist();
-        LOG.warn("Schema extraction complete: " + resolvedInThisRun.size() + "/" + processed.get()
+        LOG.info("Schema extraction complete: " + resolvedInThisRun.size() + "/" + processed.get()
                 + " actions resolved");
-    }
-
-    /**
-     * Dry-runs the actions of one wave concurrently on a bounded pool of the platform rather than
-     * on the common fork-join pool, which network calls must not tie up, and under the indicator of
-     * the extraction so cancellation reaches every dry-run.
-     */
-    private void waveExtraction(ExtractionContext ctx,
-                                ProgressIndicator indicator,
-                                Map<String, List<ColumnInfo>> resolvedInThisRun,
-                                List<SortableAction> wave,
-                                AtomicInteger processed,
-                                int total) {
-        List<CompletableFuture<Void>> futures = new ArrayList<>(wave.size());
-        for (SortableAction action : wave) {
-            futures.add(CompletableFuture.runAsync(() -> {
-                if (indicator.isCanceled()) return;
-                ProgressManager.getInstance().executeProcessUnderProgress(() -> {
-                    extractSchema(ctx, resolvedInThisRun, action);
-                    indicator.setFraction((double) processed.incrementAndGet() / total);
-                }, indicator);
-            }, dryRunExecutor));
-        }
-        CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).join();
     }
 
     private void extractSchema(ExtractionContext ctx,
                                @NotNull Map<String, List<ColumnInfo>> resolvedInThisRun,
                                @NotNull SortableAction action) {
         String fqn = action.target().getFullName();
-        LOG.info("Resolving schema for: " + fqn);
+        LOG.debug("Resolving schema for: " + fqn);
         DryRunResult result = computeSchema(action, ctx, resolvedInThisRun);
         recordDryRunOutcome(fqn, result);
         if (!result.columns().isEmpty()) publishResult(action, result.columns(), resolvedInThisRun);
     }
 
     /**
-     * Keeps the dry-run failure of an action, or drops the previous one once it runs clean, so the
-     * query view can report why a schema is missing.
+     * Keeps the dry-run failure of an action with the query that was sent, or drops the previous
+     * one once it runs clean, so the query view can report why a schema is missing and the editor
+     * can place the error in the file.
      */
     private void recordDryRunOutcome(@NotNull String fqn, @NotNull DryRunResult result) {
         DryRunErrorRegistry registry = DryRunErrorRegistry.getInstance(project);
         if (result.hasError()) {
-            registry.report(fqn, result.errorMessage());
+            registry.reportFailure(fqn, new DryRunFailure(result.errorMessage(), result.query()));
         } else {
             registry.clear(fqn);
         }
@@ -392,15 +420,17 @@ public final class DataformTableSchemaServiceImpl
     }
 
     @NotNull
-    private DryRunResult extractTableSchema(@NotNull CompiledTable table,
-                                            @NotNull ExtractionContext ctx,
-                                            @NotNull Map<String, List<ColumnInfo>> resolvedInThisRun) {
-        String mainQuery = ReadAction.computeBlocking(() ->
-                DataformCteQueryBuilder.buildDryRunQuery(table.getQuery(), resolvedInThisRun, project)
+    DryRunResult extractTableSchema(@NotNull CompiledTable table,
+                                    @NotNull ExtractionContext ctx,
+                                    @NotNull Map<String, List<ColumnInfo>> resolvedInThisRun) {
+        List<String> dependencies = table.getDependencyTargets().stream().map(Target::getFullName).toList();
+        MappedText mainQuery = ReadAction.computeBlocking(() ->
+                DataformCteQueryBuilder.buildMappedDryRunQuery(table.getQuery(),
+                        cache.stubSchemas(dependencies, resolvedInThisRun, ctx.sources()), project)
         );
-        String query = Utils.withPreOperations(
+        MappedText query = DryRunQueryText.withPreOperations(
                 PreOperationsFilter.keepReadOnly(table.getPreOps()), mainQuery);
-        return runDryRun(ctx, query);
+        return runDryRun(ctx, query.text()).withQuery(query);
     }
 
     @NotNull
@@ -426,7 +456,7 @@ public final class DataformTableSchemaServiceImpl
         String fqn = action.target().getFullName();
         cache.put(fqn, action.target().getName(), columns, ActionSourceFiles.fileNameOf(action));
         resolvedInThisRun.put(fqn, columns);
-        LOG.info("Resolved schema for " + fqn + ": " + columns.size() + " columns");
+        LOG.debug("Resolved schema for " + fqn + ": " + columns.size() + " columns");
     }
 
     private boolean hasValidCredentials() {

@@ -16,6 +16,8 @@
  */
 package io.github.rejeb.dataform.language.compilation.model;
 
+import io.github.rejeb.dataform.language.util.DataformPaths;
+
 import java.util.Collections;
 import java.util.List;
 
@@ -54,7 +56,7 @@ public class CompiledOperation {
     }
 
     public String getFileName() {
-        return fileName;
+        return DataformPaths.normalize(fileName);
     }
 
     public boolean isHasOutput() {
@@ -62,6 +64,6 @@ public class CompiledOperation {
     }
 
     public boolean matchFileName(String fileName) {
-        return fileName.endsWith(this.fileName.replace("\\", "/"));
+        return DataformPaths.pointsTo(fileName, this.fileName);
     }
 }

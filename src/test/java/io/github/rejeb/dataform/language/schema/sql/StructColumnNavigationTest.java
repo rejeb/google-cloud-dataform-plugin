@@ -20,7 +20,6 @@ import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
-import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.compilation.model.CompiledTable;
 import io.github.rejeb.dataform.language.compilation.model.Target;
@@ -28,6 +27,7 @@ import io.github.rejeb.dataform.language.schema.sql.model.StructColumnPath;
 import io.github.rejeb.dataform.language.schema.sql.usages.ColumnUsageRow;
 import io.github.rejeb.dataform.language.schema.sql.usages.ColumnUsageRows;
 import io.github.rejeb.dataform.language.schema.sql.usages.ColumnWindowTarget;
+import io.github.rejeb.dataform.language.testing.ProjectStateInstaller;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -98,11 +98,10 @@ public class StructColumnNavigationTest extends BasePlatformTestCase {
         set(graph, "declarations", List.of());
         set(graph, "operations", List.of());
         set(graph, "assertions", List.of());
-        set(getProject().getService(DataformCompilationService.class), "compiledGraph", graph);
+        ProjectStateInstaller.installGraph(getProject(), getTestRootDisposable(), graph);
 
-        DataformTableSchemaService.State state = new DataformTableSchemaService.State();
-        state.schemaCacheJson = "{" + NESTED_SCHEMA + "," + CUSTOMERS_SCHEMA + "}";
-        DataformTableSchemaService.getInstance(getProject()).loadState(state);
+        ProjectStateInstaller.installSchemas(getProject(), getTestRootDisposable(),
+                "{" + NESTED_SCHEMA + "," + CUSTOMERS_SCHEMA + "}");
 
         myFixture.addFileToProject("definitions/customers.sqlx",
                 "config { type: \"view\", schema: \"gold\" }\n\n"

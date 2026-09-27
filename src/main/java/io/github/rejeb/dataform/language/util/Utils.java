@@ -55,21 +55,30 @@ public class Utils {
         if (preOperations == null || preOperations.isEmpty()) {
             return query;
         }
-        String joined = preOperations.stream()
+        return joinPreOperations(preOperations) + "\n" + query + ";";
+    }
+
+    /**
+     * The pre-operation statements as they are put in front of a query: each one stripped, ended
+     * with a semicolon, one per line.
+     */
+    @NotNull
+    public static String joinPreOperations(@NotNull List<String> preOperations) {
+        return preOperations.stream()
                 .filter(Objects::nonNull)
                 .map(String::strip)
                 .filter(s -> !s.isBlank())
                 .map(s -> s.endsWith(";") ? s : s + ";")
                 .collect(Collectors.joining("\n"));
-        return joined + "\n" + query + ";";
     }
 
     private static String doFormat(@NotNull Project project, @NotNull String sql) {
-        PsiFile file = PsiFileFactory.getInstance(project)
-                .createFileFromText("temp.sql", BigQueryDialect.INSTANCE, sql);
-        Runnable r = () -> CodeStyleManager.getInstance(project).reformat(file);
-        WriteCommandAction.runWriteCommandAction(project, null, null, r);
-        return file.getText();
+        return WriteCommandAction.writeCommandAction(project).compute(() -> {
+            PsiFile file = PsiFileFactory.getInstance(project)
+                    .createFileFromText("temp.sql", BigQueryDialect.INSTANCE, sql);
+            CodeStyleManager.getInstance(project).reformat(file);
+            return file.getText();
+        });
     }
 
     public static void flushFiles(Project project) {
@@ -80,7 +89,7 @@ public class Utils {
     }
 
     public static boolean isActionFile(@NotNull VirtualFile file) {
-        String normalizedPath = file.getPath().replace('\\', '/');
+        String normalizedPath = DataformPaths.normalize(file.getPath());
         return normalizedPath.contains("/definitions/") &&
                 (normalizedPath.endsWith(".sqlx") || normalizedPath.endsWith(".js")) &&
                 file.isWritable();

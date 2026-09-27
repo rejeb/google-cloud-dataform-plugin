@@ -25,6 +25,7 @@ import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VirtualFile;
+import io.github.rejeb.dataform.language.util.DataformPaths;
 import io.github.rejeb.dataform.language.settings.DataformToolsSettings;
 import org.jetbrains.annotations.NotNull;
 
@@ -75,6 +76,11 @@ public final class DataformInterpreterManagerImpl implements DataformInterpreter
 
     @Override
     public Optional<GeneralCommandLine> buildDataformCompileCommand() {
+        return buildDataformCommand(List.of("compile", "--json", "--timeout=" + COMPILE_TIMEOUT));
+    }
+
+    @Override
+    public Optional<GeneralCommandLine> buildDataformCommand(@NotNull List<String> arguments) {
         NodeInterpreterManager nodeInterpreterManager = NodeInterpreterManager.getInstance(project);
         Path nodeBinDir = nodeInterpreterManager.nodeBinDir();
         if (nodeBinDir == null) return Optional.empty();
@@ -84,35 +90,36 @@ public final class DataformInterpreterManagerImpl implements DataformInterpreter
                 System.getenv("PATH");
 
         Optional<GeneralCommandLine> nodeCommand =
-                buildNodeCompileCommand(nodeBinDir, nodeInterpreterManager.nodeModulesDir(), pathEnv);
+                buildNodeCommand(nodeBinDir, nodeInterpreterManager.nodeModulesDir(), pathEnv, arguments);
         if (nodeCommand.isPresent()) {
-            LOGGER.info("Run compile using node : " + nodeCommand.get().getCommandLineString());
+            LOGGER.info("Run dataform using node : " + nodeCommand.get().getCommandLineString());
             return nodeCommand;
         }
 
         if (SystemInfo.isWindows) {
             Optional<String> gitBashPath = findGitBash();
             if (gitBashPath.isPresent()) {
-                GeneralCommandLine value = buildGitBashCommand(Path.of(gitBashPath.get()), pathEnv);
-                LOGGER.info("Run compile using gitbash : " + value.getCommandLineString());
+                GeneralCommandLine value = buildGitBashCommand(Path.of(gitBashPath.get()), pathEnv, arguments);
+                LOGGER.info("Run dataform using gitbash : " + value.getCommandLineString());
                 return Optional.of(value);
             } else {
-                GeneralCommandLine cmd = buildDefaultCommand("dataform.cmd");
+                GeneralCommandLine cmd = buildDefaultCommand("dataform.cmd", arguments);
                 cmd.getEnvironment().put("PATH", pathEnv);
-                LOGGER.info("Run compile using cmd : " + cmd.getCommandLineString());
+                LOGGER.info("Run dataform using cmd : " + cmd.getCommandLineString());
                 return Optional.of(cmd);
             }
         } else {
-            GeneralCommandLine cmd = buildDefaultCommand("dataform");
+            GeneralCommandLine cmd = buildDefaultCommand("dataform", arguments);
             cmd.getEnvironment().put("PATH", pathEnv);
             return Optional.of(cmd);
         }
 
     }
 
-    private Optional<GeneralCommandLine> buildNodeCompileCommand(@NotNull Path nodeBinDir,
-                                                                 Path nodeModulesDir,
-                                                                 @NotNull String pathEnv) {
+    private Optional<GeneralCommandLine> buildNodeCommand(@NotNull Path nodeBinDir,
+                                                          Path nodeModulesDir,
+                                                          @NotNull String pathEnv,
+                                                          @NotNull List<String> arguments) {
         if (nodeModulesDir == null) return Optional.empty();
 
         Path nodeExecutable = nodeBinDir.resolve(SystemInfo.isWindows ? "node.exe" : "node");
@@ -122,8 +129,8 @@ public final class DataformInterpreterManagerImpl implements DataformInterpreter
         return cliEntry.map(entry -> {
             GeneralCommandLine cmd = new GeneralCommandLine()
                     .withExePath(nodeExecutable.toAbsolutePath().toString())
-                    .withParameters(entry.toAbsolutePath().toString(), "compile", "--json",
-                            "--timeout=" + COMPILE_TIMEOUT)
+                    .withParameters(entry.toAbsolutePath().toString())
+                    .withParameters(arguments)
                     .withWorkDirectory(project.getBasePath());
             cmd.getEnvironment().put("PATH", pathEnv);
             return cmd;
@@ -155,10 +162,10 @@ public final class DataformInterpreterManagerImpl implements DataformInterpreter
         return bin.has("dataform") ? bin.get("dataform").getAsString() : null;
     }
 
-    private GeneralCommandLine buildDefaultCommand(String configuredCliCmd) {
+    private GeneralCommandLine buildDefaultCommand(String configuredCliCmd, @NotNull List<String> arguments) {
         return new GeneralCommandLine()
                 .withExePath(configuredCliCmd)
-                .withParameters("compile", "--json", "--timeout=" + COMPILE_TIMEOUT)
+                .withParameters(arguments)
                 .withWorkDirectory(project.getBasePath());
     }
 
@@ -176,16 +183,16 @@ public final class DataformInterpreterManagerImpl implements DataformInterpreter
     }
 
     private GeneralCommandLine buildGitBashCommand(@NotNull Path bashExe,
-                                                   @NotNull String pathEnv) {
-        String posixPathEnv = pathEnv
-                .replace("\\", "/")
+                                                   @NotNull String pathEnv,
+                                                   @NotNull List<String> arguments) {
+        String posixPathEnv = DataformPaths.normalize(pathEnv)
                 .replaceAll("^([A-Za-z]):", "/$1")
                 .toLowerCase(java.util.Locale.ROOT);
 
         GeneralCommandLine generalCommandLine = new GeneralCommandLine(
                 bashExe.toAbsolutePath().toString(),
                 "-c",
-                "dataform compile --json --timeout=" + COMPILE_TIMEOUT
+                "dataform " + String.join(" ", arguments)
         ).withWorkDirectory(project.getBasePath());
         generalCommandLine.getEnvironment().put("PATH", posixPathEnv);
         return generalCommandLine;

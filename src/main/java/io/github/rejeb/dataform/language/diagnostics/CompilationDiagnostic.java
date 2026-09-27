@@ -21,10 +21,23 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * A single Dataform compilation error. Compilation errors carry no trustworthy position, so this
- * record deliberately has no line.
+ * A Dataform compilation error of a file. The position the compiler reports is one of the
+ * JavaScript it generates from the file, not of the file itself, so the record carries what the
+ * error can be placed from, its stack and the file it was reported for, rather than a line.
+ *
+ * @param file             the file the error is shown in
+ * @param message          the message
+ * @param actionName       the action the error belongs to, or {@code null}
+ * @param stack            the stack the error was thrown with, or {@code null}
+ * @param reportedFileName the project-relative file the compiler reported the error for, or {@code null}
  */
 public record CompilationDiagnostic(@NotNull VirtualFile file,
                                     @NotNull String message,
-                                    @Nullable String actionName) {
+                                    @Nullable String actionName,
+                                    @Nullable String stack,
+                                    @Nullable String reportedFileName) {
+
+    public CompilationDiagnostic(@NotNull VirtualFile file, @NotNull String message, @Nullable String actionName) {
+        this(file, message, actionName, null, null);
+    }
 }

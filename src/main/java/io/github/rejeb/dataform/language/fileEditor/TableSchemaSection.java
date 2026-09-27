@@ -17,10 +17,12 @@
 package io.github.rejeb.dataform.language.fileEditor;
 
 import com.intellij.icons.AllIcons;
+import com.intellij.ui.components.JBTextField;
 import com.intellij.ui.table.JBTable;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
 import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
+import io.github.rejeb.dataform.language.ui.ReadOnlyTextFields;
 
 import javax.swing.*;
 import javax.swing.table.DefaultTableCellRenderer;
@@ -50,13 +52,16 @@ class TableSchemaSection extends JPanel {
         header.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
 
         JLabel toggleIcon = new JLabel(AllIcons.General.ArrowDown);
-        JLabel tableLabel = new JLabel(tableName != null ? tableName : "Unknown table");
+        JBTextField tableLabel = ReadOnlyTextFields.singleLine(
+                tableName != null ? tableName : "Unknown table", header.getBackground());
         tableLabel.setFont(JBUI.Fonts.label(12).asBold());
-        tableLabel.setForeground(UIUtil.getLabelForeground());
         tableLabel.setBorder(JBUI.Borders.emptyLeft(6));
 
-        header.add(toggleIcon, BorderLayout.WEST);
-        header.add(tableLabel, BorderLayout.CENTER);
+        JPanel title = new JPanel(new BorderLayout());
+        title.setOpaque(false);
+        title.add(toggleIcon, BorderLayout.WEST);
+        title.add(tableLabel, BorderLayout.CENTER);
+        header.add(title, BorderLayout.WEST);
 
         contentPanel = new JPanel(new BorderLayout());
         contentPanel.setOpaque(false);
@@ -66,11 +71,13 @@ class TableSchemaSection extends JPanel {
         tableModel = new DefaultTableModel(columnNames, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
-                return false;
+                return true;
             }
         };
 
         schemaTable = new JBTable(tableModel);
+        schemaTable.setDefaultEditor(Object.class, ReadOnlyTextFields.cellEditor(schemaTable));
+        schemaTable.setCursor(Cursor.getPredefinedCursor(Cursor.TEXT_CURSOR));
         schemaTable.setShowGrid(true);
         schemaTable.setGridColor(UIUtil.getBoundsColor());
         schemaTable.setIntercellSpacing(new Dimension(1, 1));

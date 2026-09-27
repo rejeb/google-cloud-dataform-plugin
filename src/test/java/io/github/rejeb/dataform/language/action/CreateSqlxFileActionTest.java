@@ -61,6 +61,16 @@ public class CreateSqlxFileActionTest extends BasePlatformTestCase {
         assertTrue(incremental.getText().contains("${self()}"));
     }
 
+    public void testUnitTestTemplateNamesTheDatasetAsATargetWithPlaceholders() {
+        PsiFile created = createFromTemplate(SqlxFileTemplate.TEST, "orders_test");
+
+        assertTrue(created.getText(), created.getText().startsWith("config {"));
+        assertTrue(created.getText(), created.getText().contains("type: \"test\""));
+        assertTrue(created.getText(), created.getText().replaceAll("\\s+", " ").contains(
+                "dataset: { schema: \"my_dataset\", name: \"my_table\" }"));
+        assertTrue(created.getText(), created.getText().contains("input \"my_source\" {"));
+    }
+
     private PsiFile createFromTemplate(SqlxFileTemplate kind, String fileName) {
         PsiFile anchor = myFixture.addFileToProject("definitions/" + fileName + ".txt", "");
         PsiDirectory directory = anchor.getContainingDirectory();

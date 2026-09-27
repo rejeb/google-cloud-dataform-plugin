@@ -24,7 +24,8 @@ public enum SqlxFileTemplate {
     INCREMENTAL("Incremental table", "Dataform SQLX Incremental Table"),
     ASSERTION("Assertion", "Dataform SQLX Assertion"),
     OPERATIONS("Operations", "Dataform SQLX Operations"),
-    DECLARATION("Declaration", "Dataform SQLX Declaration");
+    DECLARATION("Declaration", "Dataform SQLX Declaration"),
+    TEST("Unit test", "Dataform SQLX Test");
 
     private final String kind;
     private final String templateName;

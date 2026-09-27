@@ -1,0 +1,3 @@
+input "raw_orders" {
+  <spot>SELECT 1</spot>
+}

@@ -43,18 +43,27 @@ interface ColumnUsageSearch {
      */
     static @NotNull ColumnUsageSearch of(@NotNull Project project,
                                          @NotNull ColumnWindowTarget target) {
+        ColumnUsageSearch tests = new TestAliasColumnUsageSearch(project, target);
         StructColumnPath path = target.structPath();
-        if (path != null) return new StructFieldColumnUsageSearch(project, path);
+        if (path != null) return chain(new StructFieldColumnUsageSearch(project, path), tests);
         ColumnUsageSearch references = new ReferenceColumnUsageSearch(project, target);
         ColumnUsageSearch strings = new JsStringColumnUsageSearch(project, target);
+        return chain(chain(references, strings), tests);
+    }
+
+    /**
+     * The reads of {@code first}, then those of {@code second} unless the caller stopped the first.
+     */
+    private static @NotNull ColumnUsageSearch chain(@NotNull ColumnUsageSearch first,
+                                                    @NotNull ColumnUsageSearch second) {
         return (reads, maxReads) -> {
             AtomicBoolean stopped = new AtomicBoolean();
-            references.forEachRead(read -> {
+            first.forEachRead(read -> {
                 if (reads.process(read)) return true;
                 stopped.set(true);
                 return false;
             }, maxReads);
-            if (!stopped.get()) strings.forEachRead(reads, maxReads);
+            if (!stopped.get()) second.forEachRead(reads, maxReads);
         };
     }
 

@@ -37,6 +37,7 @@ import io.github.rejeb.dataform.language.gcp.execution.workflow.model.BigQueryJo
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.InvocationActionResult;
 import io.github.rejeb.dataform.language.gcp.service.DataformGcpService;
 import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
+import io.github.rejeb.dataform.language.ui.ReadOnlyTextFields;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -318,11 +319,13 @@ public class ActionDetailsTabPanel extends JPanel implements Disposable {
         DefaultTableModel model = new DefaultTableModel(data, columns) {
             @Override
             public boolean isCellEditable(int r, int c) {
-                return c == 3;
+                return c != 0;
             }
         };
 
         JBTable table = new JBTable(model) {
+            private final TableCellEditor readOnlyEditor = ReadOnlyTextFields.cellEditor(this);
+
             @Override
             public TableCellRenderer getCellRenderer(int row, int col) {
                 if (col == 0) return new StatusIconRenderer();
@@ -333,11 +336,12 @@ public class ActionDetailsTabPanel extends JPanel implements Disposable {
             @Override
             public TableCellEditor getCellEditor(int row, int col) {
                 if (col == 3) return new SqlScrollEditor(rowEditors.get(row), this, row);
-                return super.getCellEditor(row, col);
+                return readOnlyEditor;
             }
         };
 
         table.setShowGrid(true);
+        table.setCursor(Cursor.getPredefinedCursor(Cursor.TEXT_CURSOR));
         table.setGridColor(UIUtil.getTableGridColor());
         table.setIntercellSpacing(new Dimension(1, 1));
         table.setRowHeight(MIN_ROW_HEIGHT);

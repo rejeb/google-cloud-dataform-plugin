@@ -555,6 +555,11 @@ public class DataformConfigColumnCompletionTest extends BasePlatformTestCase {
         public Optional<GeneralCommandLine> buildDataformCompileCommand() {
             return Optional.empty();
         }
+
+        @Override
+        public Optional<GeneralCommandLine> buildDataformCommand(@NotNull List<String> arguments) {
+            return Optional.empty();
+        }
     }
 
     private record StubCompilationService(CompiledGraph graph) implements DataformCompilationService {
@@ -580,6 +585,11 @@ public class DataformConfigColumnCompletionTest extends BasePlatformTestCase {
 
         @Override
         public void dispose() {
+        }
+
+        @Override
+        public long getModificationCount() {
+            return 0;
         }
     }
 

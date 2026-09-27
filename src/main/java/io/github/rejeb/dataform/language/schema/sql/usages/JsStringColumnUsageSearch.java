@@ -18,13 +18,13 @@ package io.github.rejeb.dataform.language.schema.sql.usages;
 
 import com.intellij.lang.javascript.psi.JSLiteralExpression;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.project.ProjectUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiManager;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.Processor;
+import io.github.rejeb.dataform.language.util.DataformPaths;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.compilation.model.CompiledAssertion;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
@@ -132,10 +132,7 @@ final class JsStringColumnUsageSearch implements ColumnUsageSearch {
     }
 
     private void addFile(@NotNull Set<PsiFile> files, @Nullable String relativePath) {
-        if (relativePath == null) return;
-        VirtualFile projectDir = ProjectUtil.guessProjectDir(project);
-        if (projectDir == null) return;
-        VirtualFile source = projectDir.findFileByRelativePath(relativePath.replace("\\", "/"));
+        VirtualFile source = DataformPaths.findInProject(project, relativePath);
         PsiFile file = source == null ? null : PsiManager.getInstance(project).findFile(source);
         if (file != null) files.add(file);
     }

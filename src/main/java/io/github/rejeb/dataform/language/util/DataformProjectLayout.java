@@ -100,7 +100,7 @@ public final class DataformProjectLayout {
         if (file == null) {
             return false;
         }
-        String path = file.getPath().replace('\\', '/');
+        String path = DataformPaths.normalize(file.getPath());
         if (path.contains("/" + DEFINITIONS_DIR + "/") || path.contains("/" + INCLUDES_DIR + "/")) {
             return true;
         }
@@ -123,8 +123,29 @@ public final class DataformProjectLayout {
      */
     public static boolean isDataformSource(@Nullable VirtualFile file) {
         return file != null
-                && isInDataformProject(file)
-                && isDataformSourceName(file.getName(), file.getExtension());
+                && isDataformSourceName(file.getName(), file.getExtension())
+                && isInDataformProject(file);
+    }
+
+    /**
+     * Whether the file is JavaScript the project is written in: a {@code .js} or {@code .ts} file
+     * of its {@code definitions} or {@code includes} directory. The JavaScript of a dependency is
+     * not, even when it lives below the project, as the compilation does not evaluate it as a
+     * source of the project.
+     */
+    public static boolean isDataformScript(@Nullable VirtualFile file) {
+        if (file == null || file.isDirectory()) {
+            return false;
+        }
+        String extension = file.getExtension();
+        if (!JS_EXTENSION.equals(extension) && !TS_EXTENSION.equals(extension)) {
+            return false;
+        }
+        String path = DataformPaths.normalize(file.getPath());
+        VirtualFile root = projectRootOf(file);
+        String inProject = root == null ? path : path.substring(DataformPaths.normalize(root.getPath()).length());
+        return (inProject.contains("/" + DEFINITIONS_DIR + "/") || inProject.contains("/" + INCLUDES_DIR + "/"))
+                && !isUnderIgnoredDirectory(inProject);
     }
 
     /**
@@ -132,7 +153,7 @@ public final class DataformProjectLayout {
      * JavaScript of a dependency from the JavaScript a project is written in.
      */
     public static boolean isUnderIgnoredDirectory(@NotNull String path) {
-        for (String segment : path.replace('\\', '/').split("/")) {
+        for (String segment : DataformPaths.normalize(path).split("/")) {
             if (IGNORED_DIRECTORIES.contains(segment)) {
                 return true;
             }
@@ -150,6 +171,19 @@ public final class DataformProjectLayout {
         return SQLX_EXTENSION.equals(extension)
                 || JS_EXTENSION.equals(extension)
                 || TS_EXTENSION.equals(extension);
+    }
+
+    @Nullable
+    private static VirtualFile projectRootOf(@NotNull VirtualFile file) {
+        VirtualFile directory = directoryOf(file);
+        while (directory != null) {
+            if (directory.findChild(WORKFLOW_SETTINGS_YAML) != null
+                    || directory.findChild(DATAFORM_JSON) != null) {
+                return directory;
+            }
+            directory = directory.getParent();
+        }
+        return null;
     }
 
     @Nullable

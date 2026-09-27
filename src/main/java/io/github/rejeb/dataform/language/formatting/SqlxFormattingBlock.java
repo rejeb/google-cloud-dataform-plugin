@@ -97,7 +97,8 @@ public class SqlxFormattingBlock extends AbstractBlock {
         boolean isBraceBlock = parentType == SharedTokenTypes.CONFIG_BLOCK
                 || parentType == SharedTokenTypes.JS_BLOCK
                 || parentType == SharedTokenTypes.PRE_OPERATIONS_BLOCK
-                || parentType == SharedTokenTypes.POST_OPERATIONS_BLOCK;
+                || parentType == SharedTokenTypes.POST_OPERATIONS_BLOCK
+                || parentType == SharedTokenTypes.INPUT_BLOCK;
 
         if (isBraceBlock && child1 instanceof AbstractBlock ab
                 && ab.getNode().getElementType() == SharedTokenTypes.LBRACE) {
@@ -105,7 +106,8 @@ public class SqlxFormattingBlock extends AbstractBlock {
         }
 
         boolean isOperationsBlock = parentType == SharedTokenTypes.PRE_OPERATIONS_BLOCK
-                || parentType == SharedTokenTypes.POST_OPERATIONS_BLOCK;
+                || parentType == SharedTokenTypes.POST_OPERATIONS_BLOCK
+                || parentType == SharedTokenTypes.INPUT_BLOCK;
         if (isOperationsBlock && child2 instanceof AbstractBlock ab
                 && ab.getNode().getElementType() == SharedTokenTypes.RBRACE) {
             return Spacing.createSpacing(0, 0, 1, false, 0);

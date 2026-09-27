@@ -16,6 +16,13 @@
  */
 package io.github.rejeb.dataform.language.compilation;
 
+import com.intellij.codeInsight.template.Template;
+import com.intellij.codeInsight.template.TemplateManager;
+import com.intellij.codeInsight.template.impl.ConstantNode;
+import com.intellij.codeInsight.template.impl.TemplateManagerImpl;
+import com.intellij.codeInsight.template.impl.TemplateState;
+import com.intellij.psi.PsiFile;
+import com.intellij.testFramework.PlatformTestUtil;
 import com.intellij.testFramework.ServiceContainerUtil;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
@@ -88,7 +95,8 @@ public class DataformAutoCompileServiceImplTest extends BasePlatformTestCase {
         service.scheduleCompileAfterEdit();
 
         assertFalse("a compilation must wait for the user to stop typing",
-                schemas.called.await(1, TimeUnit.SECONDS));
+                schemas.called.await(DataformAutoCompileServiceImpl.QUIET_PERIOD_MS / 2,
+                        TimeUnit.MILLISECONDS));
     }
 
     public void testAnEditCompilesOnceTheQuietPeriodHasElapsed() throws Exception {
@@ -100,6 +108,35 @@ public class DataformAutoCompileServiceImplTest extends BasePlatformTestCase {
         assertTrue("a compilation must follow the quiet period",
                 schemas.called.await(DataformAutoCompileServiceImpl.QUIET_PERIOD_MS * 4,
                         TimeUnit.MILLISECONDS));
+    }
+
+    public void testAnEditDoesNotCompileWhileATemplateIsBeingFilledInADataformFile() throws Exception {
+        TemplateManagerImpl.setTemplateTesting(getTestRootDisposable());
+        PsiFile file = myFixture.addFileToProject("definitions/orders.sqlx", "SELECT 1 AS id\n");
+        myFixture.configureFromExistingVirtualFile(file.getVirtualFile());
+        RecordingSchemaService settled = installServices(new CompiledGraph());
+        settled.called.await(5, TimeUnit.SECONDS);
+        RecordingSchemaService schemas = installServices(new CompiledGraph());
+        Template template = TemplateManager.getInstance(getProject()).createTemplate("", "", "$NAME$");
+        template.addVariable("NAME", new ConstantNode("id"), true);
+        TemplateManager.getInstance(getProject()).startTemplate(myFixture.getEditor(), template);
+        DataformAutoCompileService service = DataformAutoCompileService.getInstance(getProject());
+
+        service.scheduleCompileAfterEdit();
+
+        assertFalse("the text of a template being filled, an in-place rename for one, is not the file",
+                schemas.called.await(DataformAutoCompileServiceImpl.QUIET_PERIOD_MS * 4, TimeUnit.MILLISECONDS));
+
+        TemplateState state = TemplateManagerImpl.getTemplateState(myFixture.getEditor());
+        assertNotNull(state);
+        state.gotoEnd(true);
+
+        boolean compiled = false;
+        for (int i = 0; i < 300 && !compiled; i++) {
+            PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue();
+            compiled = schemas.called.await(100, TimeUnit.MILLISECONDS);
+        }
+        assertTrue("once the template is done the compilation runs", compiled);
     }
 
     private RecordingSchemaService installServices(@Nullable CompiledGraph graph) {
@@ -186,6 +223,11 @@ public class DataformAutoCompileServiceImplTest extends BasePlatformTestCase {
 
         @Override
         public void dispose() {
+        }
+
+        @Override
+        public long getModificationCount() {
+            return 0;
         }
     }
 }

@@ -56,13 +56,6 @@ public class DataformSqlVariableResolveExtension implements SqlResolveExtension 
             return true;
         }
 
-        PsiFile topLevel = InjectedLanguageManager
-                .getInstance(place.getProject())
-                .getTopLevelFile(place.getContainingFile());
-        if (topLevel == null || !topLevel.getName().endsWith(".sqlx")) {
-            return true;
-        }
-
         IElementType type = ref.getReferenceElementType();
         if (type != SqlCompositeElementTypes.SQL_COLUMN_REFERENCE
                 && type != SqlCompositeElementTypes.SQL_COLUMN_SHORT_REFERENCE
@@ -70,6 +63,13 @@ public class DataformSqlVariableResolveExtension implements SqlResolveExtension 
             return true;
         }
         if (!processor.mayAccept(ObjectKind.COLUMN)) {
+            return true;
+        }
+
+        PsiFile topLevel = InjectedLanguageManager
+                .getInstance(place.getProject())
+                .getTopLevelFile(place.getContainingFile());
+        if (topLevel == null || !topLevel.getName().endsWith(".sqlx")) {
             return true;
         }
 

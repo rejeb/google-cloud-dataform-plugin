@@ -19,15 +19,21 @@ package io.github.rejeb.dataform.language.schema.dts;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.intellij.openapi.application.WriteAction;
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.project.ProjectUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import io.github.rejeb.dataform.language.schema.json.DataformJsonSchemaGenerator;
 import io.github.rejeb.dataform.language.schema.json.ProtoModel;
 import org.jetbrains.annotations.NotNull;
 
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 public class DataformDtsGeneratorImpl implements DataformDtsGenerator {
+
+    private static final String DTS_PATH = ".dataform/types/dataform.d.ts";
 
     private final Project project;
 
@@ -144,7 +150,7 @@ public class DataformDtsGeneratorImpl implements DataformDtsGenerator {
                 String itemType = items != null
                         ? schemaToTs((ObjectNode) items, defNames, indent)
                         : "unknown";
-                yield itemType + "[]";
+                yield arrayOf(itemType);
             }
             case "object" -> {
                 JsonNode addProps = schema.get("additionalProperties");
@@ -210,26 +216,27 @@ public class DataformDtsGeneratorImpl implements DataformDtsGenerator {
     }
 
     private void writeFile(String content) {
+        byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
         try {
-            com.intellij.openapi.vfs.VirtualFile root =
-                    com.intellij.openapi.project.ProjectUtil.guessProjectDir(project);
+            VirtualFile root = ProjectUtil.guessProjectDir(project);
             if (root == null) return;
+            VirtualFile existing = root.findFileByRelativePath(DTS_PATH);
+            if (existing != null && Arrays.equals(existing.contentsToByteArray(), bytes)) return;
 
-            VirtualFile dataformDir = root.findChild(".dataform");
-            if (dataformDir == null) dataformDir = root.createChildDirectory(this, ".dataform");
-
-            VirtualFile typesDir = dataformDir.findChild("types");
-            if (typesDir == null) typesDir = dataformDir.createChildDirectory(this, "types");
-            com.intellij.openapi.vfs.VirtualFile dtsFile =
-                    typesDir.findOrCreateChildData(this, "dataform.d.ts");
-
-            com.intellij.openapi.application.WriteAction.runAndWait(() ->
-                    dtsFile.setBinaryContent(content.getBytes(java.nio.charset.StandardCharsets.UTF_8))
-            );
+            WriteAction.runAndWait(() -> {
+                VirtualFile dataformDir = root.findChild(".dataform");
+                if (dataformDir == null) dataformDir = root.createChildDirectory(this, ".dataform");
+                VirtualFile typesDir = dataformDir.findChild("types");
+                if (typesDir == null) typesDir = dataformDir.createChildDirectory(this, "types");
+                typesDir.findOrCreateChildData(this, "dataform.d.ts").setBinaryContent(bytes);
+            });
         } catch (Exception e) {
-            com.intellij.openapi.diagnostic.Logger
-                    .getInstance(getClass()).error("Failed to write dataform.d.ts", e);
+            Logger.getInstance(getClass()).error("Failed to write dataform.d.ts", e);
         }
+    }
+
+    static String arrayOf(String itemType) {
+        return itemType.contains(" | ") ? "(" + itemType + ")[]" : itemType + "[]";
     }
 
     private String capitalize(String s) {

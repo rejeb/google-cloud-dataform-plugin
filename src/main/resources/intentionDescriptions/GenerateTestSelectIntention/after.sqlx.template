@@ -1,0 +1,5 @@
+input "raw_orders" {
+  SELECT
+    '' AS id,
+    0.0 AS amount
+}

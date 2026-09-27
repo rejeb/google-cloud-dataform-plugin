@@ -66,7 +66,6 @@ public class DataformServiceViewDescriptor extends SimpleServiceViewDescriptor i
                         Messages.getWarningIcon()
                 );
                 if (choice != Messages.YES) return;
-                result.pagedResult().dispose();
                 QueryResultsRegistry.getInstance(project).remove(result.tableName());
                 project.getMessageBus()
                         .syncPublisher(ServiceEventListener.TOPIC)

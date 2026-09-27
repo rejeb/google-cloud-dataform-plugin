@@ -36,6 +36,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Default {@link ValidationProblemInlayManager}, rebuilding chips from the diagnostic service.
@@ -46,6 +47,7 @@ public final class ValidationProblemInlayManagerImpl implements ValidationProble
             Key.create("dataform.compilation.error.chips");
 
     private final Project project;
+    private final AtomicBoolean refreshAllPending = new AtomicBoolean();
 
     public ValidationProblemInlayManagerImpl(@NotNull Project project) {
         this.project = project;
@@ -53,7 +55,11 @@ public final class ValidationProblemInlayManagerImpl implements ValidationProble
 
     @Override
     public void refreshAll() {
+        if (!refreshAllPending.compareAndSet(false, true)) {
+            return;
+        }
         ApplicationManager.getApplication().invokeLater(() -> {
+            refreshAllPending.set(false);
             if (project.isDisposed()) {
                 return;
             }
@@ -98,6 +104,7 @@ public final class ValidationProblemInlayManagerImpl implements ValidationProble
 
         ReadAction.nonBlocking(() -> SqlxValidationService.getInstance(project).validate(psiFile))
                 .expireWith(project)
+                .expireWhen(() -> !psiFile.isValid())
                 .coalesceBy(this, editor)
                 .finishOnUiThread(ModalityState.defaultModalityState(),
                         problems -> applyProblems(editor, problems))
@@ -121,7 +128,7 @@ public final class ValidationProblemInlayManagerImpl implements ValidationProble
                 continue;
             }
             int line = document.getLineNumber(problem.range().getStartOffset());
-            List<String> lines = CompilationErrorChipText.wrap(problem.message());
+            List<String> lines = CompilationErrorChipText.wrap(problem.chipText());
             ValidationProblemInlayRenderer renderer = new ValidationProblemInlayRenderer(lines);
             int offset = document.getLineEndOffset(line);
 

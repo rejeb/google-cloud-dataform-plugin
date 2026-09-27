@@ -17,6 +17,7 @@
 package io.github.rejeb.dataform.language.schema.sql;
 
 import com.intellij.openapi.diagnostic.Logger;
+import io.github.rejeb.dataform.language.util.DataformPaths;
 import io.github.rejeb.dataform.language.compilation.model.SortableAction;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -52,7 +53,7 @@ final class ActionSourceFiles {
      */
     static long modificationTime(@NotNull String basePath, @NotNull String fileName) {
         try {
-            Path filePath = Paths.get(basePath, fileName);
+            Path filePath = Paths.get(basePath, DataformPaths.normalize(fileName));
             if (Files.exists(filePath)) return Files.getLastModifiedTime(filePath).toMillis();
         } catch (Exception e) {
             LOG.debug("Failed to get modification time for " + fileName + ": " + e.getMessage());

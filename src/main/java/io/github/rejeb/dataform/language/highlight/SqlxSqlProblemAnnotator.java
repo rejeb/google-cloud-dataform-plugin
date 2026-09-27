@@ -16,6 +16,7 @@
  */
 package io.github.rejeb.dataform.language.highlight;
 
+import com.intellij.lang.annotation.AnnotationBuilder;
 import com.intellij.lang.annotation.AnnotationHolder;
 import com.intellij.lang.annotation.Annotator;
 import com.intellij.lang.annotation.HighlightSeverity;
@@ -25,13 +26,16 @@ import com.intellij.psi.PsiErrorElement;
 import com.intellij.sql.psi.SqlCompositeElementTypes;
 import com.intellij.sql.psi.SqlReferenceElementType;
 import com.intellij.sql.psi.SqlReferenceExpression;
+import io.github.rejeb.dataform.language.diagnostics.sql.fix.ApplySqlFixAction;
+import io.github.rejeb.dataform.language.diagnostics.sql.hint.SqlFix;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
  * Reports the SQL problems of a SQLX file as weak warnings. Everything the SQL support flags as an
  * error inside a SQLX file is a guess made on a query that is not the one Dataform compiles, so it
- * is reported without the red highlighting that suggests broken code.
+ * is reported without the red highlighting that suggests broken code. Where a fix can be offered,
+ * a misspelled column or a missing or extra comma, it is added with its hint.
  */
 public final class SqlxSqlProblemAnnotator implements Annotator, DumbAware {
 
@@ -46,6 +50,7 @@ public final class SqlxSqlProblemAnnotator implements Annotator, DumbAware {
         }
         if (element instanceof SqlReferenceExpression reference) {
             annotateUnresolvedReference(reference, holder);
+            SqlxLocalSqlHints.annotateColumnSuggestion(reference, holder);
         }
     }
 
@@ -75,16 +80,18 @@ public final class SqlxSqlProblemAnnotator implements Annotator, DumbAware {
         if (description.isBlank()) {
             return;
         }
+        SqlxLocalSqlHints.LocalHint local = SqlxLocalSqlHints.syntaxHint(error);
+        String message = local == null ? description : description + " — " + local.hint().text();
+        AnnotationBuilder builder = holder.newAnnotation(HighlightSeverity.WEAK_WARNING, message).range(error);
         if (error.getTextRange().isEmpty()) {
-            holder.newAnnotation(HighlightSeverity.WEAK_WARNING, description)
-                    .range(error)
-                    .afterEndOfLine()
-                    .create();
-            return;
+            builder = builder.afterEndOfLine();
         }
-        holder.newAnnotation(HighlightSeverity.WEAK_WARNING, description)
-                .range(error)
-                .create();
+        if (local != null) {
+            for (SqlFix fix : local.hint().fixes()) {
+                builder = builder.withFix(new ApplySqlFixAction(local.hostFile(), fix));
+            }
+        }
+        builder.create();
     }
 
     private static void annotateUnresolvedReference(@NotNull SqlReferenceExpression reference,

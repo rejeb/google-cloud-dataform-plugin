@@ -18,11 +18,20 @@ package io.github.rejeb.dataform.language.setup;
 
 import com.intellij.execution.configurations.GeneralCommandLine;
 import com.intellij.openapi.vfs.VirtualFile;
+import org.jetbrains.annotations.NotNull;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface DataformInterpreterManager {
     Optional<VirtualFile> dataformCorePath();
     String currentDataformCoreVersion();
     Optional<GeneralCommandLine> buildDataformCompileCommand();
+
+    /**
+     * Builds a {@code dataform} CLI command running the given arguments in the project base directory.
+     *
+     * @return empty when no Node.js interpreter is configured
+     */
+    Optional<GeneralCommandLine> buildDataformCommand(@NotNull List<String> arguments);
 }

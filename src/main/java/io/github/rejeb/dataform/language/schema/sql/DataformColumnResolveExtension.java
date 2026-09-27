@@ -53,10 +53,6 @@ public class DataformColumnResolveExtension implements SqlResolveExtension {
         PsiElement place = processor.getPlace();
         if (place == null) return true;
 
-        PsiFile topLevel = InjectedLanguageManager.getInstance(place.getProject())
-                .getTopLevelFile(place.getContainingFile());
-        if (topLevel == null || !topLevel.getName().endsWith(".sqlx")) return true;
-
         IElementType type = ref.getReferenceElementType();
         if (type != SqlCompositeElementTypes.SQL_COLUMN_REFERENCE
                 && type != SqlCompositeElementTypes.SQL_COLUMN_SHORT_REFERENCE) {
@@ -69,6 +65,10 @@ public class DataformColumnResolveExtension implements SqlResolveExtension {
             return true;
         }
         if (!isSelectListItem(ref.getElement())) return true;
+
+        PsiFile topLevel = InjectedLanguageManager.getInstance(place.getProject())
+                .getTopLevelFile(place.getContainingFile());
+        if (topLevel == null || !topLevel.getName().endsWith(".sqlx")) return true;
 
         return contributeDeclaredColumn(ref, processor, topLevel);
     }

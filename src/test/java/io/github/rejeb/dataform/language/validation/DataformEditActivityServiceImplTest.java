@@ -58,4 +58,12 @@ public class DataformEditActivityServiceImplTest {
         assertTrue(service.remainingQuietPeriodMs() >= afterFirst - 5,
                 "each keystroke must push the wait back");
     }
+
+    @Test
+    public void aLongerQuietPeriodOutlastsTheValidationOne() {
+        service.noteEdit();
+
+        assertTrue(service.remainingQuietPeriodMs(10_000) > DataformEditActivityService.QUIET_PERIOD_MS,
+                "a compilation waits for a longer pause than the validation refresh");
+    }
 }

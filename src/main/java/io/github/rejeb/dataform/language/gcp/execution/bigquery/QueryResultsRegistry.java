@@ -58,7 +58,7 @@ public final class QueryResultsRegistry {
 
     public synchronized void remove(@NotNull String tableName) {
         BigQueryJobResult removed = results.remove(tableName);
-        if (removed != null) {
+        if (removed != null && removed.pagedResult() != null) {
             removed.pagedResult().dispose();
         }
     }

@@ -32,6 +32,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.ExceptionUtil;
+import io.github.rejeb.dataform.language.util.DataformPaths;
 import io.github.rejeb.dataform.language.compilation.model.CompilationError;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService;
@@ -183,13 +184,9 @@ public final class DataformBuildManager {
         String fileName = error.getFileName();
         if (fileName == null || fileName.isBlank()) return null;
 
-        VirtualFile projectDir = ProjectUtil.guessProjectDir(project);
-        if (projectDir == null) return null;
-
-        String normalized = fileName.replace("\\", "/");
-        VirtualFile vf = projectDir.findFileByRelativePath(normalized);
+        VirtualFile vf = DataformPaths.findInProject(project, fileName);
         if (vf == null) {
-            File f = new File(normalized);
+            File f = new File(DataformPaths.normalize(fileName));
             if (f.exists()) {
                 return new FilePosition(f.toPath(), 0, 0);
             }

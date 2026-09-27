@@ -106,5 +106,10 @@ public class DataformConfigTagCompletionTest extends BasePlatformTestCase {
         @Override
         public void dispose() {
         }
+
+        @Override
+        public long getModificationCount() {
+            return 0;
+        }
     }
 }

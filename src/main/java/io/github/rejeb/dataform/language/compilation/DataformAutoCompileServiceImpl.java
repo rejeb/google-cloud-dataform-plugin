@@ -17,11 +17,16 @@
 package io.github.rejeb.dataform.language.compilation;
 
 import com.intellij.codeInsight.lookup.LookupManagerListener;
+import com.intellij.codeInsight.template.TemplateManager;
 import com.intellij.ide.projectView.ProjectView;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.editor.Editor;
+import com.intellij.openapi.editor.EditorFactory;
+import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.concurrency.AppExecutorUtil;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.diagnostics.CompilationDiagnosticService;
@@ -29,6 +34,7 @@ import io.github.rejeb.dataform.language.diagnostics.DataformEditorRefresher;
 import io.github.rejeb.dataform.language.diagnostics.ValidationProblemInlayManager;
 import io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService;
 import io.github.rejeb.dataform.language.settings.DataformToolsSettings;
+import io.github.rejeb.dataform.language.util.DataformProjectLayout;
 import io.github.rejeb.dataform.language.validation.DataformEditActivityService;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -45,7 +51,7 @@ public final class DataformAutoCompileServiceImpl implements DataformAutoCompile
 
     private static final Logger LOG = Logger.getInstance(DataformAutoCompileServiceImpl.class);
     private static final long SAVE_DEBOUNCE_MS = 300;
-    static final long QUIET_PERIOD_MS = DataformEditActivityService.QUIET_PERIOD_MS;
+    static final long QUIET_PERIOD_MS = 2_000;
     private static final long COMPLETION_RETRY_MS = 1_000;
 
     private final Project project;
@@ -97,12 +103,12 @@ public final class DataformAutoCompileServiceImpl implements DataformAutoCompile
             return;
         }
         long remainingQuietPeriod =
-                DataformEditActivityService.getInstance(project).remainingQuietPeriodMs();
+                DataformEditActivityService.getInstance(project).remainingQuietPeriodMs(QUIET_PERIOD_MS);
         if (remainingQuietPeriod > 0) {
             scheduleFire(requested, remainingQuietPeriod);
             return;
         }
-        if (completionVisible) {
+        if (completionVisible || isTemplateActiveInADataformEditor()) {
             scheduleFire(requested, COMPLETION_RETRY_MS);
             return;
         }
@@ -115,6 +121,27 @@ public final class DataformAutoCompileServiceImpl implements DataformAutoCompile
 
     @Override
     public void dispose() {
+    }
+
+    /**
+     * Whether a template is being filled in an editor of a Dataform source of this project. The
+     * text of such a document is not the file: an in-place rename types the new name into every
+     * occurrence, then puts the old text back before renaming the project. A compilation of that
+     * text would rebuild the graph, the schemas and the lineage from a query that never existed,
+     * and the rename would then be planned on them.
+     */
+    private boolean isTemplateActiveInADataformEditor() {
+        TemplateManager templates = TemplateManager.getInstance(project);
+        for (Editor editor : EditorFactory.getInstance().getAllEditors()) {
+            if (editor.getProject() != project || templates.getActiveTemplate(editor) == null) {
+                continue;
+            }
+            VirtualFile file = FileDocumentManager.getInstance().getFile(editor.getDocument());
+            if (DataformProjectLayout.isDataformSource(file)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void compileNow() {

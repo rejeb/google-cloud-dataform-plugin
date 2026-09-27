@@ -95,12 +95,4 @@ public record ColumnRenamePlan(@NotNull ColumnRenameSubject subject,
         return refusal == null && !starBoundaries.isEmpty();
     }
 
-    /**
-     * Whether the places must be reviewed before they are written. A place found by matching text
-     * and a plan that could not be fully determined are both things the user has to see.
-     */
-    public boolean needsPreview() {
-        return !warnings.isEmpty()
-                || edits.stream().anyMatch(edit -> edit.risk() == ColumnRenameEdit.Risk.HEURISTIC);
-    }
 }

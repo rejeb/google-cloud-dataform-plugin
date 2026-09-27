@@ -16,6 +16,7 @@
  */
 package io.github.rejeb.dataform.language.gcp.execution.workflow.repository;
 
+import com.google.api.core.ApiFuture;
 import com.google.cloud.dataform.v1.*;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.diagnostic.Logger;
@@ -28,6 +29,7 @@ import org.jetbrains.annotations.Nullable;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 
 public final class GcpDataformWorkflowRepository implements WorkflowRepository, Disposable {
     private static final Logger LOG = Logger.getInstance(GcpDataformWorkflowRepository.class);
@@ -97,22 +99,48 @@ public final class GcpDataformWorkflowRepository implements WorkflowRepository, 
 
     @Override
     @NotNull
-    public WorkflowInvocationProgress getWorkflowRunProgress(@NotNull WorkflowCreationResult workflowRun) {
+    public WorkflowProgressSession openWorkflowRunProgress(@NotNull WorkflowCreationResult workflowRun) {
         String quotaProjectId = GcpClientsUtils.projectIdFromResourceName(workflowRun.invocationName());
+        DataformClient client;
+        try {
+            client = GcpClientsUtils.dataformClient(quotaProjectId);
+        } catch (Exception e) {
+            throw new GcpApiException("Error connecting to follow the workflow run.", e);
+        }
+        return new WorkflowProgressSession() {
+            @Override
+            public @NotNull WorkflowInvocationProgress poll() {
+                return readProgress(client, workflowRun);
+            }
+
+            @Override
+            public void close() {
+                client.close();
+            }
+        };
+    }
+
+    /**
+     * Reads the state of the run and of its actions. Both requests are sent before either answer is
+     * awaited, so a poll costs one round trip instead of two.
+     */
+    @NotNull
+    private static WorkflowInvocationProgress readProgress(@NotNull DataformClient client,
+                                                           @NotNull WorkflowCreationResult workflowRun) {
         String invocationLocation = GcpClientsUtils.locationFromResourceName(workflowRun.invocationName());
-        try (DataformClient client = GcpClientsUtils.dataformClient(quotaProjectId)) {
-            WorkflowInvocation inv = client.getWorkflowInvocation(
+        try {
+            ApiFuture<WorkflowInvocation> invocation = client.getWorkflowInvocationCallable().futureCall(
                     GetWorkflowInvocationRequest.newBuilder()
                             .setName(workflowRun.invocationName())
-                            .build()
-            );
+                            .build());
+            ApiFuture<DataformClient.QueryWorkflowInvocationActionsPagedResponse> actionPages =
+                    client.queryWorkflowInvocationActionsPagedCallable().futureCall(
+                            QueryWorkflowInvocationActionsRequest.newBuilder()
+                                    .setName(workflowRun.invocationName())
+                                    .build());
 
             List<InvocationActionResult> actions = new ArrayList<>();
-            for (WorkflowInvocationAction action : client.queryWorkflowInvocationActions(
-                    QueryWorkflowInvocationActionsRequest.newBuilder()
-                            .setName(workflowRun.invocationName())
-                            .build()
-            ).iterateAll()) {
+            for (WorkflowInvocationAction action : awaited(actionPages).iterateAll()) {
                 Target t = action.getTarget();
                 String label = t.getDatabase().isEmpty()
                         ? t.getSchema() + "." + t.getName()
@@ -158,10 +186,27 @@ public final class GcpDataformWorkflowRepository implements WorkflowRepository, 
                 ));
             }
 
+            WorkflowInvocation inv = awaited(invocation);
             InvocationSummary summary = buildSummary(inv, workflowRun.workspaceFullName());
             return new WorkflowInvocationProgress(workflowRun.invocationName(), mapRunState(inv.getState()), actions, summary);
         } catch (Exception e) {
             throw new GcpApiException("Error fetching workflow run progress.", e);
+        }
+    }
+
+    /**
+     * The answer of a request, failing with the error the API raised rather than with the wrapper
+     * the future puts around it.
+     */
+    private static <T> T awaited(@NotNull ApiFuture<T> future) {
+        try {
+            return future.get();
+        } catch (ExecutionException e) {
+            if (e.getCause() instanceof RuntimeException runtime) throw runtime;
+            throw new IllegalStateException(e.getCause());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while fetching workflow run progress.", e);
         }
     }
 

@@ -16,13 +16,22 @@
  */
 package io.github.rejeb.dataform.language.validation;
 
+import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.TextRange;
+import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.util.CachedValueProvider;
 import com.intellij.psi.util.CachedValuesManager;
 import com.intellij.psi.util.PsiModificationTracker;
+import io.github.rejeb.dataform.language.diagnostics.CompilationDiagnosticService;
+import io.github.rejeb.dataform.language.diagnostics.compile.CompilationProblemValidator;
+import io.github.rejeb.dataform.language.diagnostics.sql.bigquery.BigQueryProblemValidator;
 import io.github.rejeb.dataform.language.psi.SqlxFile;
+import io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService;
+import io.github.rejeb.dataform.language.schema.sql.DryRunErrorRegistry;
+import io.github.rejeb.dataform.language.util.DataformProjectLayout;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -31,35 +40,74 @@ import java.util.List;
 /**
  * Default {@link SqlxValidationService}, running every registered validator. Nothing is reported
  * while indexes are being built: the references the validators resolve need them, and a problem
- * reported then would be a false one.
+ * reported then would be a false one. The BigQuery errors of the last dry-runs are among the
+ * problems, so they are recomputed when those errors or the extracted schemas change. Dataform
+ * JavaScript files get their compilation errors only, and an error supersedes a weak warning at its
+ * place.
  */
 public final class SqlxValidationServiceImpl implements SqlxValidationService {
 
     private final List<SqlxValidator> validators = List.of(
             new UnresolvedReferenceValidator(),
-            new ConfigBlockValidator());
+            new ConfigBlockValidator(),
+            new BigQueryProblemValidator(),
+            new CompilationProblemValidator());
+    private final List<SqlxValidator> scriptValidators = List.of(new CompilationProblemValidator());
 
     public SqlxValidationServiceImpl(@NotNull Project project) {
     }
 
     @Override
     public @NotNull List<SqlxValidationProblem> validate(@NotNull PsiFile file) {
-        if (!(file instanceof SqlxFile)) {
+        if (!file.isValid()) {
+            return List.of();
+        }
+        List<SqlxValidator> applicable = validatorsFor(file);
+        if (applicable.isEmpty()) {
             return List.of();
         }
         if (DumbService.isDumb(file.getProject())) {
             return List.of();
         }
         return CachedValuesManager.getCachedValue(file, () -> CachedValueProvider.Result.create(
-                run(file), PsiModificationTracker.MODIFICATION_COUNT,
-                DumbService.getInstance(file.getProject()).getModificationTracker()));
+                run(file, applicable), PsiModificationTracker.MODIFICATION_COUNT,
+                DumbService.getInstance(file.getProject()).getModificationTracker(),
+                DryRunErrorRegistry.getInstance(file.getProject()),
+                DataformTableSchemaService.getInstance(file.getProject()),
+                CompilationDiagnosticService.getInstance(file.getProject())));
     }
 
-    private List<SqlxValidationProblem> run(@NotNull PsiFile file) {
+    private @NotNull List<SqlxValidator> validatorsFor(@NotNull PsiFile file) {
+        if (file instanceof SqlxFile) {
+            return validators;
+        }
+        return isDataformScript(file) ? scriptValidators : List.of();
+    }
+
+    private static boolean isDataformScript(@NotNull PsiFile file) {
+        VirtualFile virtualFile = file.getVirtualFile();
+        if (virtualFile == null || InjectedLanguageManager.getInstance(file.getProject()).isInjectedFragment(file)) {
+            return false;
+        }
+        return DataformProjectLayout.isDataformScript(virtualFile);
+    }
+
+    private List<SqlxValidationProblem> run(@NotNull PsiFile file, @NotNull List<SqlxValidator> applicable) {
         List<SqlxValidationProblem> problems = new ArrayList<>();
-        for (SqlxValidator validator : validators) {
+        for (SqlxValidator validator : applicable) {
             problems.addAll(validator.validate(file));
         }
-        return List.copyOf(problems);
+        return withoutSuperseded(problems);
+    }
+
+    private static @NotNull List<SqlxValidationProblem> withoutSuperseded(@NotNull List<SqlxValidationProblem> problems) {
+        List<TextRange> errors = problems.stream()
+                .filter(problem -> problem.severity() == SqlxValidationProblem.Severity.ERROR)
+                .map(SqlxValidationProblem::range)
+                .toList();
+        return problems.stream()
+                .filter(problem -> problem.severity() == SqlxValidationProblem.Severity.ERROR
+                        || errors.stream().noneMatch(error -> error.intersectsStrict(problem.range())))
+                .toList();
     }
 }

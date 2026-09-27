@@ -16,9 +16,12 @@
  */
 package io.github.rejeb.dataform.language.compilation.model;
 
+import io.github.rejeb.dataform.language.util.DataformPaths;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 public class CompiledTable {
     private String type;
@@ -51,6 +54,16 @@ public class CompiledTable {
         return materialized ? "materialized_view" : "view";
     }
 
+    /**
+     * Returns the kind of action as Dataform compiled it: {@code table}, {@code view} or
+     * {@code incremental}, read from {@code type}, or from {@code enumType} when the graph gives
+     * no {@code type}. Lower case; null when the graph gives neither.
+     */
+    public String getActionKind() {
+        String kind = type != null && !type.isBlank() ? type : enumType;
+        return kind == null ? null : kind.toLowerCase(Locale.ROOT);
+    }
+
     public Target getTarget() {
         return target;
     }
@@ -68,7 +81,7 @@ public class CompiledTable {
     }
 
     public String getFileName() {
-        return fileName;
+        return DataformPaths.normalize(fileName);
     }
 
     public List<String> getTags() {
@@ -116,6 +129,6 @@ public class CompiledTable {
     }
 
     public boolean matchFileName(String fileName) {
-        return fileName.endsWith(this.fileName.replace("\\", "/"));
+        return DataformPaths.pointsTo(fileName, this.fileName);
     }
 }

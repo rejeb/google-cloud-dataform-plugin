@@ -55,6 +55,16 @@ public class DataformCteQueryBuilderTest extends BasePlatformTestCase {
         assertFalse(result.contains("project.dataset.table_b"));
     }
 
+    public void testAColumnNamedLikeAReservedWordIsQuotedInTheStub() {
+        String query = "SELECT a.`range` FROM project.dataset.table_b AS a";
+        Map<String, List<ColumnInfo>> schemas = Map.of(
+                "project.dataset.table_b",
+                List.of(new ColumnInfo("range", "STRING", "NULLABLE", null))
+        );
+        String result = DataformCteQueryBuilder.buildDryRunQuery(query, schemas, getProject());
+        assertTrue(result, result.contains("CAST(NULL AS STRING) AS `range`"));
+    }
+
     public void testSubstitutesSingleBacktickedFqn() {
         String query = "SELECT * FROM `my-project.dataset.table_c`";
         Map<String, List<ColumnInfo>> schemas = Map.of(

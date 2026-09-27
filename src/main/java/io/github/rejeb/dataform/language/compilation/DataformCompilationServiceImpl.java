@@ -40,6 +40,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 
 import static io.github.rejeb.dataform.language.util.Utils.flushFiles;
@@ -57,6 +58,7 @@ public final class DataformCompilationServiceImpl
 
     private final Project project;
     private final ReentrantLock compileLock = new ReentrantLock();
+    private final AtomicLong graphModificationCount = new AtomicLong();
     private volatile CompiledGraph compiledGraph;
     private volatile State currentState = new State();
 
@@ -81,6 +83,7 @@ public final class DataformCompilationServiceImpl
                 this.compiledGraph = buildEmptyCompiledGraph(e);
                 this.currentState = new State(); // reset corrupted state
             }
+            graphModificationCount.incrementAndGet();
         }
     }
 
@@ -149,6 +152,7 @@ public final class DataformCompilationServiceImpl
                     currentState.compiledGraphJson = GSON.toJson(this.compiledGraph);
                     currentState.lastCompileTimestamp = processStartedAt;
                 }
+                graphChanged();
 
                 return this.compiledGraph;
             }
@@ -160,14 +164,27 @@ public final class DataformCompilationServiceImpl
         return buildEmptyCompiledGraph(null);
     }
 
+    private void graphChanged() {
+        graphModificationCount.incrementAndGet();
+        if (!project.isDisposed()) {
+            project.getMessageBus().syncPublisher(DataformCompilationEvent.TOPIC).onGraphChanged();
+        }
+    }
+
     @Override
     public CompiledGraph getCompiledGraph() {
         return compiledGraph;
     }
 
     @Override
+    public long getModificationCount() {
+        return graphModificationCount.get();
+    }
+
+    @Override
     public void dispose() {
         compiledGraph = null;
+        graphModificationCount.incrementAndGet();
     }
 
 

@@ -16,6 +16,8 @@
  */
 package io.github.rejeb.dataform.language.compilation.model;
 
+import io.github.rejeb.dataform.language.util.DataformPaths;
+
 public class CompilationError {
     private String actionName;
     private String fileName;
@@ -30,7 +32,7 @@ public class CompilationError {
     }
 
     public String getFileName() {
-        return fileName;
+        return DataformPaths.normalize(fileName);
     }
 
     public String getMessage() {
@@ -47,6 +49,6 @@ public class CompilationError {
 
 
     public boolean matchFileName(String fileName) {
-        return this.fileName != null && fileName.endsWith(this.fileName.replace("\\", "/"));
+        return DataformPaths.pointsTo(fileName, this.fileName);
     }
 }

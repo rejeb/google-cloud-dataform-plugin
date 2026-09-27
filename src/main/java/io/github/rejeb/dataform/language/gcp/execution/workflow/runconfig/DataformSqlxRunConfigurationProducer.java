@@ -31,6 +31,7 @@ import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.Mode;
 import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
+import io.github.rejeb.dataform.language.unittest.SqlxUnitTests;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
@@ -143,6 +144,6 @@ public class DataformSqlxRunConfigurationProducer
         if (file == null) return null;
         VirtualFile vf = file.getVirtualFile();
         if (vf == null) return null;
-        return isActionFile(vf) ? vf : null;
+        return isActionFile(vf) && !SqlxUnitTests.isUnitTestFile(file) ? vf : null;
     }
 }

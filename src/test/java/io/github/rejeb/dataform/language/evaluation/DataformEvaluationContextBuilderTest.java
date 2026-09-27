@@ -16,6 +16,7 @@
  */
 package io.github.rejeb.dataform.language.evaluation;
 
+import com.intellij.openapi.util.Disposer;
 import com.intellij.psi.PsiFile;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
@@ -57,7 +58,16 @@ public class DataformEvaluationContextBuilderTest extends BasePlatformTestCase {
         ProjectConfig projectConfig = new ProjectConfig();
         set(projectConfig, "defaultDatabase", "compiled-project");
         set(graph, "projectConfig", projectConfig);
-        set(getProject().getService(DataformCompilationService.class), "compiledGraph", graph);
+        DataformCompilationService service = getProject().getService(DataformCompilationService.class);
+        CompiledGraph previous = service.getCompiledGraph();
+        Disposer.register(getTestRootDisposable(), () -> {
+            try {
+                set(service, "compiledGraph", previous);
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
+        });
+        set(service, "compiledGraph", graph);
 
         DataformEvaluationContext context =
                 DataformEvaluationContextBuilder.build(getProject(), file, List.of());

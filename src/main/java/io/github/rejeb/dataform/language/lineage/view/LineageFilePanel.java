@@ -31,6 +31,7 @@ import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.scale.JBUIScale;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
+import io.github.rejeb.dataform.language.util.DataformPaths;
 import io.github.rejeb.dataform.language.DataformIcons;
 import io.github.rejeb.dataform.language.lineage.graph.LineageGraph;
 import io.github.rejeb.dataform.language.lineage.graph.LineageNode;
@@ -114,11 +115,10 @@ public final class LineageFilePanel extends JPanel {
     }
 
     private @NotNull Set<String> computeScope(@NotNull LineageGraph graph) {
-        String path = file.getPath().replace("\\", "/");
+        String path = file.getPath();
         Set<String> own = new LinkedHashSet<>();
         for (LineageNode node : graph.nodes()) {
-            String nodeFile = node.fileName();
-            if (nodeFile != null && path.endsWith(nodeFile.replace("\\", "/"))) {
+            if (DataformPaths.pointsTo(path, node.fileName())) {
                 own.add(node.id());
             }
         }

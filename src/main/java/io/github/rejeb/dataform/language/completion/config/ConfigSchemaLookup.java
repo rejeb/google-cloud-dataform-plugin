@@ -119,13 +119,31 @@ public final class ConfigSchemaLookup {
         String type = propertySchema.path(TYPE_PROPERTY).asText("");
         if ("array".equals(type)) {
             ObjectNode items = deref(propertySchema.get("items"));
-            String itemType = items == null ? "" : items.path(TYPE_PROPERTY).asText("object");
+            String itemType = items == null ? "" : items.has("oneOf")
+                    ? "(" + shapesText(items) + ")"
+                    : items.path(TYPE_PROPERTY).asText("object");
             return itemType.isEmpty() ? "array" : itemType + "[]";
         }
         if (!type.isEmpty()) {
             return type;
         }
-        return propertySchema.has("oneOf") || propertySchema.has("$ref") ? "object" : "";
+        if (propertySchema.path("oneOf").isArray() && !propertySchema.path("oneOf").isEmpty()) {
+            return shapesText(propertySchema);
+        }
+        return propertySchema.has("$ref") ? "object" : "";
+    }
+
+    private String shapesText(@NotNull ObjectNode schema) {
+        List<String> shapes = new ArrayList<>();
+        for (JsonNode variant : schema.path("oneOf")) {
+            ObjectNode resolved = deref(variant);
+            String shape = resolved == null ? "" : typeText(resolved);
+            String text = shape.isEmpty() ? "object" : shape;
+            if (!shapes.contains(text)) {
+                shapes.add(text);
+            }
+        }
+        return String.join(" | ", shapes);
     }
 
     /**

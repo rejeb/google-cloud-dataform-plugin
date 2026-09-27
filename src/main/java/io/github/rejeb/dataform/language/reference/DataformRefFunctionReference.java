@@ -16,16 +16,14 @@
  */
 package io.github.rejeb.dataform.language.reference;
 
-import com.intellij.codeInsight.completion.PrioritizedLookupElement;
 import com.intellij.codeInsight.lookup.LookupElement;
-import com.intellij.codeInsight.lookup.LookupElementBuilder;
-import com.intellij.icons.AllIcons;
-import com.intellij.openapi.project.ProjectUtil;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiManager;
 import com.intellij.psi.PsiReferenceBase;
+import io.github.rejeb.dataform.language.completion.DataformActionLookups;
+import io.github.rejeb.dataform.language.util.DataformPaths;
 import io.github.rejeb.dataform.language.compilation.model.*;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import org.jetbrains.annotations.NotNull;
@@ -80,12 +78,7 @@ public class DataformRefFunctionReference extends PsiReferenceBase<PsiElement> {
     }
 
     private PsiElement resolveFile(String fileName) {
-        VirtualFile projectRoot = ProjectUtil.guessProjectDir(myElement.getProject());
-        if (projectRoot == null) {
-            return null;
-        }
-
-        VirtualFile file = projectRoot.findFileByRelativePath(fileName.replace("\\", "/"));
+        VirtualFile file = DataformPaths.findInProject(myElement.getProject(), fileName);
         if (file != null) {
             return PsiManager.getInstance(myElement.getProject()).findFile(file);
         }
@@ -103,36 +96,8 @@ public class DataformRefFunctionReference extends PsiReferenceBase<PsiElement> {
             return EMPTY_ARRAY;
         }
 
-        List<LookupElement> variants = new ArrayList<>();
-
-        graph.getTables().stream()
-                .filter(t -> t.getTarget() != null && !t.isDisabled())
-                .map(table -> {
-                    String name = table.getTarget().getName();
-                    String fullName = table.getTarget().getFullName();
-
-                    LookupElementBuilder element = LookupElementBuilder.create(name)
-                            .withIcon(AllIcons.Nodes.DataTables)
-                            .withTypeText(table.getType())
-                            .withTailText(" (" + fullName + ")", true);
-                    return PrioritizedLookupElement.withPriority(element, 200.0);
-                })
-                .forEach(variants::add);
-
-        graph.getDeclarations().stream()
-                .filter(d -> d.getTarget() != null)
-                .map(declaration -> {
-                    String name = declaration.getTarget().getName();
-                    String fullName = declaration.getTarget().getFullName();
-
-                    LookupElementBuilder element = LookupElementBuilder.create(name)
-                            .withIcon(AllIcons.Nodes.DataSchema)
-                            .withTypeText("source")
-                            .withTailText(" (" + fullName + ")", true);
-                    return PrioritizedLookupElement.withPriority(element, 200.0);
-                })
-                .forEach(variants::add);
-
+        List<LookupElement> variants = new ArrayList<>(DataformActionLookups.tables(graph));
+        variants.addAll(DataformActionLookups.declarations(graph));
         return variants.toArray();
     }
 }

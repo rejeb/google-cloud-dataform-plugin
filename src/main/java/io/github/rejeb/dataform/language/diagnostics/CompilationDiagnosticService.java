@@ -17,6 +17,7 @@
 package io.github.rejeb.dataform.language.diagnostics;
 
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.ModificationTracker;
 import com.intellij.openapi.vfs.VirtualFile;
 import org.jetbrains.annotations.NotNull;
 
@@ -25,7 +26,7 @@ import java.util.List;
 /**
  * Exposes Dataform compilation errors as source-anchored diagnostics.
  */
-public interface CompilationDiagnosticService {
+public interface CompilationDiagnosticService extends ModificationTracker {
 
     /**
      * Returns the project-level instance.
@@ -40,7 +41,13 @@ public interface CompilationDiagnosticService {
     @NotNull List<CompilationDiagnostic> getDiagnostics(@NotNull VirtualFile file);
 
     /**
-     * Drops every cached diagnostic. Called after a recompile.
+     * Returns the errors reported for other files whose stack runs through the given file, as an
+     * error thrown in an include while an action was compiled.
+     */
+    @NotNull List<CompilationDiagnostic> getDiagnosticsRaisedIn(@NotNull VirtualFile file);
+
+    /**
+     * Drops every cached diagnostic and counts as a change. Called after a recompile.
      */
     void invalidate();
 }

@@ -16,6 +16,7 @@
  */
 package io.github.rejeb.dataform.language.validation;
 
+import com.intellij.openapi.application.WriteAction;
 import com.intellij.psi.PsiFile;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
 
@@ -32,6 +33,15 @@ public class SqlxValidationServiceImplTest extends BasePlatformTestCase {
 
     public void testNonSqlxFileYieldsNoProblems() {
         PsiFile file = myFixture.configureByText("notes.txt", "hello\n");
+        assertEmpty(SqlxValidationService.getInstance(getProject()).validate(file));
+    }
+
+    public void testAFileDeletedBeforeItsValidationRunsYieldsNoProblems() throws Exception {
+        PsiFile file = myFixture.addFileToProject("definitions/tests/test_orders.sqlx",
+                "config { type: \"test\", dataset: \"orders\" }\n\nSELECT 1 AS id\n");
+        WriteAction.runAndWait(() -> file.getVirtualFile().delete(this));
+        assertFalse(file.isValid());
+
         assertEmpty(SqlxValidationService.getInstance(getProject()).validate(file));
     }
 }

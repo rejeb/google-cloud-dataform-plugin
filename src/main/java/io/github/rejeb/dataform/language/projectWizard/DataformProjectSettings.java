@@ -16,6 +16,8 @@
  */
 package io.github.rejeb.dataform.language.projectWizard;
 
+import io.github.rejeb.dataform.language.setup.DataformCoreVersionProvider;
+
 public class DataformProjectSettings {
     private String gcpProjectId;
     private String defaultSchema;
@@ -26,7 +28,7 @@ public class DataformProjectSettings {
         this.gcpProjectId = "";
         this.defaultSchema = "dataform";
         this.defaultLocation = "US";
-        this.dataformCoreVersion="3.0.0";
+        this.dataformCoreVersion = DataformCoreVersionProvider.getInstance().knownLatestVersion();
     }
 
     public String getGcpProjectId() {

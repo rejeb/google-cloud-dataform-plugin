@@ -77,6 +77,9 @@ public record DataformFunctionCompletionObject(String name, String signature, St
     }
 
     private static String extractJsDoc(JSFunction function) {
+        if (function.getFirstChild() instanceof JSDocComment docComment) {
+            return cleanJsDoc(docComment.getText());
+        }
         PsiElement prev = function.getPrevSibling();
         while (prev != null) {
             if (prev instanceof JSDocComment) {

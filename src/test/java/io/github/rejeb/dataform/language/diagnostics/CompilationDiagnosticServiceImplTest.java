@@ -19,6 +19,8 @@ package io.github.rejeb.dataform.language.diagnostics;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiFile;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
+import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
+import io.github.rejeb.dataform.language.diagnostics.compile.CompiledGraphErrors;
 
 import java.util.List;
 
@@ -42,5 +44,68 @@ public class CompilationDiagnosticServiceImplTest extends BasePlatformTestCase {
         PsiFile file = myFixture.configureByText("notes.txt", "hello\n");
         assertEmpty(CompilationDiagnosticService.getInstance(getProject())
                 .getDiagnostics(file.getVirtualFile()));
+    }
+
+    @Override
+    protected void tearDown() throws Exception {
+        try {
+            CompiledGraphErrors.clear(getProject());
+        } finally {
+            super.tearDown();
+        }
+    }
+
+    private static final String INCLUDE_STACK = "ReferenceError: nope is not defined\n"
+            + "    at Object.broken (/tmp/copy/includes/helpers.js:2:3)\n"
+            + "    at Object.sqlContextable (/tmp/copy/definitions/uses_helper.sqlx:21:18)";
+
+    public void testTheDiagnosticsOfAFileCarryTheirStackAndReportedFile() {
+        PsiFile file = myFixture.addFileToProject("definitions/uses_helper.sqlx", "SELECT ${helpers.broken()} AS c\n");
+        CompiledGraphErrors.install(getProject(), List.of("uses_helper"), CompiledGraphErrors.error(
+                "definitions/uses_helper.sqlx", "proj.ds.uses_helper", "nope is not defined", INCLUDE_STACK));
+
+        CompilationDiagnostic diagnostic = CompilationDiagnosticService.getInstance(getProject())
+                .getDiagnostics(file.getVirtualFile()).getFirst();
+
+        assertEquals(INCLUDE_STACK, diagnostic.stack());
+        assertEquals("definitions/uses_helper.sqlx", diagnostic.reportedFileName());
+    }
+
+    public void testAnErrorRaisedInAnIncludeIsFoundFromTheInclude() {
+        PsiFile include = myFixture.addFileToProject("includes/helpers.js", "function broken() {\n  return nope + 1;\n}\n");
+        myFixture.addFileToProject("definitions/uses_helper.sqlx", "SELECT ${helpers.broken()} AS c\n");
+        CompiledGraphErrors.install(getProject(), List.of("uses_helper"), CompiledGraphErrors.error(
+                "definitions/uses_helper.sqlx", "proj.ds.uses_helper", "nope is not defined", INCLUDE_STACK));
+
+        List<CompilationDiagnostic> raised = CompilationDiagnosticService.getInstance(getProject())
+                .getDiagnosticsRaisedIn(include.getVirtualFile());
+
+        assertEquals(1, raised.size());
+        assertEquals("definitions/uses_helper.sqlx", raised.getFirst().reportedFileName());
+        assertEmpty(CompilationDiagnosticService.getInstance(getProject()).getDiagnostics(include.getVirtualFile()));
+    }
+
+    public void testInvalidatingCountsAsAChange() {
+        CompilationDiagnosticService service = CompilationDiagnosticService.getInstance(getProject());
+        long before = service.getModificationCount();
+
+        service.invalidate();
+
+        assertTrue(service.getModificationCount() > before);
+    }
+
+    public void testANewCompiledGraphCountsAsAChangeWithoutInvalidating() {
+        CompilationDiagnosticService service = CompilationDiagnosticService.getInstance(getProject());
+        DataformCompilationService compilation = DataformCompilationService.getInstance(getProject());
+        long before = service.getModificationCount();
+        DataformCompilationService.State restored = new DataformCompilationService.State();
+        restored.compiledGraphJson = "{}";
+        try {
+            compilation.loadState(restored);
+
+            assertTrue(service.getModificationCount() > before);
+        } finally {
+            compilation.loadState(new DataformCompilationService.State());
+        }
     }
 }

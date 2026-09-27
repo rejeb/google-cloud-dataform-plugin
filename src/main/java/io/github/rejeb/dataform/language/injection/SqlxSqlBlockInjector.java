@@ -22,6 +22,7 @@ import com.intellij.openapi.util.TextRange;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
 import com.intellij.sql.dialects.bigquery.BigQueryDialect;
+import com.intellij.util.text.CharSequenceSubSequence;
 import io.github.rejeb.dataform.language.psi.SqlxSqlBlock;
 import org.jetbrains.annotations.NotNull;
 
@@ -89,10 +90,10 @@ public class SqlxSqlBlockInjector implements MultiHostInjector {
             }
 
             PsiElement jsElement = jsElements.get(jsRange);
-            boolean opensTheQuery = text.substring(0, jsRange.getStartOffset()).isBlank();
             String placeholder = jsElement == null
                     ? "NULL"
-                    : SqlxTemplatePlaceholder.of(jsElement, vFile, currentFileName, opensTheQuery);
+                    : SqlxTemplatePlaceholder.of(jsElement, vFile, currentFileName,
+                            new CharSequenceSubSequence(text, 0, jsRange.getStartOffset()));
 
             registrar.addPlace(
                     placeholder,

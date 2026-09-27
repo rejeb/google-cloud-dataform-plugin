@@ -17,9 +17,12 @@
 package io.github.rejeb.dataform.language.projectWizard;
 
 import com.intellij.ide.util.projectWizard.ModuleWizardStep;
+import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.ui.components.JBTextField;
 import com.intellij.util.ui.FormBuilder;
+import io.github.rejeb.dataform.language.setup.DataformCoreVersionProvider;
 
 import javax.swing.*;
 
@@ -29,7 +32,8 @@ public class DataformModuleWizardStep extends ModuleWizardStep {
     private final JBTextField gcpProjectIdField = new JBTextField();
     private final JBTextField defaultSchemaField = new JBTextField("dataform");
     private final JBTextField defaultLocationField = new JBTextField("US");
-    private final JBTextField dataformCoreVersionField = new JBTextField("3.0.0");
+    private final JBTextField dataformCoreVersionField =
+            new JBTextField(DataformCoreVersionProvider.getInstance().knownLatestVersion());
     private final JPanel mainPanel;
 
     public DataformModuleWizardStep(DataformModuleBuilder builder) {
@@ -42,6 +46,19 @@ public class DataformModuleWizardStep extends ModuleWizardStep {
                 .addLabeledComponent("Dataform core version",dataformCoreVersionField)
                 .addComponentFillVertically(new JPanel(), 0)
                 .getPanel();
+        proposeCoreVersion();
+    }
+
+    private void proposeCoreVersion() {
+        String proposed = dataformCoreVersionField.getText();
+        DataformCoreVersionProvider versions = DataformCoreVersionProvider.getInstance();
+        ApplicationManager.getApplication().executeOnPooledThread(() ->
+                versions.installedCliVersion().or(versions::fetchLatestVersion).ifPresent(latest ->
+                        ApplicationManager.getApplication().invokeLater(() -> {
+                            if (proposed.equals(dataformCoreVersionField.getText())) {
+                                dataformCoreVersionField.setText(latest);
+                            }
+                        }, ModalityState.any())));
     }
 
     @Override

@@ -18,11 +18,11 @@ package io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.ui;
 
 import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.project.ProjectUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.ui.OnePixelSplitter;
 import com.intellij.ui.ScrollPaneFactory;
 import com.intellij.ui.treeStructure.Tree;
+import io.github.rejeb.dataform.language.util.DataformPaths;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.InvocationActionResult;
@@ -141,9 +141,7 @@ public class WorkflowExecutionPanel extends JPanel {
         if (graph == null) return;
         String fileName = graph.actionFileName(action.target());
         if (fileName == null) return;
-        VirtualFile baseDir = ProjectUtil.guessProjectDir(project);
-        if (baseDir == null) return;
-        VirtualFile file = baseDir.findFileByRelativePath(fileName.replace('\\', '/'));
+        VirtualFile file = DataformPaths.findInProject(project, fileName);
         if (file == null) return;
         FileEditorManager.getInstance(project).openFile(file, true);
     }

@@ -21,6 +21,7 @@ import com.intellij.openapi.roots.ProjectRootManager;
 import com.intellij.openapi.vfs.AsyncFileListener;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent;
+import io.github.rejeb.dataform.language.util.DataformPaths;
 import io.github.rejeb.dataform.language.util.DataformProjectLayout;
 import io.github.rejeb.dataform.language.util.DataformProjects;
 import org.jetbrains.annotations.NotNull;
@@ -74,7 +75,7 @@ public final class DataformExternalChangeListener implements AsyncFileListener {
      * thousands of JavaScript files under {@code node_modules} and Dataform compiles none.</p>
      */
     private static boolean isSource(@NotNull VFileEvent event) {
-        String path = event.getPath().replace('\\', '/');
+        String path = DataformPaths.normalize(event.getPath());
         if (DataformProjectLayout.isUnderIgnoredDirectory(path)) return false;
         int slash = path.lastIndexOf('/');
         String name = slash < 0 ? path : path.substring(slash + 1);
@@ -94,7 +95,7 @@ public final class DataformExternalChangeListener implements AsyncFileListener {
      */
     private static boolean holds(@NotNull Project project, @NotNull List<String> paths) {
         for (VirtualFile root : ProjectRootManager.getInstance(project).getContentRoots()) {
-            String base = root.getPath().replace('\\', '/') + "/";
+            String base = DataformPaths.normalize(root.getPath()) + "/";
             if (paths.stream().anyMatch(path -> path.startsWith(base))) return true;
         }
         return false;

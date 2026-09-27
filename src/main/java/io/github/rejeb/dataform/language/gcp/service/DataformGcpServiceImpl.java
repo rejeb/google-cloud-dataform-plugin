@@ -27,7 +27,7 @@ import io.github.rejeb.dataform.language.gcp.execution.workflow.WorkflowOperatio
 import io.github.rejeb.dataform.language.gcp.execution.workflow.WorkflowOperationsHandler;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.BigQueryJobDetails;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowCreationResult;
-import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowInvocationProgress;
+import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowProgressSession;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowRunRequest;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.repository.GcpBigQueryJobRepository;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.repository.GcpDataformWorkflowRepository;
@@ -222,8 +222,8 @@ public final class DataformGcpServiceImpl implements DataformGcpService, Disposa
     }
 
     @Override
-    public @NotNull WorkflowInvocationProgress getWorkflowRunProgress(@NotNull WorkflowCreationResult workflowRun) {
-        return workflowOperations.getWorkflowRunProgress(workflowRun);
+    public @NotNull WorkflowProgressSession openWorkflowRunProgress(@NotNull WorkflowCreationResult workflowRun) {
+        return workflowOperations.openWorkflowRunProgress(workflowRun);
     }
 
     @Override

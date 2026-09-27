@@ -44,6 +44,9 @@ public final class ColumnUsageRow {
         USAGE
     }
 
+    /** What the location of a BigQuery column row starts with, before the table's full name. */
+    public static final String BIGQUERY_TABLE = "BigQuery table ";
+
     private final Kind kind;
     private final String group;
     private final String heading;
@@ -85,6 +88,17 @@ public final class ColumnUsageRow {
                                          @NotNull OpenFileDescriptor target) {
         return new ColumnUsageRow(kind, group, "", 0, before, name, after, location, target,
                 false);
+    }
+
+    /**
+     * A column of a BigQuery table the project reads but does not build. No line of the project
+     * declares it, so the row names the table and opens nothing.
+     */
+    static @NotNull ColumnUsageRow bigQueryColumn(@NotNull String group,
+                                                  @NotNull String columnName,
+                                                  @NotNull String tableFullName) {
+        return new ColumnUsageRow(Kind.DECLARATION, group, "", 0, "", columnName, "",
+                BIGQUERY_TABLE + tableFullName, null, false);
     }
 
     public @NotNull Kind kind() {
@@ -130,7 +144,7 @@ public final class ColumnUsageRow {
         return location;
     }
 
-    /** The place to open in the host file, or {@code null} for a heading. */
+    /** The place to open in the host file, or {@code null} for a heading and a BigQuery column. */
     public @Nullable OpenFileDescriptor target() {
         return target;
     }

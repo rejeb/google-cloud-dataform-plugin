@@ -28,7 +28,7 @@ import org.jetbrains.annotations.NotNull;
 public interface DataformEditActivityService {
 
     /** How long after the last edit the user is still considered to be typing. */
-    long QUIET_PERIOD_MS = 5_000;
+    long QUIET_PERIOD_MS = 200;
 
     static DataformEditActivityService getInstance(@NotNull Project project) {
         return project.getService(DataformEditActivityService.class);
@@ -41,5 +41,14 @@ public interface DataformEditActivityService {
     boolean isEditing();
 
     /** Milliseconds left before the user counts as having stopped typing, {@code 0} once idle. */
-    long remainingQuietPeriodMs();
+    default long remainingQuietPeriodMs() {
+        return remainingQuietPeriodMs(QUIET_PERIOD_MS);
+    }
+
+    /**
+     * Milliseconds left before the last edit is older than {@code quietPeriodMs}, {@code 0} once it
+     * is. Work much heavier than a validation refresh, a compilation for one, waits for a longer
+     * pause than {@link #QUIET_PERIOD_MS}.
+     */
+    long remainingQuietPeriodMs(long quietPeriodMs);
 }

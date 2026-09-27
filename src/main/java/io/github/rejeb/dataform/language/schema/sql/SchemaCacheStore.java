@@ -26,6 +26,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiManager;
+import io.github.rejeb.dataform.language.util.DataformPaths;
 import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasTable;
 import org.jetbrains.annotations.NotNull;
@@ -33,6 +34,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -66,7 +68,7 @@ final class SchemaCacheStore {
     private volatile Map<String, DataformDasTable> publishedTables = Map.of();
     private volatile Map<String, List<DataformDasTable>> publishedByName = Map.of();
     private volatile DataformTableSchemaService.State currentState = new DataformTableSchemaService.State();
-    private volatile ParsedSnapshot parsedSnapshot;
+    private volatile Map<String, Long> persistedTimes = Map.of();
 
     SchemaCacheStore(@NotNull Project project) {
         this.project = project;
@@ -84,9 +86,14 @@ final class SchemaCacheStore {
         return publishedTables;
     }
 
-    /** Publishes the working cache as the new snapshot returned by {@link #published()}. */
-    void publish() {
+    /**
+     * Publishes the working cache as the new snapshot returned by {@link #published()}.
+     *
+     * @return whether the snapshot names other tables or other columns than the previous one
+     */
+    boolean publish() {
         Map<String, DataformDasTable> snapshot = Collections.unmodifiableMap(new LinkedHashMap<>(tables));
+        boolean changed = !sameColumns(publishedTables, snapshot);
         Map<String, List<DataformDasTable>> byName = new HashMap<>();
         for (DataformDasTable table : snapshot.values()) {
             byName.computeIfAbsent(table.getName().toLowerCase(Locale.ROOT), k -> new ArrayList<>()).add(table);
@@ -94,6 +101,17 @@ final class SchemaCacheStore {
         byName.replaceAll((k, v) -> List.copyOf(v));
         publishedTables = snapshot;
         publishedByName = Collections.unmodifiableMap(byName);
+        return changed;
+    }
+
+    private static boolean sameColumns(@NotNull Map<String, DataformDasTable> previous,
+                                       @NotNull Map<String, DataformDasTable> next) {
+        if (previous.size() != next.size()) return false;
+        for (Map.Entry<String, DataformDasTable> entry : next.entrySet()) {
+            DataformDasTable before = previous.get(entry.getKey());
+            if (before == null || !before.getColumns().equals(entry.getValue().getColumns())) return false;
+        }
+        return true;
     }
 
     /** The published tables carrying the short name, compared without regard to case. */
@@ -108,13 +126,44 @@ final class SchemaCacheStore {
     }
 
     /**
+     * The schemas a dry-run query may stub its upstream tables with: the tables the action depends
+     * on, as resolved in the current run or else as cached, and every table the current run
+     * resolved. The sources the project declares are never stubbed: BigQuery holds what they are,
+     * while the copy an earlier run cached may be older.
+     *
+     * <p>A partial refresh re-extracts only the modified actions and their dependents. Stubbing only
+     * what that run resolved would leave every unchanged upstream table to the real BigQuery table,
+     * which in a development dataset is often missing or older than the code, failing the dry-run
+     * and losing the downstream schema. Stubbing the whole cache would cost a scan of the query for
+     * every cached table, most of which the query does not read.</p>
+     *
+     * @param dependencies      the full names of the tables the action depends on
+     * @param resolvedInThisRun the schemas extracted so far by the running refresh
+     * @param sources           the full names of the tables the project declares
+     * @return the schemas keyed by full table name
+     */
+    @NotNull
+    Map<String, List<ColumnInfo>> stubSchemas(@NotNull Collection<String> dependencies,
+                                              @NotNull Map<String, List<ColumnInfo>> resolvedInThisRun,
+                                              @NotNull Set<String> sources) {
+        Map<String, List<ColumnInfo>> stubs = new HashMap<>();
+        for (String fqn : dependencies) {
+            DataformDasTable table = tables.get(fqn);
+            if (table != null) stubs.put(fqn, table.getColumns());
+        }
+        stubs.putAll(resolvedInThisRun);
+        stubs.keySet().removeAll(sources);
+        return stubs;
+    }
+
+    /**
      * Stores a freshly extracted schema together with the time of the source it was read from.
      */
     void put(@NotNull String fqn,
              @NotNull String tableName,
              @NotNull java.util.List<ColumnInfo> columns,
              @Nullable String fileName) {
-        tables.put(fqn, buildTable(tableName, columns, fileName));
+        tables.put(fqn, buildTable(fqn, tableName, columns, fileName));
         if (guesses.remove(fqn) != null && guesses.isEmpty()) guessedFrom.clear();
         if (fileName == null) return;
         fileNames.put(fqn, fileName);
@@ -142,7 +191,7 @@ final class SchemaCacheStore {
         List<ColumnInfo> columns = renamed(table.getColumns(), columnPath, newName);
         if (columns == null) return false;
         guesses.putIfAbsent(fqn, table.getColumns());
-        tables.put(fqn, buildTable(table.getName(), columns, fileNames.get(fqn)));
+        tables.put(fqn, buildTable(fqn, table.getName(), columns, fileNames.get(fqn)));
         return true;
     }
 
@@ -170,7 +219,7 @@ final class SchemaCacheStore {
         if (guesses.isEmpty() || !isDisowned()) return false;
         for (Map.Entry<String, List<ColumnInfo>> entry : guesses.entrySet()) {
             tables.put(entry.getKey(),
-                    buildTable(tableNameOf(entry.getKey()), entry.getValue(),
+                    buildTable(entry.getKey(), tableNameOf(entry.getKey()), entry.getValue(),
                             fileNames.get(entry.getKey())));
         }
         guesses.clear();
@@ -252,12 +301,14 @@ final class SchemaCacheStore {
     /** Restores the schemas persisted by a previous IDE run. */
     void load(@NotNull DataformTableSchemaService.State state) {
         this.currentState = state;
+        this.persistedTimes = Map.of();
         if (state.schemaCacheJson == null || state.schemaCacheJson.isBlank()) return;
         try {
             Map<String, SchemaCacheEntry> loaded = GSON.fromJson(state.schemaCacheJson, CACHE_TYPE);
             if (loaded == null) return;
             clear();
             loaded.forEach(this::restoreEntry);
+            this.persistedTimes = knownModificationTimes(loaded);
             LOG.info("Restored " + tables.size() + " schemas from persistent state");
         } catch (Exception e) {
             LOG.warn("Failed to deserialize schema cache from state: " + e.getMessage());
@@ -271,7 +322,8 @@ final class SchemaCacheStore {
     void persist() {
         Map<String, SchemaCacheEntry> toSerialize = toCacheEntries(tables, modificationTimes, fileNames);
         currentState.schemaCacheJson = GSON.toJson(toSerialize);
-        LOG.info("Persisted " + toSerialize.size() + " schemas to state");
+        persistedTimes = knownModificationTimes(toSerialize);
+        LOG.debug("Persisted " + toSerialize.size() + " schemas to state");
     }
 
     /**
@@ -281,33 +333,23 @@ final class SchemaCacheStore {
      */
     @Nullable
     Long persistedModificationTime(@NotNull String fqn) {
-        SchemaCacheEntry entry = persistedEntries().get(fqn);
-        if (entry == null || !isKnownModificationTime(entry.lastModified())) return null;
-        return entry.lastModified();
+        return persistedTimes.get(fqn);
     }
 
     /**
-     * The persisted snapshot, parsed once per version of the serialized form: the planner asks for
-     * every action of the project, and parsing the whole cache each time made that quadratic.
+     * The trusted modification times of a persisted snapshot. Only these are kept once the snapshot
+     * is written or read: holding the parsed snapshot itself kept a second copy of every column of
+     * every table for the lifetime of the project.
      */
     @NotNull
-    private Map<String, SchemaCacheEntry> persistedEntries() {
-        String json = currentState.schemaCacheJson;
-        if (json == null) return Map.of();
-        ParsedSnapshot parsed = parsedSnapshot;
-        if (parsed != null && parsed.json() == json) return parsed.entries();
-        Map<String, SchemaCacheEntry> entries;
-        try {
-            Map<String, SchemaCacheEntry> loaded = GSON.fromJson(json, CACHE_TYPE);
-            entries = loaded == null ? Map.of() : loaded;
-        } catch (Exception e) {
-            entries = Map.of();
-        }
-        parsedSnapshot = new ParsedSnapshot(json, entries);
-        return entries;
-    }
-
-    private record ParsedSnapshot(@NotNull String json, @NotNull Map<String, SchemaCacheEntry> entries) {
+    private static Map<String, Long> knownModificationTimes(@NotNull Map<String, SchemaCacheEntry> entries) {
+        Map<String, Long> times = new HashMap<>();
+        entries.forEach((fqn, entry) -> {
+            if (entry != null && isKnownModificationTime(entry.lastModified())) {
+                times.put(fqn, entry.lastModified());
+            }
+        });
+        return Map.copyOf(times);
     }
 
     /**
@@ -340,7 +382,7 @@ final class SchemaCacheStore {
     }
 
     private void restoreEntry(@NotNull String fqn, @NotNull SchemaCacheEntry entry) {
-        tables.put(fqn, buildTable(tableNameOf(fqn), entry.columns(), entry.fileName()));
+        tables.put(fqn, buildTable(fqn, tableNameOf(fqn), entry.columns(), entry.fileName()));
         if (entry.fileName() != null) fileNames.put(fqn, entry.fileName());
         if (isKnownModificationTime(entry.lastModified())) {
             modificationTimes.put(fqn, entry.lastModified());
@@ -356,10 +398,11 @@ final class SchemaCacheStore {
     }
 
     @NotNull
-    private DataformDasTable buildTable(@NotNull String tableName,
+    private DataformDasTable buildTable(@NotNull String fqn,
+                                        @NotNull String tableName,
                                         @NotNull java.util.List<ColumnInfo> columns,
                                         @Nullable String fileName) {
-        return new DataformDasTable(PsiManager.getInstance(project), tableName, columns,
+        return new DataformDasTable(PsiManager.getInstance(project), fqn, tableName, columns,
                 resolveSourceFile(fileName));
     }
 
@@ -368,7 +411,7 @@ final class SchemaCacheStore {
         if (fileName == null) return null;
         String basePath = project.getBasePath();
         if (basePath == null) return null;
-        return LocalFileSystem.getInstance().findFileByPath(basePath + "/" + fileName);
+        return LocalFileSystem.getInstance().findFileByPath(basePath + "/" + DataformPaths.normalize(fileName));
     }
 
     @NotNull

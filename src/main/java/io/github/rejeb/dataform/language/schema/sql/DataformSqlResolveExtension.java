@@ -19,18 +19,28 @@ package io.github.rejeb.dataform.language.schema.sql;
 import com.intellij.database.model.ObjectKind;
 import com.intellij.database.symbols.DasSymbol;
 import com.intellij.lang.injection.InjectedLanguageManager;
+import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.ResolveState;
 import com.intellij.sql.psi.SqlCompositeElementTypes;
 import com.intellij.sql.psi.SqlReference;
+import com.intellij.sql.psi.SqlReferenceExpression;
 import com.intellij.sql.psi.SqlScopeProcessor;
 import com.intellij.sql.psi.impl.SqlResolveExtension;
 import com.intellij.sql.symbols.DasSymbolUtil;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasTable;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
+import static io.github.rejeb.dataform.language.util.Utils.DATAFORM_SCHEMA_PREFIX;
 
+/**
+ * Resolves a table reference of a SQLX query to the Dataform table of that name. A reference
+ * qualified by its dataset only reaches the table of that dataset: large projects hold tables of
+ * the same name in several datasets, and handing the SQL plugin all of them lets whichever comes
+ * first answer for the columns of another.
+ */
 public class DataformSqlResolveExtension implements SqlResolveExtension {
 
     @Override
@@ -40,21 +50,44 @@ public class DataformSqlResolveExtension implements SqlResolveExtension {
         PsiElement place = processor.getPlace();
         if (place == null) return true;
 
+        if (ref.getReferenceElementType() != SqlCompositeElementTypes.SQL_TABLE_REFERENCE) return true;
+        if (!processor.mayAccept(ObjectKind.TABLE)) return true;
+
         PsiFile topLevel = InjectedLanguageManager
                 .getInstance(place.getProject())
                 .getTopLevelFile(place.getContainingFile());
         if (topLevel == null || !topLevel.getName().endsWith(".sqlx")) return true;
 
-        if (ref.getReferenceElementType() != SqlCompositeElementTypes.SQL_TABLE_REFERENCE) return true;
-        if (!processor.mayAccept(ObjectKind.TABLE)) return true;
-
         String refName = ref.getReferenceName();
         if (refName == null) return true;
+        String schema = qualifyingSchema(ref);
         for (DataformDasTable table : DataformTableSchemaService.getInstance(place.getProject())
                 .getTablesNamed(refName)) {
+            if (schema != null && !isInQualifyingSchema(table, schema)) continue;
             DasSymbol tableSymbol = DasSymbolUtil.wrapObjectToSymbol(table, processor);
             if (!processor.execute(tableSymbol, ResolveState.initial())) return false;
         }
         return true;
+    }
+
+    /**
+     * The dataset a table reference is qualified by, unquoted, or {@code null} when the reference
+     * is not qualified.
+     */
+    private static @Nullable String qualifyingSchema(@NotNull SqlReference ref) {
+        if (!(ref.getElement() instanceof SqlReferenceExpression expression)) return null;
+        if (!(expression.getQualifierExpression() instanceof SqlReferenceExpression qualifier)) return null;
+        String name = qualifier.getName();
+        if (name == null || name.isBlank()) return null;
+        return StringUtil.unquoteString(name, '`');
+    }
+
+    /**
+     * Whether a table lives in the dataset a reference names, written by hand or with the prefix the
+     * {@code ref()} injection gives it.
+     */
+    private static boolean isInQualifyingSchema(@NotNull DataformDasTable table, @NotNull String schema) {
+        return table.isInSchema(schema)
+                || table.isInSchema(StringUtil.trimStart(schema, DATAFORM_SCHEMA_PREFIX));
     }
 }

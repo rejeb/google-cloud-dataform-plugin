@@ -33,11 +33,11 @@ public final class DataformEditActivityServiceImpl implements DataformEditActivi
     }
 
     @Override
-    public long remainingQuietPeriodMs() {
+    public long remainingQuietPeriodMs(long quietPeriodMs) {
         long last = lastEditAt.get();
         if (last == 0) {
             return 0;
         }
-        return Math.max(0, QUIET_PERIOD_MS - (System.currentTimeMillis() - last));
+        return Math.max(0, quietPeriodMs - (System.currentTimeMillis() - last));
     }
 }

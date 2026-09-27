@@ -23,6 +23,7 @@ import com.intellij.util.containers.JBIterable;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.IntStream;
@@ -30,13 +31,13 @@ import java.util.stream.IntStream;
 public class BqGridModel implements GridModel<GridRow, GridColumn> {
 
     private final List<BqGridColumn> columns;
-    private final List<BqGridRow> rows;
+    private volatile List<BqGridRow> rows;
     private final EventDispatcher<Listener<GridRow, GridColumn>> dispatcher =
             EventDispatcher.create((Class<Listener<GridRow, GridColumn>>) (Class<?>) Listener.class);
 
     public BqGridModel(@NotNull List<BqGridColumn> columns, @NotNull List<BqGridRow> rows) {
         this.columns = columns;
-        this.rows = rows;
+        this.rows = List.copyOf(rows);
     }
 
 
@@ -62,23 +63,19 @@ public class BqGridModel implements GridModel<GridRow, GridColumn> {
     public boolean allValuesEqualTo(@NotNull ModelIndexSet<GridRow> rowIndices,
                                     @NotNull ModelIndexSet<GridColumn> colIndices,
                                     @Nullable Object what) {
-        return rowIndices
-                .asIterable()
-                .toStream()
-                .parallel()
-                .allMatch(r ->
-                        colIndices
-                                .asIterable()
-                                .toStream()
-                                .parallel()
-                                .allMatch(c -> java.util.Objects.equals(getValueAt(r, c), what))
-                );
+        for (ModelIndex<GridRow> row : rowIndices.asIterable()) {
+            for (ModelIndex<GridColumn> column : colIndices.asIterable()) {
+                if (!Objects.equals(getValueAt(row, column), what)) return false;
+            }
+        }
+        return true;
     }
 
     @Override
     public @Nullable GridRow getRow(@NotNull ModelIndex<GridRow> idx) {
         int i = idx.asInteger();
-        return i >= 0 && i < rows.size() ? rows.get(i) : null;
+        List<BqGridRow> current = rows;
+        return i >= 0 && i < current.size() ? current.get(i) : null;
     }
 
     @Override
@@ -89,24 +86,22 @@ public class BqGridModel implements GridModel<GridRow, GridColumn> {
 
     @Override
     public @NotNull List<GridRow> getRows(@NotNull ModelIndexSet<GridRow> indices) {
-        return indices
-                .asIterable()
-                .toStream()
-                .parallel()
-                .map(this::getRow)
-                .filter(Objects::nonNull)
-                .toList();
+        List<GridRow> result = new ArrayList<>();
+        for (ModelIndex<GridRow> index : indices.asIterable()) {
+            GridRow row = getRow(index);
+            if (row != null) result.add(row);
+        }
+        return result;
     }
 
     @Override
     public @NotNull List<GridColumn> getColumns(@NotNull ModelIndexSet<GridColumn> indices) {
-        return indices
-                .asIterable()
-                .toStream()
-                .parallel()
-                .map(this::getColumn)
-                .filter(Objects::nonNull)
-                .toList();
+        List<GridColumn> result = new ArrayList<>();
+        for (ModelIndex<GridColumn> index : indices.asIterable()) {
+            GridColumn column = getColumn(index);
+            if (column != null) result.add(column);
+        }
+        return result;
     }
 
     @Override
@@ -131,13 +126,13 @@ public class BqGridModel implements GridModel<GridRow, GridColumn> {
 
     @Override
     public @NotNull ModelIndexSet<GridColumn> getColumnIndices() {
-        int[] idx = IntStream.range(0, columns.size()).parallel().toArray();
+        int[] idx = IntStream.range(0, columns.size()).toArray();
         return ModelIndexSet.forColumns(this, idx);
     }
 
     @Override
     public @NotNull ModelIndexSet<GridRow> getRowIndices() {
-        int[] idx = IntStream.range(0, rows.size()).parallel().toArray();
+        int[] idx = IntStream.range(0, rows.size()).toArray();
         return ModelIndexSet.forRows(this, idx);
     }
 
@@ -167,11 +162,12 @@ public class BqGridModel implements GridModel<GridRow, GridColumn> {
     }
 
     /**
-     * Replaces all rows with the given list and notifies listeners.
+     * Replaces all rows with the given list and notifies listeners. The loader calls this off the
+     * EDT while the grid reads on it, so the rows are swapped as one immutable list: a reader sees
+     * either the old page or the new one, never a list being refilled.
      */
     public void replaceRows(@NotNull List<BqGridRow> newRows) {
-        rows.clear();
-        rows.addAll(newRows);
+        rows = List.copyOf(newRows);
         Listener<GridRow, GridColumn> multicaster = dispatcher.getMulticaster();
         multicaster.columnsAdded(getColumnIndices());
         ModelIndexSet<GridRow> rowIndices = getRowIndices();

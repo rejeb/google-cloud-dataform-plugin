@@ -53,6 +53,14 @@ public class SqlxFormattingModelBuilder implements CustomFormattingModelBuilder 
                         SharedTokenTypes.POST_OPERATIONS_KEYWORD,
                         SharedTokenTypes.PRE_OPERATIONS_KEYWORD), SharedTokenTypes.LBRACE)
                 .spaces(1)
+                .between(SharedTokenTypes.INPUT_KEYWORD, SharedTokenTypes.INPUT_NAME)
+                .spaces(1)
+                .between(SharedTokenTypes.INPUT_NAME, SharedTokenTypes.INPUT_NAME_SEPARATOR)
+                .spaces(0)
+                .between(SharedTokenTypes.INPUT_NAME_SEPARATOR, SharedTokenTypes.INPUT_NAME)
+                .spaces(1)
+                .between(SharedTokenTypes.INPUT_NAME, SharedTokenTypes.LBRACE)
+                .spaces(1)
                 .between(SharedTokenTypes.LBRACE, SharedTokenTypes.SQL_CONTENT)
                 .lineBreakInCode();
     }
