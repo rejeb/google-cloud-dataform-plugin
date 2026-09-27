@@ -28,22 +28,25 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Reads the action a {@code ${ref(...)}} template designates, in every form Dataform accepts:
- * {@code ref("name")}, {@code ref("schema", "name")}, {@code ref("database", "schema", "name")} and
- * {@code ref({database, schema, name})}.
+ * Reads the action a {@code ${ref(...)}} or {@code ${resolve(...)}} template designates, in every
+ * form Dataform accepts: {@code ref("name")}, {@code ref("schema", "name")},
+ * {@code ref("database", "schema", "name")}, the same one to three parts as a single array, and
+ * {@code ref({database, schema, name})} or {@code ref({project, dataset, name})}.
  */
 public final class SqlxRefCall {
 
     private static final Pattern REF_CALL = Pattern.compile(
-            "\\$\\{\\s*ref\\s*\\((.*)\\)\\s*}", Pattern.DOTALL);
+            "\\$\\{\\s*(?:ref|resolve)\\s*\\((.*)\\)\\s*}", Pattern.DOTALL);
 
     private static final Pattern STRING_ARGUMENTS = Pattern.compile(
             "\\s*(['\"])([^'\"]+)\\1\\s*(?:,\\s*(['\"])([^'\"]+)\\3\\s*)?(?:,\\s*(['\"])([^'\"]+)\\5\\s*)?");
 
+    private static final Pattern ARRAY_ARGUMENT = Pattern.compile("\\s*\\[(.*)]\\s*", Pattern.DOTALL);
+
     private static final Pattern OBJECT_ARGUMENT = Pattern.compile("\\s*\\{(.*)}\\s*", Pattern.DOTALL);
 
     private static final Pattern OBJECT_PROPERTY = Pattern.compile(
-            "(['\"]?)(database|schema|name)\\1\\s*:\\s*(['\"])([^'\"]*)\\3");
+            "(['\"]?)(database|schema|project|dataset|name)\\1\\s*:\\s*(['\"])([^'\"]*)\\3");
 
     private SqlxRefCall() {
     }
@@ -69,6 +72,12 @@ public final class SqlxRefCall {
     public static @NotNull Optional<ActionReference> parseArguments(@NotNull String arguments) {
         Matcher strings = STRING_ARGUMENTS.matcher(arguments);
         if (strings.matches()) return Optional.of(fromStrings(strings));
+
+        Matcher array = ARRAY_ARGUMENT.matcher(arguments);
+        if (array.matches()) {
+            Matcher parts = STRING_ARGUMENTS.matcher(array.group(1));
+            return parts.matches() ? Optional.of(fromStrings(parts)) : Optional.empty();
+        }
 
         Matcher object = OBJECT_ARGUMENT.matcher(arguments);
         if (object.matches()) return fromObject(object.group(1));
@@ -96,6 +105,9 @@ public final class SqlxRefCall {
         }
         String name = properties.get("name");
         if (name == null || name.isBlank()) return Optional.empty();
-        return Optional.of(new ActionReference(properties.get("database"), properties.get("schema"), name));
+        boolean configTarget = properties.containsKey("project") || properties.containsKey("dataset");
+        return Optional.of(configTarget
+                ? new ActionReference(properties.get("project"), properties.get("dataset"), name)
+                : new ActionReference(properties.get("database"), properties.get("schema"), name));
     }
 }

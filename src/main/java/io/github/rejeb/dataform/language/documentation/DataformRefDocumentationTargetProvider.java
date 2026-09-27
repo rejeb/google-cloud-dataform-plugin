@@ -16,10 +16,7 @@
  */
 package io.github.rejeb.dataform.language.documentation;
 
-import com.intellij.lang.javascript.psi.JSCallExpression;
-import com.intellij.lang.javascript.psi.JSExpression;
 import com.intellij.lang.javascript.psi.JSLiteralExpression;
-import com.intellij.lang.javascript.psi.JSReferenceExpression;
 import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.platform.backend.documentation.DocumentationTarget;
 import com.intellij.platform.backend.documentation.DocumentationTargetProvider;
@@ -27,6 +24,7 @@ import com.intellij.openapi.util.io.FileUtilRt;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.util.PsiTreeUtil;
+import io.github.rejeb.dataform.language.reference.RefCallLiterals;
 import io.github.rejeb.dataform.language.util.DataformProjectLayout;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -52,16 +50,10 @@ public class DataformRefDocumentationTargetProvider implements DocumentationTarg
             return List.of();
         }
 
-        Object value = literal.getValue();
-        if (value == null) {
-            return List.of();
-        }
-        String tableName = String.valueOf(value);
-        if (tableName.isBlank()) {
-            return List.of();
-        }
-
-        return List.of(new DataformTableDocumentationTarget(file.getProject(), tableName));
+        return RefCallLiterals.designatedBy(literal)
+                .filter(action -> !action.name().isBlank())
+                .map(action -> List.of(new DataformTableDocumentationTarget(file.getProject(), action)))
+                .orElse(List.of());
     }
 
     @Nullable
@@ -86,25 +78,9 @@ public class DataformRefDocumentationTargetProvider implements DocumentationTarg
     @Nullable
     private static JSLiteralExpression matchRefLiteral(@NotNull PsiElement element) {
         JSLiteralExpression literal = PsiTreeUtil.getParentOfType(element, JSLiteralExpression.class, false);
-        if (literal == null || !literal.isQuotedLiteral()) {
+        if (literal == null || RefCallLiterals.designatedBy(literal).isEmpty()) {
             return null;
         }
-
-        JSCallExpression call = PsiTreeUtil.getParentOfType(literal, JSCallExpression.class);
-        if (call == null) {
-            return null;
-        }
-
-        JSExpression methodExpression = call.getMethodExpression();
-        if (!(methodExpression instanceof JSReferenceExpression reference)) {
-            return null;
-        }
-
-        String functionName = reference.getReferenceName();
-        if (!"ref".equals(functionName) && !"resolve".equals(functionName)) {
-            return null;
-        }
-
         return literal;
     }
 }

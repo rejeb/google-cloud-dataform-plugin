@@ -124,6 +124,81 @@ public class DataformRefFunctionReferenceTest extends BasePlatformTestCase {
         assertEquals(List.of("orders", "events"), names);
     }
 
+    public void testASchemaQualifiedRefResolvesToTheTableOfThatSchema() {
+        installTwoOrdersTables();
+        assertResolvesToPath("ref(\"mart\", \"ord<caret>ers\")", "definitions/mart/orders.sqlx");
+        assertResolvesToPath("ref(\"d\", \"ord<caret>ers\")", "definitions/orders.sqlx");
+    }
+
+    public void testADatabaseAndSchemaQualifiedRefResolves() {
+        installTwoOrdersTables();
+        assertResolvesToPath("ref(\"p\", \"mart\", \"ord<caret>ers\")", "definitions/mart/orders.sqlx");
+    }
+
+    public void testAnObjectRefResolvesToTheTableOfItsSchema() {
+        installTwoOrdersTables();
+        assertResolvesToPath("ref({schema: \"mart\", name: \"ord<caret>ers\"})", "definitions/mart/orders.sqlx");
+    }
+
+    public void testAnArrayRefResolvesToTheTableOfItsSchema() {
+        installTwoOrdersTables();
+        assertResolvesToPath("ref([\"mart\", \"ord<caret>ers\"])", "definitions/mart/orders.sqlx");
+        assertResolvesToPath("ref([\"p\", \"mart\", \"ord<caret>ers\"])", "definitions/mart/orders.sqlx");
+        assertResolvesToPath("ref([\"ord<caret>ers\"])", "definitions/orders.sqlx");
+    }
+
+    public void testAnObjectRefWithDatasetAndProjectKeysResolves() {
+        installTwoOrdersTables();
+        assertResolvesToPath("ref({project: \"p\", dataset: \"mart\", name: \"ord<caret>ers\"})",
+                "definitions/mart/orders.sqlx");
+    }
+
+    public void testQualifiersOfArrayAndObjectRefsAreNoTableReference() {
+        assertFalse(referenceAt("ref([\"ra<caret>w\", \"events\"])") instanceof DataformRefFunctionReference);
+        assertFalse(referenceAt("ref({dataset: \"ra<caret>w\", name: \"events\"})") instanceof DataformRefFunctionReference);
+    }
+
+    public void testAnArrayFollowedByMoreArgumentsIsNoReference() {
+        assertFalse(referenceAt("ref([\"raw\"], \"eve<caret>nts\")") instanceof DataformRefFunctionReference);
+        assertFalse(referenceAt("ref([\"raw\", \"eve<caret>nts\"], \"x\")") instanceof DataformRefFunctionReference);
+    }
+
+    public void testASchemaQualifiedRefResolvesDeclarations() {
+        assertResolvesTo("ref(\"raw\", \"eve<caret>nts\")", "sources.js");
+    }
+
+    public void testARefQualifiedByAnotherSchemaDoesNotResolve() {
+        PsiReference reference = referenceAt("ref(\"elsewhere\", \"ord<caret>ers\")");
+        assertTrue(reference instanceof DataformRefFunctionReference);
+        assertNull(reference.resolve());
+    }
+
+    public void testTheSchemaArgumentIsNoTableReference() {
+        assertFalse(referenceAt("ref(\"ra<caret>w\", \"events\")") instanceof DataformRefFunctionReference);
+        assertFalse(referenceAt("ref(\"p\", \"ra<caret>w\", \"events\")") instanceof DataformRefFunctionReference);
+        assertFalse(referenceAt("ref({schema: \"ra<caret>w\", name: \"events\"})") instanceof DataformRefFunctionReference);
+    }
+
+    private void installTwoOrdersTables() {
+        myFixture.addFileToProject("definitions/mart/orders.sqlx", "SELECT 1");
+        installGraph(new Gson().fromJson("""
+                {"tables": [
+                  {"type": "table", "target": {"database": "p", "schema": "d", "name": "orders"},
+                   "fileName": "definitions/orders.sqlx"},
+                  {"type": "table", "target": {"database": "p", "schema": "mart", "name": "orders"},
+                   "fileName": "definitions/mart/orders.sqlx"}
+                ]}""", CompiledGraph.class));
+    }
+
+    private void assertResolvesToPath(String call, String expectedPath) {
+        PsiReference reference = referenceAt(call);
+        assertNotNull("no reference in " + call, reference);
+        PsiElement resolved = reference.resolve();
+        assertTrue(call + " must resolve to a file", resolved instanceof PsiFile);
+        assertTrue(call + " resolved to " + ((PsiFile) resolved).getVirtualFile().getPath(),
+                ((PsiFile) resolved).getVirtualFile().getPath().endsWith(expectedPath));
+    }
+
     private void assertResolvesTo(String call, String expectedFile) {
         PsiReference reference = referenceAt(call);
         assertNotNull("no reference in " + call, reference);

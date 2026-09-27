@@ -45,8 +45,7 @@ public final class DataformJsonSchemaGeneratorImpl implements DataformJsonSchema
         SQLX_TYPES.put("declaration", "ActionConfig.DeclarationConfig");
     }
 
-    private static final Set<String> SQLX_EXCLUDED_FIELDS = Set.of(
-            "preOperations", "postOperations", "filename");
+    private static final Set<String> SQLX_EXCLUDED_FIELDS = Set.of("filename");
 
     private static final Set<String> SQLX_BIGQUERY_TYPES = Set.of("table", "view", "incremental");
 

@@ -35,13 +35,13 @@ import java.util.Optional;
 
 public class DataformRefFunctionReference extends PsiReferenceBase<PsiElement> {
 
-    private final String tableName;
+    private final ActionReference action;
 
     public DataformRefFunctionReference(@NotNull PsiElement element,
-                                        @NotNull String tableName,
+                                        @NotNull ActionReference action,
                                         @NotNull TextRange range) {
         super(element, range);
-        this.tableName = tableName;
+        this.action = action;
     }
 
     @Override
@@ -54,23 +54,23 @@ public class DataformRefFunctionReference extends PsiReferenceBase<PsiElement> {
             return null;
         }
 
-        Optional<CompiledTable> table = graph.findTableByName(tableName);
+        Optional<CompiledTable> table = graph.findTableByReference(action);
         if (table.isPresent() && table.get().getFileName() != null) {
             return resolveFile(table.get().getFileName());
         }
 
-        Optional<Declaration> declaration = graph.findDeclarationByName(tableName);
+        Optional<Declaration> declaration = graph.findDeclarationByReference(action);
 
         if (declaration.isPresent() && declaration.get().getFileName() != null) {
             return resolveFile(declaration.get().getFileName());
         }
 
-        Optional<CompiledAssertion> assertion = graph.findAssertionByName(tableName);
+        Optional<CompiledAssertion> assertion = graph.findAssertionByReference(action);
         if (assertion.isPresent() && assertion.get().getFileName() != null) {
             return resolveFile(assertion.get().getFileName());
         }
 
-        Optional<CompiledOperation> operation = graph.findOperationByName(tableName);
+        Optional<CompiledOperation> operation = graph.findOperationByReference(action);
         if (operation.isPresent() && operation.get().getFileName() != null) {
             return resolveFile(operation.get().getFileName());
         }

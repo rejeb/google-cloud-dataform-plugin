@@ -63,6 +63,54 @@ public class SqlxRefCallTest {
     }
 
     @Test
+    public void anArrayOfOneToThreeParts() {
+        assertEquals(new ActionReference(null, null, "customers"), parse("${ref([\"customers\"])}"));
+        assertEquals(new ActionReference(null, "mart", "customers"),
+                parse("${ref([\"mart\", \"customers\"])}"));
+        assertEquals(new ActionReference("p", "mart", "customers"),
+                parse("${ref([ 'p', 'mart', 'customers' ])}"));
+    }
+
+    @Test
+    public void anArrayIsTheOnlyArgumentAndHoldsAtMostThreeParts() {
+        assertTrue(SqlxRefCall.parse("${ref([\"mart\"], \"customers\")}").isEmpty());
+        assertTrue(SqlxRefCall.parse("${ref([])}").isEmpty());
+        assertTrue(SqlxRefCall.parse("${ref(['a', 'b', 'c', 'd'])}").isEmpty());
+    }
+
+    @Test
+    public void anObjectWithProjectAndDatasetKeys() {
+        assertEquals(new ActionReference("p", "mart", "customers"),
+                parse("${ref({ project: \"p\", dataset: \"mart\", name: \"customers\" })}"));
+        assertEquals(new ActionReference(null, "mart", "customers"),
+                parse("${ref({ dataset: \"mart\", name: \"customers\" })}"));
+    }
+
+    @Test
+    public void projectAndDatasetKeysWinOverDatabaseAndSchema() {
+        assertEquals(new ActionReference(null, "mart", "customers"),
+                parse("${ref({ schema: \"other\", dataset: \"mart\", name: \"customers\" })}"));
+    }
+
+    @Test
+    public void includeDependentAssertionsIsIgnored() {
+        assertEquals(new ActionReference(null, "mart", "customers"),
+                parse("${ref({ schema: \"mart\", name: \"customers\", includeDependentAssertions: true })}"));
+    }
+
+    @Test
+    public void resolveTakesTheSameArguments() {
+        assertEquals(new ActionReference(null, "mart", "customers"),
+                parse("${resolve(\"mart\", \"customers\")}"));
+        assertEquals(new ActionReference(null, null, "customers"), parse("${resolve('customers')}"));
+    }
+
+    @Test
+    public void aDottedNameIsNotSplit() {
+        assertEquals(new ActionReference(null, null, "mart.customers"), parse("${ref(\"mart.customers\")}"));
+    }
+
+    @Test
     public void anObjectWithoutANameIsNotAReference() {
         assertTrue(SqlxRefCall.parse("${ref({ schema: \"mart\" })}").isEmpty());
     }

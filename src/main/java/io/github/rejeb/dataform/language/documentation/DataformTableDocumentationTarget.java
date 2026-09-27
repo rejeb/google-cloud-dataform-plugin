@@ -23,6 +23,7 @@ import com.intellij.platform.backend.documentation.DocumentationResult;
 import com.intellij.platform.backend.documentation.DocumentationTarget;
 import com.intellij.platform.backend.presentation.TargetPresentation;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
+import io.github.rejeb.dataform.language.compilation.model.ActionReference;
 import io.github.rejeb.dataform.language.compilation.model.CompiledAssertion;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.compilation.model.CompiledOperation;
@@ -42,11 +43,17 @@ import java.util.Optional;
 public class DataformTableDocumentationTarget implements DocumentationTarget {
 
     private final Project myProject;
+    private final ActionReference myAction;
     private final String myTableName;
 
     public DataformTableDocumentationTarget(@NotNull Project project, @NotNull String tableName) {
+        this(project, ActionReference.named(tableName));
+    }
+
+    public DataformTableDocumentationTarget(@NotNull Project project, @NotNull ActionReference action) {
         this.myProject = project;
-        this.myTableName = tableName;
+        this.myAction = action;
+        this.myTableName = action.name();
     }
 
     @Override
@@ -63,6 +70,10 @@ public class DataformTableDocumentationTarget implements DocumentationTarget {
 
     @Override
     public @Nullable DocumentationResult computeDocumentation() {
+        return DocumentationResult.documentation(html());
+    }
+
+    String html() {
         CompiledGraph graph = myProject.getService(DataformCompilationService.class).getCompiledGraph();
 
         String fullName = null;
@@ -71,7 +82,7 @@ public class DataformTableDocumentationTarget implements DocumentationTarget {
         String description = null;
 
         if (graph != null) {
-            Optional<CompiledTable> table = graph.findTableByName(myTableName);
+            Optional<CompiledTable> table = graph.findTableByReference(myAction);
             if (table.isPresent()) {
                 CompiledTable value = table.get();
                 fullName = fullName(value.getTarget());
@@ -81,19 +92,19 @@ public class DataformTableDocumentationTarget implements DocumentationTarget {
                         ? null
                         : value.getActionDescriptor().getDescription();
             } else {
-                Optional<Declaration> declaration = graph.findDeclarationByName(myTableName);
+                Optional<Declaration> declaration = graph.findDeclarationByReference(myAction);
                 if (declaration.isPresent()) {
                     fullName = fullName(declaration.get().getTarget());
                     type = "declaration";
                     sourceFile = declaration.get().getFileName();
                 } else {
-                    Optional<CompiledAssertion> assertion = graph.findAssertionByName(myTableName);
+                    Optional<CompiledAssertion> assertion = graph.findAssertionByReference(myAction);
                     if (assertion.isPresent()) {
                         fullName = fullName(assertion.get().getTarget());
                         type = "assertion";
                         sourceFile = assertion.get().getFileName();
                     } else {
-                        Optional<CompiledOperation> operation = graph.findOperationByName(myTableName);
+                        Optional<CompiledOperation> operation = graph.findOperationByReference(myAction);
                         if (operation.isPresent()) {
                             fullName = fullName(operation.get().getTarget());
                             type = "operation";
@@ -104,14 +115,17 @@ public class DataformTableDocumentationTarget implements DocumentationTarget {
             }
         }
 
-        String html = DataformDocumentationRenderer.renderTable(
-                myTableName, fullName, type, sourceFile, description, columns());
-        return DocumentationResult.documentation(html);
+        return DataformDocumentationRenderer.renderTable(
+                myTableName, fullName, type, sourceFile, description, columns(fullName));
     }
 
-    private List<ColumnInfo> columns() {
+    private List<ColumnInfo> columns(@Nullable String fullName) {
         Map<String, DataformDasTable> tables =
                 DataformTableSchemaService.getInstance(myProject).getAllTables();
+        DataformDasTable resolved = fullName == null ? null : tables.get(fullName);
+        if (resolved != null) {
+            return resolved.getColumns();
+        }
         for (DataformDasTable table : tables.values()) {
             if (table.getName().equalsIgnoreCase(myTableName)) {
                 return table.getColumns();

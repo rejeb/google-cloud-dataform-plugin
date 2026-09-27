@@ -20,6 +20,9 @@ import com.intellij.platform.backend.documentation.DocumentationResult;
 import com.intellij.platform.backend.documentation.DocumentationTarget;
 import com.intellij.psi.PsiFile;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
+import com.google.gson.Gson;
+import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
+import io.github.rejeb.dataform.language.testing.ProjectStateInstaller;
 
 import java.util.List;
 
@@ -87,6 +90,35 @@ public class DataformRefDocumentationTest extends BasePlatformTestCase {
 
         assertTrue(new DataformRefDocumentationTargetProvider()
                 .documentationTargets(file, myFixture.getCaretOffset()).isEmpty());
+    }
+
+    public void testNoTargetOnTheSchemaArgumentOfARef() {
+        PsiFile file = myFixture.configureByText("test.sqlx",
+                "config { type: \"table\" }\nSELECT * FROM ${ref(\"ma<caret>rt\", \"orders\")}");
+
+        assertTrue(new DataformRefDocumentationTargetProvider()
+                .documentationTargets(file, myFixture.getCaretOffset()).isEmpty());
+    }
+
+    public void testASchemaQualifiedRefDocumentsTheTableOfThatSchema() {
+        ProjectStateInstaller.installGraph(getProject(), getTestRootDisposable(), new Gson().fromJson("""
+                {"tables": [
+                  {"type": "table", "target": {"database": "p", "schema": "d", "name": "orders"},
+                   "fileName": "definitions/orders.sqlx"},
+                  {"type": "view", "target": {"database": "p", "schema": "mart", "name": "orders"},
+                   "fileName": "definitions/mart/orders.sqlx"}
+                ]}""", CompiledGraph.class));
+        PsiFile file = myFixture.configureByText("test.sqlx",
+                "config { type: \"table\" }\nSELECT * FROM ${ref(\"mart\", \"ord<caret>ers\")}");
+
+        List<? extends DocumentationTarget> targets = new DataformRefDocumentationTargetProvider()
+                .documentationTargets(file, myFixture.getCaretOffset());
+
+        assertEquals(1, targets.size());
+        assertEquals("orders", targets.get(0).computePresentation().getPresentableText());
+        String html = ((DataformTableDocumentationTarget) targets.get(0)).html();
+        assertTrue(html, html.contains("p.mart.orders"));
+        assertTrue(html, html.contains("view"));
     }
 
     public void testDocumentationRendersWithoutCompiledGraph() {

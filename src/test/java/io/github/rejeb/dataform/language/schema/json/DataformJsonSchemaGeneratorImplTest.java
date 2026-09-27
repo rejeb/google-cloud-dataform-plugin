@@ -103,11 +103,21 @@ public class DataformJsonSchemaGeneratorImplTest {
     }
 
     @Test
-    public void sqlxOnlyFieldsAreLeftOut() {
+    public void compilerSetFieldsAreLeftOut() {
         JsonNode props = branch("table").get("properties");
-        assertFalse(props.has("preOperations"));
-        assertFalse(props.has("postOperations"));
         assertFalse(props.has("filename"));
+    }
+
+    @Test
+    public void preAndPostOperationsAreAcceptedByDatasetActions() {
+        for (String type : List.of("table", "view", "incremental")) {
+            JsonNode props = branch(type).get("properties");
+            assertEquals("array", props.get("preOperations").get("type").asText(), type);
+            assertEquals("string", props.get("preOperations").get("items").get("type").asText(), type);
+            assertEquals("array", props.get("postOperations").get("type").asText(), type);
+        }
+        assertFalse(branch("operations").get("properties").has("postOperations"));
+        assertFalse(branch("assertion").get("properties").has("postOperations"));
     }
 
     @Test

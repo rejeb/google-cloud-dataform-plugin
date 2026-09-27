@@ -275,6 +275,8 @@
                 implementationClass="io.github.rejeb.dataform.language.unittest.completion.SqlxTestColumnCompletionContributor"/>
         <gotoDeclarationHandler
                 implementation="io.github.rejeb.dataform.language.unittest.navigation.TestAliasGotoDeclarationHandler"/>
+        <gotoDeclarationHandler
+                implementation="io.github.rejeb.dataform.language.reference.DataformRefGotoDeclarationHandler"/>
         <intentionAction>
             <className>io.github.rejeb.dataform.language.unittest.generation.GenerateTestSelectIntention</className>
             <category>Dataform</category>

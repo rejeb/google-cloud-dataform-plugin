@@ -136,6 +136,27 @@ public class DuplicateTableNameResolveTest extends BasePlatformTestCase {
                 lookups.contains("mart_only"));
     }
 
+    public void testAnArrayRefSeesTheColumnsOfItsDatasetOnly() {
+        List<String> lookups = selectListCompletion("${ref([\"mart\", \"customers\"])}");
+
+        assertTrue("got " + lookups, lookups.contains("mart_only"));
+        assertFalse("got " + lookups, lookups.contains("staging_only"));
+    }
+
+    public void testADatasetObjectRefSeesTheColumnsOfItsDatasetOnly() {
+        List<String> lookups = selectListCompletion("${ref({dataset: \"staging\", name: \"customers\"})}");
+
+        assertTrue("got " + lookups, lookups.contains("staging_only"));
+        assertFalse("got " + lookups, lookups.contains("mart_only"));
+    }
+
+    public void testAResolveCallSeesTheColumnsOfItsDatasetOnly() {
+        List<String> lookups = selectListCompletion("${resolve(\"mart\", \"customers\")}");
+
+        assertTrue("got " + lookups, lookups.contains("mart_only"));
+        assertFalse("got " + lookups, lookups.contains("staging_only"));
+    }
+
     public void testAHandWrittenQualifiedNameSeesTheColumnsOfItsDatasetOnly() {
         List<String> lookups = selectListCompletion("`proj.staging.customers`");
         assertTrue("the columns of staging.customers must be offered, got " + lookups,

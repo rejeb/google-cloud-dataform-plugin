@@ -147,18 +147,48 @@ public class CompiledGraph {
     }
 
     public Optional<CompiledAssertion> findAssertionByName(String name) {
-        return this.getAssertions().stream().filter(t -> t.getTarget().getName().equals(name)).findFirst();
+        return findAssertionByReference(ActionReference.named(name));
+    }
+
+    /**
+     * The assertion a reference designates, matched on the target it compiles to.
+     *
+     * @param reference the name, schema and database to match
+     * @return the first assertion designated
+     */
+    public Optional<CompiledAssertion> findAssertionByReference(ActionReference reference) {
+        return this.getAssertions().stream().filter(a -> reference.matches(a.getTarget())).findFirst();
     }
 
     public Optional<CompiledOperation> findOperationByName(String name) {
-        return this.getOperations().stream().filter(t -> t.getTarget().getName().equals(name)).findFirst();
+        return findOperationByReference(ActionReference.named(name));
+    }
+
+    /**
+     * The operation a reference designates, matched on the target it compiles to.
+     *
+     * @param reference the name, schema and database to match
+     * @return the first operation designated
+     */
+    public Optional<CompiledOperation> findOperationByReference(ActionReference reference) {
+        return this.getOperations().stream().filter(o -> reference.matches(o.getTarget())).findFirst();
     }
 
     /**
      * The declaration of a name, or, when none declares it, the one whose canonical name it is.
      */
     public Optional<Declaration> findDeclarationByName(String name) {
-        ActionReference reference = ActionReference.named(name);
+        return findDeclarationByReference(ActionReference.named(name));
+    }
+
+    /**
+     * The declaration a reference designates, matched on the target it compiles to, then on its
+     * canonical target.
+     *
+     * @param reference the name, schema and database to match
+     * @return the first declaration designated
+     */
+    public Optional<Declaration> findDeclarationByReference(ActionReference reference) {
         return this.getDeclarations().stream().filter(d -> reference.matches(d.getTarget())).findFirst()
                 .or(() -> this.getDeclarations().stream()
                         .filter(d -> reference.matches(d.getCanonicalTarget())).findFirst());
