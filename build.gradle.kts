@@ -43,8 +43,24 @@ intellijPlatform {
         }
 
         changeNotes = """
+                <h3>New</h3>
                 <ul>
-                    <li>Fix issues.</li>
+                    <li>Unit test support for <code>type: "test"</code> actions: run tests from the gutter or a dedicated run configuration, results in the IDE test runner with an expected/actual diff, and a test preview in the SQLX split editor.</li>
+                    <li>Inline error messages: Dataform compilation errors and BigQuery dry-run errors are placed on the exact tokens of the SQLX file, with "did you mean" hints and quick fixes; errors that cannot be placed are listed in an editor banner.</li>
+                    <li>New SQLX File action gains a Test template.</li>
+                </ul>
+                <h3>Improvements</h3>
+                <ul>
+                    <li>Config block: the config schema now accepts the legacy <code>assertions</code> shorthands (<code>uniqueKey: "id"</code>, <code>nonNull: "col"</code>, <code>uniqueKeys: [["a", "b"]]</code>) and dependency targets written as objects, whose keys are now validated.</li>
+                    <li>Config block: completing a property that already has a value moves the caret to that value instead of inserting a second one.</li>
+                    <li>Config block: completion shows every shape a property accepts (e.g. <code>string[] | string</code>).</li>
+                    <li>Lower memory and CPU usage for lineage, schema resolution, expression evaluation and BigQuery result grids.</li>
+                </ul>
+                <h3>Fixes</h3>
+                <ul>
+                    <li>Column dependencies, Go to Declaration and usages on Windows.</li>
+                    <li>Column resolution for dataset-qualified tables, the multi-argument <code>ref()</code> forms and <code>WITH ${"$"}{include()}</code> templates.</li>
+                    <li>Generated config typings wrongly typed arrays of several shapes.</li>
                 </ul>
         """.trimIndent()
     }
