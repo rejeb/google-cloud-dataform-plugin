@@ -333,6 +333,8 @@
                 implementation="io.github.rejeb.dataform.language.startup.DataformProjectStartup"/>
         <postStartupActivity
                 implementation="io.github.rejeb.dataform.language.setup.DataformCoreVersionMigrationActivity"/>
+        <postStartupActivity
+                implementation="io.github.rejeb.dataform.language.setup.DataformPendingPackageInstallActivity"/>
         <fileEditorProvider implementation="io.github.rejeb.dataform.language.fileEditor.SqlxSplitEditorProvider"/>
         <fileEditorProvider implementation="io.github.rejeb.dataform.language.lineage.view.LineageFileEditorProvider"/>
         <fileIconProvider implementation="io.github.rejeb.dataform.language.lineage.view.LineageFileIconProvider"/>

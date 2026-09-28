@@ -17,10 +17,9 @@
 package io.github.rejeb.dataform.language.projectWizard;
 
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.startup.StartupManager;
 import com.intellij.openapi.vfs.VirtualFile;
-import io.github.rejeb.dataform.language.setup.DataformPackageInstaller;
 import io.github.rejeb.dataform.language.setup.DataformPackageJson;
+import io.github.rejeb.dataform.language.setup.DataformPendingPackageInstallActivity;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
@@ -82,10 +81,6 @@ public final class DataformProjectStructureBuilder {
         String readmeContent = "# Dataform project for BigQuery data transformation.";
         readme.setBinaryContent(readmeContent.getBytes(StandardCharsets.UTF_8));
 
-        StartupManager.getInstance(project).runAfterOpened(() -> {
-            if (!project.isDisposed() && baseDir.isValid()) {
-                DataformPackageInstaller.getInstance(project).installAsync(baseDir);
-            }
-        });
+        DataformPendingPackageInstallActivity.schedule(project, baseDir);
     }
 }
