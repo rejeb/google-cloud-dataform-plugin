@@ -25,10 +25,10 @@ import io.github.rejeb.dataform.language.util.GcpClientsUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.ArrayList;
 
 public final class BigQueryDryRunSchemaExtractorImpl implements BigQueryDryRunSchemaExtractor {
 
@@ -78,7 +78,8 @@ public final class BigQueryDryRunSchemaExtractorImpl implements BigQueryDryRunSc
 
         Job dryRunJob = bigQuery.create(JobInfo.newBuilder(config).setJobId(jobId).build());
 
-        Schema schema = extractSchemaFromJob(dryRunJob);
+        Schema schema = dryRunJob.getStatistics() instanceof JobStatistics.QueryStatistics queryStats
+                ? queryStats.getSchema() : null;
         if (schema == null || schema.getFields() == null) {
             LOG.debug("BigQuery dry-run returned no schema for project: " + projectId);
             return Collections.emptyList();
@@ -138,15 +139,6 @@ public final class BigQueryDryRunSchemaExtractorImpl implements BigQueryDryRunSc
         if ("_PARTITIONTIME".equalsIgnoreCase(partitionField)) return "TIMESTAMP";
         if ("_PARTITIONDATE".equalsIgnoreCase(partitionField)) return "DATE";
         return "TIMESTAMP";
-    }
-
-    @Nullable
-    private static Schema extractSchemaFromJob(@NotNull Job job) {
-        JobStatistics statistics = job.getStatistics();
-        if (!(statistics instanceof JobStatistics.QueryStatistics queryStats)) {
-            return null;
-        }
-        return queryStats.getSchema();
     }
 
     @NotNull

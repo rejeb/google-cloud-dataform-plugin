@@ -35,7 +35,7 @@ import io.github.rejeb.dataform.language.documentation.bigquery.BigQueryFunction
 import io.github.rejeb.dataform.language.highlight.SqlxQuerySources;
 import io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService;
 import io.github.rejeb.dataform.language.schema.sql.SqlPsiParts;
-import io.github.rejeb.dataform.language.schema.sql.SqlxOutputColumnLocator;
+import io.github.rejeb.dataform.language.columns.origin.SqlxOutputColumnLocator;
 import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasTable;
 import org.jetbrains.annotations.NotNull;

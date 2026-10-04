@@ -17,8 +17,6 @@
 package io.github.rejeb.dataform.language.unittest.completion;
 
 import com.intellij.psi.PsiElement;
-import com.intellij.psi.tree.IElementType;
-import com.intellij.psi.PsiFile;
 import com.intellij.psi.util.PsiTreeUtil;
 import io.github.rejeb.dataform.language.schema.sql.SqlPsiParts;
 import io.github.rejeb.dataform.language.unittest.columns.TestAliasPaths;
@@ -42,7 +40,6 @@ public record TestAliasSlot(@NotNull List<String> recordPath,
         ARRAY
     }
 
-    private static final IElementType AS_EXPRESSION = TestAliasPaths.AS_EXPRESSION;
     private static final Pattern ARRAY_VALUE = Pattern.compile("(?is)^(\\[|ARRAY\\b).*");
     private static final Pattern STRUCT_VALUE = Pattern.compile("(?is)^(STRUCT\\b|\\().*");
 
@@ -60,11 +57,12 @@ public record TestAliasSlot(@NotNull List<String> recordPath,
         if (previous == null || !"AS".equalsIgnoreCase(previous.getText())) {
             return Optional.empty();
         }
-        PsiElement alias = ancestor(position.getParent(), AS_EXPRESSION);
+        PsiElement alias = PsiTreeUtil.findFirstParent(position.getParent(), false,
+                element -> SqlPsiParts.isType(element, TestAliasPaths.AS_EXPRESSION));
         if (alias == null || !isAliasOf(alias, position)) {
             return Optional.empty();
         }
-        return recordPath(alias).map(path -> new TestAliasSlot(path, siblingAliases(alias), shapeOf(alias)));
+        return TestAliasPaths.enclosingPath(alias).map(path -> new TestAliasSlot(path, siblingAliases(alias), shapeOf(alias)));
     }
 
     /**
@@ -79,10 +77,6 @@ public record TestAliasSlot(@NotNull List<String> recordPath,
         return identifier != null && PsiTreeUtil.isAncestor(identifier, position, false);
     }
 
-    private static Optional<List<String>> recordPath(@NotNull PsiElement alias) {
-        return TestAliasPaths.enclosingPath(alias);
-    }
-
     private static Set<String> siblingAliases(@NotNull PsiElement alias) {
         Set<String> names = new HashSet<>();
         PsiElement parent = alias.getParent();
@@ -90,8 +84,8 @@ public record TestAliasSlot(@NotNull List<String> recordPath,
             return names;
         }
         for (PsiElement child : parent.getChildren()) {
-            if (child != alias && isType(child, AS_EXPRESSION)) {
-                String name = aliasOf(child);
+            if (child != alias && SqlPsiParts.isType(child, TestAliasPaths.AS_EXPRESSION)) {
+                String name = TestAliasPaths.aliasOf(child);
                 if (name != null) {
                     names.add(name.toLowerCase(Locale.ROOT));
                 }
@@ -110,25 +104,5 @@ public record TestAliasSlot(@NotNull List<String> recordPath,
             return ValueShape.STRUCT;
         }
         return ValueShape.SCALAR;
-    }
-
-    @Nullable
-    private static String aliasOf(@NotNull PsiElement asExpression) {
-        return TestAliasPaths.aliasOf(asExpression);
-    }
-
-    @Nullable
-    private static PsiElement ancestor(@Nullable PsiElement element, @NotNull IElementType type) {
-        for (PsiElement current = element; current != null && !(current instanceof PsiFile);
-             current = current.getParent()) {
-            if (isType(current, type)) {
-                return current;
-            }
-        }
-        return null;
-    }
-
-    private static boolean isType(@Nullable PsiElement element, @NotNull IElementType type) {
-        return TestAliasPaths.isType(element, type);
     }
 }

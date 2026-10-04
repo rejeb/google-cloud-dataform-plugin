@@ -18,16 +18,14 @@ package io.github.rejeb.dataform.language.compilation.model;
 
 import io.github.rejeb.dataform.language.util.DataformPaths;
 
-public class Declaration {
+public class Declaration implements CompiledAction {
     private Target target;
     private String fileName;
     private Target canonicalTarget;
 
+    @Override
     public Target getTarget() { return target; }
+    @Override
     public String getFileName() { return DataformPaths.normalize(fileName); }
     public Target getCanonicalTarget() { return canonicalTarget; }
-
-    public boolean matchFileName(String fileName){
-        return DataformPaths.pointsTo(fileName, this.fileName);
-    }
 }

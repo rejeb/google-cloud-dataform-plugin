@@ -19,45 +19,30 @@ package io.github.rejeb.dataform.language.lineage.view;
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.actionSystem.ActionManager;
 import com.intellij.openapi.actionSystem.ActionToolbar;
-import com.intellij.openapi.actionSystem.ActionUpdateThread;
-import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.DefaultActionGroup;
-import com.intellij.openapi.actionSystem.ToggleAction;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ModalityState;
-import com.intellij.openapi.project.DumbAwareAction;
 import com.intellij.openapi.project.Project;
-import com.intellij.ui.JBColor;
 import com.intellij.ui.OnePixelSplitter;
 import com.intellij.ui.SearchTextField;
-import com.intellij.ui.components.JBLabel;
-import com.intellij.ui.scale.JBUIScale;
-import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
-import io.github.rejeb.dataform.language.DataformIcons;
-import io.github.rejeb.dataform.language.lineage.model.Density;
-import io.github.rejeb.dataform.language.lineage.model.Direction;
 import io.github.rejeb.dataform.language.lineage.model.LineageModel;
 import io.github.rejeb.dataform.language.lineage.service.LineageGraphService;
 import org.jetbrains.annotations.NotNull;
 
-
-
+import java.awt.BorderLayout;
+import java.awt.event.ActionEvent;
+import java.awt.event.InputEvent;
+import java.awt.event.KeyEvent;
+import java.util.concurrent.atomic.AtomicLong;
 import javax.swing.AbstractAction;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
 import javax.swing.KeyStroke;
-import javax.swing.SwingConstants;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
-import java.awt.BorderLayout;
-import java.awt.CardLayout;
-import java.awt.GridBagLayout;
-import java.awt.event.ActionEvent;
-import java.awt.event.InputEvent;
-import java.awt.event.KeyEvent;
 
 /**
  * Project-wide lineage view: a toolbar (search + view toggles) over a three-column body
@@ -66,18 +51,15 @@ import java.awt.event.KeyEvent;
  */
 public final class LineageProjectPanel extends JPanel {
 
-    private static final String CARD_EMPTY = "empty";
-    private static final String CARD_BODY = "body";
-
     private final Project project;
     private final LineageModel model;
     private final GraphCanvas canvas;
     private final FiltersPanel filtersPanel;
     private final SearchTextField searchField = new SearchTextField();
-    private final CardLayout cardLayout = new CardLayout();
-    private final JPanel cards = new JPanel(cardLayout);
+    private final LineageCards cards;
     private final DetailsPanel detailsPanel;
     private final OnePixelSplitter detailsSplitter;
+    private final AtomicLong refreshGeneration = new AtomicLong();
 
     private boolean detailsCollapsed;
     private String lastSelectionKey = "";
@@ -103,18 +85,8 @@ public final class LineageProjectPanel extends JPanel {
         detailsSplitter.setFirstComponent(canvas);
         detailsSplitter.setSecondComponent(null);
 
-        JPanel header = new JPanel(new BorderLayout());
-        header.add(new LineageWarningBanner(model), BorderLayout.NORTH);
-        header.add(buildToolbar(), BorderLayout.CENTER);
-
-        JPanel body = new JPanel(new BorderLayout());
-        body.add(header, BorderLayout.NORTH);
-        body.add(filtersPanel, BorderLayout.WEST);
-        body.add(detailsSplitter, BorderLayout.CENTER);
-        body.add(statusBar, BorderLayout.SOUTH);
-
-        cards.add(buildEmptyCard(), CARD_EMPTY);
-        cards.add(body, CARD_BODY);
+        cards = new LineageCards(model, buildToolbar(), filtersPanel, detailsSplitter, statusBar,
+                "Compile the Dataform project to see the lineage.");
         add(cards, BorderLayout.CENTER);
 
         installSearchShortcut();
@@ -127,6 +99,7 @@ public final class LineageProjectPanel extends JPanel {
      * lineage on a pooled thread, and applies it to the model on the EDT.
      */
     public void refresh(boolean force) {
+        long generation = refreshGeneration.incrementAndGet();
         ApplicationManager.getApplication().executeOnPooledThread(() -> {
             DataformCompilationService svc = DataformCompilationService.getInstance(project);
             CompiledGraph compiled = force ? svc.compile(true) : svc.getCompiledGraph();
@@ -136,6 +109,7 @@ public final class LineageProjectPanel extends JPanel {
                     : LineageGraphService.getInstance(project).graphs(compiled);
 
             ApplicationManager.getApplication().invokeLater(() -> {
+                if (generation != refreshGeneration.get()) return;
                 model.setGraph(graphs.tableGraph());
                 model.setColumnGraph(graphs.columnGraph());
             }, ModalityState.nonModal());
@@ -151,87 +125,29 @@ public final class LineageProjectPanel extends JPanel {
         });
 
         DefaultActionGroup group = new DefaultActionGroup();
-        group.add(toggle("Toggle filters", "Show or hide the filters sidebar",
+        group.add(LineageToolbarSupport.toggle("Toggle filters", "Show or hide the filters sidebar",
                 () -> LineageIcons.FILTERS, filtersPanel::isVisible,
                 () -> filtersPanel.setVisible(!filtersPanel.isVisible())));
-        group.add(toggle("Layout direction", "Toggle left-to-right / top-to-bottom",
-                () -> model.direction() == Direction.TB ? LineageIcons.DIRECTION_TB : LineageIcons.DIRECTION_LR,
-                () -> model.direction() == Direction.TB, model::toggleDirection));
-        group.add(toggle("Density", "Toggle compact / comfortable node density",
-                () -> model.density() == Density.COMPACT ? LineageIcons.DENSITY_COMPACT : LineageIcons.DENSITY_COMFORTABLE,
-                () -> model.density() == Density.COMPACT, model::toggleDensity));
-        group.add(toggle("Minimap", "Show or hide the minimap",
+        group.add(LineageToolbarSupport.directionToggle(model));
+        group.add(LineageToolbarSupport.densityToggle(model));
+        group.add(LineageToolbarSupport.toggle("Minimap", "Show or hide the minimap",
                 () -> LineageIcons.MINIMAP, model::minimapVisible, model::toggleMinimap));
-        group.add(toggle("Details", "Show or hide the details panel for the current selection",
+        group.add(LineageToolbarSupport.toggle("Details", "Show or hide the details panel for the current selection",
                 () -> AllIcons.Actions.PreviewDetails,
                 () -> detailsSplitter.getSecondComponent() != null, this::toggleDetails));
-        group.add(action("Re-layout", "Recompile and refresh lineage",
+        group.add(LineageToolbarSupport.action("Re-layout", "Recompile and refresh lineage",
                 LineageIcons.RELAYOUT, () -> refresh(true)));
 
         ActionToolbar toolbar = ActionManager.getInstance()
                 .createActionToolbar("DataformLineageToolbar", group, true);
         toolbar.setTargetComponent(this);
 
-        JPanel title = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT, JBUIScale.scale(6), JBUIScale.scale(2)));
-        title.setOpaque(false);
-        JBLabel name = new JBLabel("Lineage", DataformIcons.LINEAGE, SwingConstants.LEADING);
-        name.setFont(name.getFont().deriveFont(java.awt.Font.BOLD));
-        title.add(name);
-        JBLabel crumb = new JBLabel(project.getName());
-        crumb.setForeground(UIUtil.getLabelDisabledForeground());
-        title.add(crumb);
-
-        JPanel north = new JPanel(new BorderLayout(JBUIScale.scale(8), 0));
-        north.setBorder(JBUI.Borders.compound(
-                JBUI.Borders.customLine(UIUtil.getBoundsColor(), 0, 0, 1, 0),
-                JBUI.Borders.empty(2, 6)));
-        north.add(title, BorderLayout.WEST);
-        north.add(searchField, BorderLayout.CENTER);
-        north.add(toolbar.getComponent(), BorderLayout.EAST);
-        return north;
+        return LineageToolbarSupport.header(project.getName(), searchField, toolbar);
     }
 
     private static String fSearchHint() {
         return java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx() == java.awt.event.InputEvent.META_DOWN_MASK
                 ? "⌘F" : "Ctrl+F";
-    }
-
-    private DumbAwareAction action(@NotNull String text, @NotNull String description,
-                                   javax.swing.Icon icon, @NotNull Runnable run) {
-        return new DumbAwareAction(text, description, icon) {
-            @Override
-            public void actionPerformed(@NotNull AnActionEvent e) {
-                run.run();
-            }
-        };
-    }
-
-    private ToggleAction toggle(@NotNull String text, @NotNull String description,
-                                @NotNull java.util.function.Supplier<javax.swing.Icon> icon,
-                                @NotNull java.util.function.BooleanSupplier state,
-                                @NotNull Runnable toggle) {
-        return new ToggleAction(text, description, icon.get()) {
-            @Override
-            public boolean isSelected(@NotNull AnActionEvent e) {
-                return state.getAsBoolean();
-            }
-
-            @Override
-            public void setSelected(@NotNull AnActionEvent e, boolean requested) {
-                if (requested != state.getAsBoolean()) toggle.run();
-            }
-
-            @Override
-            public void update(@NotNull AnActionEvent e) {
-                super.update(e);
-                e.getPresentation().setIcon(icon.get());
-            }
-
-            @Override
-            public @NotNull ActionUpdateThread getActionUpdateThread() {
-                return ActionUpdateThread.EDT;
-            }
-        };
     }
 
     private void installSearchShortcut() {
@@ -260,7 +176,7 @@ public final class LineageProjectPanel extends JPanel {
     }
 
     private void update() {
-        cardLayout.show(cards, model.graph().isEmpty() ? CARD_EMPTY : CARD_BODY);
+        cards.showEmpty(model.graph().isEmpty());
         boolean hasSelection = model.selectedId() != null;
         String selectionKey = String.valueOf(model.selectedId());
         if (hasSelection && !selectionKey.equals(lastSelectionKey)) {
@@ -269,14 +185,5 @@ public final class LineageProjectPanel extends JPanel {
         lastSelectionKey = selectionKey;
         boolean showDetails = hasSelection && !detailsCollapsed && !model.graph().isEmpty();
         detailsSplitter.setSecondComponent(showDetails ? detailsPanel : null);
-    }
-
-    private JPanel buildEmptyCard() {
-        JPanel panel = new JPanel(new GridBagLayout());
-        panel.setBackground(UIUtil.getPanelBackground());
-        JBLabel label = new JBLabel("Compile the Dataform project to see the lineage.", SwingConstants.CENTER);
-        label.setForeground(JBColor.GRAY);
-        panel.add(label);
-        return panel;
     }
 }

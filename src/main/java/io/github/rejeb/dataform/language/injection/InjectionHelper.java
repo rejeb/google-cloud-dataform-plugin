@@ -16,11 +16,15 @@
  */
 package io.github.rejeb.dataform.language.injection;
 
+import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiElement;
+import com.intellij.psi.PsiFile;
 import com.intellij.psi.tree.IElementType;
 import com.intellij.psi.util.PsiTreeUtil;
 import io.github.rejeb.dataform.language.psi.SharedTokenTypes;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -43,6 +47,17 @@ public class InjectionHelper {
             return true;
         });
         return result;
+    }
+
+    /**
+     * @return the leaf at the offset of the host file, taken from the injected file at that offset
+     * when there is one
+     */
+    @Nullable
+    public static PsiElement elementAt(@NotNull PsiFile file, int offset) {
+        PsiElement injected = InjectedLanguageManager.getInstance(file.getProject())
+                .findInjectedElementAt(file, offset);
+        return injected != null ? injected : file.findElementAt(offset);
     }
 
     public static boolean hasOverlappingRanges(List<TextRange> ranges) {

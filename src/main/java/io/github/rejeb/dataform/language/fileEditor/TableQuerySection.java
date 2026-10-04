@@ -16,107 +16,33 @@
  */
 package io.github.rejeb.dataform.language.fileEditor;
 
-import com.intellij.icons.AllIcons;
 import com.intellij.openapi.fileTypes.FileType;
 import com.intellij.openapi.project.Project;
-import com.intellij.ui.components.JBTextField;
-import com.intellij.util.ui.JBUI;
-import com.intellij.util.ui.UIUtil;
-import io.github.rejeb.dataform.language.ui.ReadOnlyTextFields;
 
-import javax.swing.*;
-import java.awt.*;
+import java.util.List;
 
-class TableQuerySection extends JPanel {
+class TableQuerySection extends CollapsibleSection {
 
     private final FormattedCompiledQuery query;
-    private final QuerySection preOpsSection;
-    private final QuerySection incrementalPreOpsSection;
     private final QuerySection querySection;
-    private final QuerySection postOpsSection;
-    private final QuerySection errorsSection;
-    private final JPanel contentPanel;
-    private boolean expanded = true;
-    private final JPanel header;
+    private final List<QuerySection> sections;
 
     TableQuerySection(FormattedCompiledQuery query, FileType fileType, Project project) {
-        super(new BorderLayout());
+        super(query.tableName(), verticalPanel());
         this.query = query;
-        setOpaque(false);
-        setBorder(JBUI.Borders.emptyBottom(8));
-
-        header = new JPanel(new BorderLayout());
-        header.setOpaque(true);
-        header.setBackground(UIUtil.getPanelBackground().brighter());
-        header.setBorder(JBUI.Borders.empty(5, 8));
-        header.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-
-        JLabel toggleIcon = new JLabel(AllIcons.General.ArrowDown);
-        JBTextField tableLabel = ReadOnlyTextFields.singleLine(
-                query.tableName() != null ? query.tableName() : "Unknown table", header.getBackground());
-        tableLabel.setFont(JBUI.Fonts.label(12).asBold());
-        tableLabel.setBorder(JBUI.Borders.emptyLeft(6));
-
-        JPanel title = new JPanel(new BorderLayout());
-        title.setOpaque(false);
-        title.add(toggleIcon, BorderLayout.WEST);
-        title.add(tableLabel, BorderLayout.CENTER);
-        header.add(title, BorderLayout.WEST);
-
-        preOpsSection = new QuerySection("Pre Operations", fileType, project, false);
-        incrementalPreOpsSection = new QuerySection("Incremental Pre Operations", fileType, project, false);
+        QuerySection preOps = new QuerySection("Pre Operations", fileType, project, false);
+        QuerySection incrementalPreOps = new QuerySection("Incremental Pre Operations", fileType, project, false);
         querySection = new QuerySection("Query", fileType, project, false);
-        postOpsSection = new QuerySection("Post Operations", fileType, project, false);
-        errorsSection = new QuerySection("Compilation Errors", null, project, true);
+        QuerySection postOps = new QuerySection("Post Operations", fileType, project, false);
+        QuerySection errors = new QuerySection("Compilation Errors", null, project, true);
+        sections = List.of(preOps, incrementalPreOps, querySection, postOps, errors);
+        sections.forEach(content()::add);
 
-        contentPanel = new JPanel();
-        contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
-        contentPanel.setOpaque(false);
-        contentPanel.setBorder(JBUI.Borders.empty(8, 12, 4, 12));
-        contentPanel.add(preOpsSection);
-        contentPanel.add(incrementalPreOpsSection);
-        contentPanel.add(querySection);
-        contentPanel.add(postOpsSection);
-        contentPanel.add(errorsSection);
-
-        add(header, BorderLayout.NORTH);
-        add(contentPanel, BorderLayout.CENTER);
-
-        preOpsSection.setContent(query.preOps());
-        incrementalPreOpsSection.setContent(query.incrementalPreOps());
+        preOps.setContent(query.preOps());
+        incrementalPreOps.setContent(query.incrementalPreOps());
         querySection.setContent(query.query());
-        postOpsSection.setContent(query.postOps());
-        errorsSection.setContent(query.compilationErrors());
-
-        header.addMouseListener(new java.awt.event.MouseAdapter() {
-            @Override
-            public void mouseClicked(java.awt.event.MouseEvent e) {
-                expanded = !expanded;
-                contentPanel.setVisible(expanded);
-                toggleIcon.setIcon(expanded ? AllIcons.General.ArrowDown : AllIcons.General.ArrowRight);
-                JComponent parent = (JComponent) getParent();
-                if (parent != null) parent.revalidate();
-                revalidate();
-                repaint();
-            }
-        });
-    }
-
-    @Override
-    public Dimension getPreferredSize() {
-        if (!expanded) {
-            Dimension h = header.getPreferredSize();
-            Insets ins = getInsets();
-            return new Dimension(super.getPreferredSize().width, h.height + ins.top + ins.bottom);
-        }
-        return super.getPreferredSize();
-    }
-
-    @Override
-    public Dimension getMaximumSize() {
-        return expanded
-                ? new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE)
-                : new Dimension(Integer.MAX_VALUE, getPreferredSize().height);
+        postOps.setContent(query.postOps());
+        errors.setContent(query.compilationErrors());
     }
 
     public QuerySection getQuerySection() {
@@ -128,10 +54,6 @@ class TableQuerySection extends JPanel {
     }
 
     public void dispose() {
-        preOpsSection.dispose();
-        incrementalPreOpsSection.dispose();
-        querySection.dispose();
-        postOpsSection.dispose();
-        errorsSection.dispose();
+        sections.forEach(QuerySection::dispose);
     }
 }

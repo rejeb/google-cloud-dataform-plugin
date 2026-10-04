@@ -16,15 +16,20 @@
  */
 package io.github.rejeb.dataform.language.evaluation;
 
+import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.lang.javascript.psi.JSCallExpression;
 import com.intellij.lang.javascript.psi.JSExpression;
 import com.intellij.lang.javascript.psi.JSReferenceExpression;
 import com.intellij.lang.javascript.psi.ecma6.JSStringTemplateExpression;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiElement;
+import com.intellij.psi.PsiFile;
 import com.intellij.psi.util.PsiTreeUtil;
 import io.github.rejeb.dataform.language.injection.SqlxJsQueryInjector;
 import io.github.rejeb.dataform.language.psi.SharedTokenTypes;
+import io.github.rejeb.dataform.language.psi.SqlxConfigBlock;
+import io.github.rejeb.dataform.language.psi.SqlxFile;
+import io.github.rejeb.dataform.language.psi.SqlxJsBlock;
 import io.github.rejeb.dataform.language.psi.SqlxJsLiteralExpression;
 import io.github.rejeb.dataform.language.psi.SqlxSqlBlock;
 import org.jetbrains.annotations.NotNull;
@@ -56,6 +61,63 @@ public final class DataformExpressionCollector {
     private static final String TEMPLATE_SUFFIX = "}";
 
     private DataformExpressionCollector() {
+    }
+
+    /**
+     * The expressions of a file whose values the plugin evaluates or shows, in host coordinates: the
+     * templates of a SQLX file and the references of the JavaScript of its {@code config} and
+     * {@code js} blocks, or the template substitutions and references of a JavaScript file.
+     *
+     * @param hostFile     the SQLX or JavaScript file
+     * @param includeNames the global names of the includes of its project
+     * @param kinds        the kinds to collect, the others never being computed
+     * @return the expressions, in document order per kind and block
+     */
+    @NotNull
+    public static List<DataformExpression> inHostFile(@NotNull PsiFile hostFile, @NotNull Set<String> includeNames,
+                                                      @NotNull Set<DataformExpressionKind> kinds) {
+        List<DataformExpression> expressions = new ArrayList<>();
+        if (hostFile instanceof SqlxFile) {
+            if (kinds.contains(DataformExpressionKind.SQLX_TEMPLATE)) expressions.addAll(collectSqlxTemplates(hostFile));
+            InjectedLanguageManager manager = InjectedLanguageManager.getInstance(hostFile.getProject());
+            for (PsiElement block : PsiTreeUtil.findChildrenOfAnyType(hostFile, SqlxConfigBlock.class, SqlxJsBlock.class)) {
+                manager.enumerate(block, (injected, places) -> expressions.addAll(
+                        inHostCoordinates(manager, references(injected, includeNames, kinds))));
+            }
+        } else {
+            if (kinds.contains(DataformExpressionKind.JS_TEMPLATE_SUBSTITUTION)) {
+                expressions.addAll(collectJsTemplateSubstitutions(hostFile));
+            }
+            references(hostFile, includeNames, kinds).forEach(part -> expressions.add(part.expression()));
+        }
+        return expressions;
+    }
+
+    /**
+     * Maps collected parts to host coordinates. Identity for the parts of a non-injected root.
+     *
+     * @param manager the injected language manager of the project
+     * @param parts   the parts collected in an injected or host file
+     * @return the expressions of the parts, with their ranges in the host document
+     */
+    @NotNull
+    public static List<DataformExpression> inHostCoordinates(@NotNull InjectedLanguageManager manager,
+                                                             @NotNull List<FoldablePart> parts) {
+        return parts.stream().map(part -> new DataformExpression(part.expression().source(),
+                part.expression().hostText(), manager.injectedToHost(part.element(), part.expression().hostRange()),
+                part.expression().kind())).toList();
+    }
+
+    private static @NotNull List<FoldablePart> references(@NotNull PsiElement root, @NotNull Set<String> includeNames,
+                                                          @NotNull Set<DataformExpressionKind> kinds) {
+        List<FoldablePart> parts = new ArrayList<>();
+        if (kinds.contains(DataformExpressionKind.INCLUDES_REFERENCE) && !includeNames.isEmpty()) {
+            parts.addAll(collectIncludesReferenceElements(root, includeNames));
+        }
+        if (kinds.contains(DataformExpressionKind.WORKFLOW_SETTINGS_REFERENCE)) {
+            parts.addAll(collectWorkflowSettingsReferenceElements(root));
+        }
+        return parts;
     }
 
     /**

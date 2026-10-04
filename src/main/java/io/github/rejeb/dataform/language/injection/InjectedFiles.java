@@ -22,6 +22,10 @@ import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.util.PsiTreeUtil;
+import io.github.rejeb.dataform.language.psi.SharedTokenTypes;
+import io.github.rejeb.dataform.language.psi.SqlxJsBlock;
+import io.github.rejeb.dataform.language.psi.SqlxJsLiteralExpression;
+import io.github.rejeb.dataform.language.psi.SqlxSqlBlock;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -40,9 +44,28 @@ public final class InjectedFiles {
     }
 
     /** The files injected into every host of a kind held by {@code hostFile}. */
-    public static @NotNull List<PsiFile> inside(@NotNull PsiFile hostFile,
+    public static @NotNull List<PsiFile> inside(@NotNull PsiElement hostFile,
                                                 @NotNull Class<? extends PsiElement> hostType) {
         return of(PsiTreeUtil.findChildrenOfType(hostFile, hostType));
+    }
+
+    /** The JavaScript injected into the JS blocks and the template expressions of a SQLX file. */
+    public static @NotNull List<PsiFile> javaScriptOf(@NotNull PsiFile hostFile) {
+        List<PsiElement> hosts = new ArrayList<>(PsiTreeUtil.findChildrenOfType(hostFile, SqlxJsBlock.class));
+        hosts.addAll(PsiTreeUtil.findChildrenOfType(hostFile, SqlxJsLiteralExpression.class));
+        return of(hosts);
+    }
+
+    /** The SQL injected into the block holding the query the action is built from. */
+    public static @NotNull List<PsiFile> mainSql(@NotNull PsiFile hostFile) {
+        return of(PsiTreeUtil.findChildrenOfType(hostFile, SqlxSqlBlock.class).stream()
+                .filter(block -> block.getNode().getElementType() == SharedTokenTypes.SQL_CONTENT)
+                .toList());
+    }
+
+    /** The SQL injected into every SQL block of a SQLX file, operations included. */
+    public static @NotNull List<PsiFile> allSql(@NotNull PsiFile hostFile) {
+        return inside(hostFile, SqlxSqlBlock.class);
     }
 
     /** The files injected into the given hosts, each listed once and in order. */

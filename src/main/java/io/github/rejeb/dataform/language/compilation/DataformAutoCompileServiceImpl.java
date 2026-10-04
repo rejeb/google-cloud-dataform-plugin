@@ -29,9 +29,8 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.concurrency.AppExecutorUtil;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
-import io.github.rejeb.dataform.language.diagnostics.CompilationDiagnosticService;
 import io.github.rejeb.dataform.language.diagnostics.DataformEditorRefresher;
-import io.github.rejeb.dataform.language.diagnostics.ValidationProblemInlayManager;
+import io.github.rejeb.dataform.language.diagnostics.compile.CompilationProblemsService;
 import io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService;
 import io.github.rejeb.dataform.language.settings.DataformToolsSettings;
 import io.github.rejeb.dataform.language.util.DataformProjectLayout;
@@ -184,9 +183,8 @@ public final class DataformAutoCompileServiceImpl implements DataformAutoCompile
     }
 
     private void refreshEditors() {
-        CompilationDiagnosticService.getInstance(project).invalidate();
-        ValidationProblemInlayManager.getInstance(project).refreshAll();
-        DataformEditorRefresher.refresh(project);
+        CompilationProblemsService.getInstance(project).invalidate();
+        DataformEditorRefresher.refreshWithInlays(project);
         ApplicationManager.getApplication().invokeLater(() -> {
             if (!project.isDisposed()) {
                 ProjectView.getInstance(project).refresh();

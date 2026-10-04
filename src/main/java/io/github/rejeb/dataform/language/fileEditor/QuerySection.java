@@ -17,8 +17,6 @@
 package io.github.rejeb.dataform.language.fileEditor;
 
 import com.intellij.openapi.command.WriteCommandAction;
-import com.intellij.openapi.editor.Document;
-import com.intellij.openapi.editor.EditorFactory;
 import com.intellij.openapi.editor.ex.EditorEx;
 import com.intellij.openapi.editor.highlighter.EditorHighlighterFactory;
 import com.intellij.openapi.fileTypes.FileType;
@@ -27,11 +25,11 @@ import com.intellij.openapi.project.Project;
 import com.intellij.ui.JBColor;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
-
+import io.github.rejeb.dataform.language.ui.ReadOnlyEditors;
 import org.jetbrains.annotations.Nullable;
 
-import javax.swing.*;
 import java.awt.*;
+import javax.swing.*;
 
 class QuerySection extends JPanel {
 
@@ -81,8 +79,7 @@ class QuerySection extends JPanel {
 
     private EditorEx ensureEditor() {
         if (editor == null) {
-            Document doc = EditorFactory.getInstance().createDocument("");
-            editor = (EditorEx) EditorFactory.getInstance().createEditor(doc, project, fileType, true);
+            editor = ReadOnlyEditors.viewer(project, "", fileType);
             editor.getSettings().setLineNumbersShown(!isError);
             editor.getSettings().setFoldingOutlineShown(false);
             editor.setHighlighter(
@@ -99,10 +96,8 @@ class QuerySection extends JPanel {
     }
 
     void dispose() {
-        if (editor != null) {
-            EditorFactory.getInstance().releaseEditor(editor);
-            editor = null;
-        }
+        ReadOnlyEditors.release(editor);
+        editor = null;
     }
 
     /**

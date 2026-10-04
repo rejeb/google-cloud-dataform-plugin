@@ -19,7 +19,9 @@ package io.github.rejeb.dataform.language.folding;
 import com.intellij.psi.PsiFile;
 import io.github.rejeb.dataform.language.evaluation.DataformExpression;
 import io.github.rejeb.dataform.language.evaluation.DataformExpressionCollector;
+import io.github.rejeb.dataform.language.evaluation.DataformExpressionKind;
 
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 
@@ -41,8 +43,8 @@ public class DataformIncludesReferenceFoldingTest extends DataformFoldingTestCas
         myFixture.configureFromExistingVirtualFile(file.getVirtualFile());
         myFixture.doHighlighting();
 
-        List<DataformExpression> expressions = DataformInjectedExpressions.includesReferences(
-                file, Set.of("team_player_stat_columns_descriptions"));
+        List<DataformExpression> expressions = DataformExpressionCollector.inHostFile(file, Set.of("team_player_stat_columns_descriptions"),
+                EnumSet.of(DataformExpressionKind.INCLUDES_REFERENCE));
 
         assertEquals("got " + expressions, 1, expressions.size());
         assertEquals("team_player_stat_columns_descriptions.columns_descriptions",

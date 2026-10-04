@@ -16,6 +16,7 @@
  */
 package io.github.rejeb.dataform.language.diagnostics.sql.bigquery;
 
+import com.intellij.util.text.CharArrayUtil;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -38,12 +39,12 @@ public final class QueryPositions {
         if (line < 1 || column < 1) return -1;
         int at = 0;
         for (int current = 1; current < line; current++) {
-            int end = lineEnd(query, at);
+            int end = CharArrayUtil.shiftForwardUntil(query, at, "\n\r");
             if (end >= query.length()) return -1;
             boolean crlf = query.charAt(end) == '\r' && end + 1 < query.length() && query.charAt(end + 1) == '\n';
             at = end + (crlf ? 2 : 1);
         }
-        int lineEnd = lineEnd(query, at);
+        int lineEnd = CharArrayUtil.shiftForwardUntil(query, at, "\n\r");
         int visual = 1;
         while (at < lineEnd) {
             int next = query.charAt(at) == '\t' ? visual + TAB_WIDTH - (visual - 1) % TAB_WIDTH : visual + 1;
@@ -51,12 +52,6 @@ public final class QueryPositions {
             visual = next;
             at++;
         }
-        return at;
-    }
-
-    private static int lineEnd(@NotNull CharSequence text, int from) {
-        int at = from;
-        while (at < text.length() && text.charAt(at) != '\n' && text.charAt(at) != '\r') at++;
         return at;
     }
 }

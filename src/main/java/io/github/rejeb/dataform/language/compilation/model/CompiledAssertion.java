@@ -21,7 +21,7 @@ import io.github.rejeb.dataform.language.util.DataformPaths;
 import java.util.Collections;
 import java.util.List;
 
-public class CompiledAssertion {
+public class CompiledAssertion implements ExecutableAction {
     private Target target;
     private String query;
     private boolean disabled;
@@ -29,6 +29,7 @@ public class CompiledAssertion {
     private List<String> tags;
     private List<Target> dependencyTargets;
 
+    @Override
     public Target getTarget() {
         return target;
     }
@@ -37,23 +38,23 @@ public class CompiledAssertion {
         return query.trim();
     }
 
+    @Override
     public boolean isDisabled() {
         return disabled;
     }
 
+    @Override
     public String getFileName() {
         return DataformPaths.normalize(fileName);
     }
 
+    @Override
     public List<String> getTags() {
         return tags != null ? tags : Collections.emptyList();
     }
 
+    @Override
     public List<Target> getDependencyTargets() {
         return dependencyTargets != null ? dependencyTargets : Collections.emptyList();
-    }
-
-    public boolean matchFileName(String fileName){
-        return DataformPaths.pointsTo(fileName, this.fileName);
     }
 }

@@ -18,15 +18,16 @@ package io.github.rejeb.dataform.language.evaluation;
 
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
+import com.intellij.psi.util.PsiTreeUtil;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.compilation.model.ProjectConfig;
 import io.github.rejeb.dataform.language.compilation.model.Target;
-import com.intellij.psi.PsiElement;
-import com.intellij.psi.util.PsiTreeUtil;
 import io.github.rejeb.dataform.language.index.DataformJsFileIndex;
 import io.github.rejeb.dataform.language.psi.SqlxJsBlock;
+import io.github.rejeb.dataform.language.service.DataformProjectDefaults;
 import io.github.rejeb.dataform.language.service.WorkflowSettingsProperty;
 import io.github.rejeb.dataform.language.service.WorkflowSettingsService;
 import io.github.rejeb.dataform.language.setup.NodeInterpreterManager;
@@ -85,12 +86,13 @@ public final class DataformEvaluationContextBuilder {
                                                      @Nullable CompiledGraph graph,
                                                      @NotNull PsiFile file) {
         Map<String, Object> config = new HashMap<>(fromWorkflowSettings(project, file));
+        DataformProjectDefaults defaults = DataformProjectDefaults.of(project, file.getVirtualFile(), graph);
+        putIfNotNull(config, "defaultDatabase", defaults.database());
+        putIfNotNull(config, "defaultSchema", defaults.schema());
+        putIfNotNull(config, "assertionSchema", defaults.assertionSchema());
+        putIfNotNull(config, "defaultLocation", defaults.location());
         ProjectConfig compiled = graph == null ? null : graph.getProjectConfig();
         if (compiled != null) {
-            putIfNotNull(config, "defaultDatabase", compiled.getDefaultDatabase());
-            putIfNotNull(config, "defaultSchema", compiled.getDefaultSchema());
-            putIfNotNull(config, "assertionSchema", compiled.getAssertionSchema());
-            putIfNotNull(config, "defaultLocation", compiled.getDefaultLocation());
             putIfNotNull(config, "warehouse", compiled.getWarehouse());
             mergeVars(config, compiled.getVars());
         }
@@ -132,14 +134,8 @@ public final class DataformEvaluationContextBuilder {
         if (projectConfig == null || projectConfig.children() == null) {
             return config;
         }
-        projectConfig.children().forEach((name, property) -> {
-            String target = SETTINGS_TO_PROJECT_CONFIG.getOrDefault(name, name);
-            if (property.hasChildren()) {
-                config.put(target, toPlainMap(property.children()));
-            } else if (property.value() != null) {
-                config.put(target, property.value());
-            }
-        });
+        toPlainMap(projectConfig.children()).forEach((name, value) ->
+                config.put(SETTINGS_TO_PROJECT_CONFIG.getOrDefault(name, name), value));
         return config;
     }
 

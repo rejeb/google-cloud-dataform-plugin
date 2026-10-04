@@ -17,69 +17,31 @@
 package io.github.rejeb.dataform.language.fileEditor;
 
 import com.intellij.openapi.project.Project;
-import com.intellij.ui.components.JBScrollPane;
-import com.intellij.util.ui.JBUI;
-import com.intellij.util.ui.UIUtil;
-import io.github.rejeb.dataform.language.fileEditor.lineage.LineageGraph;
 import io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService;
-import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasTable;
 
-import javax.swing.*;
-import java.awt.*;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public class SchemaPanel extends JPanel {
+public class SchemaPanel extends SectionsPreviewPanel {
 
     private final Project project;
-    private final JPanel sectionsPanel;
-    private final List<TableSchemaSection> sections = new ArrayList<>();
 
     public SchemaPanel(Project project) {
-        super(new BorderLayout());
         this.project = project;
-        setOpaque(true);
-        setBackground(UIUtil.getPanelBackground());
-
-        sectionsPanel = new JPanel();
-        sectionsPanel.setLayout(new BoxLayout(sectionsPanel, BoxLayout.Y_AXIS));
-        sectionsPanel.setOpaque(false);
-        sectionsPanel.setBorder(JBUI.Borders.empty(8, 10));
-
-        JBScrollPane scroll = new JBScrollPane(sectionsPanel);
-        scroll.setBorder(JBUI.Borders.empty());
-        add(scroll, BorderLayout.CENTER);
     }
 
-    public void setContent(List<LineageGraph> tables) {
-        sections.forEach(TableSchemaSection::dispose);
-        sections.clear();
+    public void setContent(List<GraphTarget> tables) {
         sectionsPanel.removeAll();
-
-        if (tables == null || tables.isEmpty()) {
-            sectionsPanel.revalidate();
-            sectionsPanel.repaint();
-            return;
+        if (tables != null && !tables.isEmpty()) {
+            Map<String, DataformDasTable> allTables = DataformTableSchemaService.getInstance(project).getAllTables();
+            for (GraphTarget q : tables) {
+                DataformDasTable table = q.fullName() != null ? allTables.get(q.fullName()) : null;
+                sectionsPanel.add(new TableSchemaSection(String.format("%s: %s", q.type(), q.name()),
+                        table != null ? table.getColumns() : null));
+            }
         }
-
-        DataformTableSchemaService schemaService = DataformTableSchemaService.getInstance(project);
-        Map<String, DataformDasTable> allTables = schemaService.getAllTables();
-
-        for (LineageGraph q : tables) {
-            String tableName = q.targetTable().fullName();
-            String displayName = String.format("%s: %s", q.targetTable().type(), q.targetTable().name());
-            DataformDasTable table = tableName != null ? allTables.get(tableName) : null;
-            List<ColumnInfo> schema = table != null ? table.getColumns() : null;
-
-            TableSchemaSection section = new TableSchemaSection(displayName, schema);
-            sections.add(section);
-            sectionsPanel.add(section);
-        }
-
         sectionsPanel.revalidate();
         sectionsPanel.repaint();
     }
-
 }

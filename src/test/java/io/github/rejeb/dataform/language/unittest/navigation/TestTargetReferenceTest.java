@@ -25,7 +25,7 @@ import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.psi.search.searches.ReferencesSearch;
 import io.github.rejeb.dataform.language.diagnostics.compile.ConfigSchemaFixture;
-import io.github.rejeb.dataform.language.refactoring.column.ColumnRenameFixture;
+import io.github.rejeb.dataform.language.columns.rename.ColumnRenameFixture;
 
 import java.util.List;
 

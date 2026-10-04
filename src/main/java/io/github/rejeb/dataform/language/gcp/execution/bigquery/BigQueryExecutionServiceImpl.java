@@ -18,22 +18,19 @@ package io.github.rejeb.dataform.language.gcp.execution.bigquery;
 
 import com.google.cloud.bigquery.*;
 import com.intellij.openapi.diagnostic.Logger;
-import com.intellij.openapi.project.Project;
+import com.intellij.openapi.progress.ProcessCanceledException;
+import com.intellij.openapi.progress.ProgressIndicator;
 import io.github.rejeb.dataform.language.gcp.auth.AuthTrigger;
 import io.github.rejeb.dataform.language.gcp.auth.GcpAuthErrors;
+import io.github.rejeb.dataform.language.gcp.auth.GcpCalls;
 import io.github.rejeb.dataform.language.util.GcpClientsUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import com.intellij.openapi.progress.ProgressIndicator;
-import com.intellij.openapi.progress.ProcessCanceledException;
 
 public final class BigQueryExecutionServiceImpl implements BigQueryExecutionService {
 
     private static final Logger LOG = Logger.getInstance(BigQueryExecutionServiceImpl.class);
     private static final long POLL_INTERVAL_MS = 500;
-
-    public BigQueryExecutionServiceImpl(@NotNull Project project) {
-    }
 
     @Override
     public @NotNull BigQueryJobResult execute(
@@ -44,11 +41,11 @@ public final class BigQueryExecutionServiceImpl implements BigQueryExecutionServ
     ) {
         Job submitted = null;
         try {
-            BigQuery bigQuery = GcpClientsUtils.bigQuery(projectId);
             QueryJobConfiguration config = QueryJobConfiguration.newBuilder(sql)
                     .setUseLegacySql(false)
                     .build();
-            submitted = bigQuery.create(JobInfo.of(config));
+            submitted = GcpCalls.execute(AuthTrigger.USER_ACTION,
+                    () -> GcpClientsUtils.bigQuery(projectId).create(JobInfo.of(config)));
             Job job = waitFor(submitted, indicator);
             if (job == null) {
                 return failure(tableName, "Job no longer exists after submission");

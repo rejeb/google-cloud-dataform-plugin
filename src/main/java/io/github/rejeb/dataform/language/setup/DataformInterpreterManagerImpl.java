@@ -25,8 +25,9 @@ import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VirtualFile;
-import io.github.rejeb.dataform.language.util.DataformPaths;
 import io.github.rejeb.dataform.language.settings.DataformToolsSettings;
+import io.github.rejeb.dataform.language.util.DataformPaths;
+import io.github.rejeb.dataform.language.util.NodeJsNpmUtils;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
@@ -85,9 +86,7 @@ public final class DataformInterpreterManagerImpl implements DataformInterpreter
         Path nodeBinDir = nodeInterpreterManager.nodeBinDir();
         if (nodeBinDir == null) return Optional.empty();
 
-        String pathEnv = nodeBinDir.toAbsolutePath() +
-                File.pathSeparator +
-                System.getenv("PATH");
+        String pathEnv = NodeJsNpmUtils.pathWith(nodeBinDir);
 
         Optional<GeneralCommandLine> nodeCommand =
                 buildNodeCommand(nodeBinDir, nodeInterpreterManager.nodeModulesDir(), pathEnv, arguments);
@@ -113,7 +112,6 @@ public final class DataformInterpreterManagerImpl implements DataformInterpreter
             cmd.getEnvironment().put("PATH", pathEnv);
             return Optional.of(cmd);
         }
-
     }
 
     private Optional<GeneralCommandLine> buildNodeCommand(@NotNull Path nodeBinDir,
@@ -122,7 +120,7 @@ public final class DataformInterpreterManagerImpl implements DataformInterpreter
                                                           @NotNull List<String> arguments) {
         if (nodeModulesDir == null) return Optional.empty();
 
-        Path nodeExecutable = nodeBinDir.resolve(SystemInfo.isWindows ? "node.exe" : "node");
+        Path nodeExecutable = NodeJsNpmUtils.nodeExecutable(nodeBinDir);
         if (!nodeExecutable.toFile().isFile()) return Optional.empty();
 
         Optional<Path> cliEntry = resolveCliEntryPoint(nodeModulesDir.resolve("@dataform").resolve("cli"));

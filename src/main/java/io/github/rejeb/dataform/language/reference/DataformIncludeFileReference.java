@@ -26,7 +26,6 @@ import io.github.rejeb.dataform.language.index.DataformJsFileIndex;
 import io.github.rejeb.dataform.language.psi.SqlxFile;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.jspecify.annotations.NonNull;
 
 import java.util.List;
 import java.util.Map;
@@ -67,10 +66,5 @@ public class DataformIncludeFileReference extends PsiReferenceBase<PsiElement> {
         }
 
         return null;
-    }
-
-    @Override
-    public Object @NonNull [] getVariants() {
-        return new Object[0];
     }
 }

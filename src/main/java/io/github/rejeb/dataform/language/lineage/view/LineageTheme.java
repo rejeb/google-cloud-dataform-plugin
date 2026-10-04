@@ -60,10 +60,6 @@ public final class LineageTheme {
         return new JBColor(new Color(0xB0B3BA), new Color(0x4E5157));
     }
 
-    public static @NotNull Color translucent(@NotNull Color base, int alpha) {
-        return new Color(base.getRed(), base.getGreen(), base.getBlue(), alpha);
-    }
-
     public static @NotNull Color typeColor(@Nullable String type) {
         String t = type == null ? "" : type.toLowerCase();
         return switch (t) {

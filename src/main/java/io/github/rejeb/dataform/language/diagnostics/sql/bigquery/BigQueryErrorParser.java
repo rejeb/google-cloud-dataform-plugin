@@ -16,6 +16,7 @@
  */
 package io.github.rejeb.dataform.language.diagnostics.sql.bigquery;
 
+import io.github.rejeb.dataform.language.diagnostics.MessageRule;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -42,46 +43,39 @@ public final class BigQueryErrorParser {
             + "|(?<end>end of (?:script|statement|input))"
             + "|(?<other>.+))";
 
-    private record Rule(@NotNull BigQueryErrorKind kind, @NotNull Pattern pattern) {
+    private static final List<MessageRule<BigQueryErrorKind>> SYNTAX_RULES = List.of(
+            MessageRule.of(UNEXPECTED_END, "^Unexpected end of (?:script|statement|input)$"),
+            MessageRule.of(UNCLOSED_STRING, "^Unclosed (?:triple-quoted )?(?:string|bytes) literal$"),
+            MessageRule.of(ILLEGAL_CHARACTER, "^Illegal input character \"(?<other>.+)\"$"),
+            MessageRule.of(EXPECTED_END_OF_INPUT, "^Expected end of input but got " + TOKEN + "$"),
+            MessageRule.of(UNCLOSED_PARENTHESIS, "^Expected \"\\)\"(?: or .+?)? but got " + TOKEN + "$"),
+            MessageRule.of(UNEXPECTED_TOKEN, "^Expected (?<qualifier>.+?) but got " + TOKEN + "$"),
+            MessageRule.of(UNEXPECTED_TOKEN, "^Unexpected " + TOKEN + "$"));
 
-        static Rule of(@NotNull BigQueryErrorKind kind, @NotNull String regex) {
-            return new Rule(kind, Pattern.compile(regex));
-        }
-    }
-
-    private static final List<Rule> SYNTAX_RULES = List.of(
-            Rule.of(UNEXPECTED_END, "^Unexpected end of (?:script|statement|input)$"),
-            Rule.of(UNCLOSED_STRING, "^Unclosed (?:triple-quoted )?(?:string|bytes) literal$"),
-            Rule.of(ILLEGAL_CHARACTER, "^Illegal input character \"(?<other>.+)\"$"),
-            Rule.of(EXPECTED_END_OF_INPUT, "^Expected end of input but got " + TOKEN + "$"),
-            Rule.of(UNCLOSED_PARENTHESIS, "^Expected \"\\)\"(?: or .+?)? but got " + TOKEN + "$"),
-            Rule.of(UNEXPECTED_TOKEN, "^Expected (?<qualifier>.+?) but got " + TOKEN + "$"),
-            Rule.of(UNEXPECTED_TOKEN, "^Unexpected " + TOKEN + "$"));
-
-    private static final List<Rule> RULES = List.of(
-            Rule.of(UNRECOGNIZED_NAME, "^Unrecognized name: (?<subject>.+)$"),
-            Rule.of(NAME_NOT_FOUND_INSIDE, "^Name (?<subject>\\S+) not found inside (?<qualifier>\\S+)$"),
-            Rule.of(FIELD_NOT_FOUND, "^Field name (?<subject>\\S+) does not exist in (?<qualifier>.+)$"),
-            Rule.of(FUNCTION_NOT_FOUND, "^Function not found: (?<subject>.+)$"),
-            Rule.of(TABLE_NOT_FOUND, "^Not found: (?:Table|View|Dataset) (?<subject>\\S+?)"
+    private static final List<MessageRule<BigQueryErrorKind>> RULES = List.of(
+            MessageRule.of(UNRECOGNIZED_NAME, "^Unrecognized name: (?<subject>.+)$"),
+            MessageRule.of(NAME_NOT_FOUND_INSIDE, "^Name (?<subject>\\S+) not found inside (?<qualifier>\\S+)$"),
+            MessageRule.of(FIELD_NOT_FOUND, "^Field name (?<subject>\\S+) does not exist in (?<qualifier>.+)$"),
+            MessageRule.of(FUNCTION_NOT_FOUND, "^Function not found: (?<subject>.+)$"),
+            MessageRule.of(TABLE_NOT_FOUND, "^Not found: (?:Table|View|Dataset) (?<subject>\\S+?)"
                     + "(?: was not found in location (?<qualifier>\\S+?))?\\.?$"),
-            Rule.of(TABLE_NOT_FOUND, "^Table not found: (?<subject>\\S+)$"),
-            Rule.of(MISSING_DATASET, "^Table name \"?(?<subject>[^\"\\s]+)\"? missing dataset "
+            MessageRule.of(TABLE_NOT_FOUND, "^Table not found: (?<subject>\\S+)$"),
+            MessageRule.of(MISSING_DATASET, "^Table name \"?(?<subject>[^\"\\s]+)\"? missing dataset "
                     + "while no default dataset is set in the request\\.?$"),
-            Rule.of(AMBIGUOUS_COLUMN, "^Column (?:name )?(?<subject>\\S+) is ambiguous$"),
-            Rule.of(NOT_GROUPED_OR_AGGREGATED, "^(?<qualifier>.+?) expression references (?:column )?"
+            MessageRule.of(AMBIGUOUS_COLUMN, "^Column (?:name )?(?<subject>\\S+) is ambiguous$"),
+            MessageRule.of(NOT_GROUPED_OR_AGGREGATED, "^(?<qualifier>.+?) expression references (?:column )?"
                     + "(?<subject>\\S+) which is neither grouped nor aggregated$"),
-            Rule.of(AGGREGATE_NOT_ALLOWED, "^Aggregate function (?<subject>\\S+) not allowed in "
+            MessageRule.of(AGGREGATE_NOT_ALLOWED, "^Aggregate function (?<subject>\\S+) not allowed in "
                     + "(?<qualifier>.+?)(?: clause)?$"),
-            Rule.of(ANALYTIC_NOT_ALLOWED, "^Analytic function not allowed in (?<qualifier>.+?)(?: clause)?$"),
-            Rule.of(DUPLICATE_COLUMN, "^Duplicate column names in the result are not supported\\. "
+            MessageRule.of(ANALYTIC_NOT_ALLOWED, "^Analytic function not allowed in (?<qualifier>.+?)(?: clause)?$"),
+            MessageRule.of(DUPLICATE_COLUMN, "^Duplicate column names in the result are not supported\\. "
                     + "Found duplicate\\(s\\): (?<subject>[^,\\s]+).*$"),
-            Rule.of(FIELD_ACCESS_ON_ARRAY, "^Cannot access field (?<subject>\\S+) on a value with type "
+            MessageRule.of(FIELD_ACCESS_ON_ARRAY, "^Cannot access field (?<subject>\\S+) on a value with type "
                     + "(?<qualifier>.+)$"),
-            Rule.of(NO_MATCHING_SIGNATURE, "^No matching signature for (?:aggregate |analytic )?"
+            MessageRule.of(NO_MATCHING_SIGNATURE, "^No matching signature for (?:aggregate |analytic )?"
                     + "(?:function|operator) (?<subject>\\S+?)"
                     + "(?<qualifier>(?: for argument types?:| Argument types?:).*)?$"),
-            Rule.of(ACCESS_DENIED, "^Access Denied: (?<subject>.+)$"));
+            MessageRule.of(ACCESS_DENIED, "^Access Denied: (?<subject>.+)$"));
 
     private BigQueryErrorParser() {
     }
@@ -109,14 +103,12 @@ public final class BigQueryErrorParser {
         }
         boolean syntax = message.startsWith(SYNTAX_PREFIX);
         String body = syntax ? message.substring(SYNTAX_PREFIX.length()) : message;
-        for (Rule rule : syntax ? SYNTAX_RULES : RULES) {
-            Matcher matcher = rule.pattern().matcher(body);
-            if (matcher.matches()) {
-                return new BigQueryError(rule.kind(), message, subjectOf(rule.kind(), matcher),
-                        qualifierOf(matcher), suggestion, line, column);
-            }
+        MessageRule.Match<BigQueryErrorKind> match = MessageRule.firstMatch(syntax ? SYNTAX_RULES : RULES, body);
+        if (match == null) {
+            return new BigQueryError(syntax ? SYNTAX_ERROR : OTHER, message, null, null, suggestion, line, column);
         }
-        return new BigQueryError(syntax ? SYNTAX_ERROR : OTHER, message, null, null, suggestion, line, column);
+        return new BigQueryError(match.kind(), message, subjectOf(match.kind(), match.matcher()),
+                qualifierOf(match.matcher()), suggestion, line, column);
     }
 
     private static @Nullable String subjectOf(@NotNull BigQueryErrorKind kind, @NotNull Matcher matcher) {
@@ -147,7 +139,13 @@ public final class BigQueryErrorParser {
         }
     }
 
-    private static @NotNull String unquote(@NotNull String text) {
+    /**
+     * Strips the backticks or quotes around a name quoted in a BigQuery message.
+     *
+     * @param text the name as the message writes it
+     * @return the name, trimmed and without its quotes
+     */
+    public static @NotNull String unquote(@NotNull String text) {
         String trimmed = text.trim();
         if (trimmed.length() >= 2) {
             char first = trimmed.charAt(0);

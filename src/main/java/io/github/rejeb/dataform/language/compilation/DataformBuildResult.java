@@ -16,21 +16,5 @@
  */
 package io.github.rejeb.dataform.language.compilation;
 
-public final class DataformBuildResult {
-    public final boolean succeeded;
-    public final boolean canceled;
-    public final long started;
-    public final long duration;
-    public final int errors;
-    public final String message;
-
-    public DataformBuildResult(boolean succeeded, boolean canceled, long started,
-                               long duration, int errors, String message) {
-        this.succeeded = succeeded;
-        this.canceled = canceled;
-        this.started = started;
-        this.duration = duration;
-        this.errors = errors;
-        this.message = message;
-    }
+public record DataformBuildResult(boolean succeeded, boolean canceled) {
 }

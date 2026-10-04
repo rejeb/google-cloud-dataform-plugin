@@ -1,0 +1,105 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package io.github.rejeb.dataform.language.columns.origin;
+
+import com.intellij.openapi.project.Project;
+import com.intellij.psi.PsiElement;
+import com.intellij.psi.PsiFile;
+import io.github.rejeb.dataform.language.columns.model.ColumnRef;
+import io.github.rejeb.dataform.language.schema.sql.model.DataformDasColumn;
+import io.github.rejeb.dataform.language.schema.sql.model.StructColumnPath;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.Set;
+
+/**
+ * What a select-list element means, and what a column relates to.
+ *
+ * <p>The roles are named rather than flattened into one list of targets. A resolve result is an
+ * anonymous element, and a later rename has to tell the column an element declares from the column
+ * it reads: it may rewrite the first and must not rewrite the second from this file.</p>
+ *
+ * <p>Every method answers from the last compilation and never triggers one.</p>
+ */
+public interface ColumnOriginService {
+
+    static ColumnOriginService getInstance(@NotNull Project project) {
+        return project.getService(ColumnOriginService.class);
+    }
+
+    /** The column this element declares, when it is an item of the main select list. */
+    @Nullable
+    ColumnRef declaredColumn(@NotNull PsiFile file, @NotNull PsiElement element);
+
+    /**
+     * The element declaring a column, in the file of the action building it. A column of a source
+     * is built by no action and has none: see {@link #isSource}.
+     */
+    @Nullable
+    PsiElement declaringElement(@NotNull ColumnRef column);
+
+    /**
+     * Whether a column belongs to a source: a BigQuery table the project reads but does not build,
+     * declared with {@code declare()} or a SQLX file of type {@code declaration}.
+     *
+     * <p>The code declaring a source may compute its name, in a loop or by concatenation, so no line
+     * of the project is reliably the one naming it. A source column is shown as a column of its
+     * BigQuery table and is never resolved to a place in the project.</p>
+     */
+    boolean isSource(@NotNull ColumnRef column);
+
+    /**
+     * The element declaring a schema column, whichever way the column was built.
+     *
+     * <p>A column handed out by {@code DataformDasTable#getDasChildren} carries the table's
+     * throwaway document rather than its source file, so its own navigation element is itself.
+     * Going through the compiled graph answers the same question for every column alike.</p>
+     */
+    @Nullable
+    PsiElement declaringElement(@NotNull DataformDasColumn column);
+
+    /**
+     * The element declaring the field a path ends on, in the file of the action building the column
+     * the path starts at. Answers for a path of no fields the way {@link #declaringElement(
+     * DataformDasColumn)} does.
+     */
+    @Nullable
+    PsiElement declaringElement(@NotNull StructColumnPath path);
+
+    /**
+     * The columns feeding a column directly, empty when the lineage is unknown.
+     *
+     * <p>Reads the column lineage graph, which extracts and parses SQL when it is not already
+     * built for the current compilation. Never call this from a resolve or on the EDT; the other
+     * methods of this service read the schema alone and are safe there.</p>
+     */
+    @NotNull
+    Set<ColumnRef> origins(@NotNull ColumnRef column);
+
+    /** The schema column for a reference, or {@code null} when the schema does not have it. */
+    @Nullable
+    DataformDasColumn dasColumn(@NotNull ColumnRef column);
+
+    /**
+     * The column reference a schema column stands for, or {@code null} when its table is not in the
+     * schema. The inverse of {@link #dasColumn(ColumnRef)}, needed wherever a resolve result has to
+     * be named again, as the rename does.
+     */
+    @Nullable
+    ColumnRef reference(@NotNull DataformDasColumn column);
+}

@@ -42,7 +42,12 @@ public class Utils {
      * so the caller is expected to be on the EDT and to call this only for text about to be shown.
      */
     public static String formatSql(@NotNull Project project, @NotNull String sql) {
-        return doFormat(project, sql);
+        return WriteCommandAction.writeCommandAction(project).compute(() -> {
+            PsiFile file = PsiFileFactory.getInstance(project)
+                    .createFileFromText("temp.sql", BigQueryDialect.INSTANCE, sql);
+            CodeStyleManager.getInstance(project).reformat(file);
+            return file.getText();
+        });
     }
 
     /**
@@ -70,15 +75,6 @@ public class Utils {
                 .filter(s -> !s.isBlank())
                 .map(s -> s.endsWith(";") ? s : s + ";")
                 .collect(Collectors.joining("\n"));
-    }
-
-    private static String doFormat(@NotNull Project project, @NotNull String sql) {
-        return WriteCommandAction.writeCommandAction(project).compute(() -> {
-            PsiFile file = PsiFileFactory.getInstance(project)
-                    .createFileFromText("temp.sql", BigQueryDialect.INSTANCE, sql);
-            CodeStyleManager.getInstance(project).reformat(file);
-            return file.getText();
-        });
     }
 
     public static void flushFiles(Project project) {

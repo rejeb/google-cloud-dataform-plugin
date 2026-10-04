@@ -20,7 +20,6 @@ import com.intellij.diff.DiffContentFactory;
 import com.intellij.diff.DiffManager;
 import com.intellij.diff.contents.DiffContent;
 import com.intellij.diff.requests.SimpleDiffRequest;
-import com.intellij.notification.NotificationGroupManager;
 import com.intellij.notification.NotificationType;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.command.WriteCommandAction;
@@ -41,20 +40,21 @@ import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
 import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
 import io.github.rejeb.dataform.language.gcp.toolwindow.dispatcher.GcpPanelActionDispatcher;
 import io.github.rejeb.dataform.language.gcp.workspace.UncommittedChange;
+import io.github.rejeb.dataform.language.util.DataformNotifications;
+import io.github.rejeb.dataform.language.util.DataformPaths;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jspecify.annotations.NonNull;
 
-import javax.swing.*;
-import javax.swing.tree.TreePath;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import javax.swing.*;
+import javax.swing.tree.TreePath;
 
 public class FilesView extends JPanel {
 
@@ -95,9 +95,7 @@ public class FilesView extends JPanel {
 
                     @Override
                     public void onNotification(@NotNull String message, @NotNull NotificationType type) {
-                        NotificationGroupManager.getInstance()
-                                .getNotificationGroup("Dataform.Notifications")
-                                .createNotification(message, type)
+                        DataformNotifications.create(message, type)
                                 .notify(project);
                     }
                 });
@@ -109,7 +107,6 @@ public class FilesView extends JPanel {
 
         add(topPanel, BorderLayout.NORTH);
         add(ScrollPaneFactory.createScrollPane(tree), BorderLayout.CENTER);
-
     }
 
     private @NonNull Tree buildTree() {
@@ -164,7 +161,6 @@ public class FilesView extends JPanel {
         return tree;
     }
 
-
     static JLabel buildViewTitle(@NotNull String text) {
         JLabel label = new JLabel(text);
         label.setFont(JBUI.Fonts.label().asBold());
@@ -193,18 +189,12 @@ public class FilesView extends JPanel {
     }
 
     @Nullable
-    private VirtualFile findLocalFile(@NotNull String relativePath) {
-        VirtualFile baseDir = ProjectUtil.guessProjectDir(project);
-        if (baseDir == null) return null;
-        return baseDir.findFileByRelativePath(relativePath);
-    }
-
     private void compareWithLocal(@NotNull DataformRepoTreeModel.FileEntry entry) {
         FileType fileType = FileTypeManager.getInstance()
                 .getFileTypeByFileName(entry.displayName());
 
         DiffContent localContent;
-        VirtualFile localFile = findLocalFile(entry.relativePath());
+        VirtualFile localFile = DataformPaths.findInProject(project, entry.relativePath());
         if (localFile != null && localFile.exists()) {
             localContent = DiffContentFactory.getInstance().create(project, localFile);
         } else {
@@ -226,7 +216,6 @@ public class FilesView extends JPanel {
                 )
         );
     }
-
 
     private void showFileContextMenu(@NotNull JComponent parent, int x, int y,
                                      @NotNull DataformRepoTreeModel.FileEntry entry) {
@@ -265,9 +254,7 @@ public class FilesView extends JPanel {
                         Map.Entry::getKey, Map.Entry::getValue));
 
         if (matching.isEmpty()) {
-            NotificationGroupManager.getInstance()
-                    .getNotificationGroup("Dataform.Notifications")
-                    .createNotification("No files found under: " + dirPath,
+            DataformNotifications.create("No files found under: " + dirPath,
                             NotificationType.WARNING)
                     .notify(project);
             return;
@@ -286,10 +273,7 @@ public class FilesView extends JPanel {
                     if (errors > 0) {
                         int finalErrors = errors;
                         ApplicationManager.getApplication().invokeLater(() ->
-                                NotificationGroupManager.getInstance()
-                                        .getNotificationGroup("Dataform.Notifications")
-                                        .createNotification(
-                                                finalErrors + " file(s) failed to fetch.",
+                                DataformNotifications.create(finalErrors + " file(s) failed to fetch.",
                                                 NotificationType.ERROR)
                                         .notify(project)
                         );
@@ -305,9 +289,7 @@ public class FilesView extends JPanel {
                         String fileContent = DataformGcpService.getInstance(project).getFileContent(workspace, entry.relativePath());
                         writeLocalFile(entry.relativePath(), fileContent);
                     } catch (IOException ex) {
-                        NotificationGroupManager.getInstance()
-                                .getNotificationGroup("Dataform.Notifications")
-                                .createNotification("Failed to fetch file: " + ex.getMessage(),
+                        DataformNotifications.create("Failed to fetch file: " + ex.getMessage(),
                                         NotificationType.ERROR)
                                 .notify(project);
                     }
@@ -321,22 +303,6 @@ public class FilesView extends JPanel {
                                 @NotNull String content) throws IOException {
         VirtualFile baseDir = ProjectUtil.guessProjectDir(project);
         if (baseDir == null) throw new IOException("Project base dir not found");
-
-        String[] segments = relativePath.split("/");
-        VirtualFile dir = baseDir;
-        for (int i = 0; i < segments.length - 1; i++) {
-            VirtualFile existing = dir.findChild(segments[i]);
-            dir = (existing != null)
-                    ? existing
-                    : dir.createChildDirectory(this, segments[i]);
-        }
-
-        VirtualFile file = dir.findChild(segments[segments.length - 1]);
-        if (file == null) {
-            file = dir.createChildData(this, segments[segments.length - 1]);
-        }
-        file.setBinaryContent(content.getBytes(StandardCharsets.UTF_8));
+        DataformPaths.writeText(baseDir, relativePath, content);
     }
-
-
 }

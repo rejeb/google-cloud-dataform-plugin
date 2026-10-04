@@ -42,11 +42,6 @@ public class DataformWorkflowSettingsReference extends PsiReferenceBase<PsiEleme
         return myElement.getText().split("\\.");
     }
 
-    @Override
-    public Object @NonNull [] getVariants() {
-        return new Object[0];
-    }
-
     @Nullable
     private PsiElement findYamlProperty(WorkflowSettingsService service, String[] propertyPath) {
 
@@ -81,5 +76,4 @@ public class DataformWorkflowSettingsReference extends PsiReferenceBase<PsiEleme
     public PsiElement handleElementRename(@NotNull String newElementName) throws IncorrectOperationException {
         return myElement;
     }
-
 }

@@ -24,15 +24,12 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.intellij.openapi.diagnostic.Logger;
 import io.github.rejeb.dataform.language.gcp.auth.DataformCredentialsService;
+import io.github.rejeb.dataform.language.gcp.auth.OAuthClientConfig;
 import io.github.rejeb.dataform.language.gcp.auth.SslConfig;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 
 /**
@@ -50,7 +47,6 @@ import java.time.Duration;
 public final class GcpIdentityResolver {
 
     private static final Logger LOG = Logger.getInstance(GcpIdentityResolver.class);
-    private static final String USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo";
     private static final Duration HTTP_TIMEOUT = Duration.ofSeconds(5);
     private static final String FALLBACK_NAME = System.getProperty("user.name", "dataform-plugin");
     private static final String FALLBACK_EMAIL = FALLBACK_NAME + "@dataform-plugin.local";
@@ -96,16 +92,7 @@ public final class GcpIdentityResolver {
             @NotNull GoogleCredentials credentials
     ) throws IOException, InterruptedException {
         String accessToken = credentials.getAccessToken().getTokenValue();
-        HttpRequest request = HttpRequest.newBuilder(URI.create(USERINFO_URL))
-                .header("Authorization", "Bearer " + accessToken)
-                .timeout(HTTP_TIMEOUT)
-                .GET()
-                .build();
-        HttpResponse<String> response = HttpClient.newBuilder()
-                .connectTimeout(HTTP_TIMEOUT)
-                .sslContext(SslConfig.sslContext())
-                .build()
-                .send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        HttpResponse<String> response = SslConfig.getWithBearer(OAuthClientConfig.USERINFO_ENDPOINT, accessToken, HTTP_TIMEOUT);
         if (response.statusCode() != 200) {
             throw new IOException("userinfo endpoint returned " + response.statusCode());
         }

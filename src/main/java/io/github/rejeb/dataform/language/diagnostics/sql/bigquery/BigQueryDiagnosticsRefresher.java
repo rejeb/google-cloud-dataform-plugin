@@ -18,7 +18,6 @@ package io.github.rejeb.dataform.language.diagnostics.sql.bigquery;
 
 import com.intellij.openapi.project.Project;
 import io.github.rejeb.dataform.language.diagnostics.DataformEditorRefresher;
-import io.github.rejeb.dataform.language.diagnostics.ValidationProblemInlayManager;
 import io.github.rejeb.dataform.language.schema.sql.DataformSchemaEvent;
 import io.github.rejeb.dataform.language.schema.sql.DryRunErrorRegistry;
 import org.jetbrains.annotations.NotNull;
@@ -42,8 +41,7 @@ public final class BigQueryDiagnosticsRefresher implements DataformSchemaEvent {
     public void onSchemasUpdated() {
         if (project.isDisposed()) return;
         if (!isNewState(DryRunErrorRegistry.getInstance(project).getModificationCount())) return;
-        ValidationProblemInlayManager.getInstance(project).refreshAll();
-        DataformEditorRefresher.refresh(project);
+        DataformEditorRefresher.refreshWithInlays(project);
     }
 
     boolean isNewState(long modificationCount) {

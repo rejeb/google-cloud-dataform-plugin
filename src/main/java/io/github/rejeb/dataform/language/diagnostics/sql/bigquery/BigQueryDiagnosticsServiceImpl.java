@@ -27,6 +27,7 @@ import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.compilation.model.CompiledTable;
 import io.github.rejeb.dataform.language.compilation.model.Target;
+import io.github.rejeb.dataform.language.diagnostics.PlacedProblems;
 import io.github.rejeb.dataform.language.diagnostics.sql.hint.PsiSqlScope;
 import io.github.rejeb.dataform.language.diagnostics.sql.hint.SqlErrorContext;
 import io.github.rejeb.dataform.language.diagnostics.sql.hint.SqlHint;
@@ -57,8 +58,8 @@ public final class BigQueryDiagnosticsServiceImpl implements BigQueryDiagnostics
     }
 
     @Override
-    public @NotNull BigQueryDiagnostics diagnose(@NotNull PsiFile hostFile) {
-        if (!(hostFile instanceof SqlxFile)) return BigQueryDiagnostics.NONE;
+    public @NotNull PlacedProblems diagnose(@NotNull PsiFile hostFile) {
+        if (!(hostFile instanceof SqlxFile)) return PlacedProblems.NONE;
         return CachedValuesManager.getCachedValue(hostFile, () -> CachedValueProvider.Result.create(
                 compute(hostFile),
                 PsiModificationTracker.MODIFICATION_COUNT,
@@ -66,10 +67,10 @@ public final class BigQueryDiagnosticsServiceImpl implements BigQueryDiagnostics
                 DataformTableSchemaService.getInstance(project)));
     }
 
-    private @NotNull BigQueryDiagnostics compute(@NotNull PsiFile hostFile) {
+    private @NotNull PlacedProblems compute(@NotNull PsiFile hostFile) {
         VirtualFile file = hostFile.getOriginalFile().getVirtualFile();
         CompiledGraph graph = DataformCompilationService.getInstance(project).getCompiledGraph();
-        if (file == null || graph == null) return BigQueryDiagnostics.NONE;
+        if (file == null || graph == null) return PlacedProblems.NONE;
         DryRunErrorRegistry registry = DryRunErrorRegistry.getInstance(project);
         List<SqlxValidationProblem> located = new ArrayList<>();
         List<String> unlocated = new ArrayList<>();
@@ -88,8 +89,7 @@ public final class BigQueryDiagnosticsServiceImpl implements BigQueryDiagnostics
                 }
             }
         }
-        if (located.isEmpty() && unlocated.isEmpty()) return BigQueryDiagnostics.NONE;
-        return new BigQueryDiagnostics(List.copyOf(located), List.copyOf(unlocated));
+        return PlacedProblems.of(located, unlocated);
     }
 
     private static @NotNull SqlxValidationProblem problemOf(@NotNull PsiFile hostFile,

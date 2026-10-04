@@ -16,7 +16,6 @@
  */
 package io.github.rejeb.dataform.language.index;
 
-import io.github.rejeb.dataform.language.util.DataformPaths;
 import com.intellij.lang.javascript.JavaScriptFileType;
 import com.intellij.lang.javascript.psi.*;
 import com.intellij.openapi.project.Project;
@@ -32,6 +31,7 @@ import com.intellij.psi.util.CachedValueProvider;
 import com.intellij.psi.util.CachedValuesManager;
 import com.intellij.psi.util.PsiModificationTracker;
 import com.intellij.psi.util.PsiTreeUtil;
+import io.github.rejeb.dataform.language.util.DataformProjectLayout;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
@@ -83,11 +83,7 @@ public class DataformJsFileIndex {
     }
 
     public static boolean isDataformJsFile(@NotNull VirtualFile file) {
-        if (!"js".equals(file.getExtension())) {
-            return false;
-        }
-        String normalizedPath = DataformPaths.normalize(file.getPath());
-        return normalizedPath.contains("/includes/");
+        return DataformProjectLayout.isIncludeFile(file);
     }
 
     private static final Key<CachedValue<Map<String, List<IncludeExport>>>> EXPORTS =

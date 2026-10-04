@@ -24,11 +24,9 @@ import com.intellij.codeInsight.lookup.LookupElement;
 import com.intellij.codeInsight.lookup.LookupElementDecorator;
 import com.intellij.database.model.DasObject;
 import com.intellij.database.symbols.DasSymbol;
-import com.intellij.lang.injection.InjectedLanguageManager;
-import com.intellij.psi.PsiElement;
-import com.intellij.psi.PsiFile;
 import com.intellij.psi.ResolveResult;
 import com.intellij.sql.completion.SqlQualifiedResolveResult;
+import io.github.rejeb.dataform.language.columns.origin.SqlxColumnAtCaret;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasColumn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -56,7 +54,7 @@ public class DataformColumnInsertContributor extends CompletionContributor {
     @Override
     public void fillCompletionVariants(@NotNull CompletionParameters parameters,
                                        @NotNull CompletionResultSet result) {
-        if (!isInSqlxFile(parameters.getPosition())) {
+        if (SqlxColumnAtCaret.sqlxFileOf(parameters.getPosition()) == null) {
             super.fillCompletionVariants(parameters, result);
             return;
         }
@@ -116,13 +114,5 @@ public class DataformColumnInsertContributor extends CompletionContributor {
             if (target instanceof DataformDasColumn column) return column;
         }
         return null;
-    }
-
-    private static boolean isInSqlxFile(@NotNull PsiElement position) {
-        PsiFile containing = position.getContainingFile();
-        if (containing == null) return false;
-        PsiFile host = InjectedLanguageManager.getInstance(position.getProject())
-                .getTopLevelFile(containing);
-        return host != null && host.getName().endsWith(".sqlx");
     }
 }

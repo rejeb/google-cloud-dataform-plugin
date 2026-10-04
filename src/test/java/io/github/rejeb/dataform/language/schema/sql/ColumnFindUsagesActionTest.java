@@ -16,12 +16,17 @@
  */
 package io.github.rejeb.dataform.language.schema.sql;
 
+import io.github.rejeb.dataform.language.columns.origin.ColumnOriginService;
+import io.github.rejeb.dataform.language.columns.origin.SqlxColumnAtCaret;
+import java.util.List;
+import java.util.ArrayList;
+import com.intellij.lang.javascript.psi.JSLiteralExpression;
 import com.intellij.find.findUsages.FindUsagesHandler;
 import com.intellij.find.findUsages.FindUsagesHandlerFactory;
 import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.psi.PsiElement;
 import com.intellij.usageView.UsageInfo;
-import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
+import io.github.rejeb.dataform.language.columns.model.ColumnRef;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasColumn;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasTable;
 
@@ -174,5 +179,27 @@ public class ColumnFindUsagesActionTest extends DataformProjectFixture {
         assertNotNull(table);
         assertNotNull("without a handler the Find Usages action cannot run on a table",
                 handlerFor(table));
+    }
+
+    /**
+     * A column handed to an include helper as a string is read there, which no reference shows.
+     * The column window lists that read, and Find Usages has to list it too.
+     */
+    public void testFindUsagesListsAColumnNamedAsAStringInATemplate() throws Exception {
+        open("silver/silver_orders.sqlx");
+        open("gold/gold_order_keys.sqlx");
+        DataformDasColumn column = ColumnOriginService.getInstance(getProject())
+                .dasColumn(new ColumnRef("proj.ds.silver_orders", "order_id"));
+        assertNotNull(column);
+        FindUsagesHandler handler = handlerFor(column);
+        assertNotNull(handler);
+        List<PsiElement> literals = new ArrayList<>();
+        handler.processElementUsages(column, usage -> {
+            if (usage.getElement() instanceof JSLiteralExpression literal) literals.add(literal);
+            return true;
+        }, handler.getFindUsagesOptions());
+        InjectedLanguageManager manager = InjectedLanguageManager.getInstance(getProject());
+        assertTrue("the string handed to the helper is a usage, got " + literals, literals.stream()
+                .anyMatch(literal -> manager.getTopLevelFile(literal).getName().equals("gold_order_keys.sqlx")));
     }
 }

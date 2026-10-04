@@ -19,11 +19,11 @@ package io.github.rejeb.dataform.language.gcp.execution.bigquery.grid;
 import com.google.cloud.bigquery.*;
 import org.jetbrains.annotations.NotNull;
 
-import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Utility class that flattens nested STRUCT fields into a flat column list
@@ -104,15 +104,7 @@ public final class StructFlattener {
                 StandardSQLTypeName type = field.getType().getStandardType();
                 String raw = (String) fv.getValue();
                 yield switch (type) {
-                    case TIMESTAMP -> {
-                        // BigQuery retourne des microsecondes depuis l'epoch
-                        long micros = new java.math.BigDecimal(raw)
-                                .multiply(java.math.BigDecimal.valueOf(1_000_000))
-                                .longValue();
-                        Instant instant = Instant.ofEpochSecond(
-                                micros / 1_000_000, (micros % 1_000_000) * 1_000);
-                        yield TIMESTAMP_FMT.format(instant);
-                    }
+                    case TIMESTAMP -> TIMESTAMP_FMT.format(fv.getTimestampInstant());
                     default -> raw;
                 };
             }
@@ -120,27 +112,17 @@ public final class StructFlattener {
     }
 
     private static String serializeRecord(@NotNull FieldValueList record) {
-        StringBuilder sb = new StringBuilder("{");
-        boolean first = true;
-        for (FieldValue fv : record) {
-            if (!first) sb.append(", ");
-            first = false;
-            sb.append(fv.isNull() ? "null" : toJsonValue(fv));
-        }
-        sb.append("}");
-        return sb.toString();
+        return serialize(record, "{", "}");
     }
 
     private static String serializeRepeated(@NotNull List<FieldValue> repeated) {
-        StringBuilder sb = new StringBuilder("[");
-        boolean first = true;
-        for (FieldValue item : repeated) {
-            if (!first) sb.append(", ");
-            first = false;
-            sb.append(item.isNull() ? "null" : toJsonValue(item));
-        }
-        sb.append("]");
-        return sb.toString();
+        return serialize(repeated, "[", "]");
+    }
+
+    private static String serialize(@NotNull List<FieldValue> values, @NotNull String open, @NotNull String close) {
+        return values.stream()
+                .map(value -> value.isNull() ? "null" : toJsonValue(value))
+                .collect(Collectors.joining(", ", open, close));
     }
 
     private static String toJsonValue(@NotNull FieldValue fv) {

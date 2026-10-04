@@ -27,6 +27,9 @@ import io.github.rejeb.dataform.language.gcp.execution.workflow.model.Mode;
 import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.List;
+import java.util.function.Consumer;
+
 public class RunSqlxHelper {
 
     private static final String TAGS_NAME_SUFFIX = " (tags)";
@@ -37,38 +40,11 @@ public class RunSqlxHelper {
      */
     public static void launchFromTags(@NotNull Project project,
                                       @NotNull VirtualFile file) {
-        RunManager runManager = RunManager.getInstance(project);
-        DataformWorkflowConfigurationType type = ConfigurationTypeUtil.findConfigurationType(
-                DataformWorkflowConfigurationType.class);
-        DataformWorkflowConfigurationFactory factory =
-                (DataformWorkflowConfigurationFactory) type.getConfigurationFactories()[0];
         CompiledGraph graphs = DataformCompilationService.getInstance(project).getCompiledGraph();
-        RunnerAndConfigurationSettings settings =
-                runManager.createConfiguration(file.getNameWithoutExtension() + TAGS_NAME_SUFFIX, factory);
-        DataformWorkflowRunConfiguration config =
-                (DataformWorkflowRunConfiguration) settings.getConfiguration();
-        GcpRepositorySettings gcpRepositorySettings = GcpRepositorySettings.getInstance(project);
-        config.setIncludedTags(
-                graphs.getTags(file.getCanonicalPath())
-        );
-        config.setWorkspaceId(gcpRepositorySettings.getSelectedWorkspaceId());
-        config.setSelectedMode(Mode.TAGS);
-        config.setTransitiveDependenciesIncluded(false);
-        config.setTransitiveDependentsIncluded(false);
-        config.setFullyRefreshIncrementalTables(false);
-
-        runManager.addConfiguration(settings);
-        runManager.setSelectedConfiguration(settings);
-        settings.setTemporary(true);
-        settings.setEditBeforeRun(false);
-        settings.setActivateToolWindowBeforeRun(true);
-        if (!DataformRunConfigurationPrompt.confirmContextRun(project, settings)) {
-            return;
-        }
-        Executor executorById = ExecutorRegistry.getInstance()
-                .getExecutorById(DefaultRunExecutor.EXECUTOR_ID);
-        ProgramRunnerUtil.executeConfiguration(settings,
-                executorById != null ? executorById : new DefaultRunExecutor());
+        launch(project, file.getNameWithoutExtension() + TAGS_NAME_SUFFIX, true, options -> {
+            options.setIncludedTags(graphs.getTags(file.getCanonicalPath()));
+            options.setSelectedMode(Mode.TAGS);
+        });
     }
 
     /**
@@ -78,31 +54,35 @@ public class RunSqlxHelper {
     public static void launchAction(@NotNull Project project,
                                     @NotNull String targetFullName,
                                     @NotNull String configName) {
+        launch(project, configName, false, options -> {
+            options.setSelectedMode(Mode.ACTIONS);
+            options.setIncludedTargets(List.of(targetFullName));
+        });
+    }
+
+    private static void launch(@NotNull Project project, @NotNull String name, boolean confirm,
+                               @NotNull Consumer<DataformWorkflowRunConfigurationOptions> setup) {
         RunManager runManager = RunManager.getInstance(project);
         DataformWorkflowConfigurationType type = ConfigurationTypeUtil.findConfigurationType(
                 DataformWorkflowConfigurationType.class);
-        DataformWorkflowConfigurationFactory factory =
-                (DataformWorkflowConfigurationFactory) type.getConfigurationFactories()[0];
         RunnerAndConfigurationSettings settings =
-                runManager.createConfiguration(configName, factory);
-        DataformWorkflowRunConfiguration config =
-                (DataformWorkflowRunConfiguration) settings.getConfiguration();
-        GcpRepositorySettings gcpRepositorySettings = GcpRepositorySettings.getInstance(project);
-        config.setWorkspaceId(gcpRepositorySettings.getSelectedWorkspaceId());
-        config.setSelectedMode(Mode.ACTIONS);
-        config.setIncludedTargets(java.util.List.of(targetFullName));
-        config.setTransitiveDependenciesIncluded(false);
-        config.setTransitiveDependentsIncluded(false);
-        config.setFullyRefreshIncrementalTables(false);
+                runManager.createConfiguration(name, type.getConfigurationFactories()[0]);
+        DataformWorkflowRunConfigurationOptions options =
+                ((DataformWorkflowRunConfiguration) settings.getConfiguration()).getOptions();
+        options.setWorkspaceId(GcpRepositorySettings.getInstance(project).getSelectedWorkspaceId());
+        options.setTransitiveDependenciesIncluded(false);
+        options.setTransitiveDependentsIncluded(false);
+        options.setFullyRefreshIncrementalTables(false);
+        setup.accept(options);
 
         runManager.addConfiguration(settings);
         runManager.setSelectedConfiguration(settings);
         settings.setTemporary(true);
         settings.setEditBeforeRun(false);
         settings.setActivateToolWindowBeforeRun(true);
-        Executor executorById = ExecutorRegistry.getInstance()
-                .getExecutorById(DefaultRunExecutor.EXECUTOR_ID);
-        ProgramRunnerUtil.executeConfiguration(settings,
-                executorById != null ? executorById : new DefaultRunExecutor());
+        if (confirm && !DataformRunConfigurationPrompt.confirmContextRun(project, settings)) {
+            return;
+        }
+        ProgramRunnerUtil.executeConfiguration(settings, DefaultRunExecutor.getRunExecutorInstance());
     }
 }

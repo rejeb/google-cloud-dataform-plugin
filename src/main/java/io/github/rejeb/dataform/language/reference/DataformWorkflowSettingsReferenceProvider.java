@@ -26,13 +26,7 @@ public class DataformWorkflowSettingsReferenceProvider extends PsiReferenceProvi
     @Override
     public PsiReference @NotNull [] getReferencesByElement(@NotNull PsiElement psiElement,
                                                            @NotNull ProcessingContext processingContext) {
-
         DataformWorkflowSettingsReference ref = new DataformWorkflowSettingsReference(psiElement);
-        PsiElement resolved = ref.resolve();
-        if (resolved != null) {
-            return new PsiReference[]{ref};
-        } else {
-            return PsiReference.EMPTY_ARRAY;
-        }
+        return ref.resolve() != null ? new PsiReference[]{ref} : PsiReference.EMPTY_ARRAY;
     }
 }

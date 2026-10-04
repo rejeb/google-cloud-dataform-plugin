@@ -24,7 +24,7 @@ import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.sql.dialects.bigquery.BigQueryDialect;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
 import io.github.rejeb.dataform.language.injection.InjectedFiles;
-import io.github.rejeb.dataform.language.schema.sql.SqlxOutputColumnLocator;
+import io.github.rejeb.dataform.language.columns.origin.SqlxOutputColumnLocator;
 
 import java.util.List;
 

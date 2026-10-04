@@ -17,7 +17,6 @@ package io.github.rejeb.dataform.language.completion;
 
 import com.intellij.codeInsight.completion.CompletionContributor;
 import com.intellij.codeInsight.completion.CompletionInitializationContext;
-import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiWhiteSpace;
@@ -27,6 +26,7 @@ import com.intellij.sql.dialects.bigquery.BigQueryDialect;
 import com.intellij.sql.psi.SqlIdentifierKeywordTokenType;
 import com.intellij.sql.psi.SqlSelectClause;
 import com.intellij.sql.psi.SqlTokens;
+import io.github.rejeb.dataform.language.columns.origin.SqlxColumnAtCaret;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Locale;
@@ -67,7 +67,7 @@ public class SqlxMissingCommaCompletionContributor extends CompletionContributor
     @Override
     public void beforeCompletion(@NotNull CompletionInitializationContext context) {
         PsiFile file = context.getFile();
-        if (!(file.getLanguage() instanceof BigQueryDialect) || !isInSqlxFile(file)) return;
+        if (!(file.getLanguage() instanceof BigQueryDialect) || SqlxColumnAtCaret.sqlxFileOf(file) == null) return;
         if (isMissingCommaPosition(file, context.getStartOffset())) {
             context.setDummyIdentifier(CompletionInitializationContext.DUMMY_IDENTIFIER_TRIMMED + ", ");
         }
@@ -133,10 +133,5 @@ public class SqlxMissingCommaCompletionContributor extends CompletionContributor
         return EXPRESSION_STARTS.contains(type)
                 || type instanceof SqlIdentifierKeywordTokenType
                 || "(".equals(leaf.getText());
-    }
-
-    private static boolean isInSqlxFile(@NotNull PsiFile file) {
-        PsiFile host = InjectedLanguageManager.getInstance(file.getProject()).getTopLevelFile(file);
-        return host != null && host.getName().endsWith(".sqlx");
     }
 }

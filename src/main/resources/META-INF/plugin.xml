@@ -180,11 +180,8 @@
         <projectService serviceInterface="io.github.rejeb.dataform.language.lineage.service.LineageGraphService"
                         serviceImplementation="io.github.rejeb.dataform.language.lineage.service.LineageGraphServiceImpl"
         />
-        <projectService serviceInterface="io.github.rejeb.dataform.language.schema.sql.ColumnOriginService"
-                        serviceImplementation="io.github.rejeb.dataform.language.schema.sql.ColumnOriginServiceImpl"
-        />
-        <projectService serviceInterface="io.github.rejeb.dataform.language.diagnostics.CompilationDiagnosticService"
-                        serviceImplementation="io.github.rejeb.dataform.language.diagnostics.CompilationDiagnosticServiceImpl"
+        <projectService serviceInterface="io.github.rejeb.dataform.language.columns.origin.ColumnOriginService"
+                        serviceImplementation="io.github.rejeb.dataform.language.columns.origin.ColumnOriginServiceImpl"
         />
         <projectService serviceInterface="io.github.rejeb.dataform.language.validation.DataformEditActivityService"
                         serviceImplementation="io.github.rejeb.dataform.language.validation.DataformEditActivityServiceImpl"
@@ -282,27 +279,27 @@
             <category>Dataform</category>
         </intentionAction>
         <renameHandler
-                implementation="io.github.rejeb.dataform.language.refactoring.column.DataformColumnRenameHandler"
+                implementation="io.github.rejeb.dataform.language.columns.rename.DataformColumnRenameHandler"
                 order="first"/>
         <renamePsiElementProcessor
-                implementation="io.github.rejeb.dataform.language.refactoring.column.DataformColumnRenamePsiElementProcessor"
+                implementation="io.github.rejeb.dataform.language.columns.rename.DataformColumnRenamePsiElementProcessor"
                 order="first"/>
         <projectService
-                serviceInterface="io.github.rejeb.dataform.language.schema.sql.StructColumnPathResolver"
-                serviceImplementation="io.github.rejeb.dataform.language.schema.sql.StructColumnPathResolverImpl"/>
+                serviceInterface="io.github.rejeb.dataform.language.columns.origin.StructColumnPathResolver"
+                serviceImplementation="io.github.rejeb.dataform.language.columns.origin.StructColumnPathResolverImpl"/>
         <projectService
-                serviceInterface="io.github.rejeb.dataform.language.refactoring.column.plan.ColumnRenamePlanner"
-                serviceImplementation="io.github.rejeb.dataform.language.refactoring.column.plan.ColumnRenamePlannerImpl"/>
+                serviceInterface="io.github.rejeb.dataform.language.columns.rename.plan.ColumnRenamePlanner"
+                serviceImplementation="io.github.rejeb.dataform.language.columns.rename.plan.ColumnRenamePlannerImpl"/>
         <projectService
-                serviceInterface="io.github.rejeb.dataform.language.refactoring.column.ui.StarResolutionChooser"
-                serviceImplementation="io.github.rejeb.dataform.language.refactoring.column.ui.StarResolutionDialog"/>
+                serviceInterface="io.github.rejeb.dataform.language.columns.rename.ui.StarResolutionChooser"
+                serviceImplementation="io.github.rejeb.dataform.language.columns.rename.ui.StarResolutionDialog"/>
         <findUsagesHandlerFactory
                 order="first"
                 implementation="io.github.rejeb.dataform.language.schema.sql.DataformSchemaFindUsagesHandlerFactory"/>
         <usageTypeProvider
                 implementation="io.github.rejeb.dataform.language.schema.sql.DataformColumnUsageTypeProvider"/>
         <usageTargetProvider
-                implementation="io.github.rejeb.dataform.language.schema.sql.usages.StructFieldUsageTargetProvider"/>
+                implementation="io.github.rejeb.dataform.language.columns.usages.StructFieldUsageTargetProvider"/>
 
         <editorFactoryListener
                 implementation="io.github.rejeb.dataform.language.folding.DataformValueFoldClickListener"/>
@@ -381,7 +378,7 @@
                 groupName="Dataform"
                 enabledByDefault="true"
                 level="WARNING"
-                implementationClass="io.github.rejeb.dataform.language.inspection.PartitionByObjectInspection"/>
+                implementationClass="io.github.rejeb.dataform.language.config.inspection.PartitionByObjectInspection"/>
 
         <lang.foldingBuilder
                 language="JavaScript"
@@ -398,10 +395,7 @@
         <multiHostInjector implementation="io.github.rejeb.dataform.language.injection.SqlxSqlBlockInjector"/>
 
         <multiHostInjector
-                implementation="io.github.rejeb.dataform.language.injection.SqlxConfigInjector"/>
-
-        <multiHostInjector
-                implementation="io.github.rejeb.dataform.language.injection.SqlxJsInjector"/>
+                implementation="io.github.rejeb.dataform.language.injection.SqlxJavaScriptInjector"/>
 
         <multiHostInjector
                 implementation="io.github.rejeb.dataform.language.injection.SqlxTemplateInjector"/>
@@ -412,26 +406,26 @@
         <completion.contributor
                 language="JavaScript" order="first"
                 id="dataformConfigTagCompletion"
-                implementationClass="io.github.rejeb.dataform.language.completion.DataformConfigTagCompletionContributor"/>
+                implementationClass="io.github.rejeb.dataform.language.config.completion.DataformConfigTagCompletionContributor"/>
 
         <completion.contributor
                 language="JavaScript" order="first"
                 id="dataformConfigValueCompletion"
-                implementationClass="io.github.rejeb.dataform.language.completion.DataformConfigValueCompletionContributor"/>
+                implementationClass="io.github.rejeb.dataform.language.config.completion.DataformConfigValueCompletionContributor"/>
 
         <completion.confidence
                 language="JavaScript" order="first"
-                implementationClass="io.github.rejeb.dataform.language.completion.config.ConfigColumnCompletionConfidence"/>
+                implementationClass="io.github.rejeb.dataform.language.config.ConfigColumnCompletionConfidence"/>
 
         <completion.contributor
                 language="JavaScript" order="first"
                 id="dataformConfigColumnCompletion"
-                implementationClass="io.github.rejeb.dataform.language.completion.DataformConfigColumnCompletionContributor"/>
+                implementationClass="io.github.rejeb.dataform.language.config.completion.DataformConfigColumnCompletionContributor"/>
 
         <completion.contributor
                 language="JavaScript" order="first"
                 id="dataformConfigPropertyCompletion"
-                implementationClass="io.github.rejeb.dataform.language.completion.DataformConfigPropertyCompletionContributor"/>
+                implementationClass="io.github.rejeb.dataform.language.config.completion.DataformConfigPropertyCompletionContributor"/>
 
         <completion.contributor
                 language="JavaScript" order="first"
@@ -478,7 +472,7 @@
                 implementation="io.github.rejeb.dataform.language.documentation.DataformExpressionValueDocumentationTargetProvider"/>
 
         <platform.backend.documentation.targetProvider order="first"
-                                                       implementation="io.github.rejeb.dataform.language.documentation.DataformConfigKeyDocumentationTargetProvider"/>
+                                                       implementation="io.github.rejeb.dataform.language.config.documentation.DataformConfigKeyDocumentationTargetProvider"/>
 
         <platform.backend.documentation.targetProvider order="first"
                                                        implementation="io.github.rejeb.dataform.language.documentation.bigquery.BigQueryFunctionDocumentationTargetProvider"/>
@@ -488,23 +482,11 @@
 
         <psi.referenceContributor
                 language="JavaScript"
-                implementation="io.github.rejeb.dataform.language.reference.DataformBuiltinFunctionReferenceContributor"/>
-
-        <psi.referenceContributor
-                language="JavaScript"
-                implementation="io.github.rejeb.dataform.language.reference.DataformIncludeNameOnlyReferenceContributor"/>
-
-        <psi.referenceContributor
-                language="JavaScript"
                 implementation="io.github.rejeb.dataform.language.reference.DataformRefReferenceContributor"/>
 
         <psi.referenceContributor
                 language="JavaScript"
                 implementation="io.github.rejeb.dataform.language.unittest.navigation.TestedDatasetReferenceContributor"/>
-
-        <psi.referenceContributor
-                language="JavaScript"
-                implementation="io.github.rejeb.dataform.language.reference.DataformWorkflowSettingsReferenceContributor"/>
 
         <psi.referenceContributor
                 language="JavaScript"
@@ -538,9 +520,9 @@
         <programRunner
                 implementation="io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.DataformWorkflowProgramRunner"/>
         <configurationType
-                implementation="io.github.rejeb.dataform.language.gcp.execution.unittest.runconfig.DataformTestConfigurationType"/>
+                implementation="io.github.rejeb.dataform.language.unittest.execution.runconfig.DataformTestConfigurationType"/>
         <programRunner
-                implementation="io.github.rejeb.dataform.language.gcp.execution.unittest.runconfig.DataformTestProgramRunner"/>
+                implementation="io.github.rejeb.dataform.language.unittest.execution.runconfig.DataformTestProgramRunner"/>
 
         <codeInsight.lineMarkerProvider
                 language="SQLX"
@@ -548,10 +530,10 @@
         <runConfigurationProducer
                 implementation="io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.DataformSqlxRunConfigurationProducer"/>
         <runConfigurationProducer
-                implementation="io.github.rejeb.dataform.language.gcp.execution.unittest.runconfig.DataformTestRunConfigurationProducer"/>
+                implementation="io.github.rejeb.dataform.language.unittest.execution.runconfig.DataformTestRunConfigurationProducer"/>
         <runLineMarkerContributor
                 language="SQLX"
-                implementationClass="io.github.rejeb.dataform.language.gcp.execution.unittest.runconfig.DataformTestRunLineMarkerContributor"/>
+                implementationClass="io.github.rejeb.dataform.language.unittest.execution.runconfig.DataformTestRunLineMarkerContributor"/>
 
         <internalFileTemplate name="Dataform SQLX Table"/>
         <internalFileTemplate name="Dataform SQLX View"/>
@@ -582,7 +564,7 @@
 
     <actions>
         <action id="GotoDeclaration"
-                class="io.github.rejeb.dataform.language.schema.sql.usages.SqlxColumnNavigationAction"
+                class="io.github.rejeb.dataform.language.columns.usages.SqlxColumnNavigationAction"
                 overrides="true"/>
         <action id="Dataform.ShowColumnUsages"
                 class="io.github.rejeb.dataform.language.schema.sql.ShowDataformColumnUsagesAction"

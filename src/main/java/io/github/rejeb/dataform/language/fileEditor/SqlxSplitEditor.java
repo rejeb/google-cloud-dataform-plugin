@@ -99,7 +99,6 @@ public class SqlxSplitEditor extends TextEditorWithPreview {
         return group;
     }
 
-
     @Override
     protected @NotNull ActionGroup createViewActionGroup() {
         return new DefaultActionGroup(List.of());
@@ -143,6 +142,4 @@ public class SqlxSplitEditor extends TextEditorWithPreview {
             return ActionUpdateThread.BGT;
         }
     }
-
-
 }

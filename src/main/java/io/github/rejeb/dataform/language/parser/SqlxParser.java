@@ -127,7 +127,6 @@ public class SqlxParser implements PsiParser {
         sqlMarker.done(SharedTokenTypes.SQL_CONTENT);
     }
 
-
     private void markElement(PsiBuilder builder, IElementType elementType) {
         PsiBuilder.Marker templateMarker = builder.mark();
         builder.advanceLexer();

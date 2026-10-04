@@ -50,6 +50,6 @@ public class DataformWorkflowConfigurationFactoryTest extends BasePlatformTestCa
         RunConfiguration configuration = factory().createTemplateConfiguration(getProject());
 
         assertEquals("my-workspace",
-                ((DataformWorkflowRunConfiguration) configuration).getWorkspaceId());
+                ((DataformWorkflowRunConfiguration) configuration).getOptions().getWorkspaceId());
     }
 }

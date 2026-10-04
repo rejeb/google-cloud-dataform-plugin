@@ -110,5 +110,4 @@ public final class SqlxSqlProblemAnnotator implements Annotator, DumbAware {
                 .range(identifier != null ? identifier : reference)
                 .create();
     }
-
 }

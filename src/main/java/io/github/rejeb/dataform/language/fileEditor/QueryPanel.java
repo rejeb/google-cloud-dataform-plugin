@@ -21,45 +21,29 @@ import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.editor.ex.EditorEx;
 import com.intellij.openapi.fileTypes.FileType;
 import com.intellij.openapi.project.Project;
-import com.intellij.ui.components.JBScrollPane;
 import com.intellij.util.messages.MessageBusConnection;
-import com.intellij.util.ui.JBUI;
-import com.intellij.util.ui.UIUtil;
 import io.github.rejeb.dataform.language.schema.sql.DataformSchemaEvent;
 import io.github.rejeb.dataform.language.schema.sql.DryRunErrorRegistry;
 
-import javax.swing.*;
 import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
+import javax.swing.*;
 
-public class QueryPanel extends JPanel {
+public class QueryPanel extends SectionsPreviewPanel {
 
     private final Project project;
     private final FileType fileType;
-    private final JPanel sectionsPanel;
     private final QueryDryRunErrorBanner errorBanner;
     private final MessageBusConnection connection;
     private final List<TableQuerySection> sections = new ArrayList<>();
 
     public QueryPanel(Project project, FileType fileType) {
-        super(new BorderLayout());
         this.project  = project;
         this.fileType = fileType;
-        setOpaque(true);
-        setBackground(UIUtil.getPanelBackground());
-
-        sectionsPanel = new JPanel();
-        sectionsPanel.setLayout(new BoxLayout(sectionsPanel, BoxLayout.Y_AXIS));
-        sectionsPanel.setOpaque(false);
-        sectionsPanel.setBorder(JBUI.Borders.empty(8, 10));
 
         errorBanner = new QueryDryRunErrorBanner();
         add(errorBanner, BorderLayout.NORTH);
-
-        JBScrollPane scroll = new JBScrollPane(sectionsPanel);
-        scroll.setBorder(JBUI.Borders.empty());
-        add(scroll, BorderLayout.CENTER);
 
         connection = project.getMessageBus().connect();
         connection.subscribe(DataformSchemaEvent.TOPIC,
@@ -89,25 +73,15 @@ public class QueryPanel extends JPanel {
         sections.forEach(TableQuerySection::dispose);
         sections.clear();
         sectionsPanel.removeAll();
-
-        if (queries == null || queries.isEmpty()) {
-            refreshErrors();
-            sectionsPanel.revalidate();
-            sectionsPanel.repaint();
-            return;
-        }
-
-        for (FormattedCompiledQuery q : queries) {
+        for (FormattedCompiledQuery q : queries != null ? queries : List.<FormattedCompiledQuery>of()) {
             TableQuerySection section = new TableQuerySection(q, fileType, project);
             sections.add(section);
             sectionsPanel.add(section);
         }
-
         refreshErrors();
         sectionsPanel.revalidate();
         sectionsPanel.repaint();
     }
-
 
     public EditorEx getEditor() {
         if (sections.isEmpty()) return null;
@@ -135,5 +109,4 @@ public class QueryPanel extends JPanel {
                 .map(TableQuerySection::getQuery)
                 .toList();
     }
-
 }

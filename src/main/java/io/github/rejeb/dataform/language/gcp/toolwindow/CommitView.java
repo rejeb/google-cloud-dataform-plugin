@@ -22,6 +22,7 @@ import com.intellij.openapi.actionSystem.DefaultActionGroup;
 import com.intellij.openapi.fileTypes.FileType;
 import com.intellij.openapi.fileTypes.FileTypeManager;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.ui.Messages;
 import com.intellij.ui.*;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBScrollPane;
@@ -35,11 +36,11 @@ import io.github.rejeb.dataform.language.gcp.workspace.UncommittedChange;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import javax.swing.*;
-import javax.swing.tree.DefaultTreeModel;
 import java.awt.*;
 import java.util.Arrays;
 import java.util.List;
+import javax.swing.*;
+import javax.swing.tree.DefaultTreeModel;
 
 public class CommitView extends JPanel {
 
@@ -88,10 +89,6 @@ public class CommitView extends JPanel {
                 });
     }
 
-    // -------------------------------------------------------------------------
-    // Private builders
-    // -------------------------------------------------------------------------
-
     private JComponent buildToolbar() {
         DefaultActionGroup group = new DefaultActionGroup();
         group.add(new RefreshAction(dispatcher));
@@ -114,9 +111,9 @@ public class CommitView extends JPanel {
         JButton pushBtn = new JButton("Push");
         JButton commitPushBtn = new JButton("Commit and Push...");
 
-        commitBtn.addActionListener(e -> onCommit());
+        commitBtn.addActionListener(e -> submit(false));
         pushBtn.addActionListener(e -> onPush());
-        commitPushBtn.addActionListener(e -> onCommitAndPush());
+        commitPushBtn.addActionListener(e -> submit(true));
 
         JPanel buttonsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 4));
         buttonsPanel.add(pushBtn);
@@ -146,10 +143,6 @@ public class CommitView extends JPanel {
         return messagePanel;
     }
 
-    // -------------------------------------------------------------------------
-    // Public API
-    // -------------------------------------------------------------------------
-
     /**
      * Replaces the tree content with the given uncommitted changes and checks all nodes.
      */
@@ -168,72 +161,44 @@ public class CommitView extends JPanel {
         changesTree.expandRow(0);
     }
 
-
-    // -------------------------------------------------------------------------
-    // Private helpers
-    // -------------------------------------------------------------------------
-
     private List<UncommittedChange> getCheckedChanges() {
         UncommittedChange[] checked = changesTree.getCheckedNodes(UncommittedChange.class, null);
         return Arrays.asList(checked);
     }
 
-    private void onCommit() {
-        String message = commitMessageField.getText().trim();
-        List<UncommittedChange> checked = getCheckedChanges();
+    private void submit(boolean push) {
+        if (!valid()) return;
         String workspaceId = GcpRepositorySettings.getInstance(project).getSelectedWorkspaceId();
-        if (valid()) {
-            dispatcher.commitChanges(workspaceId,
-                    checked.stream().map(UncommittedChange::path).toList(), message);
-        }
-    }
-
-    private void onCommitAndPush() {
+        List<String> paths = getCheckedChanges().stream().map(UncommittedChange::path).toList();
         String message = commitMessageField.getText().trim();
-        List<UncommittedChange> checked = getCheckedChanges();
-        String workspaceId = GcpRepositorySettings.getInstance(project).getSelectedWorkspaceId();
-        if (valid()) {
-            dispatcher.commitAndPush(workspaceId,
-                    checked.stream().map(UncommittedChange::path).toList(), message);
-        }
-
+        if (push) dispatcher.commitAndPush(workspaceId, paths, message);
+        else dispatcher.commitChanges(workspaceId, paths, message);
     }
 
     public boolean valid() {
-        String message = commitMessageField.getText().trim();
-        if (message.isBlank()) {
-            JOptionPane.showMessageDialog(this,
-                    "Please enter a commit message.", "Commit Message Required",
-                    JOptionPane.WARNING_MESSAGE);
+        if (commitMessageField.getText().trim().isBlank()) {
+            Messages.showWarningDialog(this, "Please enter a commit message.", "Commit Message Required");
             commitMessageField.requestFocus();
             return false;
         }
-        List<UncommittedChange> checked = getCheckedChanges();
-        if (checked.isEmpty()) {
-            JOptionPane.showMessageDialog(this,
-                    "Please select at least one file to commit.", "No Files Selected",
-                    JOptionPane.WARNING_MESSAGE);
+        if (getCheckedChanges().isEmpty()) {
+            Messages.showWarningDialog(this, "Please select at least one file to commit.", "No Files Selected");
             return false;
         }
-        String workspaceId = GcpRepositorySettings.getInstance(project).getSelectedWorkspaceId();
-        if (workspaceId == null) {
-            JOptionPane.showMessageDialog(this,
-                    "Please select a workspace first.", "No Workspace Selected",
-                    JOptionPane.WARNING_MESSAGE);
-            return false;
-        }
-        return true;
+        return selectedWorkspace() != null;
     }
 
     private void onPush() {
+        String workspaceId = selectedWorkspace();
+        if (workspaceId != null) dispatcher.pushGitCommits(workspaceId);
+    }
+
+    private @Nullable String selectedWorkspace() {
         String workspaceId = GcpRepositorySettings.getInstance(project).getSelectedWorkspaceId();
         if (workspaceId == null) {
-            JOptionPane.showMessageDialog(this,
-                    "Please select a workspace first.", "No Workspace Selected",
-                    JOptionPane.WARNING_MESSAGE);
-            return;
+            Messages.showWarningDialog(this, "Please select a workspace first.", "No Workspace Selected");
         }
-        dispatcher.pushGitCommits(workspaceId);
+        return workspaceId;
     }
 
     private static final class ChangeNodeRenderer extends CheckboxTree.CheckboxTreeCellRenderer {

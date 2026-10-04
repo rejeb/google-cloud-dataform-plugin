@@ -17,7 +17,7 @@
 package io.github.rejeb.dataform.language.lineage.view;
 
 import com.intellij.ui.EditorNotificationPanel;
-import io.github.rejeb.dataform.language.lineage.column.ColumnLineageGraph;
+import io.github.rejeb.dataform.language.columns.analysis.ColumnLineageGraph;
 import io.github.rejeb.dataform.language.lineage.model.LineageModel;
 import org.jetbrains.annotations.NotNull;
 

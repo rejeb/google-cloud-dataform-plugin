@@ -19,15 +19,13 @@ package io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig;
 import com.intellij.codeInsight.daemon.LineMarkerInfo;
 import com.intellij.codeInsight.daemon.LineMarkerProvider;
 import com.intellij.icons.AllIcons;
-import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.lang.javascript.psi.JSProperty;
 import com.intellij.openapi.editor.markup.GutterIconRenderer;
-import com.intellij.openapi.util.Pair;
-import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.impl.source.tree.LeafPsiElement;
 import com.intellij.psi.util.PsiTreeUtil;
+import io.github.rejeb.dataform.language.injection.InjectedFiles;
 import io.github.rejeb.dataform.language.psi.SqlxConfigBlock;
 import io.github.rejeb.dataform.language.psi.SqlxConfigBlocks;
 import io.github.rejeb.dataform.language.unittest.SqlxUnitTests;
@@ -71,14 +69,8 @@ public class SqlxEditorGutterProvider implements LineMarkerProvider {
     }
 
     private static boolean declaresTags(@NotNull SqlxConfigBlock configBlock) {
-        InjectedLanguageManager manager = InjectedLanguageManager.getInstance(configBlock.getProject());
-        List<Pair<PsiElement, TextRange>> injected = manager.getInjectedPsiFiles(configBlock);
-        if (injected == null) return false;
-        for (Pair<PsiElement, TextRange> pair : injected) {
-            for (JSProperty property : PsiTreeUtil.findChildrenOfType(pair.getFirst(), JSProperty.class)) {
-                if ("tags".equals(property.getName())) return true;
-            }
-        }
-        return false;
+        return InjectedFiles.of(List.of(configBlock)).stream()
+                .flatMap(file -> PsiTreeUtil.findChildrenOfType(file, JSProperty.class).stream())
+                .anyMatch(property -> "tags".equals(property.getName()));
     }
 }

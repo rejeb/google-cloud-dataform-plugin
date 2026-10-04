@@ -16,13 +16,12 @@
  */
 package io.github.rejeb.dataform.language.evaluation;
 
-import com.intellij.openapi.project.Project;
-import com.intellij.openapi.project.ProjectManager;
 import com.intellij.openapi.vfs.AsyncFileListener;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent;
 import io.github.rejeb.dataform.language.index.DataformJsFileIndex;
 import io.github.rejeb.dataform.language.util.DataformProjectLayout;
+import io.github.rejeb.dataform.language.util.DataformProjects;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -38,25 +37,14 @@ public final class DataformEvaluationInvalidator implements AsyncFileListener {
 
     @Override
     public @Nullable ChangeApplier prepareChange(@NotNull List<? extends VFileEvent> events) {
-        boolean environmentChanged = false;
-        for (VFileEvent event : events) {
-            VirtualFile file = event.getFile();
-            if (file != null && affectsEnvironment(file)) {
-                environmentChanged = true;
-                break;
-            }
-        }
-        if (!environmentChanged) {
+        if (events.stream().map(VFileEvent::getFile).noneMatch(file -> file != null && affectsEnvironment(file))) {
             return null;
         }
         return new ChangeApplier() {
             @Override
             public void afterVfsChange() {
-                for (Project project : ProjectManager.getInstance().getOpenProjects()) {
-                    if (!project.isDisposed()) {
-                        DataformExpressionEvaluationService.getInstance(project).markEnvironmentChanged();
-                    }
-                }
+                DataformProjects.forEachOpen(project ->
+                        DataformExpressionEvaluationService.getInstance(project).markEnvironmentChanged());
             }
         };
     }

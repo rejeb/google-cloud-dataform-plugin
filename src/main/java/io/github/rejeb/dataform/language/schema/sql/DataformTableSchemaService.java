@@ -22,7 +22,7 @@ import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.util.ModificationTracker;
 import com.intellij.util.xmlb.annotations.Tag;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
-import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
+import io.github.rejeb.dataform.language.columns.model.ColumnRef;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasTable;
 import org.jetbrains.annotations.NotNull;
 
@@ -32,14 +32,10 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.Set;
 
-
 public interface DataformTableSchemaService extends PersistentStateComponent<DataformTableSchemaService.State>, ModificationTracker {
     static DataformTableSchemaService getInstance(Project project) {
         return project.getService(DataformTableSchemaService.class);
-
     }
-
-    void refreshAsync(@NotNull CompiledGraph graph, boolean forceRefresh);
 
     /**
      * Refreshes the schemas of the compiled graph, skipping the actions declared in the given
@@ -49,7 +45,7 @@ public interface DataformTableSchemaService extends PersistentStateComponent<Dat
      */
     void refreshAsync(@NotNull CompiledGraph graph,
                       boolean forceRefresh,
-                      @NotNull java.util.Set<String> failedFileNames);
+                      @NotNull Set<String> failedFileNames);
 
     @NotNull
     Map<String, DataformDasTable> getAllTables();
@@ -91,7 +87,6 @@ public interface DataformTableSchemaService extends PersistentStateComponent<Dat
     void renameColumn(@NotNull Set<ColumnRef> columns,
                       @NotNull String newName,
                       @NotNull Collection<VirtualFile> written);
-
 
     class State {
         @Tag("schemaCacheJson")

@@ -17,37 +17,28 @@
 package io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.ui;
 
 import com.intellij.openapi.editor.Editor;
-import com.intellij.openapi.editor.EditorFactory;
-import com.intellij.openapi.editor.EditorSettings;
 import com.intellij.openapi.editor.ex.EditorEx;
-import com.intellij.openapi.fileTypes.FileTypeManager;
 import com.intellij.openapi.project.Project;
-import com.intellij.ui.components.JBTextField;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBScrollPane;
+import com.intellij.ui.components.JBTextField;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.InvocationActionResult;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.InvocationSummary;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowInvocationProgress;
+import io.github.rejeb.dataform.language.ui.ReadOnlyEditors;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import javax.swing.*;
 import java.awt.*;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
-import java.net.URI;
 import java.time.Duration;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
+import javax.swing.*;
 
 import static io.github.rejeb.dataform.language.util.Utils.formatSql;
 
 public class ActionSummaryPanel extends JPanel {
 
-    private static final DateTimeFormatter TIME_FMT =
-            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault());
 
     private final Project project;
 
@@ -83,27 +74,7 @@ public class ActionSummaryPanel extends JPanel {
         String[] keys = {"Execution URL", "Job ID", "Status", "Failure reason", "Start time", "Duration"};
         Component[] values = {urlLabel, jobIdLabel, statusLabel, errorLabel, startLabel, durationLabel};
 
-        GridBagConstraints kc = new GridBagConstraints();
-        kc.anchor = GridBagConstraints.NORTHWEST;
-        kc.insets = JBUI.insets(2, 0, 2, 12);
-        kc.fill = GridBagConstraints.NONE;
-
-        GridBagConstraints vc = new GridBagConstraints();
-        vc.anchor = GridBagConstraints.NORTHWEST;
-        vc.insets = JBUI.insets(2, 0);
-        vc.fill = GridBagConstraints.HORIZONTAL;
-        vc.weightx = 1.0;
-        vc.gridwidth = GridBagConstraints.REMAINDER;
-
-        for (int i = 0; i < keys.length; i++) {
-            kc.gridy = vc.gridy = i;
-            kc.gridx = 0;
-            vc.gridx = 1;
-            JLabel key = new JBLabel(keys[i] + ":");
-            key.setForeground(UIUtil.getLabelDisabledForeground());
-            panel.add(key, kc);
-            panel.add(values[i], vc);
-        }
+        RunConfigUiUtils.addKeyValueRows(panel, keys, values, false);
         panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, panel.getPreferredSize().height));
         return panel;
     }
@@ -115,10 +86,11 @@ public class ActionSummaryPanel extends JPanel {
                      @NotNull InvocationActionResult action) {
         InvocationSummary summary = progress.summary();
         String invName = summary != null ? summary.invocationName() : "";
-        setLink(urlLabel, shortName(invName), buildWorkflowConsoleUrl(invName));
+        RunConfigUiUtils.setLink(urlLabel, RunConfigUiUtils.shortName(invName),
+                summary != null ? summary.gcpConsoleUrl() : InvocationSummary.CONSOLE_URL);
 
         startLabel.setText(action.startTime() != null
-                ? TIME_FMT.format(action.startTime()) : "—");
+                ? RunConfigUiUtils.DATE_TIME.format(action.startTime()) : "—");
 
         if (action.startTime() != null && action.endTime() != null) {
             durationLabel.setText(RunConfigUiUtils.formatDuration(Duration.between(action.startTime(), action.endTime())));
@@ -129,7 +101,7 @@ public class ActionSummaryPanel extends JPanel {
         if (action.jobId() != null) {
             String bqUrl = buildBigQueryJobUrl(action.jobId(), invName);
             if (bqUrl != null) {
-                setLink(jobIdLabel, shortJobId(action.jobId()), bqUrl);
+                RunConfigUiUtils.setLink(jobIdLabel, RunConfigUiUtils.shortName(action.jobId()), bqUrl);
             } else {
                 jobIdLabel.setText(action.jobId());
             }
@@ -149,27 +121,12 @@ public class ActionSummaryPanel extends JPanel {
     }
 
     private void updateSqlEditor(@Nullable String sql) {
-        if (sqlEditor != null) {
-            EditorFactory.getInstance().releaseEditor(sqlEditor);
-            sqlEditor = null;
-        }
+        ReadOnlyEditors.release(sqlEditor);
+        sqlEditor = null;
         sqlContainer.removeAll();
 
         String content = sql != null ? formatSql(project, sql) : "";
-        var document = EditorFactory.getInstance().createDocument(content);
-        var fileType = FileTypeManager.getInstance().getFileTypeByExtension("sql");
-        EditorEx editor = (EditorEx) EditorFactory.getInstance()
-                .createEditor(document, project, fileType, true);
-
-        EditorSettings settings = editor.getSettings();
-        settings.setLineNumbersShown(true);
-        settings.setFoldingOutlineShown(false);
-        settings.setLineMarkerAreaShown(false);
-        settings.setIndentGuidesShown(false);
-        settings.setVirtualSpace(false);
-        settings.setUseSoftWraps(true);          // wrap → pas de scroll horizontal
-        editor.setHorizontalScrollbarVisible(false);
-        editor.setVerticalScrollbarVisible(false);
+        EditorEx editor = ReadOnlyEditors.compactSql(project, content, true);
         sqlEditor = editor;
 
         sqlContainer.add(buildSqlTitleLabel(), BorderLayout.NORTH);
@@ -191,28 +148,8 @@ public class ActionSummaryPanel extends JPanel {
      * Releases the IntelliJ editor. Must be called when this panel is disposed.
      */
     public void release() {
-        if (sqlEditor != null) {
-            EditorFactory.getInstance().releaseEditor(sqlEditor);
-            sqlEditor = null;
-        }
-    }
-
-    /**
-     * Builds the GCP Console URL for the workflow invocation.
-     * invocationName = projects/{project}/locations/{location}/repositories/{repo}/workflowInvocations/{id}
-     */
-    @NotNull
-    private static String buildWorkflowConsoleUrl(@NotNull String invocationName) {
-        String[] parts = invocationName.split("/");
-        if (parts.length < 8) return "https://console.cloud.google.com/";
-        String project = parts[1];
-        String location = parts[3];
-        String repo = parts[5];
-        String id = parts[7];
-        return "https://console.cloud.google.com/bigquery/dataform/locations/"
-                + location + "/repositories/" + repo
-                + "/workflows/" + id
-                + "?project=" + project;
+        ReadOnlyEditors.release(sqlEditor);
+        sqlEditor = null;
     }
 
     /**
@@ -228,13 +165,11 @@ public class ActionSummaryPanel extends JPanel {
         String invProject = invParts.length >= 2 ? invParts[1] : null;
         String invLocation = invParts.length >= 4 ? invParts[3] : "US";
 
-        // Format 1 : "projects/{project}/jobs/{id}"
         String[] parts = jobId.split("/");
         if (parts.length >= 4 && "projects".equals(parts[0]) && "jobs".equals(parts[2])) {
-            return buildBqUrl(parts[1], invLocation, parts[3]);
+            return RunConfigUiUtils.bigQueryJobUrl(parts[1], invLocation, parts[3]);
         }
 
-        // Format 2 : "{project}:{location}.{id}"
         if (jobId.contains(":") && jobId.contains(".")) {
             int colonIdx = jobId.indexOf(':');
             int dotIdx = jobId.indexOf('.', colonIdx);
@@ -242,60 +177,14 @@ public class ActionSummaryPanel extends JPanel {
                 String proj = jobId.substring(0, colonIdx);
                 String loc = jobId.substring(colonIdx + 1, dotIdx);
                 String id = jobId.substring(dotIdx + 1);
-                return buildBqUrl(proj, loc, id);
+                return RunConfigUiUtils.bigQueryJobUrl(proj, loc, id);
             }
         }
 
-        // Format 3 : bare ID — utilise project/location de l'invocation
         if (invProject != null && !jobId.contains("/")) {
-            return buildBqUrl(invProject, invLocation, jobId);
+            return RunConfigUiUtils.bigQueryJobUrl(invProject, invLocation, jobId);
         }
 
         return null;
     }
-
-    @NotNull
-    private static String buildBqUrl(@NotNull String project,
-                                     @NotNull String location,
-                                     @NotNull String jobId) {
-        return "https://console.cloud.google.com/bigquery"
-                + "?project=" + project
-                + "&j=bq:" + location + ":" + jobId
-                + "&page=queryresults";
-    }
-
-    /**
-     * Returns the last path segment of a GCP resource name.
-     */
-    @NotNull
-    private static String shortName(@NotNull String fullName) {
-        int idx = fullName.lastIndexOf('/');
-        return idx >= 0 ? fullName.substring(idx + 1) : fullName;
-    }
-
-    /**
-     * Returns a human-readable job ID from a full GCP job resource name.
-     */
-    @NotNull
-    private static String shortJobId(@NotNull String jobId) {
-        return shortName(jobId);
-    }
-
-    private void setLink(@NotNull JLabel label, @NotNull String text, @NotNull String url) {
-        label.setText("<html><a href=''>" + text + "</a></html>");
-        for (var listener : label.getMouseListeners()) {
-            label.removeMouseListener(listener);
-        }
-        label.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                try {
-                    Desktop.getDesktop().browse(URI.create(url));
-                } catch (Exception ignored) {
-                }
-            }
-        });
-        label.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-    }
-
 }

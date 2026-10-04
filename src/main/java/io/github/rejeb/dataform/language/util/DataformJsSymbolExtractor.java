@@ -16,21 +16,20 @@
  */
 package io.github.rejeb.dataform.language.util;
 
-import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.lang.javascript.psi.JSFile;
 import com.intellij.lang.javascript.psi.JSFunction;
 import com.intellij.lang.javascript.psi.JSVarStatement;
 import com.intellij.lang.javascript.psi.JSVariable;
-import com.intellij.openapi.util.Pair;
-import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
+import io.github.rejeb.dataform.language.injection.InjectedFiles;
 import io.github.rejeb.dataform.language.psi.SqlxFile;
 import io.github.rejeb.dataform.language.psi.SqlxJsBlock;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 public class DataformJsSymbolExtractor {
     public record JsSymbol(
@@ -96,27 +95,24 @@ public class DataformJsSymbolExtractor {
         if (!(file instanceof SqlxFile sqlxFile)) {
             return symbols;
         }
-        extractSqlxJsBlocksRecursive(sqlxFile, symbols);
+        for (PsiFile injected : InjectedFiles.inside(sqlxFile, SqlxJsBlock.class)) {
+            if (injected instanceof JSFile jsFile) symbols.addAll(extractSymbols(jsFile));
+        }
         return symbols;
     }
 
-    private static void extractSqlxJsBlocksRecursive(PsiElement element, List<JsSymbol> symbols) {
-        for (PsiElement child : element.getChildren()) {
-            if (child instanceof SqlxJsBlock) {
-                InjectedLanguageManager injectedManager = InjectedLanguageManager.getInstance(child.getProject());
-                List<Pair<PsiElement, TextRange>> injectedPsi = injectedManager.getInjectedPsiFiles(child);
-                if (injectedPsi != null && !injectedPsi.isEmpty()) {
-                    for (Pair<PsiElement, TextRange> pair : injectedPsi) {
-                        PsiElement injectedElement = pair.getFirst();
-                        PsiFile injectedFile = injectedElement.getContainingFile();
-                        if (injectedFile instanceof JSFile jsFile) {
-                            List<JsSymbol> jsSymbols = extractSymbols(jsFile);
-                            symbols.addAll(jsSymbols);
-                        }
-                    }
-                }
-            }
-            extractSqlxJsBlocksRecursive(child, symbols);
-        }
+    /**
+     * The element declaring a JavaScript symbol in the JS blocks of a SQLX file.
+     *
+     * @param file the SQLX file, any other file declaring nothing
+     * @param name the name of the symbol
+     * @return the declaring element, empty when the file declares no symbol of that name
+     */
+    @NotNull
+    public static Optional<PsiElement> findSymbol(@NotNull PsiFile file, @NotNull String name) {
+        return extractSymbolsFromSqlxFile(file).stream()
+                .filter(symbol -> name.equals(symbol.name()))
+                .map(JsSymbol::element)
+                .findFirst();
     }
 }

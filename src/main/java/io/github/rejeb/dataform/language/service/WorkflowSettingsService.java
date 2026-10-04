@@ -40,18 +40,12 @@ public interface WorkflowSettingsService {
     @NotNull
     Map<String, WorkflowSettingsProperty> getWorkflowProperties(@Nullable VirtualFile context);
 
-    @NotNull
-    Collection<String> getPropertiesForPrefix(@Nullable String prefix);
-
     /**
      * Returns the dot-separated paths of every leaf property below the given prefix,
      * relative to that prefix.
      */
     @NotNull
     Collection<String> getLeafPathsForPrefix(@Nullable String prefix);
-
-    @Nullable
-    WorkflowSettingsYamlFileWrapper findWorkflowSettingsFile();
 
     /**
      * Returns the {@code workflow_settings.yaml} file of the project, or {@code null} when it cannot be

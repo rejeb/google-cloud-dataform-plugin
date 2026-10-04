@@ -16,6 +16,7 @@
  */
 package io.github.rejeb.dataform.language.fileEditor;
 
+import io.github.rejeb.dataform.language.unittest.preview.TestQueries;
 import com.google.gson.Gson;
 import io.github.rejeb.dataform.language.compilation.model.CompiledTest;
 import org.junit.jupiter.api.Test;

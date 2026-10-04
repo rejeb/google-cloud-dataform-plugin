@@ -40,31 +40,17 @@ public final class DataformProjectStructureBuilder {
         VirtualFile definitionsDir = baseDir.createChildDirectory(project, "definitions");
         baseDir.createChildDirectory(project, "includes");
 
-        VirtualFile workflowSettings = baseDir.createChildData(project, "workflow_settings.yaml");
-        String workflowSettingsContent = String.format(
+        write(project, baseDir, "workflow_settings.yaml", String.format(
                 "defaultProject: %s%n" +
                         "defaultLocation: %s%n" +
                         "defaultDataset: %s%n",
                 settings.getGcpProjectId(),
                 settings.getDefaultLocation(),
-                settings.getDefaultSchema()
-        );
-        workflowSettings.setBinaryContent(workflowSettingsContent.getBytes(StandardCharsets.UTF_8));
-
-        VirtualFile packageJson = baseDir.createChildData(project, DataformPackageJson.FILE_NAME);
-        packageJson.setBinaryContent(
-                DataformPackageJson.content(settings.getDataformCoreVersion()).getBytes(StandardCharsets.UTF_8));
-
-        VirtualFile gitignore = baseDir.createChildData(project, ".gitignore");
-        String gitignoreContent = "node_modules/\n.dataform/\n*.log";
-        gitignore.setBinaryContent(gitignoreContent.getBytes(StandardCharsets.UTF_8));
-
-        VirtualFile gcloudignore = baseDir.createChildData(project, ".gcloudignore");
-        String gcloudIgnoreContent = "# ignore files when pushing to gcp dataform repository using dataform API\n";
-        gcloudignore.setBinaryContent(gcloudIgnoreContent.getBytes(StandardCharsets.UTF_8));
-
-        VirtualFile exampleSqlx = definitionsDir.createChildData(project, "example_table.sqlx");
-        String exampleSqlxContent = String.format(
+                settings.getDefaultSchema()));
+        write(project, baseDir, DataformPackageJson.FILE_NAME, DataformPackageJson.content(settings.getDataformCoreVersion()));
+        write(project, baseDir, ".gitignore", "node_modules/\n.dataform/\n*.log");
+        write(project, baseDir, ".gcloudignore", "# ignore files when pushing to gcp dataform repository using dataform API\n");
+        write(project, definitionsDir, "example_table.sqlx", String.format(
                 "config {%n" +
                         "  type: \"table\",%n" +
                         "  schema: \"%s\",%n" +
@@ -73,14 +59,14 @@ public final class DataformProjectStructureBuilder {
                         "SELECT%n" +
                         "  1 AS id,%n" +
                         "  'example' AS name",
-                settings.getDefaultSchema()
-        );
-        exampleSqlx.setBinaryContent(exampleSqlxContent.getBytes(StandardCharsets.UTF_8));
-
-        VirtualFile readme = baseDir.createChildData(project, "README.md");
-        String readmeContent = "# Dataform project for BigQuery data transformation.";
-        readme.setBinaryContent(readmeContent.getBytes(StandardCharsets.UTF_8));
+                settings.getDefaultSchema()));
+        write(project, baseDir, "README.md", "# Dataform project for BigQuery data transformation.");
 
         DataformPendingPackageInstallActivity.schedule(project, baseDir);
+    }
+
+    private static void write(@NotNull Project project, @NotNull VirtualFile dir, @NotNull String name,
+                              @NotNull String content) throws IOException {
+        dir.createChildData(project, name).setBinaryContent(content.getBytes(StandardCharsets.UTF_8));
     }
 }

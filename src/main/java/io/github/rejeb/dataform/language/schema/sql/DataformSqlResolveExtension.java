@@ -16,12 +16,11 @@
  */
 package io.github.rejeb.dataform.language.schema.sql;
 
+import io.github.rejeb.dataform.language.columns.origin.SqlxColumnAtCaret;
 import com.intellij.database.model.ObjectKind;
 import com.intellij.database.symbols.DasSymbol;
-import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.PsiElement;
-import com.intellij.psi.PsiFile;
 import com.intellij.psi.ResolveState;
 import com.intellij.sql.psi.SqlCompositeElementTypes;
 import com.intellij.sql.psi.SqlReference;
@@ -53,10 +52,7 @@ public class DataformSqlResolveExtension implements SqlResolveExtension {
         if (ref.getReferenceElementType() != SqlCompositeElementTypes.SQL_TABLE_REFERENCE) return true;
         if (!processor.mayAccept(ObjectKind.TABLE)) return true;
 
-        PsiFile topLevel = InjectedLanguageManager
-                .getInstance(place.getProject())
-                .getTopLevelFile(place.getContainingFile());
-        if (topLevel == null || !topLevel.getName().endsWith(".sqlx")) return true;
+        if (SqlxColumnAtCaret.sqlxFileOf(place) == null) return true;
 
         String refName = ref.getReferenceName();
         if (refName == null) return true;

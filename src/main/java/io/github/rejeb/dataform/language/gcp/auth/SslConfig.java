@@ -22,6 +22,13 @@ import com.intellij.util.net.ssl.CertificateManager;
 import org.jetbrains.annotations.NotNull;
 
 import javax.net.ssl.SSLContext;
+import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 
 /**
  * TLS setup shared by every HTTPS call the plugin makes on its own.
@@ -52,5 +59,32 @@ public final class SslConfig {
                 .setSslSocketFactory(sslContext().getSocketFactory())
                 .build();
         return () -> transport;
+    }
+
+    /**
+     * @param connectTimeout how long a connection may take to open
+     * @return an HTTP client honouring the plugin TLS setup
+     */
+    @NotNull
+    public static HttpClient httpClient(@NotNull Duration connectTimeout) {
+        return HttpClient.newBuilder().connectTimeout(connectTimeout).sslContext(sslContext()).build();
+    }
+
+    /**
+     * Sends a GET request authorized by an OAuth access token.
+     *
+     * @param url     the URL to fetch
+     * @param token   the access token
+     * @param timeout how long connecting and answering may each take
+     * @return the response, with its body read as UTF-8 text
+     * @throws IOException          when the request fails
+     * @throws InterruptedException when the thread is interrupted while waiting
+     */
+    @NotNull
+    public static HttpResponse<String> getWithBearer(@NotNull String url, @NotNull String token,
+                                                     @NotNull Duration timeout) throws IOException, InterruptedException {
+        HttpRequest request = HttpRequest.newBuilder(URI.create(url))
+                .header("Authorization", "Bearer " + token).timeout(timeout).GET().build();
+        return httpClient(timeout).send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
     }
 }

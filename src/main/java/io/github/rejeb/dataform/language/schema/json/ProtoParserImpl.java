@@ -50,7 +50,6 @@ public final class ProtoParserImpl implements ProtoParser {
                             }
                         }
                 ).orElse("");
-
     }
 
     public boolean configProtoFileExists() {

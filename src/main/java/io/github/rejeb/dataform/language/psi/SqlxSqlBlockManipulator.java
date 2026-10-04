@@ -25,7 +25,6 @@ import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.IncorrectOperationException;
 import io.github.rejeb.dataform.language.SqlxLanguage;
 import org.jetbrains.annotations.NotNull;
-import org.jspecify.annotations.NonNull;
 
 public class SqlxSqlBlockManipulator extends AbstractElementManipulator<SqlxSqlBlock> {
 
@@ -34,10 +33,7 @@ public class SqlxSqlBlockManipulator extends AbstractElementManipulator<SqlxSqlB
                                             @NotNull TextRange range,
                                             @NotNull String newContent)
             throws IncorrectOperationException {
-        String oldText = element.getText();
-        String newText = oldText.substring(0, range.getStartOffset())
-                + newContent
-                + oldText.substring(range.getEndOffset());
+        String newText = range.replace(element.getText(), newContent);
         IElementType type = element.getNode().getElementType();
         PsiFile fileFromText = PsiFileFactory.getInstance(element.getProject())
                 .createFileFromText("dummy.sqlx",
@@ -52,21 +48,9 @@ public class SqlxSqlBlockManipulator extends AbstractElementManipulator<SqlxSqlB
     }
 
     private static String enclosed(@NotNull IElementType type, @NotNull String body) {
-        if (type == SharedTokenTypes.INPUT_CONTENT) {
-            return "input \"input\" {" + body + "}";
-        }
-        if (type == SharedTokenTypes.PRE_OPERATIONS_CONTENT) {
-            return "pre_operations {" + body + "}";
-        }
-        if (type == SharedTokenTypes.POST_OPERATIONS_CONTENT) {
-            return "post_operations {" + body + "}";
-        }
+        if (type == SharedTokenTypes.INPUT_CONTENT) return "input \"input\" {" + body + "}";
+        if (type == SharedTokenTypes.PRE_OPERATIONS_CONTENT) return "pre_operations {" + body + "}";
+        if (type == SharedTokenTypes.POST_OPERATIONS_CONTENT) return "post_operations {" + body + "}";
         return body;
-    }
-
-    @Override
-    public @NonNull TextRange getRangeInElement(@NotNull SqlxSqlBlock element) {
-
-        return TextRange.from(0, element.getTextLength());
     }
 }

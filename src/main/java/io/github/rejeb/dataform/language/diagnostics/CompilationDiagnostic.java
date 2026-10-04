@@ -27,17 +27,11 @@ import org.jetbrains.annotations.Nullable;
  *
  * @param file             the file the error is shown in
  * @param message          the message
- * @param actionName       the action the error belongs to, or {@code null}
  * @param stack            the stack the error was thrown with, or {@code null}
  * @param reportedFileName the project-relative file the compiler reported the error for, or {@code null}
  */
 public record CompilationDiagnostic(@NotNull VirtualFile file,
                                     @NotNull String message,
-                                    @Nullable String actionName,
                                     @Nullable String stack,
                                     @Nullable String reportedFileName) {
-
-    public CompilationDiagnostic(@NotNull VirtualFile file, @NotNull String message, @Nullable String actionName) {
-        this(file, message, actionName, null, null);
-    }
 }

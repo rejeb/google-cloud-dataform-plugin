@@ -18,7 +18,7 @@ package io.github.rejeb.dataform.language.unittest.columns;
 
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiElement;
-import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
+import io.github.rejeb.dataform.language.columns.model.ColumnRef;
 import io.github.rejeb.dataform.language.psi.SqlxSqlBlock;
 import org.jetbrains.annotations.NotNull;
 

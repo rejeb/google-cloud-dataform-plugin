@@ -16,7 +16,6 @@
  */
 package io.github.rejeb.dataform.language.folding;
 
-import com.intellij.lang.folding.FoldingDescriptor;
 import com.intellij.openapi.editor.FoldingGroup;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -110,12 +109,5 @@ public final class DataformFoldingPlaceholder {
             indent++;
         }
         return indent;
-    }
-
-    /**
-     * Returns an empty descriptor array, for the paths where folding must not appear.
-     */
-    public static FoldingDescriptor @NotNull [] none() {
-        return FoldingDescriptor.EMPTY_ARRAY;
     }
 }

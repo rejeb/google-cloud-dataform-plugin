@@ -16,13 +16,10 @@
  */
 package io.github.rejeb.dataform.language.schema.sql.model;
 
-import com.intellij.database.Dbms;
 import com.intellij.database.model.DasColumn;
 import com.intellij.database.model.DasObject;
 import com.intellij.database.model.DasTable;
 import com.intellij.database.model.ObjectKind;
-import com.intellij.database.symbols.DasSymbol;
-import com.intellij.navigation.ItemPresentation;
 import com.intellij.openapi.fileEditor.OpenFileDescriptor;
 import com.intellij.openapi.fileTypes.PlainTextFileType;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -31,10 +28,6 @@ import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiFileFactory;
 import com.intellij.psi.PsiManager;
-import com.intellij.psi.PsiNamedElement;
-import com.intellij.psi.impl.light.LightElement;
-import com.intellij.sql.dialects.bigquery.BigQueryDialect;
-import com.intellij.util.IncorrectOperationException;
 import com.intellij.util.containers.JBIterable;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -43,7 +36,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
-public class DataformDasTable extends LightElement implements DasTable, DasSymbol, PsiNamedElement {
+public class DataformDasTable extends DataformDasElement implements DasTable {
     @Nullable
     private final String myFullName;
     private final String myName;
@@ -68,7 +61,7 @@ public class DataformDasTable extends LightElement implements DasTable, DasSymbo
                             @NotNull String table,
                             @NotNull List<ColumnInfo> columns,
                             @Nullable VirtualFile sourceFile) {
-        super(psiManager, BigQueryDialect.INSTANCE);
+        super(psiManager);
         this.myFullName = fullName;
         this.myName = table;
         this.myColumns = columns;
@@ -97,15 +90,6 @@ public class DataformDasTable extends LightElement implements DasTable, DasSymbo
         return myName;
     }
 
-    /**
-     * A schema table is a read-only declaration: it is derived from the compiled Dataform graph
-     * and has no source of its own to edit.
-     */
-    @Override
-    public PsiElement setName(@NotNull String name) throws IncorrectOperationException {
-        throw new IncorrectOperationException("Dataform schema tables cannot be renamed");
-    }
-
     public @NotNull List<ColumnInfo> getColumns() {
         return myColumns;
     }
@@ -131,11 +115,6 @@ public class DataformDasTable extends LightElement implements DasTable, DasSymbo
         return current != null && current.isValid() ? current : null;
     }
 
-    @Override
-    public @NotNull String toString() {
-        return myName;
-    }
-
     /**
      * Two instances describing the same Dataform table are the same declaration. Instances are
      * rebuilt on every schema refresh, so reference matching (Find Usages, highlighting) must
@@ -158,28 +137,8 @@ public class DataformDasTable extends LightElement implements DasTable, DasSymbo
     }
 
     @Override
-    public @NotNull Dbms getDbms() {
-        return Dbms.BIGQUERY;
-    }
-
-    @Override
-    public @Nullable DasObject getDasObject() {
-        return this;
-    }
-
-    @Override
     public @NotNull ObjectKind getKind() {
         return ObjectKind.TABLE;
-    }
-
-    @Override
-    public @NotNull JBIterable<? extends PsiElement> getPsiDeclarations() {
-        return JBIterable.of(this);
-    }
-
-    @Override
-    public @Nullable PsiElement getContextElement() {
-        return this;
     }
 
     @Override
@@ -199,28 +158,8 @@ public class DataformDasTable extends LightElement implements DasTable, DasSymbo
     }
 
     @Override
-    public ItemPresentation getPresentation() {
-        return new ItemPresentation() {
-            @Override
-            public String getPresentableText() {
-                return myName;
-            }
-
-            @Override
-            public String getLocationString() {
-                return mySourceFile != null ? mySourceFile.getName() : null;
-            }
-
-            @Override
-            public javax.swing.Icon getIcon(boolean unused) {
-                return null;
-            }
-        };
-    }
-
-    @Override
-    public boolean isQuoted() {
-        return false;
+    protected @Nullable String presentableLocation() {
+        return mySourceFile != null ? mySourceFile.getName() : null;
     }
 
     @Override
@@ -259,10 +198,4 @@ public class DataformDasTable extends LightElement implements DasTable, DasSymbo
     public boolean canNavigate() {
         return liveSourceFile() != null;
     }
-
-    @Override
-    public boolean canNavigateToSource() {
-        return canNavigate();
-    }
-
 }

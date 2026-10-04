@@ -18,6 +18,7 @@ package io.github.rejeb.dataform.language.diagnostics;
 
 import com.intellij.openapi.vfs.AsyncFileListener;
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent;
+import io.github.rejeb.dataform.language.diagnostics.compile.CompilationProblemsService;
 import io.github.rejeb.dataform.language.util.DataformProjectLayout;
 import io.github.rejeb.dataform.language.util.DataformProjects;
 import org.jetbrains.annotations.NotNull;
@@ -41,9 +42,8 @@ public final class DiagnosticsRefreshListener implements AsyncFileListener {
             @Override
             public void afterVfsChange() {
                 DataformProjects.forEachOpen(project -> {
-                    CompilationDiagnosticService.getInstance(project).invalidate();
-                    ValidationProblemInlayManager.getInstance(project).refreshAll();
-                    DataformEditorRefresher.refresh(project);
+                    CompilationProblemsService.getInstance(project).invalidate();
+                    DataformEditorRefresher.refreshWithInlays(project);
                 });
             }
         };

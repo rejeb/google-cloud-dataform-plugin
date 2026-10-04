@@ -27,5 +27,4 @@ public interface ProtoParser {
     default Optional<ProtoModel.ProtoFile> parse() {
         return Optional.empty();
     }
-
 }

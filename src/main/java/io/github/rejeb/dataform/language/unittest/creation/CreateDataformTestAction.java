@@ -16,7 +16,6 @@
  */
 package io.github.rejeb.dataform.language.unittest.creation;
 
-import com.intellij.notification.NotificationGroupManager;
 import com.intellij.notification.NotificationType;
 import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnAction;
@@ -39,6 +38,7 @@ import io.github.rejeb.dataform.language.compilation.model.CompiledTable;
 import io.github.rejeb.dataform.language.compilation.model.Target;
 import io.github.rejeb.dataform.language.unittest.TestableActions;
 import io.github.rejeb.dataform.language.unittest.schema.TestSchemaResolver;
+import io.github.rejeb.dataform.language.util.DataformNotifications;
 import io.github.rejeb.dataform.language.util.DataformPaths;
 import io.github.rejeb.dataform.language.util.DataformProjectLayout;
 import org.jetbrains.annotations.NotNull;
@@ -181,8 +181,7 @@ public final class CreateDataformTestAction extends AnAction implements DumbAwar
     }
 
     private static void notify(@NotNull Project project, @NotNull String message, @NotNull NotificationType type) {
-        NotificationGroupManager.getInstance().getNotificationGroup("Dataform.Notifications")
-                .createNotification(message, type)
+        DataformNotifications.create(message, type)
                 .notify(project);
     }
 }

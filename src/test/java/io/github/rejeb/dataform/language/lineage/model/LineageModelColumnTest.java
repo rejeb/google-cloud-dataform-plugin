@@ -16,9 +16,9 @@
  */
 package io.github.rejeb.dataform.language.lineage.model;
 
-import io.github.rejeb.dataform.language.lineage.column.ColumnLineageGraph;
-import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
-import io.github.rejeb.dataform.language.lineage.column.Confidence;
+import io.github.rejeb.dataform.language.columns.analysis.ColumnLineageGraph;
+import io.github.rejeb.dataform.language.columns.model.ColumnRef;
+import io.github.rejeb.dataform.language.columns.analysis.Confidence;
 import io.github.rejeb.dataform.language.lineage.graph.LineageGraph;
 import io.github.rejeb.dataform.language.lineage.graph.LineageNode;
 import org.junit.jupiter.api.Test;

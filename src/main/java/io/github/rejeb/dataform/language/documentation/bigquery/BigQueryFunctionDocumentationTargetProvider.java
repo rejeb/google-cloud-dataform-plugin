@@ -16,15 +16,15 @@
  */
 package io.github.rejeb.dataform.language.documentation.bigquery;
 
-import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.platform.backend.documentation.DocumentationTarget;
 import com.intellij.platform.backend.documentation.DocumentationTargetProvider;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.sql.psi.SqlFunctionCallExpression;
+import io.github.rejeb.dataform.language.columns.origin.SqlxColumnAtCaret;
+import io.github.rejeb.dataform.language.injection.InjectionHelper;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.Optional;
@@ -34,12 +34,9 @@ public class BigQueryFunctionDocumentationTargetProvider implements Documentatio
     @Override
     public @NotNull List<? extends DocumentationTarget> documentationTargets(@NotNull PsiFile file,
                                                                              int offset) {
-        PsiFile topLevel = InjectedLanguageManager.getInstance(file.getProject()).getTopLevelFile(file);
-        if (topLevel == null || !topLevel.getName().endsWith(".sqlx")) {
-            return List.of();
-        }
+        if (SqlxColumnAtCaret.sqlxFileOf(file) == null) return List.of();
 
-        PsiElement element = elementAt(file, offset);
+        PsiElement element = InjectionHelper.elementAt(file, offset);
         if (element == null) {
             return List.of();
         }
@@ -57,13 +54,6 @@ public class BigQueryFunctionDocumentationTargetProvider implements Documentatio
         return doc.<List<? extends DocumentationTarget>>map(
                         value -> List.of(new BigQueryFunctionDocumentationTarget(value)))
                 .orElseGet(List::of);
-    }
-
-    @Nullable
-    private static PsiElement elementAt(@NotNull PsiFile file, int offset) {
-        PsiElement injected = InjectedLanguageManager.getInstance(file.getProject())
-                .findInjectedElementAt(file, offset);
-        return injected != null ? injected : file.findElementAt(offset);
     }
 
     private static boolean isFunctionCall(@NotNull PsiElement element) {

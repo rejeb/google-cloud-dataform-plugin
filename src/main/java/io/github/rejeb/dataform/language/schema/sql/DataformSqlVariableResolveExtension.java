@@ -16,10 +16,10 @@
  */
 package io.github.rejeb.dataform.language.schema.sql;
 
+import io.github.rejeb.dataform.language.columns.origin.SqlxColumnAtCaret;
 import com.intellij.codeInsight.completion.CompletionUtilCore;
 import com.intellij.database.model.ObjectKind;
 import com.intellij.database.symbols.DasSymbol;
-import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.ResolveState;
@@ -66,12 +66,8 @@ public class DataformSqlVariableResolveExtension implements SqlResolveExtension 
             return true;
         }
 
-        PsiFile topLevel = InjectedLanguageManager
-                .getInstance(place.getProject())
-                .getTopLevelFile(place.getContainingFile());
-        if (topLevel == null || !topLevel.getName().endsWith(".sqlx")) {
-            return true;
-        }
+        PsiFile topLevel = SqlxColumnAtCaret.sqlxFileOf(place);
+        if (topLevel == null) return true;
 
         Map<String, ColumnInfo> variables = DataformDeclaredVariablesScanner.scan(topLevel);
         if (variables.isEmpty()) {

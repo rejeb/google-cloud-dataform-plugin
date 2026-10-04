@@ -131,10 +131,6 @@ public final class GraphCanvas extends JComponent {
         });
     }
 
-    // ------------------------------------------------------------------
-    // Model / layout lifecycle
-    // ------------------------------------------------------------------
-
     private void onModelChanged() {
         Set<String> visible = model.visibleIds();
         String structureKey = structureKey(visible);
@@ -214,10 +210,6 @@ public final class GraphCanvas extends JComponent {
         maybeRecenter();
     }
 
-    // ------------------------------------------------------------------
-    // Hit testing and hover state
-    // ------------------------------------------------------------------
-
     private @Nullable String nodeAt(@NotNull Point screen) {
         if (layout == null) return null;
         return CanvasHitTest.nodeAt(layout.positions(), layout.nodeH(),
@@ -296,10 +288,6 @@ public final class GraphCanvas extends JComponent {
                 : Cursor.getDefaultCursor());
         repaint();
     }
-
-    // ------------------------------------------------------------------
-    // Mouse handling
-    // ------------------------------------------------------------------
 
     private void installMouseHandlers() {
         MouseAdapter adapter = new MouseAdapter() {
@@ -433,10 +421,6 @@ public final class GraphCanvas extends JComponent {
     private void openSource(@Nullable LineageNode node) {
         LineageActions.openSource(project, node);
     }
-
-    // ------------------------------------------------------------------
-    // Painting
-    // ------------------------------------------------------------------
 
     @Override
     protected void paintComponent(Graphics g) {

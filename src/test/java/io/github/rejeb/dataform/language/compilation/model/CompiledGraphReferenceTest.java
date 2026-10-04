@@ -130,4 +130,32 @@ public class CompiledGraphReferenceTest {
 
         assertTrue(graph.findTargetByReference(new ActionReference(null, "staging", "customers")).isEmpty());
     }
+
+    /**
+     * Ctrl+Click on {@code ref()} and on a unit test {@code input} both open the file of the action
+     * a name designates, so both must agree: an action compiled to the name wins over a table whose
+     * name before its prefix is that name.
+     */
+    @Test
+    public void theFileOfAReferenceIsThatOfTheActionCompiledToTheNameFirst() {
+        CompiledTable prefixed = table(target("p", "d", "dev_orders"), target("p", "d", "orders"));
+        set(prefixed, "fileName", "definitions/orders.sqlx");
+        Declaration declared = declaration(target("p", "d", "orders"));
+        set(declared, "fileName", "definitions/sources.js");
+        CompiledGraph graph = graph(List.of(prefixed), List.of(declared));
+
+        assertEquals(Optional.of("definitions/sources.js"), graph.fileOf(ActionReference.named("orders")));
+        assertEquals(Optional.of("definitions/orders.sqlx"), graph.fileOf(ActionReference.named("dev_orders")));
+    }
+
+    @Test
+    public void theFileOfAnOperationIsFoundByItsName() {
+        CompiledOperation operation = new CompiledOperation();
+        set(operation, "target", target("p", "d", "ops"));
+        set(operation, "fileName", "definitions/ops.sqlx");
+        CompiledGraph graph = graph(List.of(), List.of());
+        set(graph, "operations", List.of(operation));
+
+        assertEquals(Optional.of("definitions/ops.sqlx"), graph.fileOf(ActionReference.named("ops")));
+    }
 }

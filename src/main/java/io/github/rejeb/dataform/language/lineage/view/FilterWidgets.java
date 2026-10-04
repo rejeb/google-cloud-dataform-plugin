@@ -16,18 +16,17 @@
  */
 package io.github.rejeb.dataform.language.lineage.view;
 
-import com.intellij.ui.JBColor;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.scale.JBUIScale;
 import com.intellij.util.ui.UIUtil;
 import org.jetbrains.annotations.NotNull;
 
-import javax.swing.JComponent;
 import java.awt.Color;
 import java.awt.Cursor;
 import java.awt.Font;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import javax.swing.JComponent;
 
 /**
  * The small labels the lineage filter sections are built from. They carry the look of the panel —
@@ -54,7 +53,7 @@ final class FilterWidgets {
 
     static JComponent link(@NotNull String text, @NotNull Runnable action) {
         JBLabel label = new JBLabel(text);
-        label.setForeground(accent());
+        label.setForeground(LineageTheme.accentColor());
         label.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         label.addMouseListener(new MouseAdapter() {
             @Override
@@ -67,9 +66,5 @@ final class FilterWidgets {
 
     static Font monospace(@NotNull Font base) {
         return new Font(Font.MONOSPACED, Font.PLAIN, base.getSize());
-    }
-
-    static Color accent() {
-        return new JBColor(new Color(0x3574F0), new Color(0x548AF7));
     }
 }

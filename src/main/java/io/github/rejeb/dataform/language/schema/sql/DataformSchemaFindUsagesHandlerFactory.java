@@ -16,13 +16,22 @@
  */
 package io.github.rejeb.dataform.language.schema.sql;
 
+import io.github.rejeb.dataform.language.columns.origin.SqlxColumnAtCaret;
 import com.intellij.find.findUsages.FindUsagesHandler;
 import com.intellij.find.findUsages.FindUsagesHandlerFactory;
+import com.intellij.find.findUsages.FindUsagesOptions;
+import com.intellij.openapi.application.ReadAction;
 import com.intellij.psi.PsiElement;
+import com.intellij.usageView.UsageInfo;
+import com.intellij.util.Processor;
+import com.intellij.util.containers.ContainerUtil;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasColumn;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasTable;
+import io.github.rejeb.dataform.language.columns.usages.UnreferencedColumnReads;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+
+import java.util.List;
 
 /**
  * Lets Find Usages run on the tables and columns of the Dataform schema, and on the aliases
@@ -57,16 +66,39 @@ public class DataformSchemaFindUsagesHandlerFactory extends FindUsagesHandlerFac
     public @Nullable FindUsagesHandler createFindUsagesHandler(@NotNull PsiElement element,
                                                                boolean forHighlightUsages) {
         if (element instanceof DataformDasColumn || element instanceof DataformDasTable) {
-            return new FindUsagesHandler(element) {
-            };
+            return new ColumnFindUsagesHandler(element, PsiElement.EMPTY_ARRAY);
         }
         DataformDasColumn declared = SqlxColumnAtCaret.declaredColumnOf(element);
-        if (declared == null) return null;
-        return new FindUsagesHandler(element) {
-            @Override
-            public PsiElement @NotNull [] getSecondaryElements() {
-                return new PsiElement[]{declared};
-            }
-        };
+        return declared == null ? null : new ColumnFindUsagesHandler(element, new PsiElement[]{declared});
+    }
+
+    /**
+     * Searches the references of a schema column, then the reads no reference points at, so Find
+     * Usages lists what the column window lists.
+     */
+    private static final class ColumnFindUsagesHandler extends FindUsagesHandler {
+
+        private final PsiElement[] secondary;
+
+        ColumnFindUsagesHandler(@NotNull PsiElement element, PsiElement @NotNull [] secondary) {
+            super(element);
+            this.secondary = secondary;
+        }
+
+        @Override
+        public PsiElement @NotNull [] getSecondaryElements() {
+            return secondary;
+        }
+
+        @Override
+        public boolean processElementUsages(@NotNull PsiElement element,
+                                            @NotNull Processor<? super UsageInfo> processor,
+                                            @NotNull FindUsagesOptions options) {
+            if (!super.processElementUsages(element, processor, options)) return false;
+            if (!(element instanceof DataformDasColumn column) || !options.isUsages) return true;
+            List<UsageInfo> usages = ReadAction.nonBlocking(() -> UnreferencedColumnReads.of(getProject(), column)
+                    .stream().map(UsageInfo::new).toList()).executeSynchronously();
+            return ContainerUtil.process(usages, processor);
+        }
     }
 }

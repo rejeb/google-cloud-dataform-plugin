@@ -43,23 +43,15 @@ public record InvocationSummary(
         return idx >= 0 ? compilationResultName.substring(idx + 1) : compilationResultName;
     }
 
+    public static final String CONSOLE_URL = "https://console.cloud.google.com/";
+
     /**
      * Returns the GCP Console URL for this workflow invocation.
-     * Format: https://console.cloud.google.com/bigquery/dataform/locations/{location}/repositories/{repo}/workflows/{invocationId}?project={project}
      */
     @NotNull
     public String gcpConsoleUrl() {
-        // name = projects/{project}/locations/{location}/repositories/{repo}/workflowInvocations/{id}
-        String[] parts = invocationName.split("/");
-        if (parts.length < 8) return "https://console.cloud.google.com/";
-        String project  = parts[1];
-        String location = parts[3];
-        String repo     = parts[5];
-        String id       = parts[7];
-        return "https://console.cloud.google.com/bigquery/dataform/locations/"
-                + location + "/repositories/" + repo
-                + "/workflows/" + id
-                + "?project=" + project;
+        String url = dataformConsoleUrl(invocationName, "workflows");
+        return url != null ? url : CONSOLE_URL;
     }
 
     /**
@@ -67,17 +59,14 @@ public record InvocationSummary(
      */
     @Nullable
     public String workspaceConsoleUrl() {
-        if (sourceWorkspaceName == null) return null;
-        // name = projects/{project}/locations/{location}/repositories/{repo}/workspaces/{ws}
-        String[] parts = sourceWorkspaceName.split("/");
+        return sourceWorkspaceName == null ? null : dataformConsoleUrl(sourceWorkspaceName, "workspaces");
+    }
+
+    @Nullable
+    private static String dataformConsoleUrl(@NotNull String resourceName, @NotNull String page) {
+        String[] parts = resourceName.split("/");
         if (parts.length < 8) return null;
-        String project  = parts[1];
-        String location = parts[3];
-        String repo     = parts[5];
-        String ws       = parts[7];
-        return "https://console.cloud.google.com/bigquery/dataform/locations/"
-                + location + "/repositories/" + repo
-                + "/workspaces/" + ws
-                + "?project=" + project;
+        return CONSOLE_URL + "bigquery/dataform/locations/" + parts[3] + "/repositories/" + parts[5]
+                + "/" + page + "/" + parts[7] + "?project=" + parts[1];
     }
 }

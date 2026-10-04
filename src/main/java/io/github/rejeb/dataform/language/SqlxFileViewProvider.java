@@ -28,5 +28,4 @@ public class SqlxFileViewProvider extends SingleRootFileViewProvider {
                                 boolean eventSystemEnabled) {
         super(manager, file, eventSystemEnabled, SqlxLanguage.INSTANCE);
     }
-
 }

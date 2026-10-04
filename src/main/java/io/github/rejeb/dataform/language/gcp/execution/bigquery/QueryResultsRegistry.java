@@ -52,10 +52,6 @@ public final class QueryResultsRegistry {
         return results.get(tableName);
     }
 
-    public synchronized boolean isEmpty() {
-        return results.isEmpty();
-    }
-
     public synchronized void remove(@NotNull String tableName) {
         BigQueryJobResult removed = results.remove(tableName);
         if (removed != null && removed.pagedResult() != null) {

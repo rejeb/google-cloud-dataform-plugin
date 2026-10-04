@@ -21,9 +21,7 @@ import com.intellij.execution.process.CapturingProcessHandler;
 import com.intellij.execution.process.ProcessOutput;
 import com.intellij.notification.Notification;
 import com.intellij.notification.NotificationAction;
-import com.intellij.notification.NotificationGroupManager;
 import com.intellij.notification.NotificationType;
-import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.Task;
@@ -33,6 +31,7 @@ import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.diagnostics.DataformEditorRefresher;
+import io.github.rejeb.dataform.language.util.DataformNotifications;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.charset.StandardCharsets;
@@ -44,7 +43,6 @@ public final class DataformPackageInstallerImpl implements DataformPackageInstal
     private static final Logger LOG = Logger.getInstance(DataformPackageInstallerImpl.class);
     private static final int INSTALL_TIMEOUT_MS = 10 * 60 * 1000;
     private static final int MAX_OUTPUT_CHARS = 1_000;
-    private static final String NOTIFICATION_GROUP = "Dataform.Notifications";
 
     private final Project project;
 
@@ -131,17 +129,9 @@ public final class DataformPackageInstallerImpl implements DataformPackageInstal
         if (project.isDisposed()) {
             return;
         }
-        Notification notification = NotificationGroupManager.getInstance()
-                .getNotificationGroup(NOTIFICATION_GROUP)
-                .createNotification(title, content, type);
+        Notification notification = DataformNotifications.create(title, content, type);
         if (retry) {
-            notification.addAction(new NotificationAction("Retry") {
-                @Override
-                public void actionPerformed(@NotNull AnActionEvent e, @NotNull Notification n) {
-                    n.expire();
-                    installAsync(projectDir);
-                }
-            });
+            notification.addAction(NotificationAction.createSimpleExpiring("Retry", () -> installAsync(projectDir)));
         }
         notification.notify(project);
     }

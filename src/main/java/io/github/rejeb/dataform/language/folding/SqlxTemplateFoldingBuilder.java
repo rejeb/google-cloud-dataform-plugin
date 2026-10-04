@@ -16,11 +16,8 @@
  */
 package io.github.rejeb.dataform.language.folding;
 
-import com.intellij.lang.ASTNode;
-import com.intellij.lang.folding.FoldingBuilderEx;
 import com.intellij.lang.folding.FoldingDescriptor;
 import com.intellij.openapi.editor.Document;
-import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
@@ -28,9 +25,7 @@ import com.intellij.psi.PsiFile;
 import io.github.rejeb.dataform.language.evaluation.DataformExpression;
 import io.github.rejeb.dataform.language.evaluation.DataformExpressionCollector;
 import io.github.rejeb.dataform.language.evaluation.DataformExpressionEvaluationService;
-import io.github.rejeb.dataform.language.settings.DataformToolsSettings;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -38,26 +33,26 @@ import java.util.List;
 /**
  * Replaces the {@code ${...}} template expressions of a SQLX file by their evaluated value.
  */
-public class SqlxTemplateFoldingBuilder extends FoldingBuilderEx {
+public class SqlxTemplateFoldingBuilder extends DataformValueFoldingBuilder {
 
     @Override
     public FoldingDescriptor @NotNull [] buildFoldRegions(@NotNull PsiElement root,
                                                           @NotNull Document document,
                                                           boolean quick) {
         Project project = root.getProject();
-        if (quick || DumbService.isDumb(project) || !DataformToolsSettings.getInstance().isFoldTemplateExpressions()) {
-            return DataformFoldingPlaceholder.none();
+        if (isDisabled(project, quick)) {
+            return FoldingDescriptor.EMPTY_ARRAY;
         }
         PsiFile file = root.getContainingFile();
         VirtualFile virtualFile = file == null ? null : file.getVirtualFile();
         if (virtualFile == null) {
-            return DataformFoldingPlaceholder.none();
+            return FoldingDescriptor.EMPTY_ARRAY;
         }
 
         List<DataformExpressionCollector.FoldablePart> expressions =
                 DataformExpressionCollector.collectSqlxTemplateElements(root);
         if (expressions.isEmpty()) {
-            return DataformFoldingPlaceholder.none();
+            return FoldingDescriptor.EMPTY_ARRAY;
         }
 
         DataformExpressionEvaluationService service = DataformExpressionEvaluationService.getInstance(project);
@@ -70,21 +65,8 @@ public class SqlxTemplateFoldingBuilder extends FoldingBuilderEx {
             if (value != null && DataformMultilineFoldPolicy.qualifies(document, expression.hostRange(), value)) {
                 return;
             }
-            FoldingDescriptor descriptor = DataformFoldDescriptors.of(element, expression, value, true);
-            if (descriptor != null) {
-                descriptors.add(descriptor);
-            }
+            addDescriptor(descriptors, element, expression, value, true);
         });
         return descriptors.toArray(FoldingDescriptor.EMPTY_ARRAY);
-    }
-
-    @Override
-    public @Nullable String getPlaceholderText(@NotNull ASTNode node) {
-        return null;
-    }
-
-    @Override
-    public boolean isCollapsedByDefault(@NotNull ASTNode node) {
-        return true;
     }
 }

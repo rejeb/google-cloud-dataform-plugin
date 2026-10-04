@@ -65,7 +65,7 @@ final class OperationSchemaExtraction {
     private static @Nullable DryRunResult fromTable(@Nullable Target target,
                                                     @NotNull ExtractionContext ctx) {
         if (target == null || target.getFullName() == null) return null;
-        return run(ctx, tableQuery(target.getFullName()));
+        return ctx.dryRun(tableQuery(target.getFullName()));
     }
 
     private static @Nullable DryRunResult fromLastQuery(@NotNull List<String> queries,
@@ -73,10 +73,6 @@ final class OperationSchemaExtraction {
         if (queries.isEmpty()) return null;
         String last = queries.getLast();
         if (last == null || last.isBlank()) return null;
-        return run(ctx, last);
-    }
-
-    private static @NotNull DryRunResult run(@NotNull ExtractionContext ctx, @NotNull String query) {
-        return ctx.extractor().extractSchema(ctx.projectId(), ctx.location(), query);
+        return ctx.dryRun(last);
     }
 }

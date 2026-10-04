@@ -25,13 +25,7 @@ import io.github.rejeb.dataform.language.documentation.DataformDocumentationRend
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-public class BigQueryFunctionDocumentationTarget implements DocumentationTarget {
-
-    private final BigQueryFunctionDoc myDoc;
-
-    public BigQueryFunctionDocumentationTarget(@NotNull BigQueryFunctionDoc doc) {
-        this.myDoc = doc;
-    }
+public record BigQueryFunctionDocumentationTarget(@NotNull BigQueryFunctionDoc doc) implements DocumentationTarget {
 
     @Override
     public @NotNull Pointer<? extends DocumentationTarget> createPointer() {
@@ -40,15 +34,15 @@ public class BigQueryFunctionDocumentationTarget implements DocumentationTarget 
 
     @Override
     public @NotNull TargetPresentation computePresentation() {
-        return TargetPresentation.builder(myDoc.name())
+        return TargetPresentation.builder(doc.name())
                 .icon(AllIcons.Nodes.Function)
-                .locationText(myDoc.category())
+                .locationText(doc.category())
                 .presentation();
     }
 
     @Override
     public @Nullable DocumentationResult computeDocumentation() {
         return DocumentationResult.documentation(
-                DataformDocumentationRenderer.renderFunction(myDoc));
+                DataformDocumentationRenderer.renderFunction(doc));
     }
 }

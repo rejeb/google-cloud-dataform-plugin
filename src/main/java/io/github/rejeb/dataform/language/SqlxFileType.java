@@ -22,7 +22,6 @@ import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 
-
 public class SqlxFileType extends LanguageFileType {
     public static final SqlxFileType INSTANCE = new SqlxFileType();
     public static final String EXTENSION = "sqlx";

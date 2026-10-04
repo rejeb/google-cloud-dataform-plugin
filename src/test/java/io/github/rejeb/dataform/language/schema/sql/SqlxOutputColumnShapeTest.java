@@ -16,11 +16,14 @@
  */
 package io.github.rejeb.dataform.language.schema.sql;
 
+import io.github.rejeb.dataform.language.columns.origin.ColumnOriginService;
+import io.github.rejeb.dataform.language.columns.origin.SqlxColumnAtCaret;
+import io.github.rejeb.dataform.language.columns.origin.SqlxOutputColumnLocator;
 import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
-import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
-import io.github.rejeb.dataform.language.schema.sql.usages.ColumnWindowTarget;
+import io.github.rejeb.dataform.language.columns.model.ColumnRef;
+import io.github.rejeb.dataform.language.columns.usages.ColumnWindowTarget;
 
 /**
  * Which queries declare the columns of the table a file builds.

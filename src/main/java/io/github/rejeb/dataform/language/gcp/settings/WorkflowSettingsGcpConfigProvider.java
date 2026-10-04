@@ -22,7 +22,6 @@ import io.github.rejeb.dataform.language.gcp.common.GcpIdentityResolver;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-
 public class WorkflowSettingsGcpConfigProvider implements GcpConfigProvider {
 
     private final GcpRepositorySettings gcpRepositorySettings;
@@ -47,7 +46,6 @@ public class WorkflowSettingsGcpConfigProvider implements GcpConfigProvider {
     public @Nullable String getRepositoryId() {
         return gcpRepositorySettings.getRepositoryId();
     }
-
 
     /**
      * Resolves the author name and email from the Google credential the plugin is signed in with.

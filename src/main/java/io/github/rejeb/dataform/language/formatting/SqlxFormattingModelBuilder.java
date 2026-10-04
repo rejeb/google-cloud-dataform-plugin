@@ -20,7 +20,6 @@ import com.intellij.formatting.*;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.codeStyle.CodeStyleSettings;
 import com.intellij.psi.formatter.common.DefaultInjectedLanguageBlockBuilder;
-import com.intellij.psi.formatter.common.InjectedLanguageBlockBuilder;
 import com.intellij.psi.tree.TokenSet;
 import io.github.rejeb.dataform.language.SqlxLanguage;
 import io.github.rejeb.dataform.language.psi.SharedTokenTypes;
@@ -40,7 +39,7 @@ public class SqlxFormattingModelBuilder implements CustomFormattingModelBuilder 
                 .createFormattingModelForPsiFile(formattingContext.getContainingFile(),
                         new SqlxFormattingBlock(formattingContext.getNode(),
                                 createSpaceBuilder(codeStyleSettings),
-                                injectionBuilder(codeStyleSettings),
+                                new DefaultInjectedLanguageBlockBuilder(codeStyleSettings),
                                 Wrap.createWrap(WrapType.NONE, false)
                         ),
                         codeStyleSettings);
@@ -63,9 +62,4 @@ public class SqlxFormattingModelBuilder implements CustomFormattingModelBuilder 
                 .spaces(1)
                 .between(SharedTokenTypes.LBRACE, SharedTokenTypes.SQL_CONTENT)
                 .lineBreakInCode();
-    }
-
-    private static InjectedLanguageBlockBuilder injectionBuilder(CodeStyleSettings settings) {
-        return new DefaultInjectedLanguageBlockBuilder(settings);
-    }
-}
+    }}

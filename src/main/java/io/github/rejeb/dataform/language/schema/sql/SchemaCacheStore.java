@@ -120,6 +120,13 @@ final class SchemaCacheStore {
         return publishedByName.getOrDefault(name.toLowerCase(Locale.ROOT), List.of());
     }
 
+    /** The columns cached for the action, or {@code null} when none are. */
+    @Nullable
+    List<ColumnInfo> columnsOf(@NotNull String fqn) {
+        DataformDasTable table = tables.get(fqn);
+        return table == null ? null : table.getColumns();
+    }
+
     /** Whether a schema is cached for the action, whatever its age. */
     boolean contains(@NotNull String fqn) {
         return tables.containsKey(fqn);

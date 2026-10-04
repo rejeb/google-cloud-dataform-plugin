@@ -20,6 +20,7 @@ import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Key;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.openapi.vfs.VirtualFileManager;
 import com.intellij.platform.backend.documentation.DocumentationTarget;
 import com.intellij.platform.backend.documentation.DocumentationTargetProvider;
 import com.intellij.psi.PsiFile;
@@ -29,10 +30,10 @@ import com.intellij.psi.util.CachedValuesManager;
 import io.github.rejeb.dataform.language.evaluation.DataformExpression;
 import io.github.rejeb.dataform.language.evaluation.DataformExpressionCollector;
 import io.github.rejeb.dataform.language.evaluation.DataformExpressionEvaluationService;
-import io.github.rejeb.dataform.language.folding.DataformInjectedExpressions;
+import io.github.rejeb.dataform.language.evaluation.DataformExpressionKind;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 
 /**
@@ -57,7 +58,7 @@ public class DataformExpressionValueDocumentationTargetProvider implements Docum
                 ? offset
                 : InjectedLanguageManager.getInstance(project).injectedToHost(file, offset);
 
-        for (DataformExpression expression : expressionsOf(file, hostFile, service)) {
+        for (DataformExpression expression : expressionsOf(hostFile, service)) {
             if (!expression.hostRange().containsOffset(hostOffset)) {
                 continue;
             }
@@ -70,29 +71,13 @@ public class DataformExpressionValueDocumentationTargetProvider implements Docum
     }
 
     @NotNull
-    private List<DataformExpression> expressionsOf(@NotNull PsiFile file,
-                                                   @NotNull PsiFile hostFile,
-                                                   @NotNull DataformExpressionEvaluationService service) {
-        List<DataformExpression> expressions = new ArrayList<>(hostExpressions(hostFile, service));
-        expressions.addAll(DataformInjectedExpressions.toHostCoordinates(
-                InjectedLanguageManager.getInstance(file.getProject()),
-                DataformExpressionCollector.collectIncludesReferenceElements(
-                        file, service.includeNames(hostFile.getVirtualFile()))));
-        return expressions;
-    }
-
-    @NotNull
-    private static List<DataformExpression> hostExpressions(@NotNull PsiFile hostFile,
-                                                            @NotNull DataformExpressionEvaluationService service) {
-        return CachedValuesManager.getManager(hostFile.getProject()).getCachedValue(hostFile,
-                HOST_EXPRESSIONS,
-                () -> {
-                    List<DataformExpression> collected =
-                            new ArrayList<>(DataformExpressionCollector.collectSqlxTemplates(hostFile));
-                    collected.addAll(DataformExpressionCollector.collectJsTemplateSubstitutions(hostFile));
-                    return CachedValueProvider.Result.create(collected, hostFile, service);
-                },
+    private static List<DataformExpression> expressionsOf(@NotNull PsiFile hostFile,
+                                                          @NotNull DataformExpressionEvaluationService service) {
+        return CachedValuesManager.getManager(hostFile.getProject()).getCachedValue(hostFile, HOST_EXPRESSIONS,
+                () -> CachedValueProvider.Result.create(DataformExpressionCollector.inHostFile(hostFile,
+                        service.includeNames(hostFile.getVirtualFile()), EnumSet.of(DataformExpressionKind.SQLX_TEMPLATE,
+                                DataformExpressionKind.JS_TEMPLATE_SUBSTITUTION, DataformExpressionKind.INCLUDES_REFERENCE)),
+                        hostFile, service, VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS),
                 false);
     }
-
 }

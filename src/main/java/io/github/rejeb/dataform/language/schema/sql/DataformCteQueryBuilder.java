@@ -412,10 +412,10 @@ public final class DataformCteQueryBuilder {
             char current = query.charAt(at);
             if (Character.isWhitespace(current)) {
                 at++;
-            } else if (current == '#' || isPairAt(query, at, '-', '-')) {
+            } else if (current == '#' || query.startsWith("--", at)) {
                 int end = query.indexOf('\n', at);
                 at = end < 0 ? query.length() : end + 1;
-            } else if (isPairAt(query, at, '/', '*')) {
+            } else if (query.startsWith("/*", at)) {
                 int end = query.indexOf("*/", at + 2);
                 at = end < 0 ? query.length() : end + 2;
             } else {
@@ -423,12 +423,6 @@ public final class DataformCteQueryBuilder {
             }
         }
         return -1;
-    }
-
-    private static boolean isPairAt(@NotNull String query, int at, char first, char second) {
-        return query.charAt(at) == first
-                && at + 1 < query.length()
-                && query.charAt(at + 1) == second;
     }
 
     /** Whether a keyword stands at an offset as a whole word rather than as the start of a name. */
@@ -441,5 +435,4 @@ public final class DataformCteQueryBuilder {
     private static boolean isWordCharacter(char character) {
         return Character.isLetterOrDigit(character) || character == '_';
     }
-
 }

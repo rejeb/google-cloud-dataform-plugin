@@ -21,8 +21,10 @@ import com.intellij.psi.PsiFile;
 import io.github.rejeb.dataform.language.evaluation.DataformExpression;
 import io.github.rejeb.dataform.language.evaluation.DataformExpressionCollector;
 import io.github.rejeb.dataform.language.evaluation.DataformExpressionEvaluationService;
+import io.github.rejeb.dataform.language.evaluation.DataformExpressionKind;
 
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 
@@ -47,8 +49,8 @@ public class DataformIncludesFoldPathTest extends DataformFoldingTestCase {
     public void testInjectedReferencesAreFoundWithoutPriorHighlighting() {
         PsiFile file = configure();
 
-        List<DataformExpression> cold = DataformInjectedExpressions.includesReferences(
-                file, Set.of("descriptions"));
+        List<DataformExpression> cold = DataformExpressionCollector.inHostFile(file, Set.of("descriptions"),
+                EnumSet.of(DataformExpressionKind.INCLUDES_REFERENCE));
 
         assertEquals("injections must be enumerable without a highlighting pass, got " + cold, 1, cold.size());
     }

@@ -24,15 +24,18 @@ import com.intellij.psi.PsiFile;
 import com.intellij.testFramework.LightVirtualFile;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
-import io.github.rejeb.dataform.language.compilation.model.Target;
+import io.github.rejeb.dataform.language.columns.analysis.ColumnLineageGraph;
+import io.github.rejeb.dataform.language.columns.model.ColumnRef;
+import io.github.rejeb.dataform.language.lineage.graph.LineageNode;
+import io.github.rejeb.dataform.language.lineage.service.LineageGraphService;
 import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasTable;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -40,6 +43,9 @@ import java.util.Optional;
  * compiled graph and reading the schema the last extraction published for its target.
  */
 public final class DataformActionColumns {
+
+    /** The type of a column known from the lineage analysis only, which never learns one. */
+    public static final String INFERRED_TYPE = "";
 
     private DataformActionColumns() {
     }
@@ -63,11 +69,14 @@ public final class DataformActionColumns {
         if (file == null) {
             return Optional.empty();
         }
-        Project project = file.getProject();
-        PsiFile hostFile = InjectedLanguageManager.getInstance(project).getTopLevelFile(file);
-        return hostFile == null
-                ? Optional.empty()
-                : tableOf(project, sourceOf(hostFile.getVirtualFile()));
+        return tableOf(file.getProject(), actionFileOf(file));
+    }
+
+    /** The file the action of a file was compiled from, through injection and completion copies. */
+    @Nullable
+    private static VirtualFile actionFileOf(@NotNull PsiFile file) {
+        PsiFile hostFile = InjectedLanguageManager.getInstance(file.getProject()).getTopLevelFile(file);
+        return hostFile == null ? null : sourceOf(hostFile.getVirtualFile());
     }
 
     /**
@@ -120,6 +129,30 @@ public final class DataformActionColumns {
     }
 
     /**
+     * Returns the columns of the table the given file declares: the extracted schema when there is
+     * one, otherwise the output columns the last lineage analysis of the compiled SQL found, with no
+     * type. A project that cannot reach BigQuery still has its column names to complete.
+     */
+    @NotNull
+    public static List<ColumnInfo> knownOrInferred(@Nullable PsiFile file) {
+        List<ColumnInfo> known = in(file);
+        if (!known.isEmpty() || file == null) return known;
+        VirtualFile actionFile = actionFileOf(file);
+        CompiledGraph graph = DataformCompilationService.getInstance(file.getProject()).getCompiledGraph();
+        ColumnLineageGraph lineage = LineageGraphService.getInstance(file.getProject()).lastBuiltColumnGraph();
+        if (actionFile == null || graph == null || lineage == null) return List.of();
+        for (String fullName : targetsOf(graph, actionFile.getPath())) {
+            List<ColumnRef> columns = lineage.columnsForTable(LineageNode.idOf(fullName));
+            if (!columns.isEmpty()) {
+                return columns.stream()
+                        .map(column -> new ColumnInfo(column.columnName(), INFERRED_TYPE, "NULLABLE", null))
+                        .toList();
+            }
+        }
+        return List.of();
+    }
+
+    /**
      * Walks the given record columns down the path, returning the columns reachable at its end. An
      * empty path returns the columns unchanged.
      */
@@ -147,16 +180,10 @@ public final class DataformActionColumns {
 
     @NotNull
     private static List<String> targetsOf(@NotNull CompiledGraph graph, @NotNull String path) {
-        List<String> fullNames = new ArrayList<>();
-        graph.findTableByFileName(path).forEach(table -> add(fullNames, table.getTarget()));
-        graph.findOperationByFileName(path).forEach(operation -> add(fullNames, operation.getTarget()));
-        graph.findDeclarationByFileName(path).forEach(declaration -> add(fullNames, declaration.getTarget()));
-        return fullNames;
-    }
-
-    private static void add(@NotNull List<String> fullNames, @Nullable Target target) {
-        if (target != null && target.getFullName() != null) {
-            fullNames.add(target.getFullName());
-        }
+        return graph.actionsOfFile(path).stream()
+                .filter(action -> !action.kind().equals("assertion"))
+                .map(action -> action.target().getFullName())
+                .filter(Objects::nonNull)
+                .toList();
     }
 }

@@ -18,20 +18,16 @@ package io.github.rejeb.dataform.language.reference;
 
 import com.intellij.codeInsight.lookup.LookupElement;
 import com.intellij.openapi.util.TextRange;
-import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
-import com.intellij.psi.PsiManager;
 import com.intellij.psi.PsiReferenceBase;
-import io.github.rejeb.dataform.language.completion.DataformActionLookups;
-import io.github.rejeb.dataform.language.util.DataformPaths;
-import io.github.rejeb.dataform.language.compilation.model.*;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
+import io.github.rejeb.dataform.language.compilation.model.*;
+import io.github.rejeb.dataform.language.completion.DataformActionLookups;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 public class DataformRefFunctionReference extends PsiReferenceBase<PsiElement> {
 
@@ -46,59 +42,17 @@ public class DataformRefFunctionReference extends PsiReferenceBase<PsiElement> {
 
     @Override
     public @Nullable PsiElement resolve() {
-        DataformCompilationService service = myElement.getProject()
-                .getService(DataformCompilationService.class);
-        CompiledGraph graph = service.getCompiledGraph();
-
-        if (graph == null) {
-            return null;
-        }
-
-        Optional<CompiledTable> table = graph.findTableByReference(action);
-        if (table.isPresent() && table.get().getFileName() != null) {
-            return resolveFile(table.get().getFileName());
-        }
-
-        Optional<Declaration> declaration = graph.findDeclarationByReference(action);
-
-        if (declaration.isPresent() && declaration.get().getFileName() != null) {
-            return resolveFile(declaration.get().getFileName());
-        }
-
-        Optional<CompiledAssertion> assertion = graph.findAssertionByReference(action);
-        if (assertion.isPresent() && assertion.get().getFileName() != null) {
-            return resolveFile(assertion.get().getFileName());
-        }
-
-        Optional<CompiledOperation> operation = graph.findOperationByReference(action);
-        if (operation.isPresent() && operation.get().getFileName() != null) {
-            return resolveFile(operation.get().getFileName());
-        }
-        return null;
-    }
-
-    private PsiElement resolveFile(String fileName) {
-        VirtualFile file = DataformPaths.findInProject(myElement.getProject(), fileName);
-        if (file != null) {
-            return PsiManager.getInstance(myElement.getProject()).findFile(file);
-        }
-
-        return null;
+        return ActionFiles.psiFileOf(myElement.getProject(), action);
     }
 
     @Override
     public Object @NotNull [] getVariants() {
-        DataformCompilationService service = myElement.getProject()
-                .getService(DataformCompilationService.class);
-        CompiledGraph graph = service.getCompiledGraph();
-
+        CompiledGraph graph = DataformCompilationService.getInstance(myElement.getProject()).getCompiledGraph();
         if (graph == null) {
             return EMPTY_ARRAY;
         }
-
         List<LookupElement> variants = new ArrayList<>(DataformActionLookups.tables(graph));
         variants.addAll(DataformActionLookups.declarations(graph));
         return variants.toArray();
     }
 }
-

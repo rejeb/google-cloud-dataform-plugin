@@ -19,7 +19,7 @@ package io.github.rejeb.dataform.language.schema.sql;
 import com.intellij.psi.PsiManager;
 import com.intellij.testFramework.PlatformTestUtil;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
-import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
+import io.github.rejeb.dataform.language.columns.model.ColumnRef;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasTable;
 
 import java.util.Map;

@@ -68,6 +68,16 @@ public final class DataformProjectLayout {
     }
 
     /**
+     * Whether a file is an include: a JavaScript file placed directly in an {@code includes}
+     * directory, which is the only kind Dataform turns into a global named after the file.
+     */
+    public static boolean isIncludeFile(@NotNull VirtualFile file) {
+        VirtualFile parent = file.getParent();
+        return !file.isDirectory() && JS_EXTENSION.equals(file.getExtension())
+                && parent != null && INCLUDES_DIR.equals(parent.getName());
+    }
+
+    /**
      * Returns the global names of the {@code includes/*.js} files of the nearest {@code includes}
      * directory above the given file, or an empty set when there is none.
      */
@@ -79,7 +89,7 @@ public final class DataformProjectLayout {
             if (includes != null && includes.isDirectory()) {
                 Set<String> names = new HashSet<>();
                 for (VirtualFile child : includes.getChildren()) {
-                    if (!child.isDirectory() && JS_EXTENSION.equals(child.getExtension())) {
+                    if (isIncludeFile(child)) {
                         names.add(child.getNameWithoutExtension());
                     }
                 }

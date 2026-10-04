@@ -28,6 +28,4 @@ public record CompiledQuery(String tableName, List<String> preOps, List<String> 
     public CompiledQuery(String tableName, List<String> compilationErrors, boolean disabled) {
         this(tableName, List.of(), List.of(), null, List.of(), compilationErrors, disabled);
     }
-
-
 }

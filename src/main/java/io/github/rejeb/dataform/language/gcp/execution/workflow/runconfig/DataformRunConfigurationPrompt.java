@@ -16,8 +16,6 @@
  */
 package io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig;
 
-import com.intellij.execution.Executor;
-import com.intellij.execution.ExecutorRegistry;
 import com.intellij.execution.RunManager;
 import com.intellij.execution.RunnerAndConfigurationSettings;
 import com.intellij.execution.executors.DefaultRunExecutor;
@@ -55,7 +53,7 @@ final class DataformRunConfigurationPrompt {
                                      @NotNull RunnerAndConfigurationSettings settings) {
         RunManager runManager = RunManager.getInstance(project);
         boolean registered = isRegistered(runManager, settings);
-        boolean confirmed = RunDialog.editConfiguration(project, settings, TITLE, runExecutor());
+        boolean confirmed = RunDialog.editConfiguration(project, settings, TITLE, DefaultRunExecutor.getRunExecutorInstance());
 
         if (!confirmed) {
             if (!registered) {
@@ -103,10 +101,5 @@ final class DataformRunConfigurationPrompt {
                 .filter(existing -> uniqueId.equals(existing.getUniqueID()))
                 .findFirst()
                 .orElse(null);
-    }
-
-    @Nullable
-    private static Executor runExecutor() {
-        return ExecutorRegistry.getInstance().getExecutorById(DefaultRunExecutor.EXECUTOR_ID);
     }
 }

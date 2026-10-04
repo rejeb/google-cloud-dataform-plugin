@@ -101,8 +101,14 @@ public final class RefCallLiterals {
     }
 
     private static boolean isRefCall(@NotNull JSArgumentList arguments) {
-        return arguments.getParent() instanceof JSCallExpression call
-                && call.getMethodExpression() instanceof JSReferenceExpression method
+        return arguments.getParent() instanceof JSCallExpression call && isRefCall(call);
+    }
+
+    /**
+     * Tells whether a call is a {@code ref()} or a {@code resolve()} call.
+     */
+    public static boolean isRefCall(@NotNull JSCallExpression call) {
+        return call.getMethodExpression() instanceof JSReferenceExpression method
                 && REF_FUNCTIONS.contains(method.getReferenceName());
     }
 
@@ -112,7 +118,10 @@ public final class RefCallLiterals {
         return property == null ? null : stringValue(property.getValue());
     }
 
-    private static @Nullable String stringValue(@Nullable JSExpression expression) {
+    /**
+     * The text of a quoted string literal, or {@code null} for any other expression.
+     */
+    public static @Nullable String stringValue(@Nullable JSExpression expression) {
         return expression instanceof JSLiteralExpression literal
                 && literal.isQuotedLiteral()
                 && literal.getValue() instanceof String value

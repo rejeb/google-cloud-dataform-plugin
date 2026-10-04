@@ -18,7 +18,7 @@ package io.github.rejeb.dataform.language.lineage.service;
 
 import com.intellij.openapi.project.Project;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
-import io.github.rejeb.dataform.language.lineage.column.ColumnLineageGraph;
+import io.github.rejeb.dataform.language.columns.analysis.ColumnLineageGraph;
 import io.github.rejeb.dataform.language.lineage.graph.LineageGraph;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;

@@ -18,6 +18,7 @@ package io.github.rejeb.dataform.language.diagnostics.sql.bigquery;
 
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiFile;
+import io.github.rejeb.dataform.language.diagnostics.PlacedProblems;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -36,5 +37,5 @@ public interface BigQueryDiagnosticsService {
     /**
      * The BigQuery errors of the actions a SQLX file declares.
      */
-    @NotNull BigQueryDiagnostics diagnose(@NotNull PsiFile hostFile);
+    @NotNull PlacedProblems diagnose(@NotNull PsiFile hostFile);
 }

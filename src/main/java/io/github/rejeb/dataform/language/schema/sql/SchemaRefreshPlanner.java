@@ -60,28 +60,35 @@ final class SchemaRefreshPlanner {
     List<List<SortableAction>> planWaves(@NotNull List<SortableAction> sorted,
                                          boolean forceRefresh,
                                          @NotNull Set<String> failedFileNames) {
-        List<SortableAction> toRefresh = actionsToRefresh(sorted, forceRefresh).stream()
+        return plan(sorted, forceRefresh, failedFileNames).waves();
+    }
+
+    /**
+     * The waves of {@link #planWaves} with the actions that changed themselves, every one of them
+     * on a forced refresh.
+     */
+    @NotNull
+    SchemaRefreshPlan plan(@NotNull List<SortableAction> sorted,
+                           boolean forceRefresh,
+                           @NotNull Set<String> failedFileNames) {
+        Set<String> modified = modifiedFqns(sorted, forceRefresh);
+        Set<String> affected = modified.size() == sorted.size() ? modified : propagateToDependents(modified, sorted);
+        List<SortableAction> toRefresh = sorted.stream()
+                .filter(action -> affected.contains(action.target().getFullName()))
                 .filter(action -> !hasFailedToCompile(action, failedFileNames))
                 .collect(Collectors.toList());
         logSkipped(sorted.size(), toRefresh.size());
-        return toRefresh.isEmpty() ? List.of() : computeWaves(toRefresh);
+        return toRefresh.isEmpty() ? SchemaRefreshPlan.EMPTY : new SchemaRefreshPlan(computeWaves(toRefresh), modified);
     }
 
     @NotNull
-    private List<SortableAction> actionsToRefresh(@NotNull List<SortableAction> allActions,
-                                                  boolean forceRefresh) {
-        if (forceRefresh) {
-            LOG.info("Force refresh enabled, refreshing all actions");
-            return allActions;
+    private Set<String> modifiedFqns(@NotNull List<SortableAction> allActions, boolean forceRefresh) {
+        if (forceRefresh || basePath == null) {
+            if (forceRefresh) LOG.info("Force refresh enabled, refreshing all actions");
+            else LOG.warn("Project base path is null, refreshing all actions");
+            return allActions.stream().map(a -> a.target().getFullName()).collect(Collectors.toSet());
         }
-        if (basePath == null) {
-            LOG.warn("Project base path is null, refreshing all actions");
-            return allActions;
-        }
-        Set<String> affected = propagateToDependents(collectModifiedFqns(allActions), allActions);
-        return allActions.stream()
-                .filter(a -> affected.contains(a.target().getFullName()))
-                .collect(Collectors.toList());
+        return collectModifiedFqns(allActions);
     }
 
     @NotNull

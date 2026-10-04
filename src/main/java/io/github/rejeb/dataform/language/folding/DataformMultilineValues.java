@@ -21,14 +21,15 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiManager;
-import io.github.rejeb.dataform.language.SqlxFileType;
 import io.github.rejeb.dataform.language.evaluation.DataformExpression;
 import io.github.rejeb.dataform.language.evaluation.DataformExpressionCollector;
 import io.github.rejeb.dataform.language.evaluation.DataformExpressionEvaluationService;
+import io.github.rejeb.dataform.language.evaluation.DataformExpressionKind;
 import io.github.rejeb.dataform.language.settings.DataformToolsSettings;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 
 /**
@@ -78,13 +79,7 @@ public final class DataformMultilineValues {
     private static List<DataformExpression> expressionsOf(@NotNull PsiFile psiFile,
                                                           @NotNull VirtualFile file,
                                                           @NotNull DataformExpressionEvaluationService service) {
-        List<DataformExpression> expressions = new ArrayList<>();
-        if (SqlxFileType.INSTANCE.equals(file.getFileType())) {
-            expressions.addAll(DataformExpressionCollector.collectSqlxTemplates(psiFile));
-        } else {
-            expressions.addAll(DataformExpressionCollector.collectJsTemplateSubstitutions(psiFile));
-        }
-        expressions.addAll(DataformInjectedExpressions.withHostRanges(psiFile, service.includeNames(file)));
-        return expressions;
+        return DataformExpressionCollector.inHostFile(psiFile, service.includeNames(file),
+                EnumSet.allOf(DataformExpressionKind.class));
     }
 }

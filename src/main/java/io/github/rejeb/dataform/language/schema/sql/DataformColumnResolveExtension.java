@@ -16,10 +16,11 @@
  */
 package io.github.rejeb.dataform.language.schema.sql;
 
+import io.github.rejeb.dataform.language.columns.origin.ColumnOriginService;
+import io.github.rejeb.dataform.language.columns.origin.SqlxColumnAtCaret;
 import com.intellij.codeInsight.completion.CompletionUtilCore;
 import com.intellij.database.model.ObjectKind;
 import com.intellij.database.symbols.DasSymbol;
-import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.ResolveState;
@@ -29,7 +30,7 @@ import com.intellij.sql.psi.SqlReference;
 import com.intellij.sql.psi.SqlScopeProcessor;
 import com.intellij.sql.psi.impl.SqlResolveExtension;
 import com.intellij.sql.symbols.DasSymbolUtil;
-import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
+import io.github.rejeb.dataform.language.columns.model.ColumnRef;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasColumn;
 import org.jetbrains.annotations.NotNull;
 
@@ -66,9 +67,8 @@ public class DataformColumnResolveExtension implements SqlResolveExtension {
         }
         if (!isSelectListItem(ref.getElement())) return true;
 
-        PsiFile topLevel = InjectedLanguageManager.getInstance(place.getProject())
-                .getTopLevelFile(place.getContainingFile());
-        if (topLevel == null || !topLevel.getName().endsWith(".sqlx")) return true;
+        PsiFile topLevel = SqlxColumnAtCaret.sqlxFileOf(place);
+        if (topLevel == null) return true;
 
         return contributeDeclaredColumn(ref, processor, topLevel);
     }

@@ -31,10 +31,10 @@ import io.github.rejeb.dataform.language.util.DataformProjectLayout;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import javax.swing.JComponent;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
+import javax.swing.JComponent;
 
 /**
  * Shows a banner listing the compilation errors and the BigQuery errors that could not be placed in
@@ -71,7 +71,7 @@ public final class UnlocatedErrorsNotificationProvider
         PsiFile psiFile = DumbService.isDumb(project) ? null : PsiManager.getInstance(project).findFile(file);
         List<String> messages = new ArrayList<>();
         if (psiFile == null) {
-            for (CompilationDiagnostic diagnostic : CompilationDiagnosticService.getInstance(project).getDiagnostics(file)) {
+            for (CompilationDiagnostic diagnostic : CompilationProblemsService.getInstance(project).getDiagnostics(file)) {
                 messages.add(diagnostic.message());
             }
             return messages;

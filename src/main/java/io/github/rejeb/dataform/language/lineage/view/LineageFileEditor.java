@@ -19,14 +19,20 @@ package io.github.rejeb.dataform.language.lineage.view;
 import com.intellij.openapi.fileEditor.FileEditor;
 import com.intellij.openapi.fileEditor.FileEditorState;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.io.FileUtil;
+import com.intellij.openapi.util.io.FileUtilRt;
 import com.intellij.openapi.util.UserDataHolderBase;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.VirtualFileManager;
 import com.intellij.openapi.vfs.newvfs.BulkFileListener;
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent;
+import com.intellij.util.PathUtil;
 import com.intellij.util.messages.MessageBusConnection;
+import io.github.rejeb.dataform.language.compilation.DataformCompilationEvent;
 import io.github.rejeb.dataform.language.lineage.model.LineageModel;
 import io.github.rejeb.dataform.language.schema.sql.DataformSchemaEvent;
+import io.github.rejeb.dataform.language.settings.DataformToolsSettings;
+import io.github.rejeb.dataform.language.util.DataformProjectLayout;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -37,7 +43,8 @@ import java.util.List;
 
 /**
  * File editor hosting the project-wide {@link LineageProjectPanel}.
- * Refreshes the graph every time the editor tab is selected.
+ * Refreshes the graph every time the editor tab is selected and after every compilation. Source
+ * changes trigger a compilation only when compile-on-save is off, since it otherwise runs already.
  */
 public final class LineageFileEditor extends UserDataHolderBase implements FileEditor {
 
@@ -61,14 +68,21 @@ public final class LineageFileEditor extends UserDataHolderBase implements FileE
         this.connection.subscribe(VirtualFileManager.VFS_CHANGES, new BulkFileListener() {
             @Override
             public void after(@NotNull List<? extends VFileEvent> events) {
-                boolean sqlxChanged = events.stream().anyMatch(event -> {
-                    String path = event.getPath();
-                    return path.endsWith(".sqlx") || path.endsWith(".js");
-                });
-                if (sqlxChanged) debounce.restart();
+                if (DataformToolsSettings.getInstance().isCompileOnSave()) return;
+                if (events.stream().anyMatch(event -> isProjectSource(event.getPath()))) debounce.restart();
             }
         });
+        this.connection.subscribe(DataformCompilationEvent.TOPIC, (DataformCompilationEvent) () -> panel.refresh(false));
         this.connection.subscribe(DataformSchemaEvent.TOPIC, (DataformSchemaEvent) () -> panel.refresh(false));
+    }
+
+    private boolean isProjectSource(@NotNull String path) {
+        String basePath = project.getBasePath();
+        String name = PathUtil.getFileName(path);
+        return basePath != null
+                && FileUtil.isAncestor(basePath, path, true)
+                && DataformProjectLayout.isDataformSourceName(name, FileUtilRt.getExtension(name))
+                && !DataformProjectLayout.isUnderIgnoredDirectory(path);
     }
 
     @Override

@@ -24,5 +24,4 @@ public class SqlxJsLiteralExpression extends SqlxPsiElement {
     public SqlxJsLiteralExpression(@NotNull ASTNode node) {
         super(node);
     }
-
 }

@@ -35,4 +35,20 @@ public interface GcpConfigProvider {
      * Never null — implementations should provide a sensible default.
      */
     @NotNull CommitAuthorConfig getCommitAuthor();
+
+    /**
+     * @param provider the configuration to read
+     * @return the coordinates of the configured repository, or {@code null} when one of them is missing
+     */
+    static @Nullable RepositoryCoordinates coordinatesOf(@NotNull GcpConfigProvider provider) {
+        String projectId = provider.getProjectId();
+        String location = provider.getLocation();
+        String repositoryId = provider.getRepositoryId();
+        return projectId == null || location == null || repositoryId == null
+                ? null : new RepositoryCoordinates(projectId, location, repositoryId);
+    }
+
+    /** The project, location and id of a Dataform repository. */
+    record RepositoryCoordinates(@NotNull String projectId, @NotNull String location, @NotNull String repositoryId) {
+    }
 }

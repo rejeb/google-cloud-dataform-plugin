@@ -20,7 +20,7 @@ import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import io.github.rejeb.dataform.language.diagnostics.compile.ConfigSchemaFixture;
-import io.github.rejeb.dataform.language.refactoring.column.ColumnRenameFixture;
+import io.github.rejeb.dataform.language.columns.rename.ColumnRenameFixture;
 
 import java.util.List;
 

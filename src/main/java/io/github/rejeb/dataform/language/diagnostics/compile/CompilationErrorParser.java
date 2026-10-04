@@ -16,6 +16,7 @@
  */
 package io.github.rejeb.dataform.language.diagnostics.compile;
 
+import io.github.rejeb.dataform.language.diagnostics.MessageRule;
 import io.github.rejeb.dataform.language.util.DataformPaths;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -47,21 +48,14 @@ public final class CompilationErrorParser {
     private static final String FALLBACK = "Compilation error";
     private static final String[] PROJECT_ANCHORS = {"/definitions/", "/includes/"};
 
-    private record Rule(@NotNull CompilationErrorKind kind, @NotNull Pattern pattern) {
-
-        static Rule of(@NotNull CompilationErrorKind kind, @NotNull String regex) {
-            return new Rule(kind, Pattern.compile(regex));
-        }
-    }
-
-    private static final List<Rule> RULES = List.of(
-            Rule.of(UNDEFINED_NAME, "^(?<name>[\\w$]+) is not defined$"),
-            Rule.of(UNDEFINED_PROPERTY, "^Cannot read propert(?:y|ies) of (?:undefined|null) \\(reading '(?<name>[^']+)'\\)$"),
-            Rule.of(NOT_A_FUNCTION, "^(?<name>[\\w$.]+) is not a function$"),
-            Rule.of(UNRESOLVED_REF, "^Could not resolve \"(?<name>[^\"]+)\"$"),
-            Rule.of(UNRESOLVED_REF, "^Missing dependency detected: .* depends on \"(?<name>.+)\" which does not exist\\.?$"),
-            Rule.of(UNKNOWN_ACTION_TYPE, "^Unrecognized action type: (?<name>\\S+)$"),
-            Rule.of(UNEXPECTED_CONFIG_PROPERTY, "^Unexpected property \"(?<name>[^\"]+)\".*$"));
+    private static final List<MessageRule<CompilationErrorKind>> RULES = List.of(
+            MessageRule.of(UNDEFINED_NAME, "^(?<name>[\\w$]+) is not defined$"),
+            MessageRule.of(UNDEFINED_PROPERTY, "^Cannot read propert(?:y|ies) of (?:undefined|null) \\(reading '(?<name>[^']+)'\\)$"),
+            MessageRule.of(NOT_A_FUNCTION, "^(?<name>[\\w$.]+) is not a function$"),
+            MessageRule.of(UNRESOLVED_REF, "^Could not resolve \"(?<name>[^\"]+)\"$"),
+            MessageRule.of(UNRESOLVED_REF, "^Missing dependency detected: .* depends on \"(?<name>.+)\" which does not exist\\.?$"),
+            MessageRule.of(UNKNOWN_ACTION_TYPE, "^Unrecognized action type: (?<name>\\S+)$"),
+            MessageRule.of(UNEXPECTED_CONFIG_PROPERTY, "^Unexpected property \"(?<name>[^\"]+)\".*$"));
 
     private CompilationErrorParser() {
     }
@@ -87,13 +81,10 @@ public final class CompilationErrorParser {
                 rawSnippet.line(), rawSnippet.text(), rawSnippet.caretStart(), rawSnippet.caretLength());
         String text = summaryOf(message, lines);
         if (snippet != null) return new ParsedCompilationError(SYNTAX_ERROR, text, null, frames, snippet);
-        for (Rule rule : RULES) {
-            Matcher matcher = rule.pattern().matcher(text);
-            if (matcher.matches()) {
-                return new ParsedCompilationError(rule.kind(), text, nameOf(matcher.group("name")), frames, null);
-            }
-        }
-        return new ParsedCompilationError(OTHER, text, null, frames, null);
+        MessageRule.Match<CompilationErrorKind> match = MessageRule.firstMatch(RULES, text);
+        return match == null
+                ? new ParsedCompilationError(OTHER, text, null, frames, null)
+                : new ParsedCompilationError(match.kind(), text, nameOf(match.matcher().group("name")), frames, null);
     }
 
     private static @NotNull String summaryOf(@Nullable String message, @NotNull List<String> stack) {

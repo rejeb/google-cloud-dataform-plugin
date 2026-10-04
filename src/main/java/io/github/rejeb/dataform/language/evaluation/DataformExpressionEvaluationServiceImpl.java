@@ -24,8 +24,8 @@ import com.intellij.openapi.Disposable;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.diagnostic.Logger;
-import com.intellij.openapi.progress.ProcessCanceledException;
 import com.intellij.openapi.fileEditor.FileEditorManager;
+import com.intellij.openapi.progress.ProcessCanceledException;
 import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -34,9 +34,7 @@ import com.intellij.psi.PsiManager;
 import com.intellij.psi.PsiTreeChangeAdapter;
 import com.intellij.psi.PsiTreeChangeEvent;
 import com.intellij.util.concurrency.AppExecutorUtil;
-import io.github.rejeb.dataform.language.SqlxFileType;
 import io.github.rejeb.dataform.language.folding.DataformFoldingRefresher;
-import io.github.rejeb.dataform.language.folding.DataformInjectedExpressions;
 import io.github.rejeb.dataform.language.index.DataformJsFileIndex;
 import io.github.rejeb.dataform.language.schema.sql.DataformSchemaEvent;
 import io.github.rejeb.dataform.language.setup.NodeScriptRunner;
@@ -46,7 +44,7 @@ import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.TestOnly;
 
 import java.lang.reflect.Type;
-import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -251,17 +249,8 @@ public final class DataformExpressionEvaluationServiceImpl
         Set<String> names = new HashSet<>(DataformProjectLayout.includeNames(virtualFile));
         names.addAll(indexedIncludeNames());
 
-        List<DataformExpression> expressions = new ArrayList<>();
-        if (SqlxFileType.INSTANCE.equals(virtualFile.getFileType())) {
-            expressions.addAll(DataformExpressionCollector.collectSqlxTemplates(psiFile));
-            expressions.addAll(DataformInjectedExpressions.includesReferences(psiFile, names));
-        } else {
-            expressions.addAll(DataformExpressionCollector.collectJsTemplateSubstitutions(psiFile));
-            expressions.addAll(
-                    DataformExpressionCollector.collectIncludesReferenceElements(psiFile, names).stream()
-                            .map(DataformExpressionCollector.FoldablePart::expression).toList());
-        }
-        return expressions;
+        return DataformExpressionCollector.inHostFile(psiFile, names, EnumSet.of(DataformExpressionKind.SQLX_TEMPLATE,
+                DataformExpressionKind.JS_TEMPLATE_SUBSTITUTION, DataformExpressionKind.INCLUDES_REFERENCE));
     }
 
     @NotNull
@@ -398,5 +387,4 @@ public final class DataformExpressionEvaluationServiceImpl
                 .put(source, DataformEvaluationResult.resolved(source, value));
         modificationCount.incrementAndGet();
     }
-
 }

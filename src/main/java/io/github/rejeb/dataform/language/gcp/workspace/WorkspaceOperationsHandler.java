@@ -16,19 +16,21 @@
  */
 package io.github.rejeb.dataform.language.gcp.workspace;
 
-import com.intellij.openapi.application.ReadAction;
-import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.application.WriteAction;
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.roots.ProjectRootManager;
 import com.intellij.openapi.vfs.VirtualFile;
 import io.github.rejeb.dataform.language.gcp.common.CommitAuthorConfig;
 import io.github.rejeb.dataform.language.gcp.common.GcpApiException;
+import io.github.rejeb.dataform.language.gcp.common.GcpConfigProvider.RepositoryCoordinates;
 import io.github.rejeb.dataform.language.gcp.common.GcpConfigProvider;
 import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
 import io.github.rejeb.dataform.language.gcp.workspace.repository.WorkspaceRepository;
+import io.github.rejeb.dataform.language.util.DataformPaths;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -70,35 +72,35 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
     @Override
     @NotNull
     public List<Workspace> listWorkspaces() {
-        GcpConfig config = readConfig();
+        RepositoryCoordinates config = readConfig();
         if (config == null) return List.of();
-        return workspaceRepository.findAll(config.projectId, config.location, config.repositoryId);
+        return workspaceRepository.findAll(config.projectId(), config.location(), config.repositoryId());
     }
 
     @Override
     public void pushGitCommits(@NotNull String workspaceId) {
-        GcpConfig config = readConfig();
+        RepositoryCoordinates config = readConfig();
         if (config == null) return;
         CommitAuthorConfig author = configProvider.getCommitAuthor();
-        workspaceRepository.pushGitCommits(config.projectId, config.location, config.repositoryId,
+        workspaceRepository.pushGitCommits(config.projectId(), config.location(), config.repositoryId(),
                 workspaceId, author);
     }
 
     @Override
     @NotNull
     public Map<String, String> fetchCode(@Nullable String workspaceId) {
-        GcpConfig config = readConfig();
+        RepositoryCoordinates config = readConfig();
         if (config == null) return Map.of();
         return workspaceRepository.readAllFiles(
-                config.projectId, config.location, config.repositoryId, workspaceId);
+                config.projectId(), config.location(), config.repositoryId(), workspaceId);
     }
 
     @Override
     public void pullCode(@Nullable String workspaceId) {
-        GcpConfig config = readConfig();
+        RepositoryCoordinates config = readConfig();
         if (config == null) return;
         Map<String, String> files = workspaceRepository.readAllFiles(
-                config.projectId, config.location, config.repositoryId, workspaceId);
+                config.projectId(), config.location(), config.repositoryId(), workspaceId);
         if (!files.isEmpty()) {
             writeFilesToVfs(files);
         }
@@ -111,7 +113,7 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
 
     @Override
     public void pushCode(@NotNull String workspaceId, @NotNull Predicate<Set<String>> deletionApproval) {
-        GcpConfig config = readConfig();
+        RepositoryCoordinates config = readConfig();
         if (config == null) return;
         saveDocuments();
         Map<String, String> localFiles = ReadAction.computeBlocking(() -> {
@@ -140,7 +142,7 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
         }
 
         List<String> remotePaths = workspaceRepository.listAllPaths(
-                config.projectId, config.location, config.repositoryId, workspaceId);
+                config.projectId(), config.location(), config.repositoryId(), workspaceId);
 
         Set<String> toDelete = new HashSet<>(remotePaths);
         toDelete.removeAll(localFiles.keySet());
@@ -149,7 +151,7 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
             return;
         }
         workspaceRepository.push(
-                config.projectId, config.location, config.repositoryId,
+                config.projectId(), config.location(), config.repositoryId(),
                 workspaceId, localFiles, toDelete);
     }
 
@@ -178,15 +180,15 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
      * @throws GcpApiException if creation fails or config is missing
      */
     public void createWorkspace(@NotNull String workspaceId) {
-        GcpConfig config = readConfig();
+        RepositoryCoordinates config = readConfig();
         if (config == null) {
             throw new GcpApiException(
                     "No active repository config — configure a repository first.");
         }
         workspaceRepository.createWorkspace(
-                config.projectId,
-                config.location,
-                config.repositoryId,
+                config.projectId(),
+                config.location(),
+                config.repositoryId(),
                 workspaceId
         );
     }
@@ -194,7 +196,7 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
     @Override
     @NotNull
     public List<UncommittedChange> fetchGitStatuses(@NotNull String workspaceId) {
-        GcpConfig config = readConfig();
+        RepositoryCoordinates config = readConfig();
         if (config == null) return List.of();
         return workspaceRepository.fetchFileGitStatuses(
                 config.projectId(), config.location(), config.repositoryId(), workspaceId);
@@ -206,7 +208,7 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
             @NotNull List<String> paths,
             @NotNull String message
     ) {
-        GcpConfig config = readConfig();
+        RepositoryCoordinates config = readConfig();
         if (config == null) return;
         CommitAuthorConfig author = configProvider.getCommitAuthor();
         workspaceRepository.commitWorkspaceChanges(
@@ -216,33 +218,21 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
 
     @Override
     public List<String> listAllPaths(@Nullable String workspaceId) {
-        String projectId = configProvider.getProjectId();
-        String location = configProvider.getLocation();
-        String repositoryId = configProvider.getRepositoryId();
-        if (projectId == null || location == null || repositoryId == null) return List.of();
-        return workspaceRepository.listAllPaths(projectId,
-                location,
-                repositoryId,
-                workspaceId);
+        RepositoryCoordinates config = readConfig();
+        return config == null ? List.of() : workspaceRepository.listAllPaths(
+                config.projectId(), config.location(), config.repositoryId(), workspaceId);
     }
 
     @Override
     public @NotNull String getFileContent(@Nullable String workspaceId, @NotNull String filePath) {
-        String projectId = configProvider.getProjectId();
-        String location = configProvider.getLocation();
-        String repositoryId = configProvider.getRepositoryId();
-        if (projectId == null || location == null || repositoryId == null) return "";
-        return workspaceRepository.getFileContent(projectId, location, repositoryId, workspaceId, filePath);
+        RepositoryCoordinates config = readConfig();
+        return config == null ? "" : workspaceRepository.getFileContent(
+                config.projectId(), config.location(), config.repositoryId(), workspaceId, filePath);
     }
 
-
     @Nullable
-    private GcpConfig readConfig() {
-        String projectId = configProvider.getProjectId();
-        String location = configProvider.getLocation();
-        String repositoryId = configProvider.getRepositoryId();
-        if (projectId == null || location == null || repositoryId == null) return null;
-        return new GcpConfig(projectId, location, repositoryId);
+    private RepositoryCoordinates readConfig() {
+        return GcpConfigProvider.coordinatesOf(configProvider);
     }
 
     private void writeFilesToVfs(@NotNull Map<String, String> files) {
@@ -253,39 +243,11 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
         try {
             WriteAction.runAndWait(() -> {
                 for (Map.Entry<String, String> entry : files.entrySet()) {
-                    writeFile(contentRoot, entry.getKey(), entry.getValue());
+                    DataformPaths.writeText(contentRoot, entry.getKey(), entry.getValue());
                 }
             });
         } catch (IOException e) {
             throw new GcpApiException("Failed to write pulled files to local project.", e);
         }
-    }
-
-    private static void writeFile(
-            @NotNull VirtualFile contentRoot,
-            @NotNull String relativePath,
-            @NotNull String content
-    ) throws IOException {
-        String[] segments = relativePath.split("/");
-        VirtualFile dir = contentRoot;
-
-        for (int i = 0; i < segments.length - 1; i++) {
-            VirtualFile child = dir.findChild(segments[i]);
-            dir = child != null ? child : dir.createChildDirectory(null, segments[i]);
-        }
-
-        String fileName = segments[segments.length - 1];
-        VirtualFile file = dir.findChild(fileName);
-        if (file == null) {
-            file = dir.createChildData(null, fileName);
-        }
-        file.setBinaryContent(content.getBytes(StandardCharsets.UTF_8));
-    }
-
-    private record GcpConfig(
-            @NotNull String projectId,
-            @NotNull String location,
-            @NotNull String repositoryId
-    ) {
     }
 }

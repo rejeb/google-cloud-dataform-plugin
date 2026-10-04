@@ -16,12 +16,11 @@
  */
 package io.github.rejeb.dataform.language.fileEditor;
 
+import io.github.rejeb.dataform.language.unittest.preview.TestQueries;
 import com.intellij.execution.services.ServiceEventListener;
 import com.intellij.execution.services.ServiceViewManager;
 import com.intellij.icons.AllIcons;
-import com.intellij.notification.Notification;
 import com.intellij.notification.NotificationType;
-import com.intellij.notification.Notifications;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ModalityState;
@@ -48,15 +47,12 @@ import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
 import icons.DatabaseIcons;
 import io.github.rejeb.dataform.language.compilation.CompilationFailures;
+import io.github.rejeb.dataform.language.compilation.DataformCompilationEvent;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.compilation.model.CompilationError;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.compilation.model.CompiledQuery;
 import io.github.rejeb.dataform.language.compilation.model.CompiledTest;
-import io.github.rejeb.dataform.language.fileEditor.lineage.LineageGraph;
-import io.github.rejeb.dataform.language.fileEditor.lineage.LineageGraphHelper;
-import io.github.rejeb.dataform.language.lineage.extractor.LineageExtractorImpl;
-import io.github.rejeb.dataform.language.lineage.view.LineageFilePanel;
 import io.github.rejeb.dataform.language.gcp.execution.bigquery.BigQueryExecutionService;
 import io.github.rejeb.dataform.language.gcp.execution.bigquery.BigQueryJobResult;
 import io.github.rejeb.dataform.language.gcp.execution.bigquery.QueryResultsRegistry;
@@ -64,18 +60,25 @@ import io.github.rejeb.dataform.language.gcp.execution.bigquery.serviceview.Data
 import io.github.rejeb.dataform.language.gcp.execution.bigquery.serviceview.QueryResultNode;
 import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
 import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
+import io.github.rejeb.dataform.language.lineage.extractor.LineageExtractorImpl;
+import io.github.rejeb.dataform.language.lineage.graph.LineageGraph;
+import io.github.rejeb.dataform.language.lineage.view.LineageFilePanel;
 import io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService;
-import io.github.rejeb.dataform.language.util.PreOperationsFilter;
 import io.github.rejeb.dataform.language.unittest.SqlxUnitTests;
+import io.github.rejeb.dataform.language.util.DataformNotifications;
+import io.github.rejeb.dataform.language.util.PreOperationsFilter;
 import io.github.rejeb.dataform.language.util.Utils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import javax.swing.*;
 import java.awt.*;
 import java.beans.PropertyChangeListener;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
+import javax.swing.*;
 
 /**
  * Preview side of the SQLX split editor: lineage, compiled query and schema of the file's
@@ -101,6 +104,8 @@ public class SqlxCompiledPreviewEditor extends UserDataHolderBase implements Fil
     private volatile CompiledTest compiledTest;
     private volatile String testCompilationErrors;
     private boolean testViewStale = false;
+    private final AtomicLong refreshGeneration = new AtomicLong();
+    private volatile boolean graphStale = false;
 
     public SqlxCompiledPreviewEditor(@NotNull Project project, VirtualFile file) {
         this.project = project;
@@ -118,7 +123,19 @@ public class SqlxCompiledPreviewEditor extends UserDataHolderBase implements Fil
         mainPanel.add(withHeader("Test", AllIcons.Nodes.Test, testPanel), View.TEST.name());
 
         showPanel(View.LINEAGE);
+        project.getMessageBus().connect(this).subscribe(DataformCompilationEvent.TOPIC,
+                (DataformCompilationEvent) this::onGraphChanged);
         updateCompiledSql();
+    }
+
+    private void onGraphChanged() {
+        graphStale = true;
+        ApplicationManager.getApplication().invokeLater(() -> {
+            if (graphStale && mainPanel.isShowing()) {
+                graphStale = false;
+                refreshPreview(false);
+            }
+        }, ModalityState.nonModal(), project.getDisposed());
     }
 
     @NotNull
@@ -126,11 +143,20 @@ public class SqlxCompiledPreviewEditor extends UserDataHolderBase implements Fil
         return project;
     }
 
+    /**
+     * Reloads the preview from the current compiled graph and refreshes the schemas of its
+     * actions.
+     */
     public void updateCompiledSql() {
-        ProgressManager.getInstance().run(new Task.Backgroundable(project, "Dataform: compiling", true) {
+        refreshPreview(true);
+    }
+
+    private void refreshPreview(boolean refreshSchemas) {
+        long generation = refreshGeneration.incrementAndGet();
+        ProgressManager.getInstance().run(new Task.Backgroundable(project, "Dataform: loading preview", true) {
             private List<CompiledQuery> compiledQueries;
-            private List<LineageGraph> lineageGraphs;
-            private io.github.rejeb.dataform.language.lineage.graph.LineageGraph fileLineage;
+            private List<GraphTarget> graphTargets;
+            private LineageGraph fileLineage;
             private boolean unitTestFile;
             private CompiledTest foundTest;
             private String foundErrors;
@@ -149,21 +175,18 @@ public class SqlxCompiledPreviewEditor extends UserDataHolderBase implements Fil
                     String path = file.getCanonicalPath();
                     if (unitTestFile) {
                         foundTest = graph.findTestByFileName(path).stream().findFirst().orElse(null);
-                        foundErrors = graph.getGraphErrors() == null || graph.getGraphErrors().getCompilationErrors() == null
-                                ? null
-                                : graph.getGraphErrors().getCompilationErrors().stream()
-                                        .filter(error -> error.matchFileName(path))
-                                        .map(CompilationError::getMessage)
-                                        .filter(Objects::nonNull)
-                                        .reduce((a, b) -> a + "\n" + b)
-                                        .orElse(null);
+                        foundErrors = graph.findCompilationErrorByFileName(path).stream()
+                                .map(CompilationError::getMessage)
+                                .filter(Objects::nonNull)
+                                .reduce((a, b) -> a + "\n" + b)
+                                .orElse(null);
                     } else {
                         compiledQueries = graph.findCompiledQueryByFileName(path);
-                        lineageGraphs = LineageGraphHelper.buildGraph(graph, path);
+                        graphTargets = GraphTarget.targetsOf(graph, path);
                         fileLineage = new LineageExtractorImpl().extract(graph);
                     }
                 }
-                if (graph != null) {
+                if (graph != null && refreshSchemas) {
                     DataformTableSchemaService.getInstance(project)
                             .refreshAsync(graph, false, CompilationFailures.fileNamesOf(graph));
                 }
@@ -173,11 +196,14 @@ public class SqlxCompiledPreviewEditor extends UserDataHolderBase implements Fil
             @Override
             public void onSuccess() {
                 ApplicationManager.getApplication().invokeLater(() -> {
+                    if (generation != refreshGeneration.get()) {
+                        return;
+                    }
                     mode = unitTestFile ? SqlxPreviewMode.UNIT_TEST : SqlxPreviewMode.ACTION;
                     compiledTest = foundTest;
                     testCompilationErrors = foundErrors;
                     testViewStale = true;
-                    schemaPanel.setContent(lineageGraphs != null ? lineageGraphs : List.of());
+                    schemaPanel.setContent(graphTargets != null ? graphTargets : List.of());
                     rawQueries = compiledQueries != null ? compiledQueries : List.of();
                     queryViewStale = true;
                     if (!mode.shows(activeView)) {
@@ -266,7 +292,11 @@ public class SqlxCompiledPreviewEditor extends UserDataHolderBase implements Fil
         long stamp = file.getTimeStamp();
         if (stamp > myLastCompiledStamp) {
             myLastCompiledStamp = stamp;
+            graphStale = false;
             updateCompiledSql();
+        } else if (graphStale) {
+            graphStale = false;
+            refreshPreview(false);
         }
     }
 
@@ -282,7 +312,7 @@ public class SqlxCompiledPreviewEditor extends UserDataHolderBase implements Fil
                 ? TestQueries.of(compiledTest).stream()
                         .map(q -> new FormattedCompiledQuery(q.label(), null, null, q.sql(), null, null))
                         .toList()
-                : rawQueries.stream().map(SqlxCompiledPreviewEditor::toPlain).toList();
+                : rawQueries.stream().map(q -> format(q, UnaryOperator.identity())).toList();
         if (queries.isEmpty()) return;
 
         if (queries.size() == 1) {
@@ -314,12 +344,8 @@ public class SqlxCompiledPreviewEditor extends UserDataHolderBase implements Fil
     private void runQueries(@NotNull List<FormattedCompiledQuery> toExecute) {
         DataformRepositoryConfig config = GcpRepositorySettings.getInstance(project).getActiveConfig();
         if (config == null) {
-            Notifications.Bus.notify(new Notification(
-                    "Dataform.Notifications",
-                    "BigQuery execution",
-                    "No GCP project configured.",
-                    NotificationType.WARNING
-            ), project);
+            DataformNotifications.create("BigQuery execution", "No GCP project configured.", NotificationType.WARNING)
+                    .notify(project);
             return;
         }
 
@@ -359,7 +385,6 @@ public class SqlxCompiledPreviewEditor extends UserDataHolderBase implements Fil
         );
     }
 
-
     private View activeView = View.LINEAGE;
 
     public void showPanel(@NotNull View view) {
@@ -377,7 +402,7 @@ public class SqlxCompiledPreviewEditor extends UserDataHolderBase implements Fil
     private void refreshQueryView() {
         if (!queryViewStale) return;
         queryViewStale = false;
-        queryPanel.setContent(rawQueries.stream().map(q -> toFormatted(q, project)).toList());
+        queryPanel.setContent(rawQueries.stream().map(q -> format(q, sql -> Utils.formatSql(project, sql))).toList());
     }
 
     private void refreshTestView() {
@@ -398,43 +423,18 @@ public class SqlxCompiledPreviewEditor extends UserDataHolderBase implements Fil
         return mode;
     }
 
-    private static FormattedCompiledQuery toPlain(CompiledQuery q) {
-        return new FormattedCompiledQuery(
-                q.tableName(),
-                joinOrNull(q.preOps()),
-                joinOrNull(q.incrementalPreOps()),
-                q.query(),
-                joinOrNull(q.postOps()),
-                joinOrNull(q.compilationErrors())
-        );
+    private static FormattedCompiledQuery format(CompiledQuery q, UnaryOperator<String> sql) {
+        return new FormattedCompiledQuery(q.tableName(), joinOrNull(q.preOps(), sql),
+                joinOrNull(q.incrementalPreOps(), sql), q.query() == null ? null : sql.apply(q.query()),
+                joinOrNull(q.postOps(), sql), joinOrNull(q.compilationErrors(), UnaryOperator.identity()));
     }
 
-    private static @Nullable String joinOrNull(@Nullable List<String> parts) {
-        return parts == null || parts.isEmpty() ? null : String.join("\n", parts);
+    private static @Nullable String joinOrNull(@Nullable List<String> parts, UnaryOperator<String> map) {
+        return parts == null || parts.isEmpty() ? null : parts.stream().map(map).collect(Collectors.joining("\n"));
     }
 
     public View getActiveView() {
         return activeView;
-    }
-
-    private static FormattedCompiledQuery toFormatted(CompiledQuery q, Project project) {
-        List<String> preOps = q.preOps().stream()
-                .map(s -> Utils.formatSql(project, s)).toList();
-        List<String> incrementalPreOps = q.incrementalPreOps().stream()
-                .map(s -> Utils.formatSql(project, s)).toList();
-        List<String> postOps = q.postOps().stream()
-                .map(s -> Utils.formatSql(project, s)).toList();
-        String query = q.query() != null ? Utils.formatSql(project, q.query()) : null;
-        String errors = q.compilationErrors() != null && !q.compilationErrors().isEmpty()
-                ? String.join("\n", q.compilationErrors()) : null;
-        return new FormattedCompiledQuery(
-                q.tableName(),
-                preOps.isEmpty() ? null : String.join("\n", preOps),
-                incrementalPreOps.isEmpty() ? null : String.join("\n", incrementalPreOps),
-                query,
-                postOps.isEmpty() ? null : String.join("\n", postOps),
-                errors
-        );
     }
 
     private static JPanel withHeader(@NotNull String title, @NotNull Icon icon, @NotNull JComponent content) {

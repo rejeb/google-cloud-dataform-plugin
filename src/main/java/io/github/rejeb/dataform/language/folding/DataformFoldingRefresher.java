@@ -52,7 +52,6 @@ import java.util.List;
  */
 public final class DataformFoldingRefresher {
 
-
     private DataformFoldingRefresher() {
     }
 
@@ -63,19 +62,12 @@ public final class DataformFoldingRefresher {
      * which is forbidden on the EDT. Only the resulting fold operations run on the EDT.</p>
      */
     public static void refresh(@NotNull Project project, @NotNull VirtualFile file) {
-        ThreadingAssertions.assertBackgroundThread();
-        if (project.isDisposed() || !file.isValid()) {
+        OpenDocument open = openDocument(project, file);
+        if (open == null) {
             return;
         }
-        Document document = FileDocumentManager.getInstance().getCachedDocument(file);
-        if (document == null) {
-            return;
-        }
-
-        List<Editor> editors = editorsOf(project, document);
-        if (editors.isEmpty()) {
-            return;
-        }
+        Document document = open.document();
+        List<Editor> editors = open.editors();
         ApplicationManager.getApplication().invokeAndWait(() -> {
             SqlxInjectionRefresher.refresh(project, file);
             for (Editor editor : editors) {
@@ -84,11 +76,7 @@ public final class DataformFoldingRefresher {
                 }
             }
         }, ModalityState.nonModal());
-        MultilineSnapshot snapshot = ReadAction.nonBlocking(
-                        () -> new MultilineSnapshot(
-                                DataformMultilineValues.of(project, file, document),
-                                document.getModificationStamp()))
-                .executeSynchronously();
+        MultilineSnapshot snapshot = multilineSnapshot(project, file, document);
 
         for (Editor editor : editors) {
             FoldingSnapshot folding = ReadAction.nonBlocking(
@@ -98,10 +86,7 @@ public final class DataformFoldingRefresher {
             ApplicationManager.getApplication().invokeLater(() -> {
                 boolean unchanged = document.getModificationStamp() == folding.documentStamp();
                 applyAndCollapse(editor, unchanged ? folding.applyFolding() : null);
-                if (!editor.isDisposed()
-                        && document.getModificationStamp() == snapshot.documentStamp()) {
-                    DataformMultilineFoldManager.apply(editor, snapshot.values());
-                }
+                applyMultiline(editor, document, snapshot);
             }, ModalityState.nonModal(), project.getDisposed());
         }
     }
@@ -112,32 +97,55 @@ public final class DataformFoldingRefresher {
      * holds are the right ones already. This is what a file coming back into focus needs.
      */
     public static void collapse(@NotNull Project project, @NotNull VirtualFile file) {
+        OpenDocument open = openDocument(project, file);
+        if (open == null) {
+            return;
+        }
+        MultilineSnapshot snapshot = multilineSnapshot(project, file, open.document());
+        ApplicationManager.getApplication().invokeLater(() -> {
+            for (Editor editor : open.editors()) {
+                applyAndCollapse(editor, null);
+                applyMultiline(editor, open.document(), snapshot);
+            }
+        }, ModalityState.nonModal(), project.getDisposed());
+    }
+
+    /**
+     * The document of a file together with the editors showing it, or {@code null} when the file
+     * is not shown, so that nothing needs refreshing.
+     */
+    private static @Nullable OpenDocument openDocument(@NotNull Project project, @NotNull VirtualFile file) {
         ThreadingAssertions.assertBackgroundThread();
         if (project.isDisposed() || !file.isValid()) {
-            return;
+            return null;
         }
         Document document = FileDocumentManager.getInstance().getCachedDocument(file);
         if (document == null) {
-            return;
+            return null;
         }
         List<Editor> editors = editorsOf(project, document);
-        if (editors.isEmpty()) {
-            return;
-        }
-        MultilineSnapshot snapshot = ReadAction.nonBlocking(
+        return editors.isEmpty() ? null : new OpenDocument(document, editors);
+    }
+
+    private record OpenDocument(@NotNull Document document, @NotNull List<Editor> editors) {
+    }
+
+    private static @NotNull MultilineSnapshot multilineSnapshot(@NotNull Project project,
+                                                                @NotNull VirtualFile file,
+                                                                @NotNull Document document) {
+        return ReadAction.nonBlocking(
                         () -> new MultilineSnapshot(
                                 DataformMultilineValues.of(project, file, document),
                                 document.getModificationStamp()))
                 .executeSynchronously();
-        ApplicationManager.getApplication().invokeLater(() -> {
-            for (Editor editor : editors) {
-                applyAndCollapse(editor, null);
-                if (!editor.isDisposed()
-                        && document.getModificationStamp() == snapshot.documentStamp()) {
-                    DataformMultilineFoldManager.apply(editor, snapshot.values());
-                }
-            }
-        }, ModalityState.nonModal(), project.getDisposed());
+    }
+
+    private static void applyMultiline(@NotNull Editor editor,
+                                       @NotNull Document document,
+                                       @NotNull MultilineSnapshot snapshot) {
+        if (!editor.isDisposed() && document.getModificationStamp() == snapshot.documentStamp()) {
+            DataformMultilineFoldManager.apply(editor, snapshot.values());
+        }
     }
 
     /**

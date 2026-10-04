@@ -23,7 +23,6 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.concurrency.AppExecutorUtil;
 import io.github.rejeb.dataform.language.diagnostics.DataformEditorRefresher;
-import io.github.rejeb.dataform.language.diagnostics.ValidationProblemInlayManager;
 import io.github.rejeb.dataform.language.util.DataformProjectLayout;
 import io.github.rejeb.dataform.language.util.DataformProjects;
 import org.jetbrains.annotations.NotNull;
@@ -98,7 +97,6 @@ public final class ValidationRefreshListener implements DocumentListener {
     }
 
     private void refresh(@NotNull Project project) {
-        ValidationProblemInlayManager.getInstance(project).refreshAll();
-        DataformEditorRefresher.refresh(project);
+        DataformEditorRefresher.refreshWithInlays(project);
     }
 }

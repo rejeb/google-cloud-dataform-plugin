@@ -16,48 +16,63 @@
  */
 package io.github.rejeb.dataform.language.reference;
 
+import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.lang.javascript.psi.JSReferenceExpression;
-import com.intellij.openapi.util.TextRange;
 import com.intellij.patterns.PlatformPatterns;
+import com.intellij.patterns.PsiElementPattern;
 import com.intellij.psi.*;
+import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.ProcessingContext;
+import io.github.rejeb.dataform.language.index.DataformJsFileIndex;
+import io.github.rejeb.dataform.language.psi.SqlxFile;
+import io.github.rejeb.dataform.language.util.DataformJsSymbolExtractor;
 import org.jetbrains.annotations.NotNull;
-import org.jspecify.annotations.NonNull;
-
-import java.util.ArrayList;
-import java.util.List;
 
 public class DataformJsReferenceContributor extends PsiReferenceContributor {
 
+    private static final PsiElementPattern.Capture<JSReferenceExpression> JS_REFERENCE =
+            PlatformPatterns.psiElement(JSReferenceExpression.class);
+
     @Override
     public void registerReferenceProviders(@NotNull PsiReferenceRegistrar registrar) {
-        registrar.registerReferenceProvider(
-                PlatformPatterns.psiElement(JSReferenceExpression.class),
-                new PsiReferenceProvider() {
-                    @Override
-                    public PsiReference @NonNull [] getReferencesByElement(@NotNull PsiElement element,
-                                                                           @NotNull ProcessingContext context) {
-                        String identifier = element.getText();
+        registrar.registerReferenceProvider(JS_REFERENCE, new DataformBuiltinFunctionPsiReferenceProvider());
+        registrar.registerReferenceProvider(JS_REFERENCE, new IncludeNameOnlyProvider());
+        registrar.registerReferenceProvider(JS_REFERENCE, new DataformWorkflowSettingsReferenceProvider());
+        registrar.registerReferenceProvider(JS_REFERENCE, new JsSymbolProvider(), PsiReferenceRegistrar.LOWER_PRIORITY);
+    }
 
-                        List<PsiReference> references = new ArrayList<>();
+    private static final class IncludeNameOnlyProvider extends PsiReferenceProvider {
+        @Override
+        public PsiReference @NotNull [] getReferencesByElement(@NotNull PsiElement element,
+                                                               @NotNull ProcessingContext context) {
+            JSReferenceExpression refExpr = (JSReferenceExpression) element;
+            String referencedName = refExpr.getReferenceName();
+            if (refExpr.getQualifier() != null || referencedName == null || isAfterDot(element)) {
+                return PsiReference.EMPTY_ARRAY;
+            }
+            PsiFile topLevelFile = InjectedLanguageManager.getInstance(element.getProject()).getTopLevelFile(element);
+            if (!(topLevelFile instanceof SqlxFile)
+                    || DataformJsSymbolExtractor.findSymbol(topLevelFile, referencedName).isPresent()
+                    || !DataformJsFileIndex.getAllExports(element.getProject()).containsKey(referencedName)) {
+                return PsiReference.EMPTY_ARRAY;
+            }
+            DataformIncludeFileReference ref = new DataformIncludeFileReference(element, referencedName);
+            return ref.resolve() != null ? new PsiReference[]{ref} : PsiReference.EMPTY_ARRAY;
+        }
 
-                        TextRange rangeInElement = element.getTextRange().shiftRight(-element.getTextOffset());
+        private static boolean isAfterDot(@NotNull PsiElement element) {
+            PsiElement previous = PsiTreeUtil.prevVisibleLeaf(element);
+            return previous != null && ".".equals(previous.getText());
+        }
+    }
 
-                        DataformJsReference ref = new DataformJsReference(
-                                element,
-                                identifier,
-                                rangeInElement
-                        );
-                        if (ref.resolve() != null) {
-                            references.add(ref);
-                            return references.toArray(new PsiReference[0]);
-                        } else {
-                            return PsiReference.EMPTY_ARRAY;
-                        }
-
-                    }
-                },
-                PsiReferenceRegistrar.LOWER_PRIORITY
-        );
+    private static final class JsSymbolProvider extends PsiReferenceProvider {
+        @Override
+        public PsiReference @NotNull [] getReferencesByElement(@NotNull PsiElement element,
+                                                               @NotNull ProcessingContext context) {
+            DataformJsReference ref = new DataformJsReference(element, element.getText(),
+                    element.getTextRange().shiftRight(-element.getTextOffset()));
+            return ref.resolve() != null ? new PsiReference[]{ref} : PsiReference.EMPTY_ARRAY;
+        }
     }
 }

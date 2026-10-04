@@ -139,5 +139,4 @@ public interface WorkspaceOperations {
 
     @NotNull
     String getFileContent(@Nullable String workspaceId, @NotNull String filePath);
-
 }

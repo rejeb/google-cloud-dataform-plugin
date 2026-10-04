@@ -52,7 +52,6 @@ public final class GcpRepositorySettingsImpl
                         r.getServiceAccount() != null ? r.getServiceAccount() : "");
                 result.add(c);
             }
-
         }
         return result;
     }

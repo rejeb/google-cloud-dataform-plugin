@@ -26,7 +26,6 @@ import io.github.rejeb.dataform.language.service.DataformCoreIndexService;
 import io.github.rejeb.dataform.language.service.WorkflowSettingsService;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.jspecify.annotations.NonNull;
 
 import java.util.Collection;
 
@@ -76,11 +75,5 @@ public class DataformBuiltinFunctionReference extends PsiReferenceBase<PsiElemen
             }
             return null;
         }).orElse(null);
-    }
-
-
-    @Override
-    public Object @NonNull [] getVariants() {
-        return new Object[0];
     }
 }

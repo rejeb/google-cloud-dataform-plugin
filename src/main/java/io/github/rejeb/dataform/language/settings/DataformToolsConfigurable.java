@@ -22,7 +22,6 @@ import com.intellij.openapi.editor.EditorFactory;
 import com.intellij.openapi.options.Configurable;
 import com.intellij.openapi.project.Project;
 import io.github.rejeb.dataform.language.diagnostics.DataformEditorRefresher;
-import io.github.rejeb.dataform.language.diagnostics.ValidationProblemInlayManager;
 import io.github.rejeb.dataform.language.folding.DataformMultilineFoldManager;
 import io.github.rejeb.dataform.language.util.DataformProjects;
 
@@ -80,8 +79,7 @@ public class DataformToolsConfigurable implements Configurable {
 
     private static void refreshHighlightingInOpenProjects() {
         DataformProjects.forEachOpen(project -> {
-            DataformEditorRefresher.refresh(project);
-            ValidationProblemInlayManager.getInstance(project).refreshAll();
+            DataformEditorRefresher.refreshWithInlays(project);
         });
     }
 

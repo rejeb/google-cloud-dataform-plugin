@@ -16,38 +16,31 @@
  */
 package io.github.rejeb.dataform.language.schema.sql.model;
 
-import com.intellij.database.Dbms;
 import com.intellij.database.model.DasColumn;
 import com.intellij.database.model.DasObject;
 import com.intellij.database.model.DasTable;
 import com.intellij.database.model.ObjectKind;
-import com.intellij.database.symbols.DasSymbol;
 import com.intellij.database.types.DasType;
 import com.intellij.lang.injection.InjectedLanguageManager;
-import com.intellij.navigation.ItemPresentation;
 import com.intellij.openapi.fileEditor.OpenFileDescriptor;
-import com.intellij.openapi.util.Pair;
-import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiManager;
-import com.intellij.psi.PsiNamedElement;
-import com.intellij.psi.impl.light.LightElement;
+import com.intellij.psi.tree.IElementType;
 import com.intellij.psi.util.PsiTreeUtil;
-import com.intellij.sql.dialects.bigquery.BigQueryDialect;
 import com.intellij.sql.psi.SqlCompositeElementTypes;
-import com.intellij.util.IncorrectOperationException;
-import com.intellij.util.containers.JBIterable;
+import io.github.rejeb.dataform.language.columns.model.ColumnRef;
+import io.github.rejeb.dataform.language.columns.origin.SqlxOutputColumnLocator;
+import io.github.rejeb.dataform.language.injection.InjectedFiles;
 import io.github.rejeb.dataform.language.psi.SqlxFile;
-import io.github.rejeb.dataform.language.schema.sql.SqlxOutputColumnLocator;
 import io.github.rejeb.dataform.language.psi.SqlxSqlBlock;
+import io.github.rejeb.dataform.language.schema.sql.SqlPsiParts;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 
-
-public class DataformDasColumn extends LightElement implements DasColumn, DasSymbol, PsiNamedElement {
+public class DataformDasColumn extends DataformDasElement implements DasColumn {
     private final DataformDasTable myParent;
     private final ColumnInfo myInfo;
     private final PsiFile containingFile;
@@ -56,7 +49,7 @@ public class DataformDasColumn extends LightElement implements DasColumn, DasSym
                              @Nullable DataformDasTable parent,
                              @NotNull ColumnInfo info,
                              PsiFile containingFile) {
-        super(psiManager, BigQueryDialect.INSTANCE);
+        super(psiManager);
         this.myParent = parent;
         this.myInfo = info;
         this.containingFile = containingFile;
@@ -68,24 +61,10 @@ public class DataformDasColumn extends LightElement implements DasColumn, DasSym
     }
 
     /**
-     * A schema column is a read-only declaration: it is derived from the compiled Dataform graph
-     * and has no source of its own to edit.
-     */
-    @Override
-    public PsiElement setName(@NotNull String name) throws IncorrectOperationException {
-        throw new IncorrectOperationException("Dataform schema columns cannot be renamed");
-    }
-
-    /**
      * Returns the schema information backing this column.
      */
     public @NotNull ColumnInfo getColumnInfo() {
         return myInfo;
-    }
-
-    @Override
-    public @NotNull String toString() {
-        return myInfo.name();
     }
 
     /**
@@ -110,28 +89,8 @@ public class DataformDasColumn extends LightElement implements DasColumn, DasSym
     }
 
     @Override
-    public @NotNull Dbms getDbms() {
-        return Dbms.BIGQUERY;
-    }
-
-    @Override
-    public @Nullable DasObject getDasObject() {
-        return this;
-    }
-
-    @Override
     public @NotNull ObjectKind getKind() {
         return ObjectKind.COLUMN;
-    }
-
-    @Override
-    public @NotNull JBIterable<? extends PsiElement> getPsiDeclarations() {
-        return JBIterable.of(this);
-    }
-
-    @Override
-    public @Nullable PsiElement getContextElement() {
-        return this;
     }
 
     @Override
@@ -167,34 +126,14 @@ public class DataformDasColumn extends LightElement implements DasColumn, DasSym
         return declaration != null ? declaration : this;
     }
 
+    /**
+     * No location. SQL completion qualifies an insert as {@code table.column} whenever a column
+     * offers one, so a column of the query's own tables has to offer none to be inserted under its
+     * bare name.
+     */
     @Override
-    public ItemPresentation getPresentation() {
-        return new ItemPresentation() {
-            @Override
-            public String getPresentableText() {
-                return myInfo.name();
-            }
-
-            /**
-             * No location. SQL completion qualifies an insert as {@code table.column} whenever a
-             * column offers one, so a column of the query's own tables has to offer none to be
-             * inserted under its bare name.
-             */
-            @Override
-            public String getLocationString() {
-                return null;
-            }
-
-            @Override
-            public javax.swing.Icon getIcon(boolean unused) {
-                return null;
-            }
-        };
-    }
-
-    @Override
-    public boolean isQuoted() {
-        return false;
+    protected @Nullable String presentableLocation() {
+        return null;
     }
 
     @Override
@@ -215,6 +154,16 @@ public class DataformDasColumn extends LightElement implements DasColumn, DasSym
     @Override
     public short getPosition() {
         return 0;
+    }
+
+    /**
+     * The column as the rest of the plugin names it, whether or not its table is still published.
+     *
+     * @return the full name of the table and the column name, {@code null} when the table's full name is unknown
+     */
+    public @Nullable ColumnRef ref() {
+        return getTable() instanceof DataformDasTable table && table.getFullName() != null
+                ? new ColumnRef(table.getFullName(), getName()) : null;
     }
 
     @Override
@@ -247,53 +196,22 @@ public class DataformDasColumn extends LightElement implements DasColumn, DasSym
     private int findFirstMentionInSqlBlock(@NotNull InjectedLanguageManager ilm) {
         SqlxSqlBlock sqlBlock = PsiTreeUtil.findChildOfType(containingFile, SqlxSqlBlock.class);
         if (sqlBlock == null) return -1;
-        List<Pair<PsiElement, TextRange>> injectedFiles = ilm.getInjectedPsiFiles(sqlBlock);
-        if (injectedFiles == null || injectedFiles.isEmpty()) return -1;
-        for (Pair<PsiElement, TextRange> pair : injectedFiles) {
-            PsiFile injectedSql = pair.getFirst().getContainingFile();
-            PsiElement[] asExpressions = PsiTreeUtil.collectElements(
-                    injectedSql,
-                    e -> e.getNode().getElementType() == SqlCompositeElementTypes.SQL_AS_EXPRESSION);
-            for (PsiElement asExpr : asExpressions) {
-                PsiElement aliasId = findLastIdentifier(asExpr);
-                if (aliasId != null && identifierMatches(aliasId, myInfo.name())) {
-                    return ilm.injectedToHost(aliasId, aliasId.getTextOffset());
-                }
-            }
-            PsiElement[] colRefs = PsiTreeUtil.collectElements(
-                    injectedSql,
-                    e -> e.getNode().getElementType() == SqlCompositeElementTypes.SQL_COLUMN_REFERENCE);
-            for (PsiElement colRef : colRefs) {
-                PsiElement nameId = findLastIdentifier(colRef);
-                if (nameId != null && identifierMatches(nameId, myInfo.name())) {
-                    return ilm.injectedToHost(nameId, nameId.getTextOffset());
+        for (PsiFile injectedSql : InjectedFiles.of(List.of(sqlBlock))) {
+            for (IElementType type : List.of(SqlCompositeElementTypes.SQL_AS_EXPRESSION,
+                    SqlCompositeElementTypes.SQL_COLUMN_REFERENCE)) {
+                for (PsiElement element : SqlPsiParts.childrenOfTypeDeep(injectedSql, type)) {
+                    PsiElement id = SqlPsiParts.lastIdentifier(element);
+                    if (id != null && SqlPsiParts.unquoted(id.getText()).equalsIgnoreCase(myInfo.name())) {
+                        return ilm.injectedToHost(id, id.getTextOffset());
+                    }
                 }
             }
         }
         return -1;
     }
 
-    private static PsiElement findLastIdentifier(@NotNull PsiElement parent) {
-        PsiElement last = null;
-        for (PsiElement child : parent.getChildren()) {
-            if (child.getNode().getElementType() == SqlCompositeElementTypes.SQL_IDENTIFIER) {
-                last = child;
-            }
-        }
-        return last;
-    }
-
-    private static boolean identifierMatches(@NotNull PsiElement identifier, @NotNull String name) {
-        return identifier.getText().replace("`", "").equalsIgnoreCase(name);
-    }
-
     @Override
     public boolean canNavigate() {
         return hasLiveFile() && containingFile.getVirtualFile() != null;
-    }
-
-    @Override
-    public boolean canNavigateToSource() {
-        return canNavigate();
     }
 }

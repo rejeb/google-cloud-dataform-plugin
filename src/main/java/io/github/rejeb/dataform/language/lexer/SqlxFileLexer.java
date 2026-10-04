@@ -165,15 +165,12 @@ public class SqlxFileLexer extends LexerBase {
 
     private void locateTokenInitial() {
         if (Character.isWhitespace(buffer.charAt(currentPosition))) {
-            skipWhitespace();
-            currentTokenType = TokenType.WHITE_SPACE;
-            currentTokenEnd = currentPosition;
+            emitWhitespace();
             return;
         }
 
         if (currentPosition >= endOffset) {
-            currentTokenType = null;
-            currentTokenEnd = endOffset;
+            emitEnd();
             return;
         }
 
@@ -205,44 +202,13 @@ public class SqlxFileLexer extends LexerBase {
     private void continueInKeywordBlock(String keyword, IElementType tokenType, int state) {
         int endPos = currentPosition + keyword.length();
         currentPosition = endPos;
-        currentTokenType = tokenType;
-        currentTokenEnd = currentPosition;
+        emit(tokenType);
         braceDepth = 0;
         this.state = state;
     }
 
     private void locateConfigOrJsBlock(IElementType tokenType) {
-        if (currentPosition >= endOffset) {
-            currentTokenType = null;
-            currentTokenEnd = endOffset;
-            return;
-        }
-
-        char first = buffer.charAt(currentPosition);
-
-        if (afterOpenBrace) {
-            afterOpenBrace = false;
-            if (Character.isWhitespace(first)) {
-                skipWhitespace();
-                currentTokenType = TokenType.WHITE_SPACE;
-                currentTokenEnd = currentPosition;
-                return;
-            }
-        }
-
-        if (braceDepth == 0 && Character.isWhitespace(first)) {
-            skipWhitespace();
-            currentTokenType = TokenType.WHITE_SPACE;
-            currentTokenEnd = currentPosition;
-            return;
-        }
-
-        if (braceDepth == 0 && first == '{') {
-            braceDepth = 1;
-            currentPosition++;
-            currentTokenType = SharedTokenTypes.LBRACE;
-            currentTokenEnd = currentPosition;
-            afterOpenBrace = true;
+        if (lexBlockBoundary()) {
             return;
         }
 
@@ -251,82 +217,31 @@ public class SqlxFileLexer extends LexerBase {
         while (currentPosition < endOffset) {
             char c = buffer.charAt(currentPosition);
 
-            if (c == '{') {
-                braceDepth++;
-                currentPosition++;
-            } else if (c == '}') {
-                if (braceDepth == 1) {
-                    if (currentPosition > start) {
-                        currentTokenType = tokenType;
-                        currentTokenEnd = currentPosition;
-                        return;
-                    }
-                    braceDepth = 0;
-                    currentPosition++;
-                    currentTokenType = SharedTokenTypes.RBRACE;
-                    currentTokenEnd = currentPosition;
-                    state = YYINITIAL;
-                    return;
+            if (c == '}' && braceDepth == 1) {
+                if (currentPosition > start) {
+                    emit(tokenType);
+                } else {
+                    emitClosingBrace();
                 }
-                braceDepth--;
-                currentPosition++;
-            } else {
-                currentPosition++;
+                return;
             }
+            consumeTrackingBraces(c);
         }
 
-        if (currentPosition > start) {
-            currentTokenType = tokenType;
-            currentTokenEnd = currentPosition;
-        } else {
-            currentTokenType = null;
-            currentTokenEnd = endOffset;
-        }
+        emitRemainder(tokenType, start);
     }
 
     private void locateOperationsBlock(IElementType tokenType) {
-        if (currentPosition >= endOffset) {
-            currentTokenType = null;
-            currentTokenEnd = endOffset;
+        if (lexBlockBoundary()) {
             return;
         }
 
-        char first = buffer.charAt(currentPosition);
-
-        if (afterOpenBrace) {
-            afterOpenBrace = false;
-            if (Character.isWhitespace(first)) {
-                skipWhitespace();
-                currentTokenType = TokenType.WHITE_SPACE;
-                currentTokenEnd = currentPosition;
-                return;
-            }
-        }
-
-        if (braceDepth == 0 && Character.isWhitespace(first)) {
-            skipWhitespace();
-            currentTokenType = TokenType.WHITE_SPACE;
-            currentTokenEnd = currentPosition;
+        if (braceDepth == 1 && Character.isWhitespace(buffer.charAt(currentPosition))
+                && whitespaceRunEndsAtBrace(currentPosition)) {
+            emitWhitespace();
             return;
         }
 
-        if (braceDepth == 1 && Character.isWhitespace(first) && whitespaceRunEndsAtBrace(currentPosition)) {
-            skipWhitespace();
-            currentTokenType = TokenType.WHITE_SPACE;
-            currentTokenEnd = currentPosition;
-            return;
-        }
-
-        if (braceDepth == 0 && first == '{') {
-            braceDepth = 1;
-            currentPosition++;
-            currentTokenType = SharedTokenTypes.LBRACE;
-            currentTokenEnd = currentPosition;
-            afterOpenBrace = true;
-            return;
-        }
-
-        // Handle ${...} template expression at current position
         if (tryConsumeTemplateExpression()) {
             return;
         }
@@ -338,49 +253,88 @@ public class SqlxFileLexer extends LexerBase {
 
             if (c == '$' && currentPosition + 1 < endOffset && buffer.charAt(currentPosition + 1) == '{') {
                 if (currentPosition > start) {
-                    currentTokenType = tokenType;
-                    currentTokenEnd = currentPosition;
+                    emit(tokenType);
                     return;
                 }
                 break;
             }
 
-            if (c == '{') {
-                braceDepth++;
-                currentPosition++;
-            } else if (c == '}') {
-                if (braceDepth == 1) {
-                    if (currentPosition > start) {
-                        int contentEnd = currentPosition;
-                        while (contentEnd > start
-                                && Character.isWhitespace(buffer.charAt(contentEnd - 1))) {
-                            contentEnd--;
-                        }
-                        currentTokenType = tokenType;
-                        currentTokenEnd = contentEnd > start ? contentEnd : currentPosition;
-                        currentPosition = currentTokenEnd;
-                        return;
-                    }
-                    braceDepth = 0;
-                    currentPosition++;
-                    currentTokenType = SharedTokenTypes.RBRACE;
-                    currentTokenEnd = currentPosition;
-                    state = YYINITIAL;
-                    return;
+            if (c == '}' && braceDepth == 1) {
+                if (currentPosition > start) {
+                    emitWithoutTrailingWhitespace(tokenType, start);
+                } else {
+                    emitClosingBrace();
                 }
-                braceDepth--;
-                currentPosition++;
-            } else {
-                currentPosition++;
+                return;
             }
+            consumeTrackingBraces(c);
         }
 
+        emitRemainder(tokenType, start);
+    }
+
+    /**
+     * Lexes what a block holds before its content: the end of the text, the whitespace following
+     * the keyword or the opening brace, and the opening brace itself.
+     *
+     * @return whether a token was produced
+     */
+    private boolean lexBlockBoundary() {
+        if (currentPosition >= endOffset) {
+            emitEnd();
+            return true;
+        }
+
+        char first = buffer.charAt(currentPosition);
+        boolean justOpened = afterOpenBrace;
+        afterOpenBrace = false;
+
+        if ((justOpened || braceDepth == 0) && Character.isWhitespace(first)) {
+            emitWhitespace();
+            return true;
+        }
+
+        if (braceDepth == 0 && first == '{') {
+            braceDepth = 1;
+            currentPosition++;
+            emit(SharedTokenTypes.LBRACE);
+            afterOpenBrace = true;
+            return true;
+        }
+        return false;
+    }
+
+    private void consumeTrackingBraces(char c) {
+        if (c == '{') {
+            braceDepth++;
+        } else if (c == '}') {
+            braceDepth--;
+        }
+        currentPosition++;
+    }
+
+    private void emitClosingBrace() {
+        braceDepth = 0;
+        currentPosition++;
+        emit(SharedTokenTypes.RBRACE);
+        state = YYINITIAL;
+    }
+
+    private void emitWithoutTrailingWhitespace(IElementType tokenType, int start) {
+        int contentEnd = currentPosition;
+        while (contentEnd > start && Character.isWhitespace(buffer.charAt(contentEnd - 1))) {
+            contentEnd--;
+        }
+        currentTokenType = tokenType;
+        currentTokenEnd = contentEnd > start ? contentEnd : currentPosition;
+        currentPosition = currentTokenEnd;
+    }
+
+    private void emitRemainder(IElementType tokenType, int start) {
         if (currentPosition > start) {
-            currentTokenType = tokenType;
-            currentTokenEnd = currentPosition;
+            emit(tokenType);
         } else {
-            currentTokenType = null;
-            currentTokenEnd = endOffset;
+            emitEnd();
         }
     }
 
@@ -394,8 +348,7 @@ public class SqlxFileLexer extends LexerBase {
             if (crossesLine && (currentPosition >= endOffset || buffer.charAt(currentPosition) != '{')) {
                 state = YYINITIAL;
             }
-            currentTokenType = TokenType.WHITE_SPACE;
-            currentTokenEnd = currentPosition;
+            emit(TokenType.WHITE_SPACE);
             return;
         }
 
@@ -411,15 +364,13 @@ public class SqlxFileLexer extends LexerBase {
                     break;
                 }
             }
-            currentTokenType = SharedTokenTypes.INPUT_NAME;
-            currentTokenEnd = currentPosition;
+            emit(SharedTokenTypes.INPUT_NAME);
             return;
         }
 
         if (first == ',') {
             currentPosition++;
-            currentTokenType = SharedTokenTypes.INPUT_NAME_SEPARATOR;
-            currentTokenEnd = currentPosition;
+            emit(SharedTokenTypes.INPUT_NAME_SEPARATOR);
             return;
         }
 
@@ -457,8 +408,7 @@ public class SqlxFileLexer extends LexerBase {
 
     private void locateTokenSqlContent() {
         if (currentPosition >= endOffset) {
-            currentTokenType = null;
-            currentTokenEnd = endOffset;
+            emitEnd();
             return;
         }
 
@@ -466,17 +416,12 @@ public class SqlxFileLexer extends LexerBase {
             int savedPos = currentPosition;
 
             // Skip non-newline leading whitespace to look ahead for a block keyword
-            while (currentPosition < endOffset &&
-                    Character.isWhitespace(buffer.charAt(currentPosition)) &&
-                    buffer.charAt(currentPosition) != '\n') {
-                currentPosition++;
-            }
+            skipInlineWhitespace();
 
             if (currentPosition < endOffset && matchesAnyBlockKeyword()) {
                 if (currentPosition > savedPos) {
                     // Emit the leading whitespace before transitioning to YYINITIAL
-                    currentTokenType = TokenType.WHITE_SPACE;
-                    currentTokenEnd = currentPosition;
+                    emit(TokenType.WHITE_SPACE);
                     return;
                 }
                 // No leading whitespace: transition directly
@@ -510,11 +455,7 @@ public class SqlxFileLexer extends LexerBase {
                     int savedPos = currentPosition;
 
                     // Skip non-newline whitespace after newline to peek at keyword
-                    while (currentPosition < endOffset &&
-                            Character.isWhitespace(buffer.charAt(currentPosition)) &&
-                            buffer.charAt(currentPosition) != '\n') {
-                        currentPosition++;
-                    }
+                    skipInlineWhitespace();
 
                     if (matchesAnyBlockKeyword()) {
                         currentPosition = savedPos;
@@ -551,8 +492,7 @@ public class SqlxFileLexer extends LexerBase {
             else if (c == '}') depth--;
             currentPosition++;
         }
-        currentTokenType = SharedTokenTypes.TEMPLATE_EXPRESSION;
-        currentTokenEnd = currentPosition;
+        emit(SharedTokenTypes.TEMPLATE_EXPRESSION);
         return true;
     }
 
@@ -607,6 +547,29 @@ public class SqlxFileLexer extends LexerBase {
         }
 
         return true;
+    }
+
+    private void emit(IElementType tokenType) {
+        currentTokenType = tokenType;
+        currentTokenEnd = currentPosition;
+    }
+
+    private void emitEnd() {
+        currentTokenType = null;
+        currentTokenEnd = endOffset;
+    }
+
+    private void emitWhitespace() {
+        skipWhitespace();
+        emit(TokenType.WHITE_SPACE);
+    }
+
+    private void skipInlineWhitespace() {
+        while (currentPosition < endOffset
+                && Character.isWhitespace(buffer.charAt(currentPosition))
+                && buffer.charAt(currentPosition) != '\n') {
+            currentPosition++;
+        }
     }
 
     private void skipWhitespace() {

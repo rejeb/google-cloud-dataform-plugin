@@ -16,22 +16,23 @@
  */
 package io.github.rejeb.dataform.language.lineage.view;
 
+import com.intellij.ui.ColorUtil;
 import com.intellij.ui.JBColor;
 import com.intellij.ui.scale.JBUIScale;
 import org.jetbrains.annotations.NotNull;
 
-import javax.swing.Icon;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Component;
-import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.Graphics;
 import java.awt.RenderingHints;
 import java.awt.geom.Arc2D;
 import java.awt.geom.Line2D;
 import java.awt.geom.Path2D;
 import java.awt.geom.RoundRectangle2D;
 import java.util.function.Consumer;
+import javax.swing.Icon;
 
 /**
  * Custom toolbar icons matching the design reference's inline SVG glyphs (filters funnel,
@@ -71,7 +72,7 @@ final class LineageIcons {
     static final Icon MINIMAP = icon(g -> {
         g.draw(new RoundRectangle2D.Double(1.5, 1.5, 13, 13, 2, 2));
         Color prev = g.getColor();
-        g.setColor(new Color(prev.getRed(), prev.getGreen(), prev.getBlue(), 77));
+        g.setColor(ColorUtil.toAlpha(prev, 77));
         g.fill(new RoundRectangle2D.Double(9, 9, 4.5, 4.5, 1, 1));
         g.setColor(prev);
         g.draw(new RoundRectangle2D.Double(9, 9, 4.5, 4.5, 1, 1));

@@ -16,7 +16,8 @@
  */
 package io.github.rejeb.dataform.language.schema.sql;
 
-import com.intellij.lang.injection.InjectedLanguageManager;
+import io.github.rejeb.dataform.language.columns.origin.ColumnOriginService;
+import io.github.rejeb.dataform.language.columns.origin.SqlxColumnAtCaret;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.usages.impl.rules.UsageType;
@@ -36,11 +37,8 @@ public class DataformColumnUsageTypeProvider implements UsageTypeProvider {
 
     @Override
     public @Nullable UsageType getUsageType(@NotNull PsiElement element) {
-        PsiFile containing = element.getContainingFile();
-        if (containing == null) return null;
-        PsiFile topLevel = InjectedLanguageManager.getInstance(element.getProject())
-                .getTopLevelFile(containing);
-        if (topLevel == null || !topLevel.getName().endsWith(".sqlx")) return null;
+        PsiFile topLevel = SqlxColumnAtCaret.sqlxFileOf(element);
+        if (topLevel == null) return null;
 
         ColumnOriginService origins = ColumnOriginService.getInstance(element.getProject());
         return origins.declaredColumn(topLevel, element) != null ? DECLARATION : READ;

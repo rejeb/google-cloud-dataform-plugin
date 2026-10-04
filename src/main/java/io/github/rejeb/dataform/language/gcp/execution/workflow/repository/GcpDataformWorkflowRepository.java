@@ -18,8 +18,8 @@ package io.github.rejeb.dataform.language.gcp.execution.workflow.repository;
 
 import com.google.api.core.ApiFuture;
 import com.google.cloud.dataform.v1.*;
-import com.intellij.openapi.Disposable;
 import com.intellij.openapi.diagnostic.Logger;
+import io.github.rejeb.dataform.language.gcp.common.DataformApi;
 import io.github.rejeb.dataform.language.gcp.common.GcpApiException;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.*;
 import io.github.rejeb.dataform.language.util.GcpClientsUtils;
@@ -31,13 +31,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
-public final class GcpDataformWorkflowRepository implements WorkflowRepository, Disposable {
+public final class GcpDataformWorkflowRepository implements WorkflowRepository {
     private static final Logger LOG = Logger.getInstance(GcpDataformWorkflowRepository.class);
-
-
-    @Override
-    public void dispose() {
-    }
 
     @Override
     @NotNull
@@ -47,7 +42,7 @@ public final class GcpDataformWorkflowRepository implements WorkflowRepository, 
             @NotNull String repositoryId,
             @NotNull WorkflowRunRequest request
     ) {
-        try (DataformClient client = GcpClientsUtils.dataformClient(projectId)) {
+        return DataformApi.call(projectId, "Error creating workflow run.", client -> {
             String repoName = RepositoryName.of(projectId, location, repositoryId).toString();
             String wsName = WorkspaceName.of(projectId, location, repositoryId, request.workspaceId()).toString();
             ensureNpmPackagesInstalled(wsName, client);
@@ -92,9 +87,7 @@ public final class GcpDataformWorkflowRepository implements WorkflowRepository, 
             );
 
             return new WorkflowCreationResult(invocation.getName(), wsName);
-        } catch (Exception e) {
-            throw new GcpApiException("Error creating workflow run.", e);
-        }
+        });
     }
 
     @Override
@@ -165,7 +158,6 @@ public final class GcpDataformWorkflowRepository implements WorkflowRepository, 
                 String jobId = null;
                 String jobProject = null;
                 String sqlScript = null;
-
 
                 if (action.hasBigqueryAction()) {
                     String raw = action.getBigqueryAction().getJobId();
@@ -271,15 +263,13 @@ public final class GcpDataformWorkflowRepository implements WorkflowRepository, 
     @Override
     public void cancelWorkflowRun(@NotNull String workflowRunName) {
         String quotaProjectId = GcpClientsUtils.projectIdFromResourceName(workflowRunName);
-        try (DataformClient client = GcpClientsUtils.dataformClient(quotaProjectId)) {
+        DataformApi.run(quotaProjectId, "Error cancelling workflow run.", client -> {
             client.cancelWorkflowInvocation(
                     CancelWorkflowInvocationRequest.newBuilder()
                             .setName(workflowRunName)
                             .build()
             );
-        } catch (Exception e) {
-            throw new GcpApiException("Error cancelling workflow run.", e);
-        }
+        });
     }
 
     private static WorkflowInvocationState mapRunState(WorkflowInvocation.State s) {
@@ -335,7 +325,6 @@ public final class GcpDataformWorkflowRepository implements WorkflowRepository, 
                     .setWorkspace(workspaceName)
                     .setPath("node_modules/@dataform")
                     .build();
-            // If the directory exists and contains "core", packages are installed
             for (DirectoryEntry entry : client.queryDirectoryContents(request).iterateAll()) {
                 if (entry.hasDirectory() && "core".equals(entry.getDirectory())) {
                     return true;
@@ -343,7 +332,6 @@ public final class GcpDataformWorkflowRepository implements WorkflowRepository, 
             }
             return false;
         } catch (Exception e) {
-            // Directory doesn't exist → not installed
             LOG.info("node_modules/@dataform not found in workspace, npm install needed.");
             return false;
         }

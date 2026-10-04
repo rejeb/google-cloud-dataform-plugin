@@ -33,7 +33,6 @@ public class SqlxTemplateInjector implements MultiHostInjector {
     public void getLanguagesToInject(@NotNull MultiHostRegistrar registrar,
                                      @NotNull PsiElement context) {
 
-
         String text = context.getText();
         registrar.startInjecting(JavascriptLanguage.INSTANCE);
         registrar.addPlace("{(`", "`)}", (PsiLanguageInjectionHost) context, new TextRange(0, text.length()));

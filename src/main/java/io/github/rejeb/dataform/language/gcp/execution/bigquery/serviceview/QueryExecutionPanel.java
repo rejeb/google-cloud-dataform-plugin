@@ -30,13 +30,12 @@ import com.intellij.icons.AllIcons;
 import com.intellij.openapi.actionSystem.ActionGroup;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.project.Project;
-import com.intellij.ui.ScrollPaneFactory;
-import com.intellij.ui.components.JBTextArea;
-import com.intellij.ui.components.JBTextField;
 import com.intellij.ui.HyperlinkLabel;
-import com.intellij.ui.components.JBLabel;
+import com.intellij.ui.ScrollPaneFactory;
 import com.intellij.ui.components.JBScrollPane;
 import com.intellij.ui.components.JBTabbedPane;
+import com.intellij.ui.components.JBTextArea;
+import com.intellij.ui.components.JBTextField;
 import com.intellij.ui.scale.JBUIScale;
 import com.intellij.util.ui.FormBuilder;
 import com.intellij.util.ui.JBUI;
@@ -45,23 +44,20 @@ import io.github.rejeb.dataform.language.gcp.execution.bigquery.BigQueryJobResul
 import io.github.rejeb.dataform.language.gcp.execution.bigquery.BigQueryJobStats;
 import io.github.rejeb.dataform.language.gcp.execution.bigquery.BigQueryPagedResult;
 import io.github.rejeb.dataform.language.gcp.execution.bigquery.grid.BqDataHookUp;
+import io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.ui.RunConfigUiUtils;
 import io.github.rejeb.dataform.language.ui.ReadOnlyTextFields;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import javax.swing.*;
 import java.awt.*;
 import java.time.Instant;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
+import javax.swing.*;
 
 import static io.github.rejeb.dataform.language.util.Utils.formatBytes;
 
 public class QueryExecutionPanel extends JPanel {
 
-    private static final DateTimeFormatter DATE_FMT =
-            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault());
 
     public QueryExecutionPanel(@NotNull Project project, @NotNull BigQueryJobResult result) {
         super(new BorderLayout());
@@ -88,7 +84,7 @@ public class QueryExecutionPanel extends JPanel {
             BigQueryJobStats s = result.stats();
             if (s != null) {
                 long duration = s.endTime() - s.startTime();
-                String url = buildJobUrl(s.projectId(), s.location(), s.jobId());
+                String url = RunConfigUiUtils.bigQueryJobUrl(s.projectId(), s.location(), s.jobId());
 
                 HyperlinkLabel gcpLink = new HyperlinkLabel(url);
                 gcpLink.setHyperlinkTarget(url);
@@ -119,18 +115,8 @@ public class QueryExecutionPanel extends JPanel {
         return scroll;
     }
 
-
     private static JBTextField readOnlyValue(@Nullable String text) {
         return ReadOnlyTextFields.singleLine(text != null ? text : "-");
-    }
-
-    private static String buildJobUrl(@NotNull String projectId,
-                                      @Nullable String location,
-                                      @NotNull String jobId) {
-        String loc = location != null ? location : "US";
-        return String.format(
-                "https://console.cloud.google.com/bigquery?project=%s&j=bq:%s:%s&page=queryresults",
-                projectId, loc, jobId);
     }
 
     private JComponent buildResultsPanel(@NotNull Project project, @NotNull BigQueryPagedResult pagedResult) {
@@ -195,13 +181,12 @@ public class QueryExecutionPanel extends JPanel {
         appearance.setResultViewShowRowNumbers(true);
         appearance.setResultViewStriped(true);
         grid.putUserData(FloatingPagingManager.AVAILABLE_FOR_GRID_TYPE, true);
-
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────
 
     private String formatTs(long ts) {
         if (ts == 0) return "-";
-        return DATE_FMT.format(Instant.ofEpochMilli(ts));
+        return RunConfigUiUtils.DATE_TIME.format(Instant.ofEpochMilli(ts));
     }
 }

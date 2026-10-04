@@ -38,4 +38,9 @@ record ExtractionContext(
                       @NotNull BigQueryDryRunSchemaExtractor extractor) {
         this(projectId, location, extractor, Set.of());
     }
+
+    @NotNull
+    DryRunResult dryRun(@NotNull String query) {
+        return extractor.extractSchema(projectId, location, query);
+    }
 }
