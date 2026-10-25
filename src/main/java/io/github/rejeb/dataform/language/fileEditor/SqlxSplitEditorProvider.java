@@ -57,5 +57,4 @@ public class SqlxSplitEditorProvider implements FileEditorProvider, DumbAware {
         return FileEditorPolicy.HIDE_DEFAULT_EDITOR;
     }
 
-
 }

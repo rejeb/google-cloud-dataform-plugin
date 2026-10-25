@@ -119,5 +119,4 @@ public class SqlxFormattingTask implements AsyncDocumentFormattingService.Format
     private PsiFile sqlxFile(PsiFile file) {
         return file.getContext() != null && file.getContext().getContainingFile() != null ? file.getContext().getContainingFile() : file;
     }
-
 }

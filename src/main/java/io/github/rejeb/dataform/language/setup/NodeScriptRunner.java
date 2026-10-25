@@ -22,10 +22,9 @@ import com.intellij.execution.process.ProcessOutput;
 import com.intellij.openapi.application.PathManager;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.util.SystemInfo;
+import io.github.rejeb.dataform.language.util.NodeJsNpmUtils;
 import org.jetbrains.annotations.NotNull;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -65,7 +64,7 @@ public final class NodeScriptRunner {
         }
 
         try {
-            Path executable = nodeBinDir.resolve(SystemInfo.isWindows ? "node.exe" : "node");
+            Path executable = NodeJsNpmUtils.nodeExecutable(nodeBinDir);
             Path scriptFile = writeScript(scriptName, script);
 
             GeneralCommandLine cmd = new GeneralCommandLine()
@@ -73,7 +72,7 @@ public final class NodeScriptRunner {
                     .withParameters(scriptFile.toString())
                     .withWorkDirectory(project.getBasePath())
                     .withCharset(StandardCharsets.UTF_8);
-            cmd.withEnvironment("PATH", nodeBinDir + File.pathSeparator + System.getenv("PATH"));
+            cmd.withEnvironment("PATH", NodeJsNpmUtils.pathWith(nodeBinDir));
 
             CapturingProcessHandler handler = new CapturingProcessHandler(cmd);
             handler.getProcessInput().write(stdin.getBytes(StandardCharsets.UTF_8));

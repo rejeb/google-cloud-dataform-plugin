@@ -24,11 +24,7 @@ import com.intellij.platform.backend.documentation.DocumentationTarget;
 import com.intellij.platform.backend.presentation.TargetPresentation;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.compilation.model.ActionReference;
-import io.github.rejeb.dataform.language.compilation.model.CompiledAssertion;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
-import io.github.rejeb.dataform.language.compilation.model.CompiledOperation;
-import io.github.rejeb.dataform.language.compilation.model.CompiledTable;
-import io.github.rejeb.dataform.language.compilation.model.Declaration;
 import io.github.rejeb.dataform.language.compilation.model.Target;
 import io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService;
 import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
@@ -38,7 +34,6 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 public class DataformTableDocumentationTarget implements DocumentationTarget {
 
@@ -75,48 +70,23 @@ public class DataformTableDocumentationTarget implements DocumentationTarget {
 
     String html() {
         CompiledGraph graph = myProject.getService(DataformCompilationService.class).getCompiledGraph();
+        ActionInfo info = graph == null ? ActionInfo.NONE : graph.findTableByReference(myAction)
+                .map(t -> new ActionInfo(fullName(t.getTarget()), t.getType(), t.getFileName(),
+                        t.getActionDescriptor() == null ? null : t.getActionDescriptor().getDescription()))
+                .or(() -> graph.findDeclarationByReference(myAction)
+                        .map(d -> new ActionInfo(fullName(d.getTarget()), "declaration", d.getFileName(), null)))
+                .or(() -> graph.findAssertionByReference(myAction)
+                        .map(a -> new ActionInfo(fullName(a.getTarget()), "assertion", a.getFileName(), null)))
+                .or(() -> graph.findOperationByReference(myAction)
+                        .map(o -> new ActionInfo(fullName(o.getTarget()), "operation", o.getFileName(), null)))
+                .orElse(ActionInfo.NONE);
+        return DataformDocumentationRenderer.renderTable(myTableName, info.fullName(), info.type(),
+                info.sourceFile(), info.description(), columns(info.fullName()));
+    }
 
-        String fullName = null;
-        String type = null;
-        String sourceFile = null;
-        String description = null;
-
-        if (graph != null) {
-            Optional<CompiledTable> table = graph.findTableByReference(myAction);
-            if (table.isPresent()) {
-                CompiledTable value = table.get();
-                fullName = fullName(value.getTarget());
-                type = value.getType();
-                sourceFile = value.getFileName();
-                description = value.getActionDescriptor() == null
-                        ? null
-                        : value.getActionDescriptor().getDescription();
-            } else {
-                Optional<Declaration> declaration = graph.findDeclarationByReference(myAction);
-                if (declaration.isPresent()) {
-                    fullName = fullName(declaration.get().getTarget());
-                    type = "declaration";
-                    sourceFile = declaration.get().getFileName();
-                } else {
-                    Optional<CompiledAssertion> assertion = graph.findAssertionByReference(myAction);
-                    if (assertion.isPresent()) {
-                        fullName = fullName(assertion.get().getTarget());
-                        type = "assertion";
-                        sourceFile = assertion.get().getFileName();
-                    } else {
-                        Optional<CompiledOperation> operation = graph.findOperationByReference(myAction);
-                        if (operation.isPresent()) {
-                            fullName = fullName(operation.get().getTarget());
-                            type = "operation";
-                            sourceFile = operation.get().getFileName();
-                        }
-                    }
-                }
-            }
-        }
-
-        return DataformDocumentationRenderer.renderTable(
-                myTableName, fullName, type, sourceFile, description, columns(fullName));
+    private record ActionInfo(@Nullable String fullName, @Nullable String type, @Nullable String sourceFile,
+                              @Nullable String description) {
+        static final ActionInfo NONE = new ActionInfo(null, null, null, null);
     }
 
     private List<ColumnInfo> columns(@Nullable String fullName) {

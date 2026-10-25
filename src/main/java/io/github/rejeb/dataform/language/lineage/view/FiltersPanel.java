@@ -16,6 +16,7 @@
  */
 package io.github.rejeb.dataform.language.lineage.view;
 
+import com.intellij.ui.ColorUtil;
 import com.intellij.ui.components.JBCheckBox;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBScrollPane;
@@ -23,20 +24,12 @@ import com.intellij.ui.components.panels.VerticalLayout;
 import com.intellij.ui.scale.JBUIScale;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
+import com.intellij.util.ui.WrapLayout;
 import io.github.rejeb.dataform.language.lineage.graph.LineageNode;
 import io.github.rejeb.dataform.language.lineage.model.LineageModel;
-import static io.github.rejeb.dataform.language.lineage.view.FilterWidgets.accent;
-import static io.github.rejeb.dataform.language.lineage.view.FilterWidgets.dim;
-import static io.github.rejeb.dataform.language.lineage.view.FilterWidgets.glyphLabel;
-import static io.github.rejeb.dataform.language.lineage.view.FilterWidgets.link;
-import static io.github.rejeb.dataform.language.lineage.view.FilterWidgets.monospace;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import javax.swing.BorderFactory;
-import javax.swing.JComponent;
-import javax.swing.JPanel;
-import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Cursor;
@@ -44,8 +37,8 @@ import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.FontMetrics;
-import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.Graphics;
 import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -55,6 +48,15 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import javax.swing.BorderFactory;
+import javax.swing.JComponent;
+import javax.swing.JPanel;
+import javax.swing.SwingUtilities;
+
+import static io.github.rejeb.dataform.language.lineage.view.FilterWidgets.dim;
+import static io.github.rejeb.dataform.language.lineage.view.FilterWidgets.glyphLabel;
+import static io.github.rejeb.dataform.language.lineage.view.FilterWidgets.link;
+import static io.github.rejeb.dataform.language.lineage.view.FilterWidgets.monospace;
 
 /**
  * Left sidebar with collapsible filter sections bound to the {@link LineageModel},
@@ -133,10 +135,6 @@ public final class FiltersPanel extends JPanel {
         ordered.addAll(present);
         return new ArrayList<>(ordered);
     }
-
-    // ------------------------------------------------------------------
-    // Sections
-    // ------------------------------------------------------------------
 
     private JComponent typesSection() {
         int enabled = model.enabledTypes().size();
@@ -231,10 +229,6 @@ public final class FiltersPanel extends JPanel {
         return panel;
     }
 
-    // ------------------------------------------------------------------
-    // Rows / widgets
-    // ------------------------------------------------------------------
-
     private JComponent checkRow(@Nullable String glyph, @Nullable Color glyphColor, @NotNull String label,
                                 int count, boolean checked, @NotNull Runnable onToggle, boolean mono) {
         JPanel row = new JPanel(new BorderLayout(JBUIScale.scale(8), 0));
@@ -283,8 +277,6 @@ public final class FiltersPanel extends JPanel {
         return button;
     }
 
-
-
     private JBLabel hint(@NotNull String text) {
         int wrap = Math.max(JBUIScale.scale(120), contentWidth - JBUIScale.scale(44));
         JBLabel label = new JBLabel("<html><div width='" + wrap + "'>" + text + "</div></html>");
@@ -292,9 +284,6 @@ public final class FiltersPanel extends JPanel {
         label.setBorder(JBUI.Borders.emptyTop(4));
         return label;
     }
-
-
-
 
     private void enableAllTypes() {
         for (String type : model.typeCounts().keySet()) {
@@ -318,14 +307,10 @@ public final class FiltersPanel extends JPanel {
         return counts;
     }
 
-    // ------------------------------------------------------------------
-    // Width sizing (longest non-wrapping element)
-    // ------------------------------------------------------------------
-
     private int computeWidth() {
         Font base = getFont() != null ? getFont() : UIUtil.getLabelFont();
         FontMetrics fm = getFontMetrics(base);
-        FontMetrics mono = getFontMetrics(new Font(Font.MONOSPACED, Font.PLAIN, base.getSize()));
+        FontMetrics mono = getFontMetrics(monospace(base));
         int text = 0;
 
         int rowChrome = JBUIScale.scale(20 + 16 + 6 + 14);
@@ -353,10 +338,6 @@ public final class FiltersPanel extends JPanel {
         int total = text + JBUIScale.scale(12 + 12 + 12);
         return Math.max(JBUIScale.scale(MIN_WIDTH), Math.min(JBUIScale.scale(MAX_WIDTH), total));
     }
-
-    // ------------------------------------------------------------------
-    // Collapsible section
-    // ------------------------------------------------------------------
 
     private final class Section extends JPanel {
         private final JPanel body = new JPanel(new VerticalLayout(JBUIScale.scale(2)));
@@ -407,10 +388,6 @@ public final class FiltersPanel extends JPanel {
         }
     }
 
-    // ------------------------------------------------------------------
-    // Tag pill chip
-    // ------------------------------------------------------------------
-
     private static final class Chip extends JComponent {
         private final String text;
         private boolean active;
@@ -449,14 +426,14 @@ public final class FiltersPanel extends JPanel {
             try {
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 int w = getWidth(), h = getHeight();
-                g2.setColor(active ? tint(accent(), 0.18f) : UIUtil.getPanelBackground());
+                g2.setColor(active ? ColorUtil.withAlpha(LineageTheme.accentColor(), 0.18) : UIUtil.getPanelBackground());
                 g2.fillRoundRect(0, 0, w - 1, h - 1, h, h);
-                g2.setColor(active ? accent() : UIUtil.getBoundsColor());
+                g2.setColor(active ? LineageTheme.accentColor() : UIUtil.getBoundsColor());
                 g2.drawRoundRect(0, 0, w - 1, h - 1, h, h);
 
                 int dot = JBUIScale.scale(6);
                 int dy = (h - dot) / 2;
-                g2.setColor(active ? accent() : UIUtil.getLabelDisabledForeground());
+                g2.setColor(active ? LineageTheme.accentColor() : UIUtil.getLabelDisabledForeground());
                 g2.fillOval(JBUIScale.scale(8), dy, dot, dot);
 
                 g2.setColor(active ? UIUtil.getLabelForeground() : UIUtil.getLabelDisabledForeground());
@@ -469,8 +446,5 @@ public final class FiltersPanel extends JPanel {
             }
         }
 
-        private static Color tint(@NotNull Color base, float alpha) {
-            return new Color(base.getRed(), base.getGreen(), base.getBlue(), (int) (alpha * 255));
-        }
     }
 }

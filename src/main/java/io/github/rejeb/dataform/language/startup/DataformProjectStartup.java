@@ -27,7 +27,7 @@ import io.github.rejeb.dataform.language.diagnostics.DataformEditorRefresher;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.progress.ProgressIndicator;
-import com.intellij.openapi.project.ProjectUtil;
+import io.github.rejeb.dataform.language.util.Utils;
 import com.intellij.openapi.roots.ProjectRootManager;
 import com.intellij.openapi.startup.ProjectActivity;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -64,15 +64,7 @@ public class DataformProjectStartup implements ProjectActivity {
     @Override
     public Object execute(@NotNull Project project,
                           @NotNull Continuation<? super Unit> continuation) {
-
-        VirtualFile baseDir = ProjectUtil.guessProjectDir(project);
-        if (baseDir == null) return null;
-
-        boolean isDataformProject =
-                baseDir.findChild("dataform.json") != null ||
-                        baseDir.findChild("workflow_settings.yaml") != null;
-
-        if (!isDataformProject) return null;
+        if (!Utils.isDataformProject(project)) return null;
         DataformValueFoldClickListener.attachToOpenEditors();
         DataformEvaluationFocusListener.requestForSelectedFiles(project);
         if (GcpRepositorySettings.getInstance(project).getActiveConfig() != null) {
@@ -84,7 +76,6 @@ public class DataformProjectStartup implements ProjectActivity {
             } else {
                 LOG.info("Dataform GCP file cache restored from disk: " + cached.size() + " files.");
             }
-
         }
         if (DataformCompilationService.getInstance(project).getCompiledGraph() == null) {
             ProgressManager.getInstance().run(new Task.Backgroundable(project, "Dataform: compiling", false) {

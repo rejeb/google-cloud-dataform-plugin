@@ -44,7 +44,7 @@ public class DataformModuleBuilder extends ModuleBuilder {
         modifiableRootModel.addContentEntry(contentEntry);
 
         try {
-            createProjectStructure(project, contentEntry, settings);
+            DataformProjectStructureBuilder.createProjectStructure(project, contentEntry, settings);
         } catch (IOException e) {
             throw new ConfigurationException("Failed to create Dataform project: " + e.getMessage());
         }
@@ -74,12 +74,6 @@ public class DataformModuleBuilder extends ModuleBuilder {
 
     public DataformProjectSettings getSettings() {
         return settings;
-    }
-
-    private void createProjectStructure(@NotNull Project project,
-                                        @NotNull VirtualFile baseDir,
-                                        @NotNull DataformProjectSettings settings) throws IOException {
-        DataformProjectStructureBuilder.createProjectStructure(project, baseDir, settings);
     }
 
     @Override

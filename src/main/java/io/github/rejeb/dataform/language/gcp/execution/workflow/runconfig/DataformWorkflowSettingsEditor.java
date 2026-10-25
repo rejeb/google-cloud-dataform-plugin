@@ -246,9 +246,6 @@ public class DataformWorkflowSettingsEditor
             if (position == Position.MIDDLE || position == Position.RIGHT) {
                 g2.drawLine(w - 1, 0, w - 1, h);
             }
-            if (position == Position.RIGHT) {
-                g2.drawLine(w - 1, 0, w - 1, h);
-            }
 
             g2.setColor(selected ? COLOR_SELECTED_FG : UIManager.getColor("Button.foreground"));
             g2.setFont(getFont());
@@ -263,28 +260,28 @@ public class DataformWorkflowSettingsEditor
 
     @Override
     protected void resetEditorFrom(@NotNull DataformWorkflowRunConfiguration config) {
-        pendingWorkspaceId = config.getWorkspaceId();
-        selectWorkspace(config.getWorkspaceId());
-        tagsField.setSelectedItems(config.getIncludedTags().stream().filter(this.graph.getTags()::contains).toList());
-        targetsField.setSelectedItems(config.getIncludedTargets().stream().filter(this.graph.getAllTargets()::contains).toList());
+        pendingWorkspaceId = config.getOptions().getWorkspaceId();
+        selectWorkspace(config.getOptions().getWorkspaceId());
+        tagsField.setSelectedItems(config.getOptions().getIncludedTags().stream().filter(this.graph.getTags()::contains).toList());
+        targetsField.setSelectedItems(config.getOptions().getIncludedTargets().stream().filter(this.graph.getAllTargets()::contains).toList());
 
-        boolean deps = config.isTransitiveDependenciesIncluded();
-        boolean dependents = config.isTransitiveDependentsIncluded();
+        boolean deps = config.getOptions().isTransitiveDependenciesIncluded();
+        boolean dependents = config.getOptions().isTransitiveDependentsIncluded();
         transitiveDeps.setSelected(deps);
         transitiveDependents.setSelected(dependents);
 
-       selectMode(config.getSelectedMode());
+       selectMode(config.getOptions().getSelectedMode());
     }
 
     @Override
     protected void applyEditorTo(@NotNull DataformWorkflowRunConfiguration config) {
-        config.setWorkspaceId(resolveWorkspaceId());
-        config.setIncludedTags(tagsField.getSelectedItems());
-        config.setIncludedTargets(targetsField.getSelectedItems());
-        config.setTransitiveDependenciesIncluded(transitiveDeps.isSelected());
-        config.setTransitiveDependentsIncluded(transitiveDependents.isSelected());
-        config.setFullyRefreshIncrementalTables(fullRefresh.isSelected());
-        config.setSelectedMode(selectedMode);
+        config.getOptions().setWorkspaceId(resolveWorkspaceId());
+        config.getOptions().setIncludedTags(tagsField.getSelectedItems());
+        config.getOptions().setIncludedTargets(targetsField.getSelectedItems());
+        config.getOptions().setTransitiveDependenciesIncluded(transitiveDeps.isSelected());
+        config.getOptions().setTransitiveDependentsIncluded(transitiveDependents.isSelected());
+        config.getOptions().setFullyRefreshIncrementalTables(fullRefresh.isSelected());
+        config.getOptions().setSelectedMode(selectedMode);
     }
 
     private void selectWorkspace(@Nullable String workspaceId) {

@@ -18,24 +18,19 @@ package io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.ui;
 
 import com.intellij.ui.AnimatedIcon;
 import com.intellij.ui.ScrollPaneFactory;
+import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBTextArea;
 import com.intellij.ui.components.JBTextField;
-import com.intellij.ui.components.JBLabel;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.InvocationSummary;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowInvocationProgress;
 import org.jetbrains.annotations.NotNull;
 
-import javax.swing.*;
 import java.awt.*;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
-import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
+import javax.swing.*;
 
 public class InvocationSummaryPanel extends JPanel {
 
@@ -43,8 +38,6 @@ public class InvocationSummaryPanel extends JPanel {
     private static final String CARD_CONTENT = "content";
     private static final String CARD_ERROR = "error";
 
-    private static final DateTimeFormatter TIME_FMT =
-            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault());
 
     private final CardLayout cardLayout = new CardLayout();
     private final JPanel cards = new JPanel(cardLayout);
@@ -103,35 +96,7 @@ public class InvocationSummaryPanel extends JPanel {
         Component[] valueLabels = {urlLabel, startTimeLabel, statusLabel, durationLabel,
                 compilationLabel, sourceTypeLabel, sourceLabel, contentsLabel};
 
-        GridBagConstraints kc = new GridBagConstraints();
-        kc.anchor = GridBagConstraints.NORTHWEST;
-        kc.insets = JBUI.insets(2, 0, 2, 12);
-        kc.fill = GridBagConstraints.NONE;
-
-        GridBagConstraints vc = new GridBagConstraints();
-        vc.anchor = GridBagConstraints.NORTHWEST;
-        vc.insets = JBUI.insets(2, 0, 2, 0);
-        vc.fill = GridBagConstraints.HORIZONTAL;
-        vc.weightx = 1.0;
-        vc.gridwidth = GridBagConstraints.REMAINDER;
-
-        for (int i = 0; i < keys.length; i++) {
-            kc.gridy = i;
-            vc.gridy = i;
-            kc.gridx = 0;
-            vc.gridx = 1;
-
-            JLabel key = new JBLabel(keys[i] + ":");
-            key.setForeground(UIUtil.getLabelDisabledForeground());
-            panel.add(key, kc);
-            panel.add(valueLabels[i], vc);
-        }
-
-        GridBagConstraints filler = new GridBagConstraints();
-        filler.gridy = keys.length;
-        filler.weighty = 1.0;
-        filler.fill = GridBagConstraints.VERTICAL;
-        panel.add(new JPanel(), filler);
+        RunConfigUiUtils.addKeyValueRows(panel, keys, valueLabels, true);
 
         return panel;
     }
@@ -153,64 +118,23 @@ public class InvocationSummaryPanel extends JPanel {
 
         cardLayout.show(cards, CARD_CONTENT);
 
-        setLink(urlLabel, shortInvocationId(summary.invocationName()), summary.gcpConsoleUrl());
-        startTimeLabel.setText(TIME_FMT.format(summary.startTime()));
+        RunConfigUiUtils.setLink(urlLabel, RunConfigUiUtils.shortName(summary.invocationName()), summary.gcpConsoleUrl());
+        startTimeLabel.setText(RunConfigUiUtils.DATE_TIME.format(summary.startTime()));
         statusLabel.setText(progress.state().name());
         Instant endTime = summary.endTime() != null ? summary.endTime() : Instant.now();
         durationLabel.setText(RunConfigUiUtils.formatDuration(Duration.between(summary.startTime(), endTime)));
-
 
         compilationLabel.setText(summary.compilationResultId());
         sourceTypeLabel.setText(summary.sourceType());
 
         String wsUrl = summary.workspaceConsoleUrl();
         if (wsUrl != null && summary.sourceWorkspaceName() != null) {
-            setLink(sourceLabel, shortName(summary.sourceWorkspaceName()), wsUrl);
+            RunConfigUiUtils.setLink(sourceLabel, RunConfigUiUtils.shortName(summary.sourceWorkspaceName()), wsUrl);
         } else {
             sourceLabel.setText(summary.sourceWorkspaceName() != null
-                    ? shortName(summary.sourceWorkspaceName()) : "—");
+                    ? RunConfigUiUtils.shortName(summary.sourceWorkspaceName()) : "—");
         }
 
         contentsLabel.setText(summary.contents() != null ? summary.contents() : "Full workflow");
     }
-
-    private void setLink(@NotNull JLabel label, @NotNull String text, @NotNull String url) {
-        label.setText("<html><a href=''>" + text + "</a></html>");
-        for (MouseAdapter ma : getMouseAdapters(label)) {
-            label.removeMouseListener(ma);
-        }
-        label.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                openUrl(url);
-            }
-        });
-        label.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-    }
-
-    private static MouseAdapter[] getMouseAdapters(@NotNull JLabel label) {
-        return java.util.Arrays.stream(label.getMouseListeners())
-                .filter(l -> l instanceof MouseAdapter)
-                .map(l -> (MouseAdapter) l)
-                .toArray(MouseAdapter[]::new);
-    }
-
-    private static void openUrl(@NotNull String url) {
-        try {
-            Desktop.getDesktop().browse(URI.create(url));
-        } catch (Exception ignored) {
-        }
-    }
-
-    @NotNull
-    private static String shortName(@NotNull String fullName) {
-        int idx = fullName.lastIndexOf('/');
-        return idx >= 0 ? fullName.substring(idx + 1) : fullName;
-    }
-
-    @NotNull
-    private static String shortInvocationId(@NotNull String fullName) {
-        return shortName(fullName);
-    }
-
 }

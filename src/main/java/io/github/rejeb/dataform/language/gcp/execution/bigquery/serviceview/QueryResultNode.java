@@ -29,14 +29,9 @@ public final class QueryResultNode {
         this.result = result;
     }
 
-    public @NotNull BigQueryJobResult getResult() {
-        return result;
-    }
-
     public @NotNull ServiceViewDescriptor getViewDescriptor(@NotNull Project project) {
         return new DataformServiceViewDescriptor(project, result);
     }
-
 
     @Override
     public boolean equals(Object o) {

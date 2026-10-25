@@ -132,5 +132,4 @@ public class BigQueryPagedResult {
         job.cancel();
         pageTokenCache.clear();
     }
-
 }

@@ -23,6 +23,7 @@ import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.ui.components.JBTextField;
 import com.intellij.util.ui.FormBuilder;
 import io.github.rejeb.dataform.language.setup.DataformCoreVersionProvider;
+import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
 
@@ -77,18 +78,16 @@ public class DataformModuleWizardStep extends ModuleWizardStep {
 
     @Override
     public boolean validate() throws ConfigurationException {
-        if (gcpProjectIdField.getText().trim().isEmpty()) {
-            throw new ConfigurationException("GCP Project ID is required");
-        }
-        if (defaultSchemaField.getText().trim().isEmpty()) {
-            throw new ConfigurationException("Default Schema is required");
-        }
-        if (defaultLocationField.getText().trim().isEmpty()) {
-            throw new ConfigurationException("Default Location is required");
-        }
-        if (dataformCoreVersionField.getText().trim().isEmpty()) {
-            throw new ConfigurationException("Dataform core version is required");
-        }
+        require(gcpProjectIdField, "GCP Project ID");
+        require(defaultSchemaField, "Default Schema");
+        require(defaultLocationField, "Default Location");
+        require(dataformCoreVersionField, "Dataform core version");
         return true;
+    }
+
+    private static void require(@NotNull JTextField field, @NotNull String label) throws ConfigurationException {
+        if (field.getText().trim().isEmpty()) {
+            throw new ConfigurationException(label + " is required");
+        }
     }
 }

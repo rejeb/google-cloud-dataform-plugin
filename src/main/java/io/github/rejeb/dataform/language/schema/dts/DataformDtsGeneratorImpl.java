@@ -23,9 +23,10 @@ import com.intellij.openapi.application.WriteAction;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectUtil;
+import com.intellij.openapi.util.text.StringUtil;
+import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import io.github.rejeb.dataform.language.schema.json.DataformJsonSchemaGenerator;
-import io.github.rejeb.dataform.language.schema.json.ProtoModel;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.charset.StandardCharsets;
@@ -76,7 +77,7 @@ public class DataformDtsGeneratorImpl implements DataformDtsGenerator {
                 String sqlxType = branchObj.path("properties").path("type")
                         .path("enum").path(0).asText();
                 if (sqlxType.isEmpty()) continue;
-                String ifaceName = "IDataform" + capitalize(sqlxType) + "Config";
+                String ifaceName = "IDataform" + StringUtil.capitalize(sqlxType) + "Config";
                 ifaceNames.add(ifaceName);
 
                 String desc = branchObj.path("description").asText("");
@@ -169,52 +170,6 @@ public class DataformDtsGeneratorImpl implements DataformDtsGenerator {
         };
     }
 
-    private String fieldToTs(ProtoModel.ProtoField field,
-                             Map<String, ProtoModel.ProtoMessage> messageIndex,
-                             Map<String, ProtoModel.ProtoEnum> enumIndex,
-                             Set<String> visiting) {
-        if (field.isMap) {
-            return "{ [key: string]: " + scalarToTs(field.mapValueType, messageIndex, enumIndex, visiting) + " }";
-        }
-        String base = scalarToTs(field.type, messageIndex, enumIndex, visiting);
-        return field.repeated ? base + "[]" : base;
-    }
-
-    private String scalarToTs(String type,
-                              Map<String, ProtoModel.ProtoMessage> messageIndex,
-                              Map<String, ProtoModel.ProtoEnum> enumIndex,
-                              Set<String> visiting) {
-        return switch (type) {
-            case "string", "bytes" -> "string";
-            case "bool" -> "boolean";
-            case "int32", "int64", "uint32", "uint64",
-                 "sint32", "sint64", "fixed32", "fixed64",
-                 "sfixed32", "sfixed64", "float", "double" -> "number";
-            case "google.protobuf.Struct" -> "Record<string, unknown>";
-            default -> {
-                ProtoModel.ProtoEnum protoEnum = enumIndex.get(type);
-                if (protoEnum != null) {
-                    yield protoEnum.values.stream()
-                            .map(v -> "\"" + v + "\"")
-                            .reduce((a, b) -> a + " | " + b)
-                            .orElse("string");
-                }
-                ProtoModel.ProtoMessage nested = messageIndex.get(type);
-                if (nested != null && visiting.add(type)) {
-                    StringBuilder sb = new StringBuilder("{\n");
-                    for (ProtoModel.ProtoField f : nested.fields) {
-                        sb.append("    ").append(f.camelName).append("?: ")
-                                .append(fieldToTs(f, messageIndex, enumIndex, visiting)).append(";\n");
-                    }
-                    visiting.remove(type);
-                    sb.append("  }");
-                    yield sb.toString();
-                }
-                yield "unknown";
-            }
-        };
-    }
-
     private void writeFile(String content) {
         byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
         try {
@@ -224,11 +179,7 @@ public class DataformDtsGeneratorImpl implements DataformDtsGenerator {
             if (existing != null && Arrays.equals(existing.contentsToByteArray(), bytes)) return;
 
             WriteAction.runAndWait(() -> {
-                VirtualFile dataformDir = root.findChild(".dataform");
-                if (dataformDir == null) dataformDir = root.createChildDirectory(this, ".dataform");
-                VirtualFile typesDir = dataformDir.findChild("types");
-                if (typesDir == null) typesDir = dataformDir.createChildDirectory(this, "types");
-                typesDir.findOrCreateChildData(this, "dataform.d.ts").setBinaryContent(bytes);
+                VfsUtil.createDirectoryIfMissing(root, ".dataform/types").findOrCreateChildData(this, "dataform.d.ts").setBinaryContent(bytes);
             });
         } catch (Exception e) {
             Logger.getInstance(getClass()).error("Failed to write dataform.d.ts", e);
@@ -238,9 +189,4 @@ public class DataformDtsGeneratorImpl implements DataformDtsGenerator {
     static String arrayOf(String itemType) {
         return itemType.contains(" | ") ? "(" + itemType + ")[]" : itemType + "[]";
     }
-
-    private String capitalize(String s) {
-        return s.isEmpty() ? s : Character.toUpperCase(s.charAt(0)) + s.substring(1);
-    }
-
 }

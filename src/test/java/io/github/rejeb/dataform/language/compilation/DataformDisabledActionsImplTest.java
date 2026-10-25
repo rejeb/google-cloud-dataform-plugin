@@ -111,4 +111,17 @@ class DataformDisabledActionsImplTest {
                 graph, "/home/me/project/definitions/not_off.sqlx"),
                 "suffix matching must not treat a longer name as the same file");
     }
+
+    @Test
+    void sameFileNameInAnotherDirectoryKeepsItsOwnState() {
+        CompiledGraph graph = graph("{\"tables\":["
+                + table("off", "definitions/staging/orders.sqlx", true) + ","
+                + table("on", "definitions/marts/orders.sqlx", false) + "]}");
+
+        assertTrue(DataformDisabledActionsImpl.allActionsDisabled(
+                graph, "/home/me/project/definitions/staging/orders.sqlx"));
+        assertFalse(DataformDisabledActionsImpl.allActionsDisabled(
+                graph, "/home/me/project/definitions/marts/orders.sqlx"),
+                "files sharing a name must be told apart by their directory");
+    }
 }

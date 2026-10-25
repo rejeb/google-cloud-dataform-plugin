@@ -27,8 +27,6 @@ import org.jetbrains.concurrency.AsyncPromise;
 import org.jetbrains.concurrency.Promise;
 import org.jetbrains.concurrency.Promises;
 
-import java.util.concurrent.Future;
-
 import static io.github.rejeb.dataform.language.util.Utils.isDataformProject;
 
 public final class DataformBuildTaskRunner extends ProjectTaskRunner {
@@ -45,22 +43,10 @@ public final class DataformBuildTaskRunner extends ProjectTaskRunner {
         }
 
         AsyncPromise<Result> promise = new AsyncPromise<>();
-
-        try {
-            Future<DataformBuildResult> future = DataformBuildManager.build(project);
-            DataformBuildResult buildResult = future.get();
-
-            if (buildResult.canceled) {
-                promise.setResult(ABORTED);
-            } else if (buildResult.succeeded) {
-                promise.setResult(SUCCESS);
-            } else {
-                promise.setResult(FAILURE);
-            }
-        } catch (Exception e) {
-            promise.setResult(FAILURE);
-        }
-
+        DataformBuildManager.build(project).whenComplete((buildResult, error) -> promise.setResult(
+                error != null || buildResult == null ? FAILURE
+                        : buildResult.canceled() ? ABORTED
+                        : buildResult.succeeded() ? SUCCESS : FAILURE));
         return promise;
     }
 

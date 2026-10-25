@@ -17,6 +17,8 @@
 package io.github.rejeb.dataform.language.diagnostics.sql.mapping;
 
 import com.intellij.openapi.util.TextRange;
+import com.intellij.util.text.CharArrayUtil;
+import io.github.rejeb.dataform.language.diagnostics.sql.bigquery.BigQueryErrorParser;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -50,10 +52,10 @@ public final class SqlTokenLocator {
         if (offset < 0 || offset > text.length()) return null;
         TextRange token = tokenAt(text, offset);
         if (expected == null || expected.isBlank()) return token;
-        String name = unquote(expected);
+        String name = BigQueryErrorParser.unquote(expected);
         TextRange match = matching(text, token, name);
         if (match != null) return match;
-        TextRange onLine = nearest(occurrences(text, name, lineStart(text, offset), lineEnd(text, offset)), offset);
+        TextRange onLine = nearest(occurrences(text, name, lineStart(text, offset), CharArrayUtil.shiftForwardUntil(text, offset, "\n\r")), offset);
         if (onLine != null) return onLine;
         List<TextRange> anywhere = occurrences(text, name, 0, text.length());
         return anywhere.size() == 1 ? anywhere.getFirst() : null;
@@ -117,7 +119,7 @@ public final class SqlTokenLocator {
                                                 @NotNull String name) {
         if (token.isEmpty()) return null;
         if (name.indexOf('.') < 0) {
-            return unquote(token.subSequence(text).toString()).equalsIgnoreCase(name) ? token : null;
+            return BigQueryErrorParser.unquote(token.subSequence(text).toString()).equalsIgnoreCase(name) ? token : null;
         }
         TextRange path = pathFrom(text, token.getStartOffset());
         String written = path.subSequence(text).toString().replace("`", "");
@@ -152,29 +154,11 @@ public final class SqlTokenLocator {
         return at;
     }
 
-    private static int lineEnd(@NotNull CharSequence text, int offset) {
-        int at = Math.min(offset, text.length());
-        while (at < text.length() && text.charAt(at) != '\n' && text.charAt(at) != '\r') at++;
-        return at;
-    }
-
     private static boolean isBoundary(@NotNull CharSequence text, int index) {
         return index < 0 || index >= text.length() || !isWordChar(text.charAt(index));
     }
 
     private static boolean isWordChar(char c) {
         return Character.isLetterOrDigit(c) || c == '_';
-    }
-
-    private static @NotNull String unquote(@NotNull String text) {
-        String trimmed = text.trim();
-        if (trimmed.length() >= 2) {
-            char first = trimmed.charAt(0);
-            char last = trimmed.charAt(trimmed.length() - 1);
-            if (first == last && (first == '`' || first == '"' || first == '\'')) {
-                return trimmed.substring(1, trimmed.length() - 1);
-            }
-        }
-        return trimmed;
     }
 }

@@ -42,7 +42,7 @@ import io.github.rejeb.dataform.language.diagnostics.DataformEditorRefresher;
 import io.github.rejeb.dataform.language.gcp.auth.AuthTrigger;
 import io.github.rejeb.dataform.language.gcp.auth.DataformAuthState;
 import io.github.rejeb.dataform.language.gcp.auth.DataformCredentialsService;
-import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
+import io.github.rejeb.dataform.language.columns.model.ColumnRef;
 import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasTable;
 import io.github.rejeb.dataform.language.util.MappedText;
@@ -79,7 +79,8 @@ public final class DataformTableSchemaServiceImpl
 
     private final Project project;
     private final SchemaCacheStore cache;
-    private static final int DRY_RUN_PARALLELISM = 4;
+    private static final int DRY_RUN_PARALLELISM = 8;
+    private static final long PARTIAL_PUBLISH_INTERVAL_MS = 5_000;
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicLong modificationCount = new AtomicLong(0);
     private final ExecutorService dryRunExecutor = AppExecutorUtil.createBoundedApplicationPoolExecutor(
@@ -117,15 +118,6 @@ public final class DataformTableSchemaServiceImpl
     @Override
     public long getModificationCount() {
         return modificationCount.get();
-    }
-
-    public void refreshAsync(@NotNull CompiledGraph graph) {
-        refreshAsync(graph, false, Set.of());
-    }
-
-    @Override
-    public void refreshAsync(@NotNull CompiledGraph graph, boolean forceRefresh) {
-        refreshAsync(graph, forceRefresh, Set.of());
     }
 
     @Override
@@ -320,10 +312,10 @@ public final class DataformTableSchemaServiceImpl
         ExtractionContext ctx = buildContext(graph);
         if (ctx == null) return;
 
-        List<List<SortableAction>> waves = new SchemaRefreshPlanner(project.getBasePath(), cache)
-                .planWaves(DataformTopologicalSorter.sort(graph), forceRefresh, failedFileNames);
-        if (!waves.isEmpty()) {
-            processAllWaves(waves, ctx, indicator);
+        SchemaRefreshPlan plan = new SchemaRefreshPlanner(project.getBasePath(), cache)
+                .plan(DataformTopologicalSorter.sort(graph), forceRefresh, failedFileNames);
+        if (!plan.waves().isEmpty()) {
+            processAllWaves(plan, ctx, indicator);
         }
     }
 
@@ -354,20 +346,38 @@ public final class DataformTableSchemaServiceImpl
      * fork-join pool, which network calls must not tie up, and under the indicator of the
      * extraction so cancellation reaches every dry-run. Each action starts as soon as the planned
      * actions it reads are done.
+     *
+     * <p>An action planned only because it reads a changed one is skipped when none of the schemas
+     * it reads came out different: its dry-run would return what is cached already. Editing an
+     * upstream table without touching its columns then costs one dry-run instead of one per
+     * downstream action. The schemas read so far are published every few seconds, so a long
+     * extraction makes tables resolvable as it goes instead of all at once at the end.</p>
      */
-    private void processAllWaves(@NotNull List<List<SortableAction>> waves,
-                                 @NotNull ExtractionContext ctx,
-                                 @NotNull ProgressIndicator indicator) {
+    void processAllWaves(@NotNull SchemaRefreshPlan plan,
+                         @NotNull ExtractionContext ctx,
+                         @NotNull ProgressIndicator indicator) {
         Map<String, List<ColumnInfo>> resolvedInThisRun = new ConcurrentHashMap<>();
-        int total = waves.stream().mapToInt(List::size).sum();
+        Set<String> changed = ConcurrentHashMap.newKeySet();
+        int total = plan.waves().stream().mapToInt(List::size).sum();
         AtomicInteger processed = new AtomicInteger(0);
-        SchemaExtractionScheduler.runAll(waves, dryRunExecutor, action -> {
+        AtomicInteger skipped = new AtomicInteger(0);
+        AtomicLong lastPublish = new AtomicLong(System.currentTimeMillis());
+        SchemaExtractionScheduler.runAll(plan.waves(), dryRunExecutor, action -> {
             if (indicator.isCanceled()) return;
-            ProgressManager.getInstance().executeProcessUnderProgress(() -> {
-                extractSchema(ctx, resolvedInThisRun, action);
+            if (!plan.isModified(action) && !readsAny(action, changed)) {
+                skipped.incrementAndGet();
                 indicator.setFraction((double) processed.incrementAndGet() / total);
+                return;
+            }
+            ProgressManager.getInstance().executeProcessUnderProgress(() -> {
+                if (extractSchema(ctx, resolvedInThisRun, action)) changed.add(action.target().getFullName());
+                indicator.setFraction((double) processed.incrementAndGet() / total);
+                publishPartially(lastPublish);
             }, indicator);
         });
+        if (skipped.get() > 0) {
+            LOG.info("Skipped " + skipped.get() + " dependent actions whose upstream schemas did not change");
+        }
         cache.persist();
         if (indicator.isCanceled()) {
             LOG.debug("Schema extraction cancelled");
@@ -378,14 +388,42 @@ public final class DataformTableSchemaServiceImpl
                 + " actions resolved");
     }
 
-    private void extractSchema(ExtractionContext ctx,
-                               @NotNull Map<String, List<ColumnInfo>> resolvedInThisRun,
-                               @NotNull SortableAction action) {
+    private static boolean readsAny(@NotNull SortableAction action, @NotNull Set<String> fullNames) {
+        if (fullNames.isEmpty()) return false;
+        for (Target dependency : action.dependencyTargets()) {
+            if (dependency != null && fullNames.contains(dependency.getFullName())) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Publishes the schemas extracted so far when the last publication is old enough. Only
+     * resolution is refreshed: the schema event, which rebuilds the lineage, waits for the end of
+     * the run.
+     */
+    private void publishPartially(@NotNull AtomicLong lastPublish) {
+        long now = System.currentTimeMillis();
+        long last = lastPublish.get();
+        if (now - last < PARTIAL_PUBLISH_INTERVAL_MS || !lastPublish.compareAndSet(last, now)) return;
+        snapshotChanged(cache.publish());
+    }
+
+    /**
+     * Dry-runs one action and caches its schema.
+     *
+     * @return whether the action now has other columns than the ones cached before
+     */
+    private boolean extractSchema(ExtractionContext ctx,
+                                  @NotNull Map<String, List<ColumnInfo>> resolvedInThisRun,
+                                  @NotNull SortableAction action) {
         String fqn = action.target().getFullName();
         LOG.debug("Resolving schema for: " + fqn);
         DryRunResult result = computeSchema(action, ctx, resolvedInThisRun);
         recordDryRunOutcome(fqn, result);
-        if (!result.columns().isEmpty()) publishResult(action, result.columns(), resolvedInThisRun);
+        if (result.columns().isEmpty()) return false;
+        boolean changed = !result.columns().equals(cache.columnsOf(fqn));
+        publishResult(action, result.columns(), resolvedInThisRun);
+        return changed;
     }
 
     /**
@@ -408,8 +446,8 @@ public final class DataformTableSchemaServiceImpl
                                        @NotNull Map<String, List<ColumnInfo>> resolvedInThisRun) {
         try {
             if (action.isTable()) return extractTableSchema(action.table(), ctx, resolvedInThisRun);
-            if (action.isOperation()) return extractOperationSchema(action.operation(), ctx);
-            if (action.isDeclaration()) return extractDeclarationSchema(action.target().getFullName(), ctx);
+            if (action.isOperation()) return OperationSchemaExtraction.extract(action.operation(), ctx);
+            if (action.isDeclaration()) return ctx.dryRun(OperationSchemaExtraction.tableQuery(action.target().getFullName()));
         } catch (ProcessCanceledException e) {
             throw e;
         } catch (Exception e) {
@@ -424,30 +462,13 @@ public final class DataformTableSchemaServiceImpl
                                     @NotNull ExtractionContext ctx,
                                     @NotNull Map<String, List<ColumnInfo>> resolvedInThisRun) {
         List<String> dependencies = table.getDependencyTargets().stream().map(Target::getFullName).toList();
-        MappedText mainQuery = ReadAction.computeBlocking(() ->
-                DataformCteQueryBuilder.buildMappedDryRunQuery(table.getQuery(),
-                        cache.stubSchemas(dependencies, resolvedInThisRun, ctx.sources()), project)
-        );
+        Map<String, List<ColumnInfo>> stubs = cache.stubSchemas(dependencies, resolvedInThisRun, ctx.sources());
+        MappedText mainQuery = ReadAction.nonBlocking(() ->
+                        DataformCteQueryBuilder.buildMappedDryRunQuery(table.getQuery(), stubs, project))
+                .executeSynchronously();
         MappedText query = DryRunQueryText.withPreOperations(
                 PreOperationsFilter.keepReadOnly(table.getPreOps()), mainQuery);
-        return runDryRun(ctx, query.text()).withQuery(query);
-    }
-
-    @NotNull
-    private DryRunResult extractOperationSchema(@NotNull CompiledOperation operation,
-                                                @NotNull ExtractionContext ctx) {
-        return OperationSchemaExtraction.extract(operation, ctx);
-    }
-
-    @NotNull
-    private DryRunResult extractDeclarationSchema(@NotNull String fqn,
-                                                  @NotNull ExtractionContext ctx) {
-        return runDryRun(ctx, OperationSchemaExtraction.tableQuery(fqn));
-    }
-
-    @NotNull
-    private DryRunResult runDryRun(@NotNull ExtractionContext ctx, @NotNull String query) {
-        return ctx.extractor().extractSchema(ctx.projectId(), ctx.location(), query);
+        return ctx.dryRun(query.text()).withQuery(query);
     }
 
     private void publishResult(@NotNull SortableAction action,

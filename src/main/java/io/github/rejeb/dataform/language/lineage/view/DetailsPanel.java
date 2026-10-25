@@ -19,22 +19,31 @@ package io.github.rejeb.dataform.language.lineage.view;
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.popup.IconButton;
-import com.intellij.ui.components.JBTextArea;
-import com.intellij.ui.components.JBTextField;
 import com.intellij.ui.InplaceButton;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBScrollPane;
+import com.intellij.ui.components.JBTextArea;
+import com.intellij.ui.components.JBTextField;
 import com.intellij.ui.components.panels.VerticalLayout;
 import com.intellij.ui.scale.JBUIScale;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
-import io.github.rejeb.dataform.language.lineage.column.ColumnLineageGraph;
-import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
+import io.github.rejeb.dataform.language.columns.analysis.ColumnLineageGraph;
+import io.github.rejeb.dataform.language.columns.model.ColumnRef;
 import io.github.rejeb.dataform.language.lineage.graph.LineageNode;
 import io.github.rejeb.dataform.language.lineage.model.LineageModel;
 import io.github.rejeb.dataform.language.ui.ReadOnlyTextFields;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
+import java.awt.BorderLayout;
+import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.util.Set;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
@@ -42,12 +51,6 @@ import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
 import javax.swing.SwingConstants;
-import java.awt.BorderLayout;
-import java.awt.Component;
-import java.awt.Dimension;
-import java.awt.FlowLayout;
-import java.awt.Font;
-import java.util.Set;
 
 /**
  * Right-hand details panel for the selected node: header, metadata, action buttons, and
@@ -195,6 +198,16 @@ public final class DetailsPanel extends JPanel {
     }
 
     private JComponent dependencyList(@NotNull String title, @NotNull Set<String> ids) {
+        JPanel panel = clickableList(title, ids, id -> {
+            LineageNode dep = model.graph().node(id);
+            return dep == null ? null : LineageTheme.glyphFor(dep.dataformType()) + "  " + dep.name() + "   " + dep.schema();
+        }, model::select);
+        panel.add(Box.createVerticalStrut(JBUIScale.scale(4)));
+        return panel;
+    }
+
+    private JPanel clickableList(@NotNull String title, @NotNull Set<String> ids,
+                                 @NotNull Function<String, @Nullable String> label, @NotNull Consumer<String> onClick) {
         JPanel panel = new JPanel();
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
         panel.setOpaque(false);
@@ -203,14 +216,13 @@ public final class DetailsPanel extends JPanel {
         header.setAlignmentX(Component.LEFT_ALIGNMENT);
         panel.add(header);
         for (String id : ids) {
-            LineageNode dep = model.graph().node(id);
-            if (dep == null) continue;
-            JButton row = new JButton(LineageTheme.glyphFor(dep.dataformType()) + "  " + dep.name()
-                    + "   " + dep.schema());
+            String text = label.apply(id);
+            if (text == null) continue;
+            JButton row = new JButton(text);
             row.setHorizontalAlignment(SwingConstants.LEFT);
             row.setAlignmentX(Component.LEFT_ALIGNMENT);
             row.setMaximumSize(new Dimension(Integer.MAX_VALUE, row.getPreferredSize().height));
-            row.addActionListener(e -> model.select(id));
+            row.addActionListener(e -> onClick.accept(id));
             panel.add(row);
         }
         if (ids.isEmpty()) {
@@ -218,7 +230,6 @@ public final class DetailsPanel extends JPanel {
             none.setAlignmentX(Component.LEFT_ALIGNMENT);
             panel.add(none);
         }
-        panel.add(Box.createVerticalStrut(JBUIScale.scale(4)));
         return panel;
     }
 
@@ -249,30 +260,11 @@ public final class DetailsPanel extends JPanel {
     }
 
     private JComponent columnList(@NotNull String title, @NotNull Set<String> ids) {
-        JPanel panel = new JPanel();
-        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
-        panel.setOpaque(false);
-        JBLabel header = new JBLabel(title + " (" + ids.size() + ")");
-        header.setForeground(UIUtil.getLabelDisabledForeground());
-        header.setAlignmentX(Component.LEFT_ALIGNMENT);
-        panel.add(header);
         ColumnLineageGraph cg = model.columnGraph();
-        for (String id : ids) {
+        return clickableList(title, ids, id -> {
             ColumnRef ref = cg != null ? cg.column(id) : null;
-            if (ref == null) continue;
-            JButton row = new JButton(ref.columnName() + "   " + ref.tableFullName());
-            row.setHorizontalAlignment(SwingConstants.LEFT);
-            row.setAlignmentX(Component.LEFT_ALIGNMENT);
-            row.setMaximumSize(new Dimension(Integer.MAX_VALUE, row.getPreferredSize().height));
-            row.addActionListener(e -> model.selectColumn(id));
-            panel.add(row);
-        }
-        if (ids.isEmpty()) {
-            JBLabel none = new JBLabel("—");
-            none.setAlignmentX(Component.LEFT_ALIGNMENT);
-            panel.add(none);
-        }
-        return panel;
+            return ref == null ? null : ref.columnName() + "   " + ref.tableFullName();
+        }, model::selectColumn);
     }
 
     private static @NotNull Font monospaceBold(@NotNull Font base) {

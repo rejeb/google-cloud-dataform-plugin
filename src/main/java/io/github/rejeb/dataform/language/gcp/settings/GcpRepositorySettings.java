@@ -59,14 +59,6 @@ public interface GcpRepositorySettings {
 
     @Nullable String getSelectedWorkspaceId();
 
-    /**
-     * @deprecated use {@link #getActiveConfig()}
-     */
-    @Deprecated
-    default @Nullable DataformRepositoryConfig getConfig() {
-        return getActiveConfig();
-    }
-
     default @Nullable String getRepositoryId() {
         DataformRepositoryConfig c = getActiveConfig();
         return c != null ? c.repositoryId() : null;
@@ -81,7 +73,6 @@ public interface GcpRepositorySettings {
         DataformRepositoryConfig c = getActiveConfig();
         return c != null ? c.location() : null;
     }
-
 
     final class State {
 

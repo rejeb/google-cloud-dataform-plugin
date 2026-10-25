@@ -187,7 +187,6 @@ public final class DataformCompilationServiceImpl
         graphModificationCount.incrementAndGet();
     }
 
-
     private boolean hasSourcesChangedSince(long referenceTime) {
         VirtualFile projectDir = ProjectUtil.guessProjectDir(project);
         if (projectDir == null) return true;

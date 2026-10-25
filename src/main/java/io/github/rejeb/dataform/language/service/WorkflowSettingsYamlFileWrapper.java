@@ -79,7 +79,6 @@ public class WorkflowSettingsYamlFileWrapper extends YAMLFileImpl {
         return modifiedKey;
     }
 
-
     public static WorkflowSettingsYamlFileWrapper create(YAMLFile originalFile, Project project) {
         String modifiedText = wrapWithParents(originalFile.getText());
 

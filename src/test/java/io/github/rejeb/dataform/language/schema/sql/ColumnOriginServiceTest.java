@@ -16,9 +16,10 @@
  */
 package io.github.rejeb.dataform.language.schema.sql;
 
+import io.github.rejeb.dataform.language.columns.origin.ColumnOriginService;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
-import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
+import io.github.rejeb.dataform.language.columns.model.ColumnRef;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasColumn;
 
 public class ColumnOriginServiceTest extends DataformProjectFixture {

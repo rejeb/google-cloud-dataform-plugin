@@ -16,6 +16,25 @@
  */
 package io.github.rejeb.dataform.language.fileEditor;
 
-public record GraphTarget(String name, String fullName, String fileName,String type) {
+import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
+import io.github.rejeb.dataform.language.compilation.model.Target;
 
+import java.util.List;
+
+public record GraphTarget(String name, String fullName, String type) {
+
+    /**
+     * The actions a file compiles to, tables first, then operations, assertions and declarations.
+     *
+     * @param graph    the compiled graph
+     * @param fileName the compiled file name of the file
+     * @return one target per action of the file
+     */
+    public static List<GraphTarget> targetsOf(CompiledGraph graph, String fileName) {
+        return graph.actionsOfFile(fileName).stream().map(action -> of(action.target(), action.kind())).toList();
+    }
+
+    private static GraphTarget of(Target target, String type) {
+        return new GraphTarget(target.getName(), target.getFullName(), type);
+    }
 }

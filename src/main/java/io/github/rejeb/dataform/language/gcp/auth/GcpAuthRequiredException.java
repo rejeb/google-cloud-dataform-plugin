@@ -24,12 +24,4 @@ public class GcpAuthRequiredException extends RuntimeException {
     public GcpAuthRequiredException(String message) {
         super(message);
     }
-
-    /**
-     * @param message reason why no usable Google credential is available
-     * @param cause   the underlying failure
-     */
-    public GcpAuthRequiredException(String message, Throwable cause) {
-        super(message, cause);
-    }
 }

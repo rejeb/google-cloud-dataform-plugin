@@ -16,7 +16,6 @@
  */
 package io.github.rejeb.dataform.language.gcp.execution.bigquery.serviceview;
 
-
 import com.intellij.execution.services.ServiceEventListener;
 import com.intellij.execution.services.SimpleServiceViewDescriptor;
 import com.intellij.icons.AllIcons;

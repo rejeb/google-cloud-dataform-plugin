@@ -22,7 +22,7 @@ import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiManager;
 import com.intellij.testFramework.ServiceContainerUtil;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
-import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
+import io.github.rejeb.dataform.language.columns.model.ColumnRef;
 import io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService;
 import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasTable;
@@ -71,10 +71,6 @@ public final class UnitTestSchemaFixture {
     }
 
     private record StubSchemaService(Map<String, DataformDasTable> tables) implements DataformTableSchemaService {
-
-        @Override
-        public void refreshAsync(@NotNull CompiledGraph graph, boolean forceRefresh) {
-        }
 
         @Override
         public void refreshAsync(@NotNull CompiledGraph graph, boolean forceRefresh,

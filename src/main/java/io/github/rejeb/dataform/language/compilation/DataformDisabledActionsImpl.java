@@ -18,6 +18,7 @@ package io.github.rejeb.dataform.language.compilation;
 
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.util.PathUtil;
 import io.github.rejeb.dataform.language.util.DataformPaths;
 import io.github.rejeb.dataform.language.SqlxFileType;
 import io.github.rejeb.dataform.language.compilation.model.CompiledAssertion;
@@ -28,6 +29,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -43,6 +45,7 @@ public final class DataformDisabledActionsImpl implements DataformDisabledAction
     private final Map<String, Boolean> byPath = new ConcurrentHashMap<>();
 
     private volatile CompiledGraph cachedGraph;
+    private volatile Map<String, List<ActionState>> actionsByName = Map.of();
 
     public DataformDisabledActionsImpl(@NotNull Project project) {
         this.project = project;
@@ -54,11 +57,21 @@ public final class DataformDisabledActionsImpl implements DataformDisabledAction
 
         CompiledGraph graph = DataformCompilationService.getInstance(project).getCompiledGraph();
         if (graph == null) return false;
+        Map<String, List<ActionState>> index = indexFor(graph);
+        return byPath.computeIfAbsent(file.getPath(), path -> allDisabled(index, path));
+    }
+
+    private @NotNull Map<String, List<ActionState>> indexFor(@NotNull CompiledGraph graph) {
         if (graph != cachedGraph) {
-            byPath.clear();
-            cachedGraph = graph;
+            synchronized (byPath) {
+                if (graph != cachedGraph) {
+                    actionsByName = indexByName(graph);
+                    byPath.clear();
+                    cachedGraph = graph;
+                }
+            }
         }
-        return byPath.computeIfAbsent(file.getPath(), path -> allActionsDisabled(graph, path));
+        return actionsByName;
     }
 
     /**
@@ -67,16 +80,44 @@ public final class DataformDisabledActionsImpl implements DataformDisabledAction
      */
     static boolean allActionsDisabled(@Nullable CompiledGraph graph, @NotNull String path) {
         if (graph == null) return false;
-        List<Boolean> states = new ArrayList<>();
+        return allDisabled(indexByName(graph), path);
+    }
+
+    private static boolean allDisabled(@NotNull Map<String, List<ActionState>> index, @NotNull String path) {
+        boolean found = false;
+        for (ActionState action : index.getOrDefault(PathUtil.getFileName(DataformPaths.normalize(path)), List.of())) {
+            if (DataformPaths.pointsTo(path, action.fileName())) {
+                if (!action.disabled()) return false;
+                found = true;
+            }
+        }
+        return found;
+    }
+
+    private static @NotNull Map<String, List<ActionState>> indexByName(@NotNull CompiledGraph graph) {
+        Map<String, List<ActionState>> index = new HashMap<>();
+        for (ActionState action : actionsOf(graph)) {
+            if (action.fileName() == null) continue;
+            index.computeIfAbsent(PathUtil.getFileName(DataformPaths.normalize(action.fileName())),
+                    name -> new ArrayList<>()).add(action);
+        }
+        return index;
+    }
+
+    private static @NotNull List<ActionState> actionsOf(@NotNull CompiledGraph graph) {
+        List<ActionState> actions = new ArrayList<>();
         for (CompiledTable table : graph.getTables()) {
-            if (DataformPaths.pointsTo(path, table.getFileName())) states.add(table.isDisabled());
+            actions.add(new ActionState(table.getFileName(), table.isDisabled()));
         }
         for (CompiledOperation operation : graph.getOperations()) {
-            if (DataformPaths.pointsTo(path, operation.getFileName())) states.add(operation.isDisabled());
+            actions.add(new ActionState(operation.getFileName(), operation.isDisabled()));
         }
         for (CompiledAssertion assertion : graph.getAssertions()) {
-            if (DataformPaths.pointsTo(path, assertion.getFileName())) states.add(assertion.isDisabled());
+            actions.add(new ActionState(assertion.getFileName(), assertion.isDisabled()));
         }
-        return !states.isEmpty() && states.stream().allMatch(Boolean::booleanValue);
+        return actions;
+    }
+
+    private record ActionState(@Nullable String fileName, boolean disabled) {
     }
 }

@@ -47,10 +47,7 @@ public class SqlxConfigBlockManipulator extends AbstractElementManipulator<SqlxC
                                                @NotNull TextRange range,
                                                @NotNull String newContent)
             throws IncorrectOperationException {
-        String oldText = element.getText();
-        String newText = oldText.substring(0, range.getStartOffset())
-                + newContent
-                + oldText.substring(range.getEndOffset());
+        String newText = range.replace(element.getText(), newContent);
         PsiFile fileFromText = PsiFileFactory.getInstance(element.getProject())
                 .createFileFromText("dummy.sqlx", SqlxLanguage.INSTANCE,
                         BLOCK_PREFIX + newText + BLOCK_SUFFIX);
@@ -60,10 +57,5 @@ public class SqlxConfigBlockManipulator extends AbstractElementManipulator<SqlxC
             throw new IncorrectOperationException("The config block does not parse after the change");
         }
         return (SqlxConfigBlock) element.replace(newElement);
-    }
-
-    @Override
-    public @NotNull TextRange getRangeInElement(@NotNull SqlxConfigBlock element) {
-        return TextRange.from(0, element.getTextLength());
     }
 }

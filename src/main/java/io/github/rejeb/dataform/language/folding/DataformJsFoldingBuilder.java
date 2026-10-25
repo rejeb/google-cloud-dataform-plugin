@@ -16,17 +16,14 @@
  */
 package io.github.rejeb.dataform.language.folding;
 
-import com.intellij.lang.ASTNode;
-import com.intellij.lang.folding.FoldingBuilderEx;
 import com.intellij.lang.folding.FoldingDescriptor;
 import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.lang.javascript.psi.ecma6.JSStringTemplateExpression;
 import com.intellij.openapi.editor.Document;
-import com.intellij.openapi.util.TextRange;
-import com.intellij.psi.PsiDocumentManager;
-import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.TextRange;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import io.github.rejeb.dataform.language.evaluation.DataformExpression;
@@ -34,10 +31,8 @@ import io.github.rejeb.dataform.language.evaluation.DataformExpressionCollector;
 import io.github.rejeb.dataform.language.evaluation.DataformExpressionEvaluationService;
 import io.github.rejeb.dataform.language.evaluation.DataformWorkflowSettingsValueResolver;
 import io.github.rejeb.dataform.language.psi.SqlxJsLiteralExpression;
-import io.github.rejeb.dataform.language.settings.DataformToolsSettings;
 import io.github.rejeb.dataform.language.util.DataformProjectLayout;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -53,46 +48,39 @@ import java.util.List;
  * files. Files outside a Dataform project layout are skipped entirely, so ordinary JavaScript
  * projects never pay for the collection work.</p>
  */
-public class DataformJsFoldingBuilder extends FoldingBuilderEx {
+public class DataformJsFoldingBuilder extends DataformValueFoldingBuilder {
 
     @Override
     public FoldingDescriptor @NotNull [] buildFoldRegions(@NotNull PsiElement root,
                                                           @NotNull Document document,
                                                           boolean quick) {
         Project project = root.getProject();
-        if (quick || DumbService.isDumb(project) || !DataformToolsSettings.getInstance().isFoldTemplateExpressions()) {
-            return DataformFoldingPlaceholder.none();
+        if (isDisabled(project, quick)) {
+            return FoldingDescriptor.EMPTY_ARRAY;
         }
         PsiFile file = root.getContainingFile();
         if (file == null || isCoveredByHostRoot(project, file)) {
-            return DataformFoldingPlaceholder.none();
+            return FoldingDescriptor.EMPTY_ARRAY;
         }
 
         boolean injected = InjectedLanguageManager.getInstance(project).isInjectedFragment(file);
         PsiFile hostFile = InjectedLanguageManager.getInstance(project).getTopLevelFile(root);
         if (hostFile == null) {
-            return DataformFoldingPlaceholder.none();
+            return FoldingDescriptor.EMPTY_ARRAY;
         }
         VirtualFile hostVirtualFile = hostFile.getVirtualFile();
         if (hostVirtualFile == null || !DataformProjectLayout.isInDataformProject(hostVirtualFile)) {
-            return DataformFoldingPlaceholder.none();
+            return FoldingDescriptor.EMPTY_ARRAY;
         }
 
         List<FoldingDescriptor> descriptors = new ArrayList<>();
         addWorkflowSettingsRegions(project, root, descriptors);
-        addIncludesReferenceRegions(project, hostFile, root, descriptors, !injected);
-        addTemplateSubstitutionRegions(project, hostFile, root, descriptors, !injected);
+        DataformExpressionEvaluationService service = DataformExpressionEvaluationService.getInstance(project);
+        addEvaluatedRegions(service, hostFile, DataformExpressionCollector.collectIncludesReferenceElements(
+                root, service.includeNames(hostVirtualFile)), descriptors, !injected);
+        addEvaluatedRegions(service, hostFile, DataformExpressionCollector.collectJsTemplateSubstitutionElements(root),
+                descriptors, !injected);
         return descriptors.toArray(FoldingDescriptor.EMPTY_ARRAY);
-    }
-
-    @Override
-    public @Nullable String getPlaceholderText(@NotNull ASTNode node) {
-        return null;
-    }
-
-    @Override
-    public boolean isCollapsedByDefault(@NotNull ASTNode node) {
-        return true;
     }
 
     private void addWorkflowSettingsRegions(@NotNull Project project,
@@ -133,28 +121,6 @@ public class DataformJsFoldingBuilder extends FoldingBuilderEx {
         return DataformMultilineFoldPolicy.qualifies(hostDocument, hostRange, value);
     }
 
-    private void addIncludesReferenceRegions(@NotNull Project project,
-                                             @NotNull PsiFile hostFile,
-                                             @NotNull PsiElement root,
-                                             @NotNull List<FoldingDescriptor> descriptors,
-                                             boolean grouped) {
-        DataformExpressionEvaluationService service = DataformExpressionEvaluationService.getInstance(project);
-        List<DataformExpressionCollector.FoldablePart> expressions =
-                DataformExpressionCollector.collectIncludesReferenceElements(root, service.includeNames(hostFile.getVirtualFile()));
-        addEvaluatedRegions(service, hostFile, expressions, descriptors, grouped);
-    }
-
-    private void addTemplateSubstitutionRegions(@NotNull Project project,
-                                                @NotNull PsiFile hostFile,
-                                                @NotNull PsiElement root,
-                                                @NotNull List<FoldingDescriptor> descriptors,
-                                                boolean grouped) {
-        DataformExpressionEvaluationService service = DataformExpressionEvaluationService.getInstance(project);
-        List<DataformExpressionCollector.FoldablePart> expressions =
-                DataformExpressionCollector.collectJsTemplateSubstitutionElements(root);
-        addEvaluatedRegions(service, hostFile, expressions, descriptors, grouped);
-    }
-
     private void addEvaluatedRegions(@NotNull DataformExpressionEvaluationService service,
                                      @NotNull PsiFile hostFile,
                                      @NotNull List<DataformExpressionCollector.FoldablePart> expressions,
@@ -173,17 +139,6 @@ public class DataformJsFoldingBuilder extends FoldingBuilderEx {
             }
             addDescriptor(descriptors, element, expression, value, grouped);
         });
-    }
-
-    private void addDescriptor(@NotNull List<FoldingDescriptor> descriptors,
-                               @NotNull PsiElement element,
-                               @NotNull DataformExpression expression,
-                               @Nullable String value,
-                               boolean grouped) {
-        FoldingDescriptor descriptor = DataformFoldDescriptors.of(element, expression, value, grouped);
-        if (descriptor != null) {
-            descriptors.add(descriptor);
-        }
     }
 
     private boolean isCoveredByHostRoot(@NotNull Project project, @NotNull PsiFile file) {

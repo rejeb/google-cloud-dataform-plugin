@@ -88,12 +88,6 @@ public interface DataformGcpService {
     @NotNull
     String getFileContent(@Nullable String workspaceId, @NotNull String filePath);
 
-    /** Invalidates the file cache. */
-    void invalidateCache();
-
-    /** @return {@code true} if a background file refresh is currently running */
-    boolean isLoading();
-
     /**
      * Creates a new Dataform repository in GCP for the given config.
      * Must be called off the EDT.
@@ -127,7 +121,6 @@ public interface DataformGcpService {
             @NotNull List<String> paths,
             @NotNull String message
     );
-
 
     /**
      * Creates a CompilationResult from the workspace and triggers a workflow run.

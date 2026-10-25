@@ -22,12 +22,12 @@ import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.fileEditor.FileEditorManagerEvent;
 import com.intellij.openapi.fileEditor.FileEditorManagerListener;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.project.ProjectManager;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.wm.IdeFrame;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiManager;
 import io.github.rejeb.dataform.language.util.DataformProjectLayout;
+import io.github.rejeb.dataform.language.util.DataformProjects;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -61,9 +61,7 @@ public final class DataformEvaluationFocusListener
 
     @Override
     public void applicationActivated(@NotNull IdeFrame ideFrame) {
-        for (Project project : ProjectManager.getInstance().getOpenProjects()) {
-            requestForSelectedFiles(project);
-        }
+        DataformProjects.forEachOpen(DataformEvaluationFocusListener::requestForSelectedFiles);
     }
 
     /**

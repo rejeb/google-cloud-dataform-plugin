@@ -60,12 +60,12 @@ public class DataformRefCompletionTest extends BasePlatformTestCase {
     public void testTheFirstArgumentOffersTheDefaultProjectThenTheSchemasThenTheTables() {
         List<String> lookups = complete("ref(\"<caret>\");");
 
-        assertEquals("got " + lookups, List.of("p", "d", "mart", "raw"), lookups.subList(0, 4));
+        assertEquals("got " + lookups, List.of("compiled-p", "d", "mart", "raw"), lookups.subList(0, 4));
         assertTrue("got " + lookups, lookups.subList(4, lookups.size())
                 .containsAll(List.of("orders", "customers", "payments", "events")));
     }
 
-    public void testTheDefaultProjectFallsBackToTheCompiledOneWithoutWorkflowSettings() throws Exception {
+    public void testTheDefaultProjectIsTheCompiledOneWithoutWorkflowSettings() throws Exception {
         WriteAction.runAndWait(() -> myFixture.findFileInTempDir("workflow_settings.yaml").delete(this));
         List<String> lookups = complete("ref(\"<caret>\");");
 
@@ -81,7 +81,7 @@ public class DataformRefCompletionTest extends BasePlatformTestCase {
     public void testTheFirstOfTwoArgumentsAlsoOffersTheProjectAndSchemas() {
         List<String> lookups = complete("ref(\"<caret>\", \"customers\");");
 
-        assertEquals("got " + lookups, List.of("p", "d", "mart", "raw"), lookups.subList(0, 4));
+        assertEquals("got " + lookups, List.of("compiled-p", "d", "mart", "raw"), lookups.subList(0, 4));
     }
 
     public void testTheSecondArgumentAfterAProjectOffersTheSchemasThenTheTables() {
@@ -125,7 +125,7 @@ public class DataformRefCompletionTest extends BasePlatformTestCase {
         List<String> lookups = myFixture.getLookupElementStrings();
 
         assertNotNull(lookups);
-        assertEquals("got " + lookups, List.of("p", "d", "mart", "raw"), lookups.subList(0, 4));
+        assertEquals("got " + lookups, List.of("compiled-p", "d", "mart", "raw"), lookups.subList(0, 4));
     }
 
     private List<String> complete(String code) {

@@ -45,7 +45,7 @@ A full IntelliJ plugin (current version: `0.2.11`) providing advanced language s
 - **Project configuration**: New project wizard ("Module Builder"), Dataform CLI integration, compilation, fast indexing.
 - **Settings**: Plugin configuration panel (GCP credentials, project, dataset, etc.).
 - **SQLX formatting**: Custom formatting model with injected-language block support; external format via Sqlfluff (`SqlxSqlfluffFormatProcessor`).
-- **Lineage view**: Swing lineage graph panel in the split editor preview (`fileEditor/lineage/`) and the project-wide lineage editor (`lineage/view/`).
+- **Lineage view**: Swing lineage graph panels (`lineage/view/`): the file panel of the split editor preview and the project-wide lineage editor.
 - **Run configurations**: Dataform workflow run configuration with gutter icon on SQLX files.
 - **BigQuery query execution**: Service view contributor for query results with grid and paging.
 
@@ -64,14 +64,15 @@ Root package: `src/main/java/io/github/rejeb/dataform/language/`
 | `SqlxFileViewProvider.java` | Multi-language ViewProvider for SQLX files |
 | `SqlxFileViewProviderFactory.java` | ViewProvider factory |
 | `DataformIcons.java` | Plugin icons |
+| `columns/` | Table and column features: `model/` (`ColumnRef`), `analysis/` (column lineage of compiled SQL: select/DML/pivot analyzers, `ColumnLineageGraph`), `origin/` (`ColumnOriginService`, output-column and struct-path locators), `usages/` (column window, `ColumnOccurrences`, Find Usages reads), `rename/` (column rename refactoring) |
 | `compilation/` | Compilation models and tasks (`DataformCompileBeforeTask`, `DataformBuildTaskRunner`) |
+| `config/` | The `config { }` block: schema lookup and column slots (`ConfigSchemaLookup`, `ConfigColumnSlots`), `partition/` forms, and its `completion/`, `documentation/`, `inspection/` and `validation/` |
 | `completion/` | Code completion contributors (JS symbols, workflow settings, SQL keywords, JSON schema) |
 | `fileEditor/` | Custom file editors for UI: `SqlxSplitEditor`, `SqlxCompiledPreviewEditor`, panels (query, schema, console, lineage) |
-| `fileEditor/lineage/` | File-level lineage graph model: `LineageGraph`, `LineageGraphHelper` |
 | `formatting/` | SQLX formatting model: `SqlxFormattingModelBuilder`, `SqlxFileBlock`, `SqlxContentBlock`, `SqlxStructuralBlock`, `SqlxInjectedLanguageBlockBuilder`, `SqlxSpacingRules`, `SqlxSqlfluffFormatProcessor` |
 | `highlight/` | Severity of the SQL problems reported inside SQLX files: `SqlxHighlightScope`, `SqlxSyntaxErrorFilter`, `SqlxSqlResolveSuppressor`, `SqlxSqlProblemAnnotator` |
 | `index/` | File and symbol indexing (`DataformJsFileIndex`) |
-| `injection/` | Language injection mechanisms: SQL (`SqlxSqlInjector`), JS (`SqlxJsInjector`), Config (`SqlxConfigInjector`), Template (`SqlxTemplateInjector`), helpers (`InjectionHelper`, `SqlxRefSelfResolver`) |
+| `injection/` | Language injection mechanisms: SQL (`SqlxSqlInjector`), JS and Config (`SqlxJavaScriptInjector`), Template (`SqlxTemplateInjector`), helpers (`InjectionHelper`, `SqlxRefSelfResolver`) |
 | `lexer/` | SQLX lexer (`SqlxFileLexer`, `SqlxLexerAdapter`) |
 | `parser/` | SQLX parser (`SqlxParser`, `SqlxParserDefinition`) |
 | `psi/` | PSI elements: `SqlxFile`, `SqlxSqlBlock`, `SqlxConfigBlock`, `SqlxJsBlock`, `SqlxJsLiteralExpression`, manipulators, `SharedTokenTypes` |
@@ -79,6 +80,7 @@ Root package: `src/main/java/io/github/rejeb/dataform/language/`
 | `schema/` | Schema validation and completion (see 4.1.1) |
 | `service/` | IntelliJ services: `DataformCoreIndexService`, `WorkflowSettingsService` |
 | `startup/` | Startup activities (`DataformProjectStartup`) |
+| `unittest/` | Dataform unit tests: editor support (completion, columns, creation, generation, navigation, schema), `execution/` (engine, run configuration, BigQuery executor) and `preview/` |
 | `util/` | Utilities: `DataformJsSymbolExtractor`, `NodeJsNpmUtils`, `DataformAuthNotifier`, `Utils` |
 
 #### 4.1.1 Sub-package `schema/`

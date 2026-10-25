@@ -50,7 +50,7 @@ public class DataformWorkflowConfigurationFactory extends ConfigurationFactory {
                 ? null
                 : GcpRepositorySettings.getInstance(project);
         if (settings != null) {
-            configuration.setWorkspaceId(settings.getSelectedWorkspaceId());
+            configuration.getOptions().setWorkspaceId(settings.getSelectedWorkspaceId());
         }
         return configuration;
     }

@@ -54,19 +54,6 @@ public interface WorkspaceRepository {
     );
 
     /**
-     * Pulls changes from the remote repository into the workspace.
-     *
-     * @throws GcpApiException on network or API error
-     */
-    void pull(
-            @NotNull String projectId,
-            @NotNull String location,
-            @NotNull String repositoryId,
-            @NotNull String workspaceId,
-            @NotNull CommitAuthorConfig author
-    );
-
-    /**
      * Lists and reads all files from the GCP Dataform repository (main branch)
      * or from a workspace.
      *

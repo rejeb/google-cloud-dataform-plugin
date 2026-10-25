@@ -26,7 +26,7 @@ import com.intellij.testFramework.PlatformTestUtil;
 import com.intellij.testFramework.ServiceContainerUtil;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
-import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
+import io.github.rejeb.dataform.language.columns.model.ColumnRef;
 import io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasTable;
 import io.github.rejeb.dataform.language.settings.DataformToolsSettings;
@@ -153,11 +153,6 @@ public class DataformAutoCompileServiceImplTest extends BasePlatformTestCase {
         private final CountDownLatch called = new CountDownLatch(1);
         private volatile CompiledGraph graph;
         private volatile boolean forceRefresh;
-
-        @Override
-        public void refreshAsync(@NotNull CompiledGraph graph, boolean forceRefresh) {
-            refreshAsync(graph, forceRefresh, Set.of());
-        }
 
         @Override
         public void refreshAsync(@NotNull CompiledGraph graph,

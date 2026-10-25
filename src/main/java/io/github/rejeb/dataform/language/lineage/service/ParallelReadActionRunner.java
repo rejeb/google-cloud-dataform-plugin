@@ -19,7 +19,7 @@ package io.github.rejeb.dataform.language.lineage.service;
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.progress.ProcessCanceledException;
 import com.intellij.openapi.project.Project;
-import io.github.rejeb.dataform.language.lineage.column.UnitAnalysisRunner;
+import io.github.rejeb.dataform.language.columns.analysis.UnitAnalysisRunner;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;

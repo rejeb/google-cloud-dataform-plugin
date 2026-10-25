@@ -18,16 +18,15 @@ package io.github.rejeb.dataform.language.validation;
 
 import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.openapi.project.DumbService;
-import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.util.CachedValueProvider;
 import com.intellij.psi.util.CachedValuesManager;
 import com.intellij.psi.util.PsiModificationTracker;
-import io.github.rejeb.dataform.language.diagnostics.CompilationDiagnosticService;
-import io.github.rejeb.dataform.language.diagnostics.compile.CompilationProblemValidator;
-import io.github.rejeb.dataform.language.diagnostics.sql.bigquery.BigQueryProblemValidator;
+import io.github.rejeb.dataform.language.config.validation.ConfigBlockValidator;
+import io.github.rejeb.dataform.language.diagnostics.compile.CompilationProblemsService;
+import io.github.rejeb.dataform.language.diagnostics.sql.bigquery.BigQueryDiagnosticsService;
 import io.github.rejeb.dataform.language.psi.SqlxFile;
 import io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService;
 import io.github.rejeb.dataform.language.schema.sql.DryRunErrorRegistry;
@@ -47,15 +46,17 @@ import java.util.List;
  */
 public final class SqlxValidationServiceImpl implements SqlxValidationService {
 
+    private static final SqlxValidator COMPILATION_PROBLEMS =
+            file -> CompilationProblemsService.getInstance(file.getProject()).diagnose(file).located();
+    private static final SqlxValidator BIGQUERY_PROBLEMS =
+            file -> BigQueryDiagnosticsService.getInstance(file.getProject()).diagnose(file).located();
+
     private final List<SqlxValidator> validators = List.of(
             new UnresolvedReferenceValidator(),
             new ConfigBlockValidator(),
-            new BigQueryProblemValidator(),
-            new CompilationProblemValidator());
-    private final List<SqlxValidator> scriptValidators = List.of(new CompilationProblemValidator());
-
-    public SqlxValidationServiceImpl(@NotNull Project project) {
-    }
+            BIGQUERY_PROBLEMS,
+            COMPILATION_PROBLEMS);
+    private final List<SqlxValidator> scriptValidators = List.of(COMPILATION_PROBLEMS);
 
     @Override
     public @NotNull List<SqlxValidationProblem> validate(@NotNull PsiFile file) {
@@ -74,7 +75,7 @@ public final class SqlxValidationServiceImpl implements SqlxValidationService {
                 DumbService.getInstance(file.getProject()).getModificationTracker(),
                 DryRunErrorRegistry.getInstance(file.getProject()),
                 DataformTableSchemaService.getInstance(file.getProject()),
-                CompilationDiagnosticService.getInstance(file.getProject())));
+                CompilationProblemsService.getInstance(file.getProject())));
     }
 
     private @NotNull List<SqlxValidator> validatorsFor(@NotNull PsiFile file) {

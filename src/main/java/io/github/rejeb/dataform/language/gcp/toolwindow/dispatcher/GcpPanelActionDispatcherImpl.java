@@ -22,6 +22,8 @@ import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.ui.Messages;
+import com.intellij.openapi.util.Ref;
 import io.github.rejeb.dataform.language.gcp.service.DataformGcpEvent;
 import io.github.rejeb.dataform.language.gcp.service.DataformGcpService;
 import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
@@ -32,8 +34,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.Set;
-import com.intellij.openapi.util.Ref;
-import com.intellij.openapi.ui.Messages;
+import java.util.function.Consumer;
 
 public class GcpPanelActionDispatcherImpl implements GcpPanelActionDispatcher {
 
@@ -47,20 +48,14 @@ public class GcpPanelActionDispatcherImpl implements GcpPanelActionDispatcher {
 
     @Override
     public void refreshWorkspaces() {
-        ProgressManager.getInstance().run(
-                new Task.Backgroundable(project, "Loading Dataform workspaces…") {
-                    @Override
-                    public void run(@NotNull ProgressIndicator indicator) {
-                        List<Workspace> workspaces = gcpService().listWorkspaces();
-                        String workspaceId = GcpRepositorySettings.getInstance(project).getSelectedWorkspaceId();
-                        ApplicationManager.getApplication().invokeLater(() ->
-                                publish().onWorkspacesLoaded(workspaces));
-                        fetchFiles(workspaceId);
-                        if (workspaceId != null) {
-                            fetchGitStatusesInternal(workspaceId);
-                        }
-                    }
-                });
+        runInBackground("Loading Dataform workspaces…", indicator -> {
+            loadWorkspaces();
+            String workspaceId = GcpRepositorySettings.getInstance(project).getSelectedWorkspaceId();
+            fetchFiles(workspaceId);
+            if (workspaceId != null) {
+                fetchGitStatusesInternal(workspaceId);
+            }
+        }, null, null);
     }
 
     @Override
@@ -68,20 +63,12 @@ public class GcpPanelActionDispatcherImpl implements GcpPanelActionDispatcher {
         String title = workspaceId != null
                 ? "Fetching from workspace '" + workspaceId + "'…"
                 : "Reading files from repo main branch…";
-        ProgressManager.getInstance().run(new Task.Backgroundable(project, title) {
-            @Override
-            public void run(@NotNull ProgressIndicator indicator) {
-                List<String> files = gcpService().listAllPaths(workspaceId);
-                ApplicationManager.getApplication().invokeLater(() ->
-                        publish().onFilesLoaded(List.copyOf(files)));
-            }
-
-            @Override
-            public void onThrowable(@NotNull Throwable error) {
-                publish().onFilesLoaded(List.of());
-                publish().onNotification("Could not list the remote files: " + error.getMessage(),
-                        NotificationType.ERROR);
-            }
+        runInBackground(title, indicator -> {
+            List<String> files = gcpService().listAllPaths(workspaceId);
+            ApplicationManager.getApplication().invokeLater(() -> publish().onFilesLoaded(List.copyOf(files)));
+        }, null, error -> {
+            publish().onFilesLoaded(List.of());
+            failure("Could not list the remote files: ").accept(error);
         });
     }
 
@@ -90,135 +77,52 @@ public class GcpPanelActionDispatcherImpl implements GcpPanelActionDispatcher {
         String title = workspaceId != null
                 ? "Pulling from workspace '" + workspaceId + "'…"
                 : "Pulling from repo main branch…";
-        ProgressManager.getInstance().run(new Task.Backgroundable(project, title) {
-            @Override
-            public void run(@NotNull ProgressIndicator indicator) {
-                gcpService().pullCode(workspaceId);
-            }
-
-            @Override
-            public void onSuccess() {
-                publish().onNotification("Local files updated successfully.", NotificationType.INFORMATION);
-            }
-
-            @Override
-            public void onThrowable(@NotNull Throwable error) {
-                publish().onNotification("Pull failed: " + error.getMessage(), NotificationType.ERROR);
-            }
-        });
+        runInBackground(title, indicator -> gcpService().pullCode(workspaceId),
+                () -> publish().onNotification("Local files updated successfully.", NotificationType.INFORMATION),
+                failure("Pull failed: "));
     }
 
     @Override
     public void push(@NotNull String workspaceId) {
-        ProgressManager.getInstance().run(
-                new Task.Backgroundable(project, "Uploading files to workspace '" + workspaceId + "'…") {
-                    @Override
-                    public void run(@NotNull ProgressIndicator indicator) {
-                        gcpService().pushCode(workspaceId, deletions -> confirmDeletions(workspaceId, deletions));
-                    }
-
-                    @Override
-                    public void onSuccess() {
-                        publish().onNotification("Local files uploaded to workspace '" + workspaceId + "'.",
-                                NotificationType.INFORMATION);
-                        fetchFiles(workspaceId);
-                    }
-
-                    @Override
-                    public void onThrowable(@NotNull Throwable error) {
-                        publish().onNotification("Push failed: " + error.getMessage(), NotificationType.ERROR);
-                    }
-                });
+        runInBackground("Uploading files to workspace '" + workspaceId + "'…",
+                indicator -> gcpService().pushCode(workspaceId, deletions -> confirmDeletions(workspaceId, deletions)),
+                () -> {
+                    publish().onNotification("Local files uploaded to workspace '" + workspaceId + "'.",
+                            NotificationType.INFORMATION);
+                    fetchFiles(workspaceId);
+                },
+                failure("Push failed: "));
     }
 
     @Override
     public void commitChanges(@NotNull String workspaceId, @NotNull List<String> paths, @NotNull String message) {
-        ProgressManager.getInstance().run(
-                new Task.Backgroundable(project, "Committing changes…") {
-                    @Override
-                    public void run(@NotNull ProgressIndicator indicator) {
-                        gcpService().commitWorkspaceChanges(workspaceId, paths, message);
-                    }
-
-                    @Override
-                    public void onSuccess() {
-                        fetchGitStatusesInternal(workspaceId);
-                    }
-
-                    @Override
-                    public void onThrowable(@NotNull Throwable error) {
-                        publish().onNotification("Commit failed: " + error.getMessage(), NotificationType.ERROR);
-                    }
-                });
+        runInBackground("Committing changes…",
+                indicator -> gcpService().commitWorkspaceChanges(workspaceId, paths, message),
+                () -> fetchGitStatusesInternal(workspaceId), failure("Commit failed: "));
     }
 
     @Override
     public void pushGitCommits(@NotNull String workspaceId) {
-        ProgressManager.getInstance().run(
-                new Task.Backgroundable(project, "Pushing commits…") {
-                    @Override
-                    public void run(@NotNull ProgressIndicator indicator) {
-                        gcpService().pushGitCommits(workspaceId);
-                    }
-
-                    @Override
-                    public void onThrowable(@NotNull Throwable error) {
-                        publish().onNotification("Push commits failed: " + error.getMessage(), NotificationType.ERROR);
-                    }
-                });
+        runInBackground("Pushing commits…", indicator -> gcpService().pushGitCommits(workspaceId),
+                null, failure("Push commits failed: "));
     }
 
     @Override
     public void commitAndPush(@NotNull String workspaceId, @NotNull List<String> paths, @NotNull String message) {
-        ProgressManager.getInstance().run(
-                new Task.Backgroundable(project, "Committing and pushing changes…") {
-                    @Override
-                    public void run(@NotNull ProgressIndicator indicator) {
-                        indicator.setText("Committing changes…");
-                        gcpService().commitWorkspaceChanges(workspaceId, paths, message);
-                        indicator.setText("Pushing commits…");
-                        gcpService().pushGitCommits(workspaceId);
-                    }
-
-                    @Override
-                    public void onSuccess() {
-                        fetchGitStatusesInternal(workspaceId);
-                    }
-
-                    @Override
-                    public void onThrowable(@NotNull Throwable error) {
-                        publish().onNotification("Commit & Push failed: " + error.getMessage(), NotificationType.ERROR);
-                    }
-                });
+        runInBackground("Committing and pushing changes…", indicator -> {
+            indicator.setText("Committing changes…");
+            gcpService().commitWorkspaceChanges(workspaceId, paths, message);
+            indicator.setText("Pushing commits…");
+            gcpService().pushGitCommits(workspaceId);
+        }, () -> fetchGitStatusesInternal(workspaceId), failure("Commit & Push failed: "));
     }
 
     @Override
     public void createWorkspace(@NotNull String workspaceId) {
-        ProgressManager.getInstance().run(
-                new Task.Backgroundable(project, "Creating workspace '" + workspaceId + "'…") {
-                    @Override
-                    public void run(@NotNull ProgressIndicator indicator) {
-                        gcpService().createWorkspace(workspaceId);
-                    }
-
-                    @Override
-                    public void onSuccess() {
-                        ProgressManager.getInstance().run(
-                                new Task.Backgroundable(project, "Loading Dataform workspaces…") {
-                                    @Override
-                                    public void run(@NotNull ProgressIndicator indicator) {
-                                        List<Workspace> workspaces = gcpService().listWorkspaces();
-                                        ApplicationManager.getApplication().invokeLater(() ->
-                                                publish().onWorkspacesLoaded(workspaces));
-                                    }
-                                });
-                    }
-
-                    @Override
-                    public void onThrowable(@NotNull Throwable error) {
-                        publish().onNotification("Failed to create workspace: " + error.getMessage(), NotificationType.ERROR);
-                    }
-                });
+        runInBackground("Creating workspace '" + workspaceId + "'…",
+                indicator -> gcpService().createWorkspace(workspaceId),
+                () -> runInBackground("Loading Dataform workspaces…", indicator -> loadWorkspaces(), null, null),
+                failure("Failed to create workspace: "));
     }
 
     /**
@@ -244,15 +148,40 @@ public class GcpPanelActionDispatcherImpl implements GcpPanelActionDispatcher {
     }
 
     private void fetchGitStatusesInternal(@NotNull String workspaceId) {
-        ProgressManager.getInstance().run(
-                new Task.Backgroundable(project, "Loading git statuses…") {
-                    @Override
-                    public void run(@NotNull ProgressIndicator indicator) {
-                        List<UncommittedChange> changes = gcpService().fetchGitStatuses(workspaceId);
-                        ApplicationManager.getApplication().invokeLater(() ->
-                                publish().onGitStatusesLoaded(changes));
-                    }
-                });
+        runInBackground("Loading git statuses…", indicator -> {
+            List<UncommittedChange> changes = gcpService().fetchGitStatuses(workspaceId);
+            ApplicationManager.getApplication().invokeLater(() -> publish().onGitStatusesLoaded(changes));
+        }, null, null);
+    }
+
+    private void loadWorkspaces() {
+        List<Workspace> workspaces = gcpService().listWorkspaces();
+        ApplicationManager.getApplication().invokeLater(() -> publish().onWorkspacesLoaded(workspaces));
+    }
+
+    private void runInBackground(@NotNull String title, @NotNull Consumer<ProgressIndicator> body,
+                                 @Nullable Runnable onSuccess, @Nullable Consumer<Throwable> onFailure) {
+        ProgressManager.getInstance().run(new Task.Backgroundable(project, title) {
+            @Override
+            public void run(@NotNull ProgressIndicator indicator) {
+                body.accept(indicator);
+            }
+
+            @Override
+            public void onSuccess() {
+                if (onSuccess != null) onSuccess.run();
+            }
+
+            @Override
+            public void onThrowable(@NotNull Throwable error) {
+                if (onFailure != null) onFailure.accept(error);
+                else super.onThrowable(error);
+            }
+        });
+    }
+
+    private @NotNull Consumer<Throwable> failure(@NotNull String prefix) {
+        return error -> publish().onNotification(prefix + error.getMessage(), NotificationType.ERROR);
     }
 
     private DataformGcpService gcpService() {

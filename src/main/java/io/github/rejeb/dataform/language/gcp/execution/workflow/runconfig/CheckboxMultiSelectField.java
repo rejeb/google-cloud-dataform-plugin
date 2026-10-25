@@ -98,7 +98,6 @@ public class CheckboxMultiSelectField extends JPanel {
         arrowButton.addActionListener(e -> togglePopup());
     }
 
-
     // ── Public API ───────────────────────────────────────────────────────────
 
     public void setItems(@NotNull Collection<String> items) {

@@ -22,10 +22,10 @@ import io.github.rejeb.dataform.language.gcp.execution.workflow.model.Invocation
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowInvocationState;
 import org.jetbrains.annotations.NotNull;
 
+import java.awt.*;
 import javax.swing.*;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
-import java.awt.*;
 
 public class WorkflowInvocationTreeCellRenderer extends DefaultTreeCellRenderer {
 
@@ -41,7 +41,7 @@ public class WorkflowInvocationTreeCellRenderer extends DefaultTreeCellRenderer 
         Object userObject = node.getUserObject();
 
         if (userObject instanceof WorkflowInvocationTreeModel.InvocationRootNode rootNode) {
-            setText(shortName(rootNode.invocationName()));
+            setText(RunConfigUiUtils.shortName(rootNode.invocationName()));
             setIcon(iconForInvocationState(rootNode.state()));
         } else if (userObject instanceof InvocationActionResult action) {
             setText(action.target()
@@ -73,14 +73,5 @@ public class WorkflowInvocationTreeCellRenderer extends DefaultTreeCellRenderer 
             case PENDING -> AllIcons.RunConfigurations.TestNotRan;
             default -> AllIcons.RunConfigurations.TestUnknown;
         };
-    }
-
-    /**
-     * Returns the last segment of a GCP resource name (after the last '/').
-     */
-    @NotNull
-    private String shortName(@NotNull String fullName) {
-        int idx = fullName.lastIndexOf('/');
-        return idx >= 0 ? fullName.substring(idx + 1) : fullName;
     }
 }

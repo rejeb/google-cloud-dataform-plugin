@@ -16,6 +16,8 @@
  */
 package io.github.rejeb.dataform.language.schema.sql;
 
+import io.github.rejeb.dataform.language.columns.origin.StructColumnPathResolver;
+import io.github.rejeb.dataform.language.columns.origin.StructFieldDeclarationLocator;
 import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
@@ -24,9 +26,9 @@ import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.compilation.model.CompiledTable;
 import io.github.rejeb.dataform.language.compilation.model.Target;
 import io.github.rejeb.dataform.language.schema.sql.model.StructColumnPath;
-import io.github.rejeb.dataform.language.schema.sql.usages.ColumnUsageRow;
-import io.github.rejeb.dataform.language.schema.sql.usages.ColumnUsageRows;
-import io.github.rejeb.dataform.language.schema.sql.usages.ColumnWindowTarget;
+import io.github.rejeb.dataform.language.columns.usages.ColumnUsageRow;
+import io.github.rejeb.dataform.language.columns.usages.ColumnUsageRows;
+import io.github.rejeb.dataform.language.columns.usages.ColumnWindowTarget;
 import io.github.rejeb.dataform.language.testing.ProjectStateInstaller;
 
 import java.lang.reflect.Field;
@@ -474,7 +476,7 @@ public class StructColumnNavigationTest extends BasePlatformTestCase {
         assertTrue("'" + occurrence + "' must be present", at >= 0);
         myFixture.getEditor().getCaretModel()
                 .moveToOffset(at + occurrence.indexOf(token) + token.length() / 2);
-        return new io.github.rejeb.dataform.language.schema.sql.usages
+        return new io.github.rejeb.dataform.language.columns.usages
                 .StructFieldUsageTargetProvider().getTargets(myFixture.getEditor(), file);
     }
 

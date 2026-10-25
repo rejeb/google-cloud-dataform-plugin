@@ -28,10 +28,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
-import java.net.URI;
 import java.net.URLEncoder;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -143,16 +140,7 @@ public final class ServiceAccountLister {
         if (pageToken != null && !pageToken.isBlank()) {
             spec.append("&pageToken=").append(URLEncoder.encode(pageToken, StandardCharsets.UTF_8));
         }
-        HttpRequest request = HttpRequest.newBuilder(URI.create(spec.toString()))
-                .header("Authorization", "Bearer " + token)
-                .timeout(HTTP_TIMEOUT)
-                .GET()
-                .build();
-        HttpResponse<String> response = HttpClient.newBuilder()
-                .connectTimeout(HTTP_TIMEOUT)
-                .sslContext(SslConfig.sslContext())
-                .build()
-                .send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        HttpResponse<String> response = SslConfig.getWithBearer(spec.toString(), token, HTTP_TIMEOUT);
         int status = response.statusCode();
         if (status == HTTP_FORBIDDEN || status == HTTP_UNAUTHORIZED) {
             return Page.deniedPage();

@@ -17,6 +17,7 @@
 package io.github.rejeb.dataform.language.util;
 
 import com.intellij.execution.configurations.GeneralCommandLine;
+import com.intellij.execution.process.CapturingProcessHandler;
 import com.intellij.execution.process.ProcessOutput;
 import com.intellij.execution.util.ExecUtil;
 import com.intellij.javascript.nodejs.interpreter.NodeJsInterpreter;
@@ -25,7 +26,6 @@ import com.intellij.javascript.nodejs.npm.NpmManager;
 import com.intellij.javascript.nodejs.settings.NodeSettingsConfigurable;
 import com.intellij.javascript.nodejs.util.NodePackage;
 import com.intellij.notification.*;
-import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.application.Application;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
@@ -33,14 +33,14 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.SystemInfo;
 import org.jetbrains.annotations.NotNull;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Optional;
 
-
 public class NodeJsNpmUtils {
+
+    private static final int GLOBAL_INSTALL_TIMEOUT_MS = 10 * 60 * 1000;
 
     private static final @NotNull Logger LOGGER = Logger.getInstance(NodeJsNpmUtils.class);
     private static final int NPM_PREFIX_TIMEOUT_MS = 5_000;
@@ -100,7 +100,6 @@ public class NodeJsNpmUtils {
                 .map(File::toPath);
     }
 
-
     public static Optional<Path> findValidNpmPath(Project project) {
         try {
             NpmManager npmManager = NpmManager.getInstance(project);
@@ -115,44 +114,42 @@ public class NodeJsNpmUtils {
     public static InstallResult installNodeJsLib(String libName,
                                                  File npmFile, File nodeBinDir,
                                                  File nodeInstallDir) {
+        LOGGER.info("Installing " + libName + "...");
+        GeneralCommandLine cmd = new GeneralCommandLine(npmFile.getAbsolutePath(), "install", libName, "-g",
+                "--prefix", nodeInstallDir.getAbsolutePath())
+                .withEnvironment("PATH", pathWith(nodeBinDir.toPath()))
+                .withRedirectErrorStream(true)
+                .withCharset(StandardCharsets.UTF_8);
         try {
-            LOGGER.info("Installing " + libName + "...");
-
-            ProcessBuilder pb = new ProcessBuilder(
-                    npmFile.getAbsolutePath(),
-                    "install", libName, "-g",
-                    "--prefix", nodeInstallDir.getAbsolutePath()
-            );
-            pb.environment().put("PATH",
-                    nodeBinDir.getAbsolutePath() + File.pathSeparator +
-                            System.getenv("PATH"));
-            pb.redirectErrorStream(true);
-
-            Process process = pb.start();
-
-            StringBuilder output = new StringBuilder();
-            try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(process.getInputStream()))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    LOGGER.debug(line);
-                    output.append(line).append("\n");
-                }
+            ProcessOutput output = new CapturingProcessHandler(cmd).runProcess(GLOBAL_INSTALL_TIMEOUT_MS);
+            if (output.isTimeout()) {
+                return InstallResult.error("npm did not finish installing " + libName + " within 10 minutes");
             }
-
-            int exitCode = process.waitFor();
-            if (exitCode != 0) {
-                return InstallResult.error(
-                        "npm exited with code " + exitCode + ":\n" + output);
+            if (output.getExitCode() != 0) {
+                return InstallResult.error("npm exited with code " + output.getExitCode() + ":\n" + output.getStdout());
             }
-
             LOGGER.info(libName + " installed successfully.");
             return InstallResult.ok();
-
         } catch (Exception e) {
             LOGGER.error("Error installing " + libName, e);
             return InstallResult.error(e.getMessage());
         }
+    }
+
+    /**
+     * @param binDir the directory of a Node interpreter
+     * @return the {@code node} executable of that directory
+     */
+    public static Path nodeExecutable(@NotNull Path binDir) {
+        return binDir.resolve(SystemInfo.isWindows ? "node.exe" : "node");
+    }
+
+    /**
+     * @param binDir the directory of a Node interpreter
+     * @return the {@code PATH} of the IDE with that directory searched first
+     */
+    public static String pathWith(@NotNull Path binDir) {
+        return binDir.toAbsolutePath() + File.pathSeparator + System.getenv("PATH");
     }
 
     public static Optional<Path> getGlobalNodeModulesPath(Path nodeInstallDir) {
@@ -161,26 +158,15 @@ public class NodeJsNpmUtils {
     }
 
     public static void showNpmConfigurationDialog(Project project) {
-        NotificationGroupManager.getInstance()
-                .getNotificationGroup("Dataform.Notifications")
-                .createNotification("Npm not available",
+        DataformNotifications.create("Npm not available",
                         "Npm is not configured.\n\nwould you like to open the settings?",
                         NotificationType.INFORMATION)
-                .addAction(new NotificationAction("Configure nodeJs") {
-                    @Override
-                    public void actionPerformed(@NotNull AnActionEvent e,
-                                                @NotNull Notification notification) {
-                        openNodeJsSettings(project);
-                        notification.expire();
-                    }
-                })
+                .addAction(NotificationAction.createSimpleExpiring("Configure nodeJs", () -> openNodeJsSettings(project)))
                 .notify(project);
     }
-
 
     private static void openNodeJsSettings(Project project) {
         NodeSettingsConfigurable.showSettingsDialog(project);
     }
-
 }
 

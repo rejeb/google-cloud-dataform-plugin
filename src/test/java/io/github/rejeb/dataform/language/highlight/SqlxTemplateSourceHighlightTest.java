@@ -18,7 +18,7 @@ package io.github.rejeb.dataform.language.highlight;
 
 import com.intellij.codeInsight.daemon.impl.HighlightInfo;
 import com.intellij.sql.inspections.SqlResolveInspection;
-import io.github.rejeb.dataform.language.refactoring.column.ColumnRenameFixture;
+import io.github.rejeb.dataform.language.columns.rename.ColumnRenameFixture;
 
 import java.util.List;
 

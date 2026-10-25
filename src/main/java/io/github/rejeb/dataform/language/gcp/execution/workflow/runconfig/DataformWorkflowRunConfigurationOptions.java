@@ -45,7 +45,6 @@ public class DataformWorkflowRunConfigurationOptions extends RunConfigurationOpt
     private final StoredProperty<List<String>> includedTargets =
             this.<String>list().provideDelegate(this, "includedTargets");
 
-
     public String getWorkspaceId() {
         return workspaceId.getValue(this);
     }

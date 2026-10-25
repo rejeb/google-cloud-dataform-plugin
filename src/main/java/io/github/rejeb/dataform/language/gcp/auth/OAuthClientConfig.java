@@ -30,7 +30,6 @@ public final class OAuthClientConfig {
 
     private static final String CLIENT_ID_PROPERTY = "dataform.plugin.oauth.clientId";
     private static final String CLIENT_SECRET_PROPERTY = "dataform.plugin.oauth.clientSecret";
-
     private static final String DEFAULT_CLIENT_ID =
             "764086051850-6qr4p6gpi6hn506pt8ejuq83di341hur.apps.googleusercontent.com";
     private static final String DEFAULT_CLIENT_SECRET = "d-FL95Q19q7MQmFpd7hHD0Ty";

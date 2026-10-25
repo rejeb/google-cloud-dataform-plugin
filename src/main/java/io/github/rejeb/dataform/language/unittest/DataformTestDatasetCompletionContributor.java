@@ -30,7 +30,7 @@ import com.intellij.util.ProcessingContext;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.completion.DataformActionLookups;
-import io.github.rejeb.dataform.language.completion.config.ConfigSchemaLookup;
+import io.github.rejeb.dataform.language.config.ConfigSchemaLookup;
 import org.jetbrains.annotations.NotNull;
 
 public class DataformTestDatasetCompletionContributor extends CompletionContributor {

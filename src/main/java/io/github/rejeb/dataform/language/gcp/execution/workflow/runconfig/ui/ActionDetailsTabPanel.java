@@ -19,11 +19,8 @@ package io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.ui;
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.application.ApplicationManager;
-import com.intellij.openapi.editor.EditorFactory;
-import com.intellij.openapi.editor.EditorSettings;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.ex.EditorEx;
-import com.intellij.openapi.fileTypes.FileTypeManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.ui.AnimatedIcon;
 import com.intellij.ui.components.JBLabel;
@@ -32,25 +29,23 @@ import com.intellij.ui.scale.JBUIScale;
 import com.intellij.ui.table.JBTable;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
-import io.github.rejeb.dataform.language.gcp.execution.workflow.model.BigQueryJobDetails;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.BigQueryJobDetails.BigQueryChildJob;
+import io.github.rejeb.dataform.language.gcp.execution.workflow.model.BigQueryJobDetails;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.InvocationActionResult;
 import io.github.rejeb.dataform.language.gcp.service.DataformGcpService;
 import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
+import io.github.rejeb.dataform.language.ui.ReadOnlyEditors;
 import io.github.rejeb.dataform.language.ui.ReadOnlyTextFields;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.awt.*;
+import java.awt.event.MouseEvent;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import javax.swing.*;
 import javax.swing.table.*;
-import java.awt.*;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
-import java.net.URI;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.List;
 
 import static io.github.rejeb.dataform.language.util.Utils.formatBytes;
 import static io.github.rejeb.dataform.language.util.Utils.formatSql;
@@ -59,8 +54,6 @@ public class ActionDetailsTabPanel extends JPanel implements Disposable {
 
     private static final Logger LOG = Logger.getInstance(ActionDetailsTabPanel.class);
 
-    private static final DateTimeFormatter FMT =
-            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault());
 
     private static final String CARD_LOADING = "loading";
     private static final String CARD_CONTENT = "content";
@@ -100,7 +93,6 @@ public class ActionDetailsTabPanel extends JPanel implements Disposable {
 
         cardLayout.show(cards, CARD_EMPTY);
         add(cards, BorderLayout.CENTER);
-
     }
 
     @Override
@@ -109,40 +101,22 @@ public class ActionDetailsTabPanel extends JPanel implements Disposable {
     }
 
     private void releaseSqlEditors() {
-        sqlEditors.forEach(e -> {
-            if (!e.isDisposed()) EditorFactory.getInstance().releaseEditor(e);
-        });
+        sqlEditors.forEach(ReadOnlyEditors::release);
         sqlEditors.clear();
     }
 
-
     public void load(@NotNull InvocationActionResult action) {
-        LOG.info("Loading action details: target=" + action.target()
-                + " state=" + action.state()
-                + " jobId=" + action.jobId()
-                + " jobProject=" + action.jobProject()
-                + " jobLocation=" + action.jobLocation()
-                + " jobDataset=" + action.jobDataset());
-
         if (action.jobId() == null || action.jobProject() == null) {
-            LOG.info("No BigQuery job attached to action " + action.target()
-                    + " (jobId=" + action.jobId() + ", jobProject=" + action.jobProject()
-                    + "), showing the empty card.");
             cardLayout.show(cards, CARD_EMPTY);
             return;
         }
         int gen = ++loadGeneration;
         cardLayout.show(cards, CARD_LOADING);
         ApplicationManager.getApplication().executeOnPooledThread(() -> {
-            long startedAt = System.currentTimeMillis();
             String location = resolveLocation(action);
             BigQueryJobDetails details;
             try {
                 details = service.getJobDetails(action.jobId(), action.jobProject(), location);
-                LOG.info("BigQuery job details fetched for jobId=" + action.jobId()
-                        + " in " + (System.currentTimeMillis() - startedAt) + " ms, result="
-                        + (details == null ? "null" : details.childJobs().size() + " child job(s), status="
-                        + details.status()));
             } catch (Exception e) {
                 LOG.warn("Failed to load BigQuery job details for jobId=" + action.jobId()
                         + " project=" + action.jobProject() + " location=" + location, e);
@@ -150,11 +124,7 @@ public class ActionDetailsTabPanel extends JPanel implements Disposable {
             }
             BigQueryJobDetails result = details;
             ApplicationManager.getApplication().invokeLater(() -> {
-                if (gen != loadGeneration) {
-                    LOG.info("Discarding stale action details for jobId=" + action.jobId()
-                            + " (generation " + gen + ", current " + loadGeneration + ").");
-                    return;
-                }
+                if (gen != loadGeneration) return;
                 render(preFormatSql(result));
             });
         });
@@ -165,24 +135,11 @@ public class ActionDetailsTabPanel extends JPanel implements Disposable {
         if (action.jobProject() != null && action.jobDataset() != null) {
             String datasetLocation =
                     service.resolveDatasetLocation(action.jobProject(), action.jobDataset());
-            if (datasetLocation != null) {
-                LOG.info("Using the BigQuery dataset location " + datasetLocation
-                        + " for action " + action.target());
-                return datasetLocation;
-            }
+            if (datasetLocation != null) return datasetLocation;
         }
-        if (action.jobLocation() != null && !action.jobLocation().isBlank()) {
-            LOG.info("Dataset location unavailable for action " + action.target()
-                    + ", falling back to the Dataform repository location "
-                    + action.jobLocation() + ".");
-            return action.jobLocation();
-        }
+        if (action.jobLocation() != null && !action.jobLocation().isBlank()) return action.jobLocation();
         String configured = GcpRepositorySettings.getInstance(project).getLocation();
-        if (configured != null && !configured.isBlank()) {
-            LOG.info("Falling back to the configured Dataform repository location " + configured
-                    + " for action " + action.target() + ".");
-            return configured;
-        }
+        if (configured != null && !configured.isBlank()) return configured;
         LOG.warn("No location could be resolved for action " + action.target()
                 + ", letting BigQuery resolve it.");
         return null;
@@ -207,16 +164,11 @@ public class ActionDetailsTabPanel extends JPanel implements Disposable {
         releaseSqlEditors();
         contentPanel.removeAll();
         if (details == null) {
-            LOG.info("Rendering the empty card: no BigQuery job details available.");
             cardLayout.show(cards, CARD_EMPTY);
             cards.revalidate();
             cards.repaint();
             return;
         }
-        LOG.info("Rendering action details for jobId=" + details.jobId()
-                + " status=" + details.status()
-                + " childJobs=" + details.childJobs().size()
-                + " on EDT=" + ApplicationManager.getApplication().isDispatchThread());
         contentPanel.add(buildMetaPanel(details));
         contentPanel.add(Box.createVerticalStrut(8));
         if (!details.childJobs().isEmpty()) {
@@ -231,8 +183,6 @@ public class ActionDetailsTabPanel extends JPanel implements Disposable {
         cardLayout.show(cards, CARD_CONTENT);
         cards.revalidate();
         cards.repaint();
-        LOG.info("Action details view updated, content size=" + contentPanel.getComponentCount()
-                + " component(s), panel showing=" + isShowing());
     }
 
     private JPanel buildMetaPanel(@NotNull BigQueryJobDetails d) {
@@ -243,7 +193,7 @@ public class ActionDetailsTabPanel extends JPanel implements Disposable {
         panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, panel.getPreferredSize().height));
 
         String urlText = d.jobId();
-        String bqUrl = buildBigQueryJobUrl(d.project(), d.location(), d.jobId());
+        String bqUrl = RunConfigUiUtils.bigQueryJobUrl(d.project(), d.location(), d.jobId());
 
         String[][] rows = {
                 {"Job ID", d.jobId()},
@@ -258,45 +208,15 @@ public class ActionDetailsTabPanel extends JPanel implements Disposable {
                         ? String.valueOf(d.statementsProcessed()) : "—"},
         };
 
-        GridBagConstraints kc = new GridBagConstraints();
-        kc.anchor = GridBagConstraints.NORTHWEST;
-        kc.insets = JBUI.insets(2, 0, 2, 12);
-        kc.fill = GridBagConstraints.NONE;
-
-        GridBagConstraints vc = new GridBagConstraints();
-        vc.anchor = GridBagConstraints.NORTHWEST;
-        vc.insets = JBUI.insets(2, 0);
-        vc.fill = GridBagConstraints.HORIZONTAL;
-        vc.weightx = 1.0;
-        vc.gridwidth = GridBagConstraints.REMAINDER;
-
-        for (int i = 0; i < rows.length; i++) {
-            kc.gridy = vc.gridy = i;
-            kc.gridx = 0;
-            vc.gridx = 1;
-            JBLabel key = new JBLabel(rows[i][0] + ":");
-            key.setForeground(UIUtil.getLabelDisabledForeground());
-            panel.add(key, kc);
-            if ("Job ID".equals(rows[i][0])) {
-                JBLabel link = new JBLabel("<html><a href=''>" + urlText + "</a></html>");
-                link.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-                link.addMouseListener(new MouseAdapter() {
-                    @Override
-                    public void mouseClicked(MouseEvent e) {
-                        openUrl(bqUrl);
-                    }
-                });
-                panel.add(link, vc);
-            } else {
-                panel.add(RunConfigUiUtils.selectableValue(rows[i][1]), vc);
-            }
+        Component[] values = new Component[rows.length];
+        JBLabel link = new JBLabel();
+        RunConfigUiUtils.setLink(link, urlText, bqUrl);
+        values[0] = link;
+        for (int i = 1; i < rows.length; i++) {
+            values[i] = RunConfigUiUtils.selectableValue(rows[i][1]);
         }
-
-        GridBagConstraints filler = new GridBagConstraints();
-        filler.gridy = rows.length;
-        filler.weighty = 1.0;
-        filler.fill = GridBagConstraints.VERTICAL;
-        panel.add(new JPanel(), filler);
+        RunConfigUiUtils.addKeyValueRows(panel, Arrays.stream(rows).map(row -> row[0]).toArray(String[]::new),
+                values, true);
         return panel;
     }
 
@@ -310,8 +230,8 @@ public class ActionDetailsTabPanel extends JPanel implements Disposable {
 
         Object[][] data = jobs.stream().map(j -> new Object[]{
                 j.status(),
-                j.startTime() != null ? FMT.format(j.startTime()) : "—",
-                j.endTime() != null ? FMT.format(j.endTime()) : "—",
+                j.startTime() != null ? RunConfigUiUtils.DATE_TIME.format(j.startTime()) : "—",
+                j.endTime() != null ? RunConfigUiUtils.DATE_TIME.format(j.endTime()) : "—",
                 j.query() != null ? j.query() : "",
                 formatBytes(j.bytesProcessed())
         }).toArray(Object[][]::new);
@@ -536,38 +456,8 @@ public class ActionDetailsTabPanel extends JPanel implements Disposable {
 
     @NotNull
     private static EditorEx createSqlEditor(@NotNull String sql, @NotNull Project project) {
-        var document = EditorFactory.getInstance().createDocument(sql);
-        var fileType = FileTypeManager.getInstance().getFileTypeByExtension("sql");
-        EditorEx editor = (EditorEx) EditorFactory.getInstance()
-                .createEditor(document, project, fileType, true);
-        EditorSettings s = editor.getSettings();
-        s.setLineNumbersShown(false);
-        s.setFoldingOutlineShown(false);
-        s.setLineMarkerAreaShown(false);
-        s.setIndentGuidesShown(false);
-        s.setVirtualSpace(false);
-        s.setUseSoftWraps(true);
-        s.setRightMarginShown(false);
-        editor.setHorizontalScrollbarVisible(false);
-        editor.setVerticalScrollbarVisible(false);
+        EditorEx editor = ReadOnlyEditors.compactSql(project, sql, false);
         editor.setBorder(JBUI.Borders.empty());
         return editor;
-    }
-
-    @NotNull
-    private static String buildBigQueryJobUrl(
-            @NotNull String project, @NotNull String location, @NotNull String jobId) {
-        return "https://console.cloud.google.com/bigquery"
-                + "?project=" + project
-                + "&j=bq:" + location + ":" + jobId
-                + "&page=queryresults";
-    }
-
-
-    private static void openUrl(@NotNull String url) {
-        try {
-            Desktop.getDesktop().browse(URI.create(url));
-        } catch (Exception ignored) {
-        }
     }
 }

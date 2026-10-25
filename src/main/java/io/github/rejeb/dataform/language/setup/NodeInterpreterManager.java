@@ -43,7 +43,6 @@ public class NodeInterpreterManager {
         this.nodeBinDir = nodeInstallInfo.nodeBinDir;
     }
 
-
     /**
      * Returns the cached Node.js installation info, re-running the detection only when the project
      * changed or when the configured npm executable is no longer the one previously detected.
@@ -101,7 +100,6 @@ public class NodeInterpreterManager {
                 binDir.orElse(null)
         )).orElseGet(NodeInstallInfo::new);
     }
-
 
     record NodeInstallInfo(
             @Nullable Path nodeInstallDir,

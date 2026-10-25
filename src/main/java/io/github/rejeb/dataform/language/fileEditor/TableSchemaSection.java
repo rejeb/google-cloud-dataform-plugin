@@ -16,66 +16,33 @@
  */
 package io.github.rejeb.dataform.language.fileEditor;
 
-import com.intellij.icons.AllIcons;
-import com.intellij.ui.components.JBTextField;
 import com.intellij.ui.table.JBTable;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
 import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
 import io.github.rejeb.dataform.language.ui.ReadOnlyTextFields;
 
+import java.awt.*;
+import java.util.List;
 import javax.swing.*;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
-import java.awt.*;
-import java.util.List;
 
-class TableSchemaSection extends JPanel {
-
-    private final JBTable schemaTable;
-    private final DefaultTableModel tableModel;
-    private final JPanel contentPanel;
-    private boolean expanded = true;
-    private final JPanel header;
-    private final JLabel emptyLabel;
+class TableSchemaSection extends CollapsibleSection {
 
     TableSchemaSection(String tableName, List<ColumnInfo> schema) {
-        super(new BorderLayout());
-        setOpaque(false);
-        setBorder(JBUI.Borders.emptyBottom(8));
-
-        header = new JPanel(new BorderLayout());
-        header.setOpaque(true);
-        header.setBackground(UIUtil.getPanelBackground().brighter());
-        header.setBorder(JBUI.Borders.empty(5, 8));
-        header.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-
-        JLabel toggleIcon = new JLabel(AllIcons.General.ArrowDown);
-        JBTextField tableLabel = ReadOnlyTextFields.singleLine(
-                tableName != null ? tableName : "Unknown table", header.getBackground());
-        tableLabel.setFont(JBUI.Fonts.label(12).asBold());
-        tableLabel.setBorder(JBUI.Borders.emptyLeft(6));
-
-        JPanel title = new JPanel(new BorderLayout());
-        title.setOpaque(false);
-        title.add(toggleIcon, BorderLayout.WEST);
-        title.add(tableLabel, BorderLayout.CENTER);
-        header.add(title, BorderLayout.WEST);
-
-        contentPanel = new JPanel(new BorderLayout());
-        contentPanel.setOpaque(false);
-        contentPanel.setBorder(JBUI.Borders.empty(8, 12, 4, 12));
+        super(tableName, new JPanel(new BorderLayout()));
 
         String[] columnNames = {"Column Name", "Type", "Mode", "Description"};
-        tableModel = new DefaultTableModel(columnNames, 0) {
+        DefaultTableModel tableModel = new DefaultTableModel(columnNames, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
                 return true;
             }
         };
 
-        schemaTable = new JBTable(tableModel);
+        JBTable schemaTable = new JBTable(tableModel);
         schemaTable.setDefaultEditor(Object.class, ReadOnlyTextFields.cellEditor(schemaTable));
         schemaTable.setCursor(Cursor.getPredefinedCursor(Cursor.TEXT_CURSOR));
         schemaTable.setShowGrid(true);
@@ -99,14 +66,14 @@ class TableSchemaSection extends JPanel {
         tableHeader.setFont(JBUI.Fonts.label().asBold());
         tableHeader.setBackground(UIUtil.getPanelBackground().brighter());
 
-        emptyLabel = new JLabel("No schema information available", SwingConstants.CENTER);
+        JLabel emptyLabel = new JLabel("No schema information available", SwingConstants.CENTER);
         emptyLabel.setForeground(UIUtil.getInactiveTextColor());
         emptyLabel.setFont(JBUI.Fonts.label(12));
         emptyLabel.setBorder(JBUI.Borders.empty(20));
 
         if (schema != null && !schema.isEmpty()) {
             for (ColumnInfo column : schema) {
-                addColumnRow(column, 0);
+                addColumnRow(tableModel, column, 0);
             }
 
             int totalRows = tableModel.getRowCount();
@@ -119,29 +86,13 @@ class TableSchemaSection extends JPanel {
             tableWrapper.add(schemaTable.getTableHeader(), BorderLayout.NORTH);
             tableWrapper.add(schemaTable, BorderLayout.CENTER);
 
-            contentPanel.add(tableWrapper, BorderLayout.CENTER);
+            content().add(tableWrapper, BorderLayout.CENTER);
         } else {
-            contentPanel.add(emptyLabel, BorderLayout.CENTER);
+            content().add(emptyLabel, BorderLayout.CENTER);
         }
-
-        add(header, BorderLayout.NORTH);
-        add(contentPanel, BorderLayout.CENTER);
-
-        header.addMouseListener(new java.awt.event.MouseAdapter() {
-            @Override
-            public void mouseClicked(java.awt.event.MouseEvent e) {
-                expanded = !expanded;
-                contentPanel.setVisible(expanded);
-                toggleIcon.setIcon(expanded ? AllIcons.General.ArrowDown : AllIcons.General.ArrowRight);
-                JComponent parent = (JComponent) getParent();
-                if (parent != null) parent.revalidate();
-                revalidate();
-                repaint();
-            }
-        });
     }
 
-    private void addColumnRow(ColumnInfo column, int indentLevel) {
+    private static void addColumnRow(DefaultTableModel tableModel, ColumnInfo column, int indentLevel) {
         String indentedName = "  ".repeat(indentLevel) + column.name();
         String description = column.description() != null ? column.description() : "";
 
@@ -154,30 +105,8 @@ class TableSchemaSection extends JPanel {
 
         if (column.isRecord() && !column.subFields().isEmpty()) {
             for (ColumnInfo subField : column.subFields()) {
-                addColumnRow(subField, indentLevel + 1);
+                addColumnRow(tableModel, subField, indentLevel + 1);
             }
         }
-    }
-
-    @Override
-    public Dimension getPreferredSize() {
-        if (!expanded) {
-            Dimension h = header.getPreferredSize();
-            Insets ins = getInsets();
-            return new Dimension(super.getPreferredSize().width,
-                    h.height + ins.top + ins.bottom);
-        }
-        return super.getPreferredSize();
-    }
-
-    @Override
-    public Dimension getMaximumSize() {
-        if (!expanded) {
-            return new Dimension(Integer.MAX_VALUE, getPreferredSize().height);
-        }
-        return new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE);
-    }
-
-    public void dispose() {
     }
 }

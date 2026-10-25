@@ -23,8 +23,8 @@ import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.DumbAware;
 import com.intellij.psi.PsiFile;
-import io.github.rejeb.dataform.language.schema.sql.usages.ColumnUsagesPopup;
-import io.github.rejeb.dataform.language.schema.sql.usages.ColumnWindowTarget;
+import io.github.rejeb.dataform.language.columns.usages.ColumnUsagesPopup;
+import io.github.rejeb.dataform.language.columns.usages.ColumnWindowTarget;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

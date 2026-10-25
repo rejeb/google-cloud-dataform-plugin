@@ -19,7 +19,6 @@ package io.github.rejeb.dataform.language.unittest.columns;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.tree.IElementType;
-import com.intellij.sql.dialects.bigquery.BigQueryTypes;
 import com.intellij.sql.psi.SqlCompositeElementTypes;
 import io.github.rejeb.dataform.language.schema.sql.SqlPsiParts;
 import org.jetbrains.annotations.NotNull;
@@ -31,20 +30,15 @@ import java.util.Deque;
 import java.util.List;
 import java.util.Optional;
 
+import static io.github.rejeb.dataform.language.schema.sql.SqlPsiParts.isType;
+
 public final class TestAliasPaths {
 
     public static final IElementType AS_EXPRESSION = SqlCompositeElementTypes.SQL_AS_EXPRESSION;
-    private static final IElementType STRUCT_EXPRESSION = BigQueryTypes.BQ_PARENTHESIZED_EXPRESSION;
+    private static final IElementType STRUCT_EXPRESSION = SqlCompositeElementTypes.SQL_PARENTHESIZED_EXPRESSION;
     private static final IElementType SELECT_CLAUSE = SqlCompositeElementTypes.SQL_SELECT_CLAUSE;
 
     private TestAliasPaths() {
-    }
-
-    /**
-     * Tells whether an element is a node of the given element type.
-     */
-    public static boolean isType(@Nullable PsiElement element, @NotNull IElementType type) {
-        return SqlPsiParts.isType(element, type);
     }
 
     /**
@@ -120,14 +114,6 @@ public final class TestAliasPaths {
      * named fields.
      */
     public static boolean isStructConstructor(@Nullable PsiElement element) {
-        if (!isType(element, STRUCT_EXPRESSION)) {
-            return false;
-        }
-        for (PsiElement child : element.getChildren()) {
-            if (isType(child, AS_EXPRESSION)) {
-                return true;
-            }
-        }
-        return false;
+        return isType(element, STRUCT_EXPRESSION) && SqlPsiParts.childOfType(element, AS_EXPRESSION) != null;
     }
 }

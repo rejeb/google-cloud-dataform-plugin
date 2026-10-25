@@ -18,6 +18,7 @@ package io.github.rejeb.dataform.language.diagnostics.sql.bigquery;
 
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiFile;
+import io.github.rejeb.dataform.language.diagnostics.PlacedProblems;
 import io.github.rejeb.dataform.language.schema.sql.DataformProjectFixture;
 import io.github.rejeb.dataform.language.schema.sql.DryRunQueryText;
 import io.github.rejeb.dataform.language.util.MappedText;
@@ -45,7 +46,7 @@ public class BigQueryDiagnosticsServiceImplTest extends DataformProjectFixture {
         return myFixture.getFile();
     }
 
-    private BigQueryDiagnostics diagnose(PsiFile file) {
+    private PlacedProblems diagnose(PsiFile file) {
         return BigQueryDiagnosticsService.getInstance(getProject()).diagnose(file);
     }
 
@@ -54,7 +55,7 @@ public class BigQueryDiagnosticsServiceImplTest extends DataformProjectFixture {
         MappedText sent = sent(getProject(), COMPILED);
         report(getProject(), "Unrecognized name: order_idd; Did you mean order_id?" + at(sent, "order_idd"), sent);
 
-        BigQueryDiagnostics diagnostics = diagnose(file);
+        PlacedProblems diagnostics = diagnose(file);
 
         assertEquals(1, diagnostics.located().size());
         SqlxValidationProblem problem = diagnostics.located().getFirst();
@@ -80,7 +81,7 @@ public class BigQueryDiagnosticsServiceImplTest extends DataformProjectFixture {
         MappedText sent = sent(getProject(), COMPILED);
         report(getProject(), "Syntax error: Unexpected keyword ORDER" + at(sent, "CAST(NULL"), sent);
 
-        BigQueryDiagnostics diagnostics = diagnose(file);
+        PlacedProblems diagnostics = diagnose(file);
 
         assertEquals(List.of(), diagnostics.located());
         assertEquals(List.of("BigQuery: Syntax error: Unexpected keyword ORDER"), diagnostics.unlocated());
@@ -91,7 +92,7 @@ public class BigQueryDiagnosticsServiceImplTest extends DataformProjectFixture {
         MappedText sent = sent(getProject(), COMPILED);
         report(getProject(), "Unrecognized name: order_idd" + at(sent, "order_idd"), sent);
 
-        assertEquals(BigQueryDiagnostics.NONE, diagnose(file));
+        assertEquals(PlacedProblems.NONE, diagnose(file));
     }
 
     public void testWindowsLineEndsInTheCompiledQueryStillPlaceTheError() {
@@ -127,12 +128,12 @@ public class BigQueryDiagnosticsServiceImplTest extends DataformProjectFixture {
     public void testAFileWithoutCompiledActionHasNoDiagnostics() {
         PsiFile file = myFixture.addFileToProject("definitions/not_compiled.sqlx", SQLX);
 
-        assertEquals(BigQueryDiagnostics.NONE, diagnose(file));
+        assertEquals(PlacedProblems.NONE, diagnose(file));
     }
 
     public void testANewFailureIsSeenWithoutEditingTheFile() {
         PsiFile file = openText(SQLX);
-        assertEquals(BigQueryDiagnostics.NONE, diagnose(file));
+        assertEquals(PlacedProblems.NONE, diagnose(file));
         MappedText sent = sent(getProject(), COMPILED);
 
         report(getProject(), "Unrecognized name: order_idd" + at(sent, "order_idd"), sent);

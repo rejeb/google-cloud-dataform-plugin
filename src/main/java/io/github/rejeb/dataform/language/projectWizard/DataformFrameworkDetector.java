@@ -26,12 +26,10 @@ import com.intellij.sql.SqlFileType;
 import com.intellij.util.indexing.FileContent;
 import org.jetbrains.annotations.NotNull;
 
-
 public class DataformFrameworkDetector extends FacetBasedFrameworkDetector<DataformFacet, DataformFacetConfiguration> {
     public DataformFrameworkDetector() {
         super("dataform-detector");
     }
-
 
     @Override
     public @NotNull FacetType<DataformFacet, DataformFacetConfiguration> getFacetType() {

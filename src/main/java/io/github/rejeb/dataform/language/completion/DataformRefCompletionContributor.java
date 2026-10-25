@@ -21,12 +21,11 @@ import com.intellij.codeInsight.completion.CompletionParameters;
 import com.intellij.codeInsight.completion.CompletionProvider;
 import com.intellij.codeInsight.completion.CompletionResultSet;
 import com.intellij.codeInsight.completion.CompletionType;
+import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.lang.javascript.psi.JSArgumentList;
 import com.intellij.lang.javascript.psi.JSCallExpression;
 import com.intellij.lang.javascript.psi.JSExpression;
 import com.intellij.lang.javascript.psi.JSLiteralExpression;
-import com.intellij.lang.javascript.psi.JSReferenceExpression;
-import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.patterns.PlatformPatterns;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
@@ -34,14 +33,12 @@ import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.ProcessingContext;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
-import io.github.rejeb.dataform.language.compilation.model.ProjectConfig;
-import io.github.rejeb.dataform.language.service.WorkflowSettingsProperty;
-import io.github.rejeb.dataform.language.service.WorkflowSettingsService;
+import io.github.rejeb.dataform.language.reference.RefCallLiterals;
+import io.github.rejeb.dataform.language.service.DataformProjectDefaults;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Arrays;
-import java.util.Optional;
 
 /**
  * Completes the arguments of {@code ref()} and {@code resolve()}, which Dataform reads from the end:
@@ -84,14 +81,14 @@ public class DataformRefCompletionContributor extends CompletionContributor {
                 }
                 result.addAllElements(DataformActionLookups.schemas(graph));
             } else if (position == 1) {
-                String first = stringValue(arguments[0]);
+                String first = RefCallLiterals.stringValue(arguments[0]);
                 if (first != null && !first.equals(defaultProject) && !DataformActionLookups.isDatabase(graph, first)) {
                     schema = first;
                 } else {
                     result.addAllElements(DataformActionLookups.schemas(graph));
                 }
             } else if (position == 2) {
-                schema = stringValue(arguments[1]);
+                schema = RefCallLiterals.stringValue(arguments[1]);
             }
             result.addAllElements(DataformActionLookups.tablesIn(graph, schema));
             result.addAllElements(DataformActionLookups.declarationsIn(graph, schema));
@@ -103,33 +100,7 @@ public class DataformRefCompletionContributor extends CompletionContributor {
                                              @NotNull CompiledGraph graph) {
             PsiFile hostFile = InjectedLanguageManager.getInstance(parameters.getOriginalFile().getProject())
                     .getTopLevelFile(parameters.getOriginalFile());
-            WorkflowSettingsProperty dataform = WorkflowSettingsService.getInstance(hostFile.getProject())
-                    .getWorkflowProperties(hostFile.getVirtualFile())
-                    .get("dataform");
-            String configured = Optional.ofNullable(dataform)
-                    .map(WorkflowSettingsProperty::children)
-                    .map(children -> children.get("projectConfig"))
-                    .map(WorkflowSettingsProperty::children)
-                    .map(children -> children.get("defaultProject"))
-                    .map(WorkflowSettingsProperty::value)
-                    .filter(value -> !value.isBlank())
-                    .orElse(null);
-            if (configured != null) {
-                return configured;
-            }
-            ProjectConfig compiled = graph.getProjectConfig();
-            return compiled == null || compiled.getDefaultDatabase() == null || compiled.getDefaultDatabase().isBlank()
-                    ? null
-                    : compiled.getDefaultDatabase();
-        }
-
-        @Nullable
-        private static String stringValue(@NotNull JSExpression expression) {
-            return expression instanceof JSLiteralExpression literal
-                    && literal.isQuotedLiteral()
-                    && literal.getValue() instanceof String value
-                    ? value
-                    : null;
+            return DataformProjectDefaults.of(hostFile.getProject(), hostFile.getVirtualFile(), graph).database();
         }
 
         @Nullable
@@ -140,15 +111,7 @@ public class DataformRefCompletionContributor extends CompletionContributor {
                 return null;
             }
             JSCallExpression call = PsiTreeUtil.getParentOfType(literal, JSCallExpression.class);
-            if (call == null) {
-                return null;
-            }
-            JSExpression method = call.getMethodExpression();
-            if (!(method instanceof JSReferenceExpression reference)) {
-                return null;
-            }
-            String name = reference.getReferenceName();
-            return "ref".equals(name) || "resolve".equals(name) ? literal : null;
+            return call != null && RefCallLiterals.isRefCall(call) ? literal : null;
         }
     }
 }

@@ -21,6 +21,7 @@ import com.intellij.lang.annotation.HighlightSeverity;
 import com.intellij.psi.PsiFile;
 import com.intellij.testFramework.ServiceContainerUtil;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
+import io.github.rejeb.dataform.language.diagnostics.PlacedProblems;
 import io.github.rejeb.dataform.language.settings.DataformToolsSettings;
 import io.github.rejeb.dataform.language.validation.DataformEditActivityService;
 import io.github.rejeb.dataform.language.validation.SqlxValidationProblem;
@@ -51,7 +52,7 @@ public class CompilationProblemsServiceImplTest extends BasePlatformTestCase {
         }
     }
 
-    private CompilationProblems diagnose(PsiFile file) {
+    private PlacedProblems diagnose(PsiFile file) {
         return CompilationProblemsService.getInstance(getProject()).diagnose(file);
     }
 
@@ -79,7 +80,7 @@ public class CompilationProblemsServiceImplTest extends BasePlatformTestCase {
                 CompiledGraphErrors.error("definitions/reader.sqlx", "proj.ds.reader", "Missing dependency detected: Action "
                         + "\"proj.ds.reader\" depends on \"{\"name\":\"ordrs\",\"includeDependentAssertions\":false}\" which does not exist", null));
 
-        CompilationProblems problems = diagnose(file);
+        PlacedProblems problems = diagnose(file);
 
         assertEquals(1, problems.located().size());
         assertEquals("ordrs", problems.located().getFirst().range().substring(text));
@@ -145,7 +146,7 @@ public class CompilationProblemsServiceImplTest extends BasePlatformTestCase {
     public void testANewCompilationIsSeenWithoutEditingTheFile() {
         String text = "config { type: \"table\" }\n\nSELECT ${zzz} AS c\n";
         PsiFile file = myFixture.addFileToProject("definitions/later.sqlx", text);
-        assertEquals(CompilationProblems.NONE, diagnose(file));
+        assertEquals(PlacedProblems.NONE, diagnose(file));
 
         CompiledGraphErrors.install(getProject(), List.of("later"), CompiledGraphErrors.error("definitions/later.sqlx",
                 "proj.ds.later", "zzz is not defined", "ReferenceError: zzz is not defined\n"
@@ -160,12 +161,12 @@ public class CompilationProblemsServiceImplTest extends BasePlatformTestCase {
         CompiledGraphErrors.install(getProject(), List.of("fixed"), CompiledGraphErrors.error("definitions/fixed.sqlx",
                 "proj.ds.fixed", "bse is not defined", "ReferenceError: bse is not defined\n"
                         + "    at Object.sqlContextable (/tmp/copy/definitions/fixed.sqlx:20:13)"));
-        assertNotSame(CompilationProblems.NONE, diagnose(file));
+        assertNotSame(PlacedProblems.NONE, diagnose(file));
         BlankOutputCompiler.install(getProject(), getTestRootDisposable());
 
         BlankOutputCompiler.compileInBackground(getProject());
 
-        assertSame(CompilationProblems.NONE, diagnose(file));
+        assertSame(PlacedProblems.NONE, diagnose(file));
     }
 
     public void testTheJavaScriptOfADependencyShowsNoCompilationError() {

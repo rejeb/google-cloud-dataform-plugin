@@ -18,7 +18,6 @@ package io.github.rejeb.dataform.language.reference;
 
 import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.lang.javascript.psi.JSReferenceExpression;
-import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiReference;
@@ -26,58 +25,22 @@ import com.intellij.psi.PsiReferenceProvider;
 import com.intellij.util.ProcessingContext;
 import io.github.rejeb.dataform.language.util.DataformJsSymbolExtractor;
 import org.jetbrains.annotations.NotNull;
-import org.jspecify.annotations.NonNull;
-
-import java.util.List;
-import java.util.Optional;
 
 public class DataformBuiltinFunctionPsiReferenceProvider extends PsiReferenceProvider {
 
-    @NotNull
     @Override
-    public PsiReference @NonNull [] getReferencesByElement(
-            @NotNull PsiElement element,
-            @NotNull ProcessingContext context
-    ) {
-
-        String referencedName = getReferenceName(element).orElse(null);
-
+    public PsiReference @NotNull [] getReferencesByElement(@NotNull PsiElement element,
+                                                           @NotNull ProcessingContext context) {
+        String referencedName = element instanceof JSReferenceExpression refExpr
+                && refExpr.getReferenceNameElement() != null ? refExpr.getReferenceNameElement().getText() : null;
         if (referencedName == null) {
             return PsiReference.EMPTY_ARRAY;
         }
-        Project project = element.getProject();
-        PsiFile topLevelFile = InjectedLanguageManager.getInstance(project)
-                .getTopLevelFile(element);
-        List<DataformJsSymbolExtractor.JsSymbol> localSymbols =
-                DataformJsSymbolExtractor.extractSymbolsFromSqlxFile(topLevelFile);
-        for (DataformJsSymbolExtractor.JsSymbol symbol : localSymbols) {
-            if (referencedName.equals(symbol.name())) {
-                return PsiReference.EMPTY_ARRAY;
-            }
-        }
-
-        DataformBuiltinFunctionReference ref = new DataformBuiltinFunctionReference(element, referencedName);
-        if (ref.resolve() != null) {
-            return new PsiReference[]{
-                    ref
-            };
-        } else {
+        PsiFile topLevelFile = InjectedLanguageManager.getInstance(element.getProject()).getTopLevelFile(element);
+        if (DataformJsSymbolExtractor.findSymbol(topLevelFile, referencedName).isPresent()) {
             return PsiReference.EMPTY_ARRAY;
         }
-
+        DataformBuiltinFunctionReference ref = new DataformBuiltinFunctionReference(element, referencedName);
+        return ref.resolve() != null ? new PsiReference[]{ref} : PsiReference.EMPTY_ARRAY;
     }
-
-    private Optional<String> getReferenceName(PsiElement element) {
-        return switch (element) {
-            case JSReferenceExpression refExpr -> getJsReferenceName(refExpr);
-            default -> Optional.empty();
-        };
-    }
-
-    private Optional<String> getJsReferenceName(JSReferenceExpression refExpr) {
-        return Optional
-                .ofNullable(refExpr.getReferenceNameElement())
-                .map(PsiElement::getText);
-    }
-
 }

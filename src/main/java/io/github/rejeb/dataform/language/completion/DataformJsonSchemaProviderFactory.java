@@ -17,15 +17,52 @@
 package io.github.rejeb.dataform.language.completion;
 
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.vfs.VirtualFile;
 import com.jetbrains.jsonSchema.extension.JsonSchemaFileProvider;
 import com.jetbrains.jsonSchema.extension.JsonSchemaProviderFactory;
+import com.jetbrains.jsonSchema.extension.SchemaType;
+import io.github.rejeb.dataform.language.schema.json.DataformJsonSchemaGenerator;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
+import java.util.Optional;
 
 public class DataformJsonSchemaProviderFactory implements JsonSchemaProviderFactory {
     @Override
     public @NotNull List<JsonSchemaFileProvider> getProviders(@NotNull Project project) {
-        return List.of(new DataformWorkflowSettingsSchemaProvider(project));
+        return List.of(new Provider(project));
+    }
+
+    private static final class Provider implements JsonSchemaFileProvider {
+        private static final String SCHEMA_FILE_NAME = "dataform-workflow-settings-schema.json";
+        private final Project project;
+
+        public Provider(Project project) {
+            this.project = project;
+        }
+
+        @Override
+        public boolean isAvailable(@NotNull VirtualFile virtualFile) {
+            return virtualFile.getName().endsWith("workflow_settings.yaml");
+        }
+
+        @Override
+        public @NotNull @Nls String getName() {
+            return "Dataform Workflow Settings";
+        }
+
+        @Override
+        public @Nullable VirtualFile getSchemaFile() {
+            DataformJsonSchemaGenerator generator = project.getService(DataformJsonSchemaGenerator.class);
+            Optional<VirtualFile> schema = generator.generateWorkflowSettingsSchema();
+            return schema.orElse(JsonSchemaProviderFactory.getResourceFile(getClass(), "/dataform/" + SCHEMA_FILE_NAME));
+        }
+
+        @Override
+        public @NotNull SchemaType getSchemaType() {
+            return SchemaType.userSchema;
+        }
     }
 }

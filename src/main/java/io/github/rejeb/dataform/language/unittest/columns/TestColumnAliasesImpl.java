@@ -18,18 +18,17 @@ package io.github.rejeb.dataform.language.unittest.columns;
 
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.TextRange;
-import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
-import com.intellij.psi.PsiManager;
 import com.intellij.psi.util.PsiTreeUtil;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.compilation.model.CompiledTest;
 import io.github.rejeb.dataform.language.injection.InjectedFiles;
-import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
+import io.github.rejeb.dataform.language.columns.model.ColumnRef;
 import io.github.rejeb.dataform.language.psi.SqlxSqlBlock;
-import io.github.rejeb.dataform.language.refactoring.column.usage.HostRanges;
+import io.github.rejeb.dataform.language.columns.rename.usage.HostRanges;
+import io.github.rejeb.dataform.language.schema.sql.SqlPsiParts;
 import io.github.rejeb.dataform.language.unittest.schema.TestBlockSchema;
 import io.github.rejeb.dataform.language.unittest.schema.TestSchemaResolver;
 import io.github.rejeb.dataform.language.util.DataformPaths;
@@ -68,7 +67,7 @@ public final class TestColumnAliasesImpl implements TestColumnAliases {
         List<TestColumnAlias> aliases = new ArrayList<>();
         for (PsiFile injected : InjectedFiles.of(List.of(block))) {
             for (PsiElement expression : PsiTreeUtil.collectElements(injected,
-                    element -> TestAliasPaths.isType(element, TestAliasPaths.AS_EXPRESSION))) {
+                    element -> SqlPsiParts.isType(element, TestAliasPaths.AS_EXPRESSION))) {
                 PsiElement identifier = TestAliasPaths.aliasIdentifier(expression);
                 Optional<List<String>> path = TestAliasPaths.pathOf(expression);
                 if (identifier == null || path.isEmpty() || !isWritten(identifier)) {
@@ -90,8 +89,7 @@ public final class TestColumnAliasesImpl implements TestColumnAliases {
         Set<String> wanted = columns.stream().map(TestColumnAliasesImpl::key).collect(Collectors.toSet());
         List<TestColumnAlias> found = new ArrayList<>();
         for (CompiledTest test : graph.getTests()) {
-            VirtualFile file = DataformPaths.findInProject(project, test.getFileName());
-            PsiFile psi = file == null ? null : PsiManager.getInstance(project).findFile(file);
+            PsiFile psi = DataformPaths.findPsiFileInProject(project, test.getFileName());
             if (psi == null) {
                 continue;
             }

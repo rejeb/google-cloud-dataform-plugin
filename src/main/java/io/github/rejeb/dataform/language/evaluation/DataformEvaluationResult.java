@@ -34,13 +34,6 @@ public record DataformEvaluationResult(@NotNull String source,
     }
 
     /**
-     * Creates a failed result. Failures are cached so the same expression is not retried on every pass.
-     */
-    public static DataformEvaluationResult failed(@NotNull String source, @NotNull String error) {
-        return new DataformEvaluationResult(source, null, error);
-    }
-
-    /**
      * Tells whether a value could be computed.
      */
     public boolean isResolved() {

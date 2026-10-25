@@ -23,13 +23,9 @@ import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiReferenceBase;
-import io.github.rejeb.dataform.language.psi.SqlxFile;
 import io.github.rejeb.dataform.language.util.DataformJsSymbolExtractor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.jspecify.annotations.NonNull;
-
-import java.util.List;
 
 public class DataformJsReference extends PsiReferenceBase<PsiElement> {
 
@@ -51,29 +47,8 @@ public class DataformJsReference extends PsiReferenceBase<PsiElement> {
             return null;
         }
 
-        PsiFile currentFile = myElement.getContainingFile();
-        if (currentFile != null) {
-            PsiFile contextFile = InjectedLanguageManager.getInstance(project)
-                    .getTopLevelFile(myElement);
-
-            if (contextFile instanceof SqlxFile) {
-                List<DataformJsSymbolExtractor.JsSymbol> localSymbols =
-                        DataformJsSymbolExtractor.extractSymbolsFromSqlxFile(contextFile);
-
-                for (DataformJsSymbolExtractor.JsSymbol symbol : localSymbols) {
-                    if (identifierName.equals(symbol.name())) {
-                        return symbol.element();
-                    }
-                }
-            }
-        }
-
-        return null;
+        PsiFile contextFile = InjectedLanguageManager.getInstance(project).getTopLevelFile(myElement);
+        return contextFile == null ? null
+                : DataformJsSymbolExtractor.findSymbol(contextFile, identifierName).orElse(null);
     }
-
-    @Override
-    public Object @NonNull [] getVariants() {
-        return new Object[0];
-    }
-
 }

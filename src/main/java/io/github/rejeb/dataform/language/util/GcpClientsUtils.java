@@ -59,17 +59,6 @@ public class GcpClientsUtils {
         return DataformClient.create(settings);
     }
 
-    public static DataformClient dataformClient() throws IOException {
-        return dataformClient(null);
-    }
-
-    /**
-     * @return the credential owned by the plugin, never triggering an interactive sign-in
-     */
-    public static Credentials getCredentials() throws RuntimeException {
-        return getCredentials(null);
-    }
-
     /**
      * @param quotaProjectId project billed for quota of client-based API calls, may be {@code null}
      * @return the credential owned by the plugin, never triggering an interactive sign-in

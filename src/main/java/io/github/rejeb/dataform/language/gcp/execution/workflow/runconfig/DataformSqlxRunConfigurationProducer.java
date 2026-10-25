@@ -58,10 +58,10 @@ public class DataformSqlxRunConfigurationProducer
 
         VirtualFile file = getFile(context);
         if (file == null) return false;
-        config.setIncludedTargets(actionTargets(context, file));
-        config.setWorkspaceId(resolveWorkspaceId(config, context));
+        config.getOptions().setIncludedTargets(actionTargets(context, file));
+        config.getOptions().setWorkspaceId(resolveWorkspaceId(config, context));
         config.setName(file.getNameWithoutExtension());
-        config.setSelectedMode(Mode.ACTIONS);
+        config.getOptions().setSelectedMode(Mode.ACTIONS);
         return true;
     }
 
@@ -78,7 +78,7 @@ public class DataformSqlxRunConfigurationProducer
     @NotNull
     private static String resolveWorkspaceId(@NotNull DataformWorkflowRunConfiguration config,
                                              @NotNull ConfigurationContext context) {
-        String current = config.getWorkspaceId();
+        String current = config.getOptions().getWorkspaceId();
         if (current != null && !current.isBlank()) {
             return current;
         }
@@ -94,13 +94,13 @@ public class DataformSqlxRunConfigurationProducer
 
         VirtualFile file = getFile(context);
         if (file == null) return false;
-        if (config.getSelectedMode() != Mode.ACTIONS) return false;
+        if (config.getOptions().getSelectedMode() != Mode.ACTIONS) return false;
         if (!file.getNameWithoutExtension().equals(config.getName())) return false;
 
         List<String> targets = actionTargets(context, file);
         return targets.isEmpty()
-                ? config.getIncludedTargets().isEmpty()
-                : config.getIncludedTargets().containsAll(targets);
+                ? config.getOptions().getIncludedTargets().isEmpty()
+                : config.getOptions().getIncludedTargets().containsAll(targets);
     }
 
     @Override
@@ -125,7 +125,7 @@ public class DataformSqlxRunConfigurationProducer
 
         DataformWorkflowRunConfiguration config =
                 (DataformWorkflowRunConfiguration) configFromContext.getConfiguration();
-        config.setWorkspaceId(resolveWorkspaceId(config, context));
+        config.getOptions().setWorkspaceId(resolveWorkspaceId(config, context));
 
         RunnerAndConfigurationSettings settings = configFromContext.getConfigurationSettings();
         settings.setEditBeforeRun(false);

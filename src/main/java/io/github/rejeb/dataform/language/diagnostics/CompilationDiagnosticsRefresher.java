@@ -18,6 +18,7 @@ package io.github.rejeb.dataform.language.diagnostics;
 
 import com.intellij.openapi.project.Project;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationEvent;
+import io.github.rejeb.dataform.language.diagnostics.compile.CompilationProblemsService;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -35,8 +36,7 @@ public final class CompilationDiagnosticsRefresher implements DataformCompilatio
     @Override
     public void onGraphChanged() {
         if (project.isDisposed()) return;
-        CompilationDiagnosticService.getInstance(project).invalidate();
-        ValidationProblemInlayManager.getInstance(project).refreshAll();
-        DataformEditorRefresher.refresh(project);
+        CompilationProblemsService.getInstance(project).invalidate();
+        DataformEditorRefresher.refreshWithInlays(project);
     }
 }

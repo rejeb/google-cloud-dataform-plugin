@@ -16,6 +16,7 @@
  */
 package io.github.rejeb.dataform.language.lineage.view;
 
+import com.intellij.ui.ColorUtil;
 import com.intellij.ui.scale.JBUIScale;
 import com.intellij.util.ui.UIUtil;
 import io.github.rejeb.dataform.language.lineage.graph.LineageNode;
@@ -24,7 +25,6 @@ import io.github.rejeb.dataform.language.lineage.model.Density;
 import io.github.rejeb.dataform.language.lineage.model.LineageModel;
 import org.jetbrains.annotations.NotNull;
 
-import javax.swing.JComponent;
 import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
 import java.awt.Color;
@@ -32,6 +32,7 @@ import java.awt.Composite;
 import java.awt.Font;
 import java.awt.Graphics2D;
 import java.awt.geom.Line2D;
+import javax.swing.JComponent;
 
 /** Measures and paints a single node box: type stripe, glyph badge, name and subtitle. */
 final class NodeRenderer {
@@ -104,7 +105,7 @@ final class NodeRenderer {
 
         int by = y + (nodeH - BADGE) / 2;
         int bx = x + LEFT_PAD;
-        g2.setColor(LineageTheme.translucent(type, 40));
+        g2.setColor(ColorUtil.toAlpha(type, 40));
         g2.fillRoundRect(bx, by, BADGE, BADGE, 6, 6);
         g2.setColor(type);
         g2.setFont(LineageTheme.monospace(12f).deriveFont(Font.BOLD));

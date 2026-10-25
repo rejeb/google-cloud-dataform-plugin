@@ -24,8 +24,8 @@ import com.intellij.openapi.Disposable;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.diagnostic.Logger;
-import com.intellij.openapi.progress.ProcessCanceledException;
 import com.intellij.openapi.fileEditor.FileEditorManager;
+import com.intellij.openapi.progress.ProcessCanceledException;
 import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -34,9 +34,7 @@ import com.intellij.psi.PsiManager;
 import com.intellij.psi.PsiTreeChangeAdapter;
 import com.intellij.psi.PsiTreeChangeEvent;
 import com.intellij.util.concurrency.AppExecutorUtil;
-import io.github.rejeb.dataform.language.SqlxFileType;
 import io.github.rejeb.dataform.language.folding.DataformFoldingRefresher;
-import io.github.rejeb.dataform.language.folding.DataformInjectedExpressions;
 import io.github.rejeb.dataform.language.index.DataformJsFileIndex;
 import io.github.rejeb.dataform.language.schema.sql.DataformSchemaEvent;
 import io.github.rejeb.dataform.language.setup.NodeScriptRunner;
@@ -46,7 +44,7 @@ import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.TestOnly;
 
 import java.lang.reflect.Type;
-import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -204,17 +202,17 @@ public final class DataformExpressionEvaluationServiceImpl
             if (DumbService.isDumb(project)) {
                 return;
             }
-            PsiFile psiFile = ReadAction.nonBlocking(
-                    () -> PsiManager.getInstance(project).findFile(file)).executeSynchronously();
-            if (psiFile == null || !isFileOpen(file)) {
+            if (!isFileOpen(file)) {
                 return;
             }
             if (!ignoreCooldown && System.currentTimeMillis() < failedUntil) {
                 return;
             }
-            List<DataformExpression> expressions = ReadAction.nonBlocking(
-                    () -> collect(psiFile)).executeSynchronously();
-            PassOutcome outcome = evaluateAll(file, psiFile, expressions);
+            CollectedFile collected = ReadAction.nonBlocking(() -> collectCurrent(file)).executeSynchronously();
+            if (collected == null) {
+                return;
+            }
+            PassOutcome outcome = evaluateAll(file, collected.psiFile(), collected.expressions());
             if (outcome == PassOutcome.HARNESS_FAILURE) {
                 failedUntil = System.currentTimeMillis() + FAILURE_COOLDOWN_MS;
                 return;
@@ -242,6 +240,19 @@ public final class DataformExpressionEvaluationServiceImpl
                 () -> FileEditorManager.getInstance(project).isFileOpen(file)).executeSynchronously();
     }
 
+    private record CollectedFile(@NotNull PsiFile psiFile, @NotNull List<DataformExpression> expressions) {
+    }
+
+    /**
+     * Looks the PSI up in the read action that walks it: a PSI file found in an earlier read action
+     * may have been invalidated since, by a reload or a reparse of its view provider.
+     */
+    @Nullable
+    private CollectedFile collectCurrent(@NotNull VirtualFile file) {
+        PsiFile psiFile = file.isValid() ? PsiManager.getInstance(project).findFile(file) : null;
+        return psiFile == null ? null : new CollectedFile(psiFile, collect(psiFile));
+    }
+
     @NotNull
     private List<DataformExpression> collect(@NotNull PsiFile psiFile) {
         VirtualFile virtualFile = psiFile.getVirtualFile();
@@ -251,17 +262,8 @@ public final class DataformExpressionEvaluationServiceImpl
         Set<String> names = new HashSet<>(DataformProjectLayout.includeNames(virtualFile));
         names.addAll(indexedIncludeNames());
 
-        List<DataformExpression> expressions = new ArrayList<>();
-        if (SqlxFileType.INSTANCE.equals(virtualFile.getFileType())) {
-            expressions.addAll(DataformExpressionCollector.collectSqlxTemplates(psiFile));
-            expressions.addAll(DataformInjectedExpressions.includesReferences(psiFile, names));
-        } else {
-            expressions.addAll(DataformExpressionCollector.collectJsTemplateSubstitutions(psiFile));
-            expressions.addAll(
-                    DataformExpressionCollector.collectIncludesReferenceElements(psiFile, names).stream()
-                            .map(DataformExpressionCollector.FoldablePart::expression).toList());
-        }
-        return expressions;
+        return DataformExpressionCollector.inHostFile(psiFile, names, EnumSet.of(DataformExpressionKind.SQLX_TEMPLATE,
+                DataformExpressionKind.JS_TEMPLATE_SUBSTITUTION, DataformExpressionKind.INCLUDES_REFERENCE));
     }
 
     @NotNull
@@ -340,8 +342,15 @@ public final class DataformExpressionEvaluationServiceImpl
     private List<DataformEvaluationResult> evaluateWithNode(@NotNull PsiFile psiFile,
                                                             @NotNull List<String> sources) {
         List<String> nodePaths = DataformEvaluationContextBuilder.nodePaths(project);
-        DataformEvaluationContext context = ReadAction.nonBlocking(
-                () -> DataformEvaluationContextBuilder.build(project, psiFile, nodePaths)).executeSynchronously();
+        VirtualFile virtualFile = psiFile.getViewProvider().getVirtualFile();
+        DataformEvaluationContext context = ReadAction.nonBlocking(() -> {
+            PsiFile current = psiFile.isValid() ? psiFile
+                    : virtualFile.isValid() ? PsiManager.getInstance(project).findFile(virtualFile) : null;
+            return current == null ? null : DataformEvaluationContextBuilder.build(project, current, nodePaths);
+        }).executeSynchronously();
+        if (context == null) {
+            return List.of();
+        }
         String payload = DataformEvalScriptBuilder.payload(context, sources);
 
         ProcessOutput output = NodeScriptRunner.run(project,
@@ -398,5 +407,4 @@ public final class DataformExpressionEvaluationServiceImpl
                 .put(source, DataformEvaluationResult.resolved(source, value));
         modificationCount.incrementAndGet();
     }
-
 }

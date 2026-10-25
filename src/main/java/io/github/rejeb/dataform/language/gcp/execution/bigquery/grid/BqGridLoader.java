@@ -39,7 +39,6 @@ public class BqGridLoader implements GridLoader {
         this.extractors  = extractors;
     }
 
-
     public void setHookUp(@NotNull BqDataHookUp hookUp) {
         this.hookUp = hookUp;
     }

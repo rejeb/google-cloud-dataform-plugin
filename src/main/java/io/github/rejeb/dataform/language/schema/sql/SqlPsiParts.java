@@ -19,6 +19,7 @@ package io.github.rejeb.dataform.language.schema.sql;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.tree.IElementType;
 import com.intellij.psi.util.PsiTreeUtil;
+import com.intellij.psi.util.PsiUtilCore;
 import com.intellij.sql.psi.SqlCompositeElementTypes;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -61,8 +62,7 @@ public final class SqlPsiParts {
 
     /** Whether an element carries a given kind. */
     public static boolean isType(@Nullable PsiElement element, @NotNull IElementType type) {
-        return element != null && element.getNode() != null
-                && element.getNode().getElementType() == type;
+        return element != null && PsiUtilCore.getElementType(element) == type;
     }
 
     /**
@@ -74,8 +74,14 @@ public final class SqlPsiParts {
      */
     public static boolean isStar(@Nullable PsiElement element) {
         if (element == null) return false;
-        String token = starTokenOf(element);
-        return "*".equals(token) || token.endsWith(".*");
+        return isStarText(starTokenOf(element));
+    }
+
+    /**
+     * Whether the text of a select item is a star: {@code *} or a qualified {@code t.*}.
+     */
+    public static boolean isStarText(@NotNull String text) {
+        return "*".equals(text) || text.endsWith(".*");
     }
 
     /**

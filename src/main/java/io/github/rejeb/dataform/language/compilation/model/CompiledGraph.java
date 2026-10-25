@@ -16,13 +16,14 @@
  */
 package io.github.rejeb.dataform.language.compilation.model;
 
-
 import io.github.rejeb.dataform.language.util.DataformPaths;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
-import java.util.function.Function;
+import java.util.ArrayList;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -104,26 +105,70 @@ public class CompiledGraph {
     }
 
     public List<CompiledTable> findTableByFileName(String fileName) {
-        return matching(fileNameIndex().tables(), fileName, CompiledTable::matchFileName);
+        return matching(fileNameIndex().tables(), fileName);
     }
 
     public List<CompiledAssertion> findAssertionByFileName(String fileName) {
-        return matching(fileNameIndex().assertions(), fileName, CompiledAssertion::matchFileName);
+        return matching(fileNameIndex().assertions(), fileName);
     }
 
     public List<CompiledOperation> findOperationByFileName(String fileName) {
-        return matching(fileNameIndex().operations(), fileName, CompiledOperation::matchFileName);
+        return matching(fileNameIndex().operations(), fileName);
     }
 
     public List<Declaration> findDeclarationByFileName(String fileName) {
-        return matching(fileNameIndex().declarations(), fileName, Declaration::matchFileName);
+        return matching(fileNameIndex().declarations(), fileName);
     }
 
+    /**
+     * The actions compiled from a file, tables first, then operations, assertions and declarations.
+     *
+     * @param fileName the path of the file, matched whatever separator the compiler wrote
+     * @return the actions of the file that have a target
+     */
+    public @NotNull List<GraphAction> actionsOfFile(@NotNull String fileName) {
+        List<GraphAction> actions = new ArrayList<>();
+        findTableByFileName(fileName).forEach(t -> addAction(actions, t.getTarget(), t.getType(), t.getFileName(),
+                t.getDependencyTargets(), true));
+        findOperationByFileName(fileName).forEach(o -> addAction(actions, o.getTarget(), "operation", o.getFileName(),
+                o.getDependencyTargets(), o.isHasOutput()));
+        findAssertionByFileName(fileName).forEach(a -> addAction(actions, a.getTarget(), "assertion", a.getFileName(),
+                a.getDependencyTargets(), false));
+        findDeclarationByFileName(fileName).forEach(d -> addAction(actions, d.getTarget(), "declaration",
+                d.getFileName(), List.of(), false));
+        return actions;
+    }
+
+    /**
+     * The file of the action building a table from a query: a table, or an operation with output.
+     *
+     * @param tableFullName the full name of the table
+     * @return the project-relative file name, empty when no action of the project builds the table
+     */
+    public @NotNull Optional<String> fileBuilding(@NotNull String tableFullName) {
+        return getTables().stream()
+                .filter(t -> t.getTarget() != null && tableFullName.equals(t.getTarget().getFullName()))
+                .map(CompiledTable::getFileName)
+                .findFirst()
+                .or(() -> getOperations().stream()
+                        .filter(o -> o.isHasOutput() && o.getTarget() != null
+                                && tableFullName.equals(o.getTarget().getFullName()))
+                        .map(CompiledOperation::getFileName)
+                        .findFirst());
+    }
+
+    private static void addAction(@NotNull List<GraphAction> actions, @Nullable Target target, @NotNull String kind,
+                                  @Nullable String fileName, @Nullable List<Target> dependencies, boolean buildsTable) {
+        if (target != null) {
+            actions.add(new GraphAction(target, kind, fileName, dependencies != null ? dependencies : List.of(),
+                    buildsTable));
+        }
+    }
 
     public List<CompilationError> findCompilationErrorByFileName(String fileName) {
-        return this.getGraphErrors().getCompilationErrors().stream().filter(t -> t.matchFileName(fileName)).toList();
+        if (graphErrors == null || graphErrors.getCompilationErrors() == null) return List.of();
+        return graphErrors.getCompilationErrors().stream().filter(t -> t.matchFileName(fileName)).toList();
     }
-
 
     /**
      * The table compiled under a name, or, when none is, the table whose name before any table
@@ -146,10 +191,6 @@ public class CompiledGraph {
                         .filter(t -> reference.matches(t.getCanonicalTarget())).findFirst());
     }
 
-    public Optional<CompiledAssertion> findAssertionByName(String name) {
-        return findAssertionByReference(ActionReference.named(name));
-    }
-
     /**
      * The assertion a reference designates, matched on the target it compiles to.
      *
@@ -160,10 +201,6 @@ public class CompiledGraph {
         return this.getAssertions().stream().filter(a -> reference.matches(a.getTarget())).findFirst();
     }
 
-    public Optional<CompiledOperation> findOperationByName(String name) {
-        return findOperationByReference(ActionReference.named(name));
-    }
-
     /**
      * The operation a reference designates, matched on the target it compiles to.
      *
@@ -172,13 +209,6 @@ public class CompiledGraph {
      */
     public Optional<CompiledOperation> findOperationByReference(ActionReference reference) {
         return this.getOperations().stream().filter(o -> reference.matches(o.getTarget())).findFirst();
-    }
-
-    /**
-     * The declaration of a name, or, when none declares it, the one whose canonical name it is.
-     */
-    public Optional<Declaration> findDeclarationByName(String name) {
-        return findDeclarationByReference(ActionReference.named(name));
     }
 
     /**
@@ -207,18 +237,12 @@ public class CompiledGraph {
      * @return the target of the first action designated
      */
     public Optional<Target> findTargetByReference(ActionReference reference) {
-        for (CompiledTable table : getTables()) {
-            if (reference.matches(table.getTarget())) return Optional.of(table.getTarget());
-        }
-        for (Declaration declaration : getDeclarations()) {
-            if (reference.matches(declaration.getTarget())) return Optional.of(declaration.getTarget());
-        }
-        for (CompiledAssertion assertion : getAssertions()) {
-            if (reference.matches(assertion.getTarget())) return Optional.of(assertion.getTarget());
-        }
-        for (CompiledOperation operation : getOperations()) {
-            if (reference.matches(operation.getTarget())) return Optional.of(operation.getTarget());
-        }
+        Optional<Target> compiled = Stream.of(getTables(), getDeclarations(), getAssertions(), getOperations())
+                .<CompiledAction>flatMap(List::stream)
+                .map(CompiledAction::getTarget)
+                .filter(reference::matches)
+                .findFirst();
+        if (compiled.isPresent()) return compiled;
         for (CompiledTable table : getTables()) {
             if (reference.matches(table.getCanonicalTarget())) return Optional.ofNullable(table.getTarget());
         }
@@ -230,42 +254,40 @@ public class CompiledGraph {
         return Optional.empty();
     }
 
+    /**
+     * The file of the action a reference designates, matched as {@link #findTargetByReference} does.
+     *
+     * @param reference the name, schema and database to match
+     * @return the project-relative file name, empty when no action carries it
+     */
+    public @NotNull Optional<String> fileOf(@NotNull ActionReference reference) {
+        return findTargetByReference(reference).flatMap(target -> Stream.of(
+                        getTables(), getDeclarations(), getOperations(), getAssertions())
+                .<CompiledAction>flatMap(List::stream)
+                .filter(action -> target.equals(action.getTarget()))
+                .map(CompiledAction::getFileName)
+                .filter(Objects::nonNull)
+                .findFirst());
+    }
+
     public List<String> getTags(String fileName) {
-        return Stream.of(
-                        findTableByFileName(fileName).stream()
-                                .flatMap(t -> t.getTags().stream()),
-                        findAssertionByFileName(fileName).stream()
-                                .flatMap(a -> a.getTags().stream()),
-                        findOperationByFileName(fileName).stream()
-                                .flatMap(o -> o.getTags().stream())
-                ).flatMap(s -> s)
+        return Stream.of(findTableByFileName(fileName), findAssertionByFileName(fileName),
+                        findOperationByFileName(fileName))
+                .<ExecutableAction>flatMap(List::stream)
+                .flatMap(action -> action.getTags().stream())
                 .distinct()
                 .collect(Collectors.toList());
     }
 
     public Set<String> getTags() {
-        return Stream.of(
-                        getTables().stream()
-                                .flatMap(t -> t.getTags().stream()),
-                        getAssertions().stream()
-                                .flatMap(a -> a.getTags().stream()),
-                        getOperations().stream()
-                                .flatMap(o -> o.getTags().stream())
-                )
-                .flatMap(s -> s)
+        return executableActions()
+                .flatMap(action -> action.getTags().stream())
                 .collect(Collectors.toSet());
     }
 
     public List<String> getAllTargets() {
-        return Stream.of(
-                        getTables().stream()
-                                .map(t -> t.getTarget().getFullName()),
-                        getAssertions().stream()
-                                .map(a -> a.getTarget().getFullName()),
-                        getOperations().stream()
-                                .map(o -> o.getTarget().getFullName())
-                )
-                .flatMap(s -> s)
+        return executableActions()
+                .map(action -> action.getTarget().getFullName())
                 .distinct()
                 .sorted()
                 .toList();
@@ -273,40 +295,15 @@ public class CompiledGraph {
 
     @Nullable
     public String actionFileName(String actionName) {
-        return findContainingFileInTable(actionName)
-                .or(() -> findContainingFileInAssertion(actionName))
-                .or(() -> findContainingFileInOperation(actionName))
+        return executableActions()
+                .filter(action -> action.getTarget().getFullName().equals(actionName))
+                .findFirst()
+                .map(CompiledAction::getFileName)
                 .orElse(null);
     }
 
-
-    public Optional<String> findContainingFileInTable(String actionName) {
-        return this.getTables()
-                .stream()
-                .filter(t -> t.getTarget().getFullName().equals(actionName))
-                .findFirst()
-                .map(CompiledTable::getFileName);
-    }
-
-    public Optional<String> findContainingFileInAssertion(String actionName) {
-        return this.getAssertions()
-                .stream()
-                .filter(t -> t.getTarget().getFullName().equals(actionName))
-                .findFirst()
-                .map(CompiledAssertion::getFileName);
-    }
-
-    public Optional<String> findContainingFileInOperation(String actionName) {
-        return this.getOperations()
-                .stream()
-                .filter(t -> t.getTarget().getFullName().equals(actionName))
-                .findFirst()
-                .map(CompiledOperation::getFileName);
-    }
-
-    @FunctionalInterface
-    private interface FileNameMatcher<T> {
-        boolean matches(T action, String fileName);
+    private @NotNull Stream<ExecutableAction> executableActions() {
+        return Stream.of(getTables(), getAssertions(), getOperations()).<ExecutableAction>flatMap(List::stream);
     }
 
     /**
@@ -336,35 +333,33 @@ public class CompiledGraph {
             int[] sizes = new int[lists.length];
             for (int i = 0; i < lists.length; i++) sizes[i] = lists[i].size();
             index = new FileNameIndex(lists, sizes,
-                    byLastSegment(getTables(), CompiledTable::getFileName),
-                    byLastSegment(getAssertions(), CompiledAssertion::getFileName),
-                    byLastSegment(getOperations(), CompiledOperation::getFileName),
-                    byLastSegment(getDeclarations(), Declaration::getFileName));
+                    byLastSegment(getTables()),
+                    byLastSegment(getAssertions()),
+                    byLastSegment(getOperations()),
+                    byLastSegment(getDeclarations()));
             fileNameIndex = index;
         }
         return index;
     }
 
-    private static <T> @NotNull Map<String, List<T>> byLastSegment(@NotNull List<T> actions,
-                                                                   @NotNull Function<T, String> fileNameOf) {
+    private static <T extends CompiledAction> @NotNull Map<String, List<T>> byLastSegment(@NotNull List<T> actions) {
         Map<String, List<T>> index = new HashMap<>();
         for (T action : actions) {
-            String fileName = fileNameOf.apply(action);
+            String fileName = action.getFileName();
             if (fileName == null) continue;
             index.computeIfAbsent(lastSegment(fileName), key -> new ArrayList<>(1)).add(action);
         }
         return index;
     }
 
-    private static <T> @NotNull List<T> matching(@NotNull Map<String, List<T>> index,
-                                                 @Nullable String fileName,
-                                                 @NotNull FileNameMatcher<T> matcher) {
+    private static <T extends CompiledAction> @NotNull List<T> matching(@NotNull Map<String, List<T>> index,
+                                                                        @Nullable String fileName) {
         if (fileName == null) return List.of();
         List<T> candidates = index.get(lastSegment(DataformPaths.normalize(fileName)));
         if (candidates == null) return List.of();
         List<T> result = new ArrayList<>(candidates.size());
         for (T candidate : candidates) {
-            if (matcher.matches(candidate, fileName)) result.add(candidate);
+            if (candidate.matchFileName(fileName)) result.add(candidate);
         }
         return Collections.unmodifiableList(result);
     }

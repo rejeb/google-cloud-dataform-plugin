@@ -16,11 +16,12 @@
  */
 package io.github.rejeb.dataform.language.lineage.view;
 
+import com.intellij.ui.ColorUtil;
 import com.intellij.util.ui.UIUtil;
-import io.github.rejeb.dataform.language.lineage.column.ColumnEdge;
-import io.github.rejeb.dataform.language.lineage.column.Confidence;
-import io.github.rejeb.dataform.language.lineage.column.ColumnLineageGraph;
-import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
+import io.github.rejeb.dataform.language.columns.analysis.ColumnEdge;
+import io.github.rejeb.dataform.language.columns.analysis.ColumnLineageGraph;
+import io.github.rejeb.dataform.language.columns.model.ColumnRef;
+import io.github.rejeb.dataform.language.columns.analysis.Confidence;
 import io.github.rejeb.dataform.language.lineage.layout.LayoutResult;
 import io.github.rejeb.dataform.language.lineage.layout.NodePosition;
 import io.github.rejeb.dataform.language.lineage.model.Direction;
@@ -28,7 +29,6 @@ import io.github.rejeb.dataform.language.lineage.model.LineageModel;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import javax.swing.JComponent;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Graphics2D;
@@ -42,6 +42,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import javax.swing.JComponent;
 
 /**
  * Paints the per-node column lists and the column-level lineage edges between them, and owns
@@ -304,8 +305,8 @@ final class ColumnListRenderer {
                                @NotNull Rectangle rect, @Nullable Color highlightColor, boolean hover) {
         boolean lit = highlightColor != null;
         Color accent = lit ? highlightColor : LineageTheme.accentColor();
-        Color background = lit ? LineageTheme.translucent(accent, 40)
-                : hover ? LineageTheme.translucent(LineageTheme.accentColor(), 22)
+        Color background = lit ? ColorUtil.toAlpha(accent, 40)
+                : hover ? ColorUtil.toAlpha(LineageTheme.accentColor(), 22)
                 : LineageTheme.nodeBackground();
         g2.setColor(background);
         g2.fillRoundRect(rect.x, rect.y, rect.width, rect.height, 6, 6);
@@ -324,7 +325,7 @@ final class ColumnListRenderer {
                                int scroll, int visibleRows, int total) {
         int barW = 3;
         int x = bounds.x + bounds.width - barW - 1;
-        g2.setColor(LineageTheme.translucent(LineageTheme.edgeColor(), 60));
+        g2.setColor(ColorUtil.toAlpha(LineageTheme.edgeColor(), 60));
         g2.fillRoundRect(x, bounds.y, barW, bounds.height, barW, barW);
         int thumbH = Math.max(6, (int) Math.round(bounds.height * (double) visibleRows / total));
         int thumbY = bounds.y + (int) Math.round(

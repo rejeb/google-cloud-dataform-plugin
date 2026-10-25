@@ -17,22 +17,21 @@
 package io.github.rejeb.dataform.language.compilation;
 
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.Key;
+import com.intellij.openapi.util.UserDataHolderEx;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public final class DataformBuildContext {
 
-    private static final com.intellij.openapi.util.Key<Semaphore> BUILD_SEMAPHORE_KEY =
-            com.intellij.openapi.util.Key.create("DATAFORM_BUILD_SEMAPHORE_KEY");
+    private static final Key<Semaphore> BUILD_SEMAPHORE_KEY = Key.create("DATAFORM_BUILD_SEMAPHORE_KEY");
 
     public final Project project;
     public final long started;
     public volatile long finished;
 
-    public final AtomicInteger errors = new AtomicInteger(0);
     public final CompletableFuture<DataformBuildResult> result = new CompletableFuture<>();
 
     private final Semaphore buildSemaphore;
@@ -41,15 +40,7 @@ public final class DataformBuildContext {
         this.project = project;
         this.started = System.currentTimeMillis();
         this.finished = started;
-        Semaphore existing = project.getUserData(BUILD_SEMAPHORE_KEY);
-        if (existing != null) {
-            this.buildSemaphore = existing;
-        } else {
-            Semaphore newSem = new Semaphore(1);
-            ((com.intellij.openapi.util.UserDataHolderEx) project)
-                    .putUserDataIfAbsent(BUILD_SEMAPHORE_KEY, newSem);
-            this.buildSemaphore = project.getUserData(BUILD_SEMAPHORE_KEY);
-        }
+        this.buildSemaphore = ((UserDataHolderEx) project).putUserDataIfAbsent(BUILD_SEMAPHORE_KEY, new Semaphore(1));
     }
 
     public long getDuration() {
@@ -76,15 +67,11 @@ public final class DataformBuildContext {
     public void finished(boolean isSuccess, String message) {
         finished = System.currentTimeMillis();
         buildSemaphore.release();
-        result.complete(new DataformBuildResult(
-                isSuccess, false, started, getDuration(), errors.get(), message
-        ));
+        result.complete(new DataformBuildResult(isSuccess, false));
     }
 
     public void canceled() {
         finished = System.currentTimeMillis();
-        result.complete(new DataformBuildResult(
-                false, true, started, getDuration(), 0, "Dataform compile canceled"
-        ));
+        result.complete(new DataformBuildResult(false, true));
     }
 }

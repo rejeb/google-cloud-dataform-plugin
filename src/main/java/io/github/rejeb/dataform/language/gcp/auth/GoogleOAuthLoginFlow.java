@@ -20,9 +20,9 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.intellij.ide.BrowserUtil;
 import com.intellij.openapi.diagnostic.Logger;
-import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.progress.ProcessCanceledException;
 import com.intellij.openapi.progress.ProgressIndicator;
+import com.intellij.openapi.util.text.StringUtil;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.jetbrains.annotations.NotNull;
@@ -33,7 +33,6 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URLEncoder;
-import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
@@ -207,13 +206,7 @@ public final class GoogleOAuthLoginFlow {
             return null;
         }
         try {
-            HttpRequest request = HttpRequest.newBuilder(URI.create(OAuthClientConfig.USERINFO_ENDPOINT))
-                    .header("Authorization", "Bearer " + accessToken)
-                    .timeout(HTTP_TIMEOUT)
-                    .GET()
-                    .build();
-            HttpResponse<String> response = httpClient()
-                    .send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            HttpResponse<String> response = SslConfig.getWithBearer(OAuthClientConfig.USERINFO_ENDPOINT, accessToken, HTTP_TIMEOUT);
             if (response.statusCode() != 200) {
                 return null;
             }
@@ -242,7 +235,7 @@ public final class GoogleOAuthLoginFlow {
                 .POST(HttpRequest.BodyPublishers.ofString(body.toString(), StandardCharsets.UTF_8))
                 .build();
         try {
-            HttpResponse<String> response = httpClient()
+            HttpResponse<String> response = SslConfig.httpClient(HTTP_TIMEOUT)
                     .send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
             JsonObject json = JsonParser.parseString(response.body()).getAsJsonObject();
             if (response.statusCode() != 200) {
@@ -284,13 +277,6 @@ public final class GoogleOAuthLoginFlow {
                     java.net.URLDecoder.decode(pair.substring(index + 1), StandardCharsets.UTF_8));
         }
         return params;
-    }
-
-    private static HttpClient httpClient() {
-        return HttpClient.newBuilder()
-                .connectTimeout(HTTP_TIMEOUT)
-                .sslContext(SslConfig.sslContext())
-                .build();
     }
 
     private static String randomUrlSafe(int bytes) {

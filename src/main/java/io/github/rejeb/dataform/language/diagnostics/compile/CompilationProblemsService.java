@@ -17,14 +17,20 @@
 package io.github.rejeb.dataform.language.diagnostics.compile;
 
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.ModificationTracker;
+import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiFile;
+import io.github.rejeb.dataform.language.diagnostics.CompilationDiagnostic;
+import io.github.rejeb.dataform.language.diagnostics.PlacedProblems;
 import org.jetbrains.annotations.NotNull;
+
+import java.util.List;
 
 /**
  * Places the Dataform compilation errors of a SQLX or JavaScript file in the file as it reads now,
  * with a hint and fixes for each.
  */
-public interface CompilationProblemsService {
+public interface CompilationProblemsService extends ModificationTracker {
 
     /**
      * Returns the project-level instance.
@@ -38,5 +44,21 @@ public interface CompilationProblemsService {
      * raised in it while another file was compiled. The errors of a file the editor shows no
      * problems in, such as a SQL or YAML action, are all left unplaced.
      */
-    @NotNull CompilationProblems diagnose(@NotNull PsiFile file);
+    @NotNull PlacedProblems diagnose(@NotNull PsiFile file);
+
+    /**
+     * Returns the diagnostics for the given file, computed from the cached compiled graph.
+     */
+    @NotNull List<CompilationDiagnostic> getDiagnostics(@NotNull VirtualFile file);
+
+    /**
+     * Returns the errors reported for other files whose stack runs through the given file, as an
+     * error thrown in an include while an action was compiled.
+     */
+    @NotNull List<CompilationDiagnostic> getDiagnosticsRaisedIn(@NotNull VirtualFile file);
+
+    /**
+     * Drops every cached diagnostic and counts as a change. Called after a recompile.
+     */
+    void invalidate();
 }

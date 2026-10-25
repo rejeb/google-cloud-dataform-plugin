@@ -24,5 +24,4 @@ public class SqlxJsBlock extends SqlxPsiElement {
     public SqlxJsBlock(@NotNull ASTNode node) {
         super(node);
     }
-
 }

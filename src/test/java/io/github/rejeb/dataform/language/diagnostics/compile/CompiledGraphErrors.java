@@ -23,7 +23,7 @@ import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.compilation.model.CompiledTable;
 import io.github.rejeb.dataform.language.compilation.model.GraphErrors;
 import io.github.rejeb.dataform.language.compilation.model.Target;
-import io.github.rejeb.dataform.language.diagnostics.CompilationDiagnosticService;
+import io.github.rejeb.dataform.language.diagnostics.compile.CompilationProblemsService;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -70,12 +70,12 @@ public final class CompiledGraphErrors {
         graphErrors.setCompilationErrors(List.of(errors));
         graph.setGraphErrors(graphErrors);
         set(project.getService(DataformCompilationService.class), "compiledGraph", graph);
-        CompilationDiagnosticService.getInstance(project).invalidate();
+        CompilationProblemsService.getInstance(project).invalidate();
     }
 
     public static void clear(Project project) {
         set(project.getService(DataformCompilationService.class), "compiledGraph", null);
-        CompilationDiagnosticService.getInstance(project).invalidate();
+        CompilationProblemsService.getInstance(project).invalidate();
     }
 
     private static void set(Object target, String field, Object value) {

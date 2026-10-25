@@ -40,7 +40,6 @@ public class BqGridModel implements GridModel<GridRow, GridColumn> {
         this.rows = List.copyOf(rows);
     }
 
-
     @Override
     public boolean isValidRowIdx(@NotNull ModelIndex<GridRow> idx) {
         int i = idx.asInteger();
@@ -176,5 +175,4 @@ public class BqGridModel implements GridModel<GridRow, GridColumn> {
         }
         multicaster.afterLastRowAdded();
     }
-
 }

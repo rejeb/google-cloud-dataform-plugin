@@ -16,13 +16,14 @@
  */
 package io.github.rejeb.dataform.language.gcp.toolwindow;
 
+import com.intellij.util.ui.tree.TreeUtil;
 import io.github.rejeb.dataform.language.gcp.workspace.UncommittedChange;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.*;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
-import java.util.*;
 
 public class DataformRepoTreeModel extends DefaultTreeModel {
 
@@ -76,49 +77,29 @@ public class DataformRepoTreeModel extends DefaultTreeModel {
     public void setFiles(@NotNull List<String> files) {
         DefaultMutableTreeNode root = (DefaultMutableTreeNode) getRoot();
         root.removeAllChildren();
-
-        Map<String, DefaultMutableTreeNode> dirNodes = new TreeMap<>();
-
+        Map<String, DefaultMutableTreeNode> dirNodes = new HashMap<>();
         for (String path : new TreeSet<>(files)) {
-            String[] segments = path.split("/");
-
-            StringBuilder currentPath = new StringBuilder();
-            for (int i = 0; i < segments.length - 1; i++) {
-                if (!currentPath.isEmpty()) currentPath.append("/");
-                currentPath.append(segments[i]);
-
-                String dirPath = currentPath.toString();
-                if (!dirNodes.containsKey(dirPath)) {
-                    DefaultMutableTreeNode dirNode = new DefaultMutableTreeNode(segments[i]);
-                    dirNodes.put(dirPath, dirNode);
-
-                    String parentPath = dirPath.contains("/")
-                            ? dirPath.substring(0, dirPath.lastIndexOf('/'))
-                            : null;
-                    DefaultMutableTreeNode parentNode = parentPath != null
-                            ? dirNodes.get(parentPath)
-                            : root;
-                    if (parentNode != null) parentNode.add(dirNode);
-                    else root.add(dirNode);
-                }
-            }
-
-            String parentPath = segments.length > 1
-                    ? path.substring(0, path.lastIndexOf('/'))
-                    : null;
-            DefaultMutableTreeNode parentNode = parentPath != null
-                    ? dirNodes.get(parentPath)
-                    : root;
-
-            DefaultMutableTreeNode fileNode = new DefaultMutableTreeNode(
-                    new FileEntry(path, segments[segments.length - 1])
-            );
-            if (parentNode != null) parentNode.add(fileNode);
-            else root.add(fileNode);
+            int slash = path.lastIndexOf('/');
+            dirNode(root, dirNodes, slash < 0 ? "" : path.substring(0, slash))
+                    .add(new DefaultMutableTreeNode(new FileEntry(path, path.substring(slash + 1))));
         }
-
-        sortChildrenRecursively(root);
+        TreeUtil.sortRecursively(root, Comparator
+                .comparingInt((DefaultMutableTreeNode n) -> isDirectory(n) ? 0 : 1)
+                .thenComparing(n -> labelOf(n).toLowerCase()));
         reload();
+    }
+
+    private static @NotNull DefaultMutableTreeNode dirNode(@NotNull DefaultMutableTreeNode root,
+                                                           @NotNull Map<String, DefaultMutableTreeNode> dirNodes,
+                                                           @NotNull String dirPath) {
+        if (dirPath.isEmpty()) return root;
+        DefaultMutableTreeNode existing = dirNodes.get(dirPath);
+        if (existing != null) return existing;
+        int slash = dirPath.lastIndexOf('/');
+        DefaultMutableTreeNode node = new DefaultMutableTreeNode(dirPath.substring(slash + 1));
+        dirNode(root, dirNodes, slash < 0 ? "" : dirPath.substring(0, slash)).add(node);
+        dirNodes.put(dirPath, node);
+        return node;
     }
 
     @Nullable
@@ -131,8 +112,8 @@ public class DataformRepoTreeModel extends DefaultTreeModel {
     }
 
     /**
-     * Retourne le chemin relatif complet d'un nœud dossier (ex: "definitions/sources"),
-     * ou null si le nœud est la racine ou un FileEntry.
+     * Returns the full relative path of a directory node (e.g. "definitions/sources"),
+     * or null when the node is the root or a FileEntry.
      */
     @Nullable
     public String getDirectoryPath(@NotNull Object node) {
@@ -140,7 +121,6 @@ public class DataformRepoTreeModel extends DefaultTreeModel {
         if (dmtn.getUserObject() instanceof FileEntry) return null;
         if (dmtn.getUserObject() instanceof RootEntry) return null;
 
-        // Remonte les parents pour reconstituer le chemin
         List<String> segments = new ArrayList<>();
         DefaultMutableTreeNode current = dmtn;
         while (current != null) {
@@ -150,34 +130,6 @@ public class DataformRepoTreeModel extends DefaultTreeModel {
             current = (DefaultMutableTreeNode) current.getParent();
         }
         return segments.isEmpty() ? null : String.join("/", segments);
-    }
-
-
-    /**
-     * Sorts the children of each node recursively: directories first, then files,
-     * each group sorted alphabetically (case-insensitive).
-     *
-     * @param node the node whose children to sort recursively
-     */
-    private void sortChildrenRecursively(@NotNull DefaultMutableTreeNode node) {
-        int count = node.getChildCount();
-        if (count == 0) return;
-
-        List<DefaultMutableTreeNode> children = new ArrayList<>(count);
-        for (int i = 0; i < count; i++) {
-            children.add((DefaultMutableTreeNode) node.getChildAt(i));
-        }
-
-        children.sort(Comparator
-                .comparingInt((DefaultMutableTreeNode n) -> isDirectory(n) ? 0 : 1)
-                .thenComparing(n -> labelOf(n).toLowerCase())
-        );
-
-        node.removeAllChildren();
-        for (DefaultMutableTreeNode child : children) {
-            node.add(child);
-            sortChildrenRecursively(child);
-        }
     }
 
     private boolean isDirectory(@NotNull DefaultMutableTreeNode node) {

@@ -20,10 +20,16 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectUtil;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.text.StringUtil;
+import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.psi.PsiFile;
+import com.intellij.psi.PsiManager;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 /**
  * The one place file paths are compared and resolved, whatever system wrote them.
@@ -78,5 +84,31 @@ public final class DataformPaths {
         }
         VirtualFile projectDir = ProjectUtil.guessProjectDir(project);
         return projectDir == null ? null : projectDir.findFileByRelativePath(normalize(projectRelativePath));
+    }
+
+    /**
+     * The PSI file a project-relative path names, or {@code null} when there is no such valid file.
+     * Must be called inside a read action.
+     */
+    public static @Nullable PsiFile findPsiFileInProject(@NotNull Project project,
+                                                         @Nullable String projectRelativePath) {
+        VirtualFile file = findInProject(project, projectRelativePath);
+        return file == null || !file.isValid() ? null : PsiManager.getInstance(project).findFile(file);
+    }
+
+    /**
+     * Writes a UTF-8 text file below a directory, creating the missing directories and the file.
+     *
+     * @param root         the directory the path starts from
+     * @param relativePath the path of the file below {@code root}
+     * @param content      the text the file gets
+     * @throws IOException when a directory or the file cannot be created or written
+     */
+    public static void writeText(@NotNull VirtualFile root, @NotNull String relativePath,
+                                 @NotNull String content) throws IOException {
+        String path = normalize(relativePath);
+        int slash = path.lastIndexOf('/');
+        VirtualFile dir = slash < 0 ? root : VfsUtil.createDirectoryIfMissing(root, path.substring(0, slash));
+        dir.findOrCreateChildData(null, path.substring(slash + 1)).setBinaryContent(content.getBytes(StandardCharsets.UTF_8));
     }
 }

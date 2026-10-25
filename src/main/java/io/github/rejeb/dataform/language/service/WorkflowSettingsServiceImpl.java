@@ -46,7 +46,7 @@ public final class WorkflowSettingsServiceImpl implements WorkflowSettingsServic
 
     private record Snapshot(@NotNull Map<String, WorkflowSettingsProperty> properties,
                             long stamp,
-                            @NotNull String url) {
+                            @NotNull VirtualFile file) {
     }
 
     private volatile Snapshot snapshot;
@@ -54,10 +54,6 @@ public final class WorkflowSettingsServiceImpl implements WorkflowSettingsServic
 
     public WorkflowSettingsServiceImpl(Project project) {
         this.project = project;
-    }
-
-    public static WorkflowSettingsServiceImpl getInstance(Project project) {
-        return project.getService(WorkflowSettingsServiceImpl.class);
     }
 
     @Override
@@ -74,15 +70,15 @@ public final class WorkflowSettingsServiceImpl implements WorkflowSettingsServic
         }
 
         long stamp = originalFile.getModificationStamp();
-        String url = fileUrlOf(originalFile);
+        VirtualFile file = originalFile.getVirtualFile();
         Snapshot current = snapshot;
-        if (current != null && current.stamp() == stamp && current.url().equals(url)) {
+        if (current != null && current.stamp() == stamp && current.file().equals(file)) {
             return current.properties();
         }
 
         Map<String, WorkflowSettingsProperty> properties =
                 parseWorkflowSettings(WorkflowSettingsYamlFileWrapper.create(originalFile, project));
-        snapshot = url == null ? null : new Snapshot(properties, stamp, url);
+        snapshot = file == null ? null : new Snapshot(properties, stamp, file);
         return properties;
     }
 
@@ -162,12 +158,6 @@ public final class WorkflowSettingsServiceImpl implements WorkflowSettingsServic
         return candidate != null && !candidate.isDirectory() ? candidate : null;
     }
 
-    @Nullable
-    private static String fileUrlOf(@NotNull YAMLFile file) {
-        VirtualFile virtualFile = file.getVirtualFile();
-        return virtualFile == null ? null : virtualFile.getUrl();
-    }
-
     @NotNull
     public Collection<String> getLeafPathsForPrefix(@Nullable String prefix) {
         List<String> paths = new ArrayList<>();
@@ -204,11 +194,6 @@ public final class WorkflowSettingsServiceImpl implements WorkflowSettingsServic
         return current;
     }
 
-    @NotNull
-    public Collection<String> getPropertiesForPrefix(@Nullable String prefix) {
-        return propertiesForPrefix(prefix).keySet();
-    }
-
     @Nullable
     public WorkflowSettingsProperty getProperty(@Nullable String propKey) {
         if (propKey == null || propKey.isEmpty()) {
@@ -228,78 +213,47 @@ public final class WorkflowSettingsServiceImpl implements WorkflowSettingsServic
                         },
                         (left, right) -> right
                 );
-
     }
 
     @Override
     public boolean isWorkflowSettingProperty(@NotNull String property) {
-        return isWorkflowSettingProperty(property,getWorkflowProperties().get(DATAFORM_KEY));
+        WorkflowSettingsProperty root = getWorkflowProperties().get(DATAFORM_KEY);
+        return root != null && isWorkflowSettingProperty(property, root);
     }
 
     private boolean isWorkflowSettingProperty(@NotNull String propertyToFind, @NotNull WorkflowSettingsProperty property) {
-            if(propertyToFind.equals(property.name())){
-                return true;
-            }else if(property.hasChildren()){
-                for (WorkflowSettingsProperty child : property.children().values()) {
-                    if(isWorkflowSettingProperty(propertyToFind, child)){
-                        return true;
-                    }
-                }
-            }
-
-        return false;
-    }
-
-    @Nullable
-    public WorkflowSettingsYamlFileWrapper findWorkflowSettingsFile() {
-        YAMLFile originalFile = findOriginalWorkflowSettingsFile(null);
-        return originalFile == null ? null : WorkflowSettingsYamlFileWrapper.create(originalFile, project);
+        return propertyToFind.equals(property.name()) || property.hasChildren()
+                && property.children().values().stream().anyMatch(child -> isWorkflowSettingProperty(propertyToFind, child));
     }
 
     @NotNull
     private Map<String, WorkflowSettingsProperty> parseWorkflowSettings(@NotNull WorkflowSettingsYamlFileWrapper yamlFile) {
-        Map<String, WorkflowSettingsProperty> result = new HashMap<>();
-
         YAMLDocument document = yamlFile.getDocuments().isEmpty() ? null : yamlFile.getDocuments().get(0);
-        if (document == null) {
-            return result;
-        }
+        return document != null && document.getTopLevelValue() instanceof YAMLMapping mapping
+                ? parseMapping(mapping, yamlFile) : new HashMap<>();
+    }
 
-        if (document.getTopLevelValue() instanceof YAMLMapping mapping) {
-            for (YAMLKeyValue keyValue : mapping.getKeyValues()) {
-                String key = keyValue.getKeyText();
-                WorkflowSettingsProperty property = parseProperty(keyValue, yamlFile);
-                result.put(key, property);
-            }
+    private Map<String, WorkflowSettingsProperty> parseMapping(@NotNull YAMLMapping mapping,
+                                                               @NotNull WorkflowSettingsYamlFileWrapper yamlFile) {
+        Map<String, WorkflowSettingsProperty> result = new HashMap<>();
+        for (YAMLKeyValue keyValue : mapping.getKeyValues()) {
+            result.put(keyValue.getKeyText(), parseProperty(keyValue, yamlFile));
         }
-
         return result;
     }
 
     @NotNull
     private WorkflowSettingsProperty parseProperty(@NotNull YAMLKeyValue keyValue, @NotNull WorkflowSettingsYamlFileWrapper yamlFile) {
-        String key = keyValue.getKeyText();
-        String value = keyValue.getValueText();
-
-        if (keyValue.getValue() instanceof YAMLMapping mapping) {
-            Map<String, WorkflowSettingsProperty> children = new HashMap<>();
-            for (YAMLKeyValue child : mapping.getKeyValues()) {
-                children.put(child.getKeyText(), parseProperty(child, yamlFile));
-            }
-            YAMLKeyValue wrappedKeyValue = yamlFile.getWrappedKeyValue(keyValue);
-            return new WorkflowSettingsProperty(key, null, wrappedKeyValue, children);
-        }
         YAMLKeyValue wrappedKeyValue = yamlFile.getWrappedKeyValue(keyValue);
-        return new WorkflowSettingsProperty(key, value, wrappedKeyValue, null);
+        return keyValue.getValue() instanceof YAMLMapping mapping
+                ? new WorkflowSettingsProperty(keyValue.getKeyText(), null, wrappedKeyValue, parseMapping(mapping, yamlFile))
+                : new WorkflowSettingsProperty(keyValue.getKeyText(), keyValue.getValueText(), wrappedKeyValue, null);
     }
-
 
     @Nullable
     private WorkflowSettingsProperty getOriginalFileProps() {
-        Map<String, WorkflowSettingsProperty> children = this.getWorkflowProperties().get(DATAFORM_KEY)
-                .children();
+        WorkflowSettingsProperty root = this.getWorkflowProperties().get(DATAFORM_KEY);
+        Map<String, WorkflowSettingsProperty> children = root != null ? root.children() : null;
         return children != null ? children.get(PROJECT_CONFIG_KEY) : null;
     }
-
-
 }

@@ -94,25 +94,25 @@ public class RepositoryEditPanel extends JPanel {
     }
 
     public void load(@NotNull DataformRepositoryConfig config) {
-        loadedConfigId = config.repositoryConfigId();
-        labelField.setText(config.label() );
-        projectIdField.setText(config.projectId());
-        repositoryIdField.setText(config.repositoryId());
-        locationField.setText(config.location());
-        serviceAccountField.setText(config.serviceAccount());
-        statusLabel.setText("");
+        fill(config.repositoryConfigId(), config.label(), config.projectId(), config.repositoryId(),
+                config.location(), config.serviceAccount());
         setEnabled(true);
     }
 
     public void clear() {
-        loadedConfigId = null;
-        labelField.setText("");
-        projectIdField.setText("");
-        repositoryIdField.setText("");
-        locationField.setText("");
-        serviceAccountField.setText("");
-        statusLabel.setText("");
+        fill(null, "", "", "", "", "");
         setEnabled(false);
+    }
+
+    private void fill(@Nullable String configId, String label, String projectId, String repositoryId,
+                      String location, String serviceAccount) {
+        loadedConfigId = configId;
+        labelField.setText(label);
+        projectIdField.setText(projectId);
+        repositoryIdField.setText(repositoryId);
+        locationField.setText(location);
+        serviceAccountField.setText(serviceAccount);
+        statusLabel.setText("");
     }
 
     public void focusLabel() {
@@ -157,8 +157,6 @@ public class RepositoryEditPanel extends JPanel {
         testButton.setEnabled(enabled);
         createGcpButton.setEnabled(enabled);
     }
-
-    // -------------------------------------------------------------------------
 
     private enum ActionKind {TEST, CREATE_GCP}
 

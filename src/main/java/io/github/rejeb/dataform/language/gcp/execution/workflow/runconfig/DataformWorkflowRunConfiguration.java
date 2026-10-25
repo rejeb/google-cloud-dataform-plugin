@@ -50,82 +50,25 @@ public class DataformWorkflowRunConfiguration
 
     @NotNull
     @Override
-    protected DataformWorkflowRunConfigurationOptions getOptions() {
+    public DataformWorkflowRunConfigurationOptions getOptions() {
         return (DataformWorkflowRunConfigurationOptions) super.getOptions();
-    }
-
-
-    public String getWorkspaceId() {
-        return getOptions().getWorkspaceId();
-    }
-
-    public void setWorkspaceId(String v) {
-        getOptions().setWorkspaceId(v);
-    }
-
-    public Mode getSelectedMode() {
-        return getOptions().getSelectedMode();
-    }
-
-    public void setSelectedMode(Mode m) {
-        getOptions().setSelectedMode(m);
-    }
-
-    public List<String> getIncludedTags() {
-        return getOptions().getIncludedTags();
-    }
-
-    public void setIncludedTags(List<String> v) {
-        getOptions().setIncludedTags(v);
-    }
-
-    public List<String> getIncludedTargets() {
-        return getOptions().getIncludedTargets();
-    }
-
-    public void setIncludedTargets(List<String> v) {
-        getOptions().setIncludedTargets(v);
-    }
-
-    public boolean isTransitiveDependenciesIncluded() {
-        return getOptions().isTransitiveDependenciesIncluded();
-    }
-
-    public void setTransitiveDependenciesIncluded(boolean v) {
-        getOptions().setTransitiveDependenciesIncluded(v);
-    }
-
-    public boolean isTransitiveDependentsIncluded() {
-        return getOptions().isTransitiveDependentsIncluded();
-    }
-
-    public void setTransitiveDependentsIncluded(boolean v) {
-        getOptions().setTransitiveDependentsIncluded(v);
-    }
-
-    public boolean isFullyRefreshIncrementalTables() {
-        return getOptions().isFullyRefreshIncrementalTables();
-    }
-
-    public void setFullyRefreshIncrementalTables(boolean v) {
-        getOptions().setFullyRefreshIncrementalTables(v);
     }
 
     @NotNull
     public WorkflowRunRequest toWorkflowRunRequest() {
-        List<InvocationTarget> targets = getSelectedMode().equals(Mode.ACTIONS) ? getIncludedTargets().stream()
+        List<InvocationTarget> targets = getOptions().getSelectedMode().equals(Mode.ACTIONS) ? getOptions().getIncludedTargets().stream()
                                                                                   .filter(s -> s != null && !s.isBlank())
                                                                                   .map(DataformWorkflowRunConfiguration::parseTarget)
                                                                                   .collect(Collectors.toList())
                 : List.of();
-        List<String> tags = getSelectedMode().equals(Mode.TAGS) ? List.copyOf(getIncludedTags()) : List.of();
+        List<String> tags = getOptions().getSelectedMode().equals(Mode.TAGS) ? List.copyOf(getOptions().getIncludedTags()) : List.of();
         return new WorkflowRunRequest(
-                getWorkspaceId(),
+                getOptions().getWorkspaceId(),
                 tags,
                 targets,
-                !Mode.ALL.equals(getSelectedMode()) && isTransitiveDependenciesIncluded(),
-                !Mode.ALL.equals(getSelectedMode()) && isTransitiveDependentsIncluded(),
-                isFullyRefreshIncrementalTables()
+                !Mode.ALL.equals(getOptions().getSelectedMode()) && getOptions().isTransitiveDependenciesIncluded(),
+                !Mode.ALL.equals(getOptions().getSelectedMode()) && getOptions().isTransitiveDependentsIncluded(),
+                getOptions().isFullyRefreshIncrementalTables()
         );
     }
 
@@ -142,7 +85,6 @@ public class DataformWorkflowRunConfiguration
         };
     }
 
-
     @NotNull
     @Override
     public SettingsEditor<? extends RunConfiguration> getConfigurationEditor() {
@@ -151,7 +93,7 @@ public class DataformWorkflowRunConfiguration
 
     @Override
     public void checkConfiguration() throws RuntimeConfigurationException {
-        if (getWorkspaceId() == null || getWorkspaceId().isBlank()) {
+        if (getOptions().getWorkspaceId() == null || getOptions().getWorkspaceId().isBlank()) {
             throw new RuntimeConfigurationError("Workspace ID is required.");
         }
     }

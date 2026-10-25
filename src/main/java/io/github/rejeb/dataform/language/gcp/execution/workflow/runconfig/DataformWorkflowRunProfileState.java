@@ -113,10 +113,10 @@ public class DataformWorkflowRunProfileState
                              @NotNull WorkflowExecutionConsole console) throws Exception {
         DataformGcpService service = DataformGcpService.getInstance(project);
 
-        publishAndDisplay(project, console, uploadingProgress());
-        service.pushCode(configuration.getWorkspaceId());
+        publishAndDisplay(project, console, runningProgress("Uploading files to workspace"));
+        service.pushCode(configuration.getOptions().getWorkspaceId());
 
-        publishAndDisplay(project, console, startingProgress());
+        publishAndDisplay(project, console, runningProgress("Starting Workflow execution"));
         WorkflowCreationResult workflowRun = service.createWorkflowRun(configuration.toWorkflowRunRequest());
         pollUntilTerminal(project, indicator, console, service, workflowRun);
     }
@@ -189,7 +189,7 @@ public class DataformWorkflowRunProfileState
     @NotNull
     private WorkflowInvocationProgress failedProgress(@NotNull Throwable cause) {
         WorkflowInvocationProgress last = lastProgress;
-        String invocationName = last != null ? last.invocationName() : configuration.getWorkspaceId();
+        String invocationName = last != null ? last.invocationName() : configuration.getOptions().getWorkspaceId();
         List<InvocationActionResult> actions = last == null
                 ? List.of()
                 : last.actions().stream().map(action -> markFailedIfPending(action, cause)).toList();
@@ -234,7 +234,6 @@ public class DataformWorkflowRunProfileState
         );
     }
 
-
     private void updateIndicatorText(@NotNull ProgressIndicator indicator,
                                      @NotNull WorkflowInvocationProgress progress,
                                      @NotNull String runName) {
@@ -242,22 +241,8 @@ public class DataformWorkflowRunProfileState
     }
 
     @NotNull
-    private WorkflowInvocationProgress uploadingProgress() {
-        return new WorkflowInvocationProgress(
-                "Uploading files to workspace " + configuration.getWorkspaceId(),
-                WorkflowInvocationState.RUNNING,
-                List.of(),
-                null
-        );
-    }
-
-    @NotNull
-    private WorkflowInvocationProgress startingProgress() {
-        return new WorkflowInvocationProgress(
-                "Starting Workflow execution " + configuration.getWorkspaceId(),
-                WorkflowInvocationState.RUNNING,
-                List.of(),
-                null
-        );
+    private WorkflowInvocationProgress runningProgress(@NotNull String label) {
+        return new WorkflowInvocationProgress(label + " " + configuration.getOptions().getWorkspaceId(),
+                WorkflowInvocationState.RUNNING, List.of(), null);
     }
 }

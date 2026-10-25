@@ -24,5 +24,4 @@ public class SqlxConfigBlock extends SqlxPsiElement {
     public SqlxConfigBlock(@NotNull ASTNode node) {
         super(node);
     }
-
 }

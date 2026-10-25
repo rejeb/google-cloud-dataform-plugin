@@ -20,7 +20,6 @@ import com.intellij.execution.ExecutionException;
 import com.intellij.execution.configurations.GeneralCommandLine;
 import com.intellij.execution.process.CapturingProcessHandler;
 import com.intellij.execution.process.ProcessOutput;
-import com.intellij.notification.NotificationGroupManager;
 import com.intellij.notification.NotificationType;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.command.WriteCommandAction;
@@ -30,13 +29,12 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiFile;
-import com.intellij.psi.tree.IElementType;
 import com.intellij.psi.util.PsiTreeUtil;
-import io.github.rejeb.dataform.language.psi.SharedTokenTypes;
+import io.github.rejeb.dataform.language.injection.InjectionHelper;
 import io.github.rejeb.dataform.language.psi.SqlxFile;
 import io.github.rejeb.dataform.language.psi.SqlxSqlBlock;
 import io.github.rejeb.dataform.language.settings.DataformToolsSettings;
-import io.github.rejeb.dataform.language.util.Utils;
+import io.github.rejeb.dataform.language.util.DataformNotifications;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
@@ -62,10 +60,7 @@ public class SqlxSqlfluffFormatter {
         String sqlfluffPath = toolsSettings.getSqlfluffExecutablePath();
 
         if (sqlfluffPath.isEmpty() || !new File(sqlfluffPath).isFile()) {
-            NotificationGroupManager.getInstance()
-                    .getNotificationGroup("Dataform.Notifications")
-                    .createNotification(
-                            "SQLFluff is not configured",
+            DataformNotifications.create("SQLFluff is not configured",
                             "Configure it in Settings > Tools > Dataform to enable SQL formatting.",
                             NotificationType.WARNING
                     )
@@ -107,7 +102,9 @@ public class SqlxSqlfluffFormatter {
         if (blockText == null || blockText.isBlank()) return null;
 
         TextRange blockRange = sqlBlock.getTextRange();
-        Map<Integer, String> templateExpressions = collectTemplateExpressions(sqlBlock);
+        Map<Integer, String> templateExpressions = new LinkedHashMap<>();
+        InjectionHelper.collectJsElements(sqlBlock, blockRange.getStartOffset())
+                .forEach((range, element) -> templateExpressions.put(range.getStartOffset(), element.getText()));
         Map<String, String> placeholderMapping = new LinkedHashMap<>();
         String sqlWithPlaceholders = replaceTemplateExpressions(blockText, templateExpressions, placeholderMapping);
 
@@ -137,20 +134,6 @@ public class SqlxSqlfluffFormatter {
             }
             PsiDocumentManager.getInstance(project).commitDocument(document);
         });
-    }
-
-    private static Map<Integer, String> collectTemplateExpressions(SqlxSqlBlock sqlBlock) {
-        Map<Integer, String> result = new LinkedHashMap<>();
-        int blockStart = sqlBlock.getTextRange().getStartOffset();
-        PsiTreeUtil.processElements(sqlBlock, element -> {
-            IElementType type = element.getNode().getElementType();
-            if (type == SharedTokenTypes.TEMPLATE_EXPRESSION) {
-                int relativeStart = element.getTextRange().getStartOffset() - blockStart;
-                result.put(relativeStart, element.getText());
-            }
-            return true;
-        });
-        return result;
     }
 
     private static String replaceTemplateExpressions(String sql, Map<Integer, String> templateExpressions,

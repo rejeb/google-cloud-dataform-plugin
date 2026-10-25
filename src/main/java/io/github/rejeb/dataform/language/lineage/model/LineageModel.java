@@ -18,8 +18,8 @@ package io.github.rejeb.dataform.language.lineage.model;
 
 import com.intellij.ide.util.PropertiesComponent;
 import com.intellij.openapi.project.Project;
-import io.github.rejeb.dataform.language.lineage.column.ColumnLineageGraph;
-import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
+import io.github.rejeb.dataform.language.columns.analysis.ColumnLineageGraph;
+import io.github.rejeb.dataform.language.columns.model.ColumnRef;
 import io.github.rejeb.dataform.language.lineage.graph.LineageGraph;
 import io.github.rejeb.dataform.language.lineage.graph.LineageNode;
 import org.jetbrains.annotations.NotNull;
@@ -75,10 +75,6 @@ public final class LineageModel {
         restoreViewState();
     }
 
-    // ---------------------------------------------------------------------
-    // Listeners
-    // ---------------------------------------------------------------------
-
     public void addListener(@NotNull Consumer<LineageModel> listener) {
         listeners.add(listener);
     }
@@ -88,10 +84,6 @@ public final class LineageModel {
             listener.accept(this);
         }
     }
-
-    // ---------------------------------------------------------------------
-    // Graph
-    // ---------------------------------------------------------------------
 
     public @NotNull LineageGraph graph() {
         return graph;
@@ -125,10 +117,6 @@ public final class LineageModel {
 
         fire();
     }
-
-    // ---------------------------------------------------------------------
-    // Filters
-    // ---------------------------------------------------------------------
 
     public @NotNull Set<String> enabledTypes() {
         return Set.copyOf(enabledTypes);
@@ -184,10 +172,6 @@ public final class LineageModel {
         fire();
     }
 
-    // ---------------------------------------------------------------------
-    // Selection / focus / hover
-    // ---------------------------------------------------------------------
-
     public @Nullable String selectedId() {
         return selectedId;
     }
@@ -221,10 +205,6 @@ public final class LineageModel {
         this.hoverId = id;
         fire();
     }
-
-    // ---------------------------------------------------------------------
-    // Column lineage
-    // ---------------------------------------------------------------------
 
     private @Nullable ColumnLineageGraph columnGraph;
     private final Set<String> selectedColumnIds = new LinkedHashSet<>();
@@ -295,10 +275,6 @@ public final class LineageModel {
         return result;
     }
 
-    // ---------------------------------------------------------------------
-    // View state
-    // ---------------------------------------------------------------------
-
     public @NotNull Direction direction() {
         return direction;
     }
@@ -328,10 +304,6 @@ public final class LineageModel {
         persist(KEY_MINIMAP, Boolean.toString(minimapVisible));
         fire();
     }
-
-    // ---------------------------------------------------------------------
-    // Derived queries (pure)
-    // ---------------------------------------------------------------------
 
     public @NotNull Map<String, Integer> typeCounts() {
         Map<String, Integer> counts = new LinkedHashMap<>();
@@ -428,10 +400,6 @@ public final class LineageModel {
         result.addAll(descendants(target));
         return result;
     }
-
-    // ---------------------------------------------------------------------
-    // Persistence
-    // ---------------------------------------------------------------------
 
     private void restoreViewState() {
         if (project == null) return;

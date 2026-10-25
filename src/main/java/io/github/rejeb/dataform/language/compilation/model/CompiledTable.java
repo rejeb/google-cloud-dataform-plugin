@@ -23,7 +23,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
-public class CompiledTable {
+public class CompiledTable implements ExecutableAction {
     private String type;
     private Target target;
     private String query;
@@ -32,7 +32,6 @@ public class CompiledTable {
     private List<String> tags;
     private ActionDescriptor actionDescriptor;
     private List<Target> dependencyTargets;
-    private String hermeticity;
     private Target canonicalTarget;
     private boolean materialized = false;
     private String enumType;
@@ -40,7 +39,6 @@ public class CompiledTable {
     private List<String> postOps = new ArrayList<>();
     private List<String> incrementalPreOps = new ArrayList<>();
     private String incrementalQuery;
-
 
     public static class ActionDescriptor {
         private String description;
@@ -64,6 +62,7 @@ public class CompiledTable {
         return kind == null ? null : kind.toLowerCase(Locale.ROOT);
     }
 
+    @Override
     public Target getTarget() {
         return target;
     }
@@ -76,14 +75,17 @@ public class CompiledTable {
         return new CompiledQuery(this.getTarget().getFullName(), preOps, incrementalPreOps, query, postOps, null,disabled);
     }
 
+    @Override
     public boolean isDisabled() {
         return disabled;
     }
 
+    @Override
     public String getFileName() {
         return DataformPaths.normalize(fileName);
     }
 
+    @Override
     public List<String> getTags() {
         return tags != null ? tags : Collections.emptyList();
     }
@@ -92,12 +94,9 @@ public class CompiledTable {
         return actionDescriptor;
     }
 
+    @Override
     public List<Target> getDependencyTargets() {
         return dependencyTargets != null ? dependencyTargets : Collections.emptyList();
-    }
-
-    public String getHermeticity() {
-        return hermeticity;
     }
 
     public Target getCanonicalTarget() {
@@ -116,19 +115,7 @@ public class CompiledTable {
         return preOps;
     }
 
-    public List<String> getPostOps() {
-        return postOps;
-    }
-
-    public List<String> getIncrementalPreOps() {
-        return incrementalPreOps;
-    }
-
     public String getIncrementalQuery() {
         return incrementalQuery;
-    }
-
-    public boolean matchFileName(String fileName) {
-        return DataformPaths.pointsTo(fileName, this.fileName);
     }
 }

@@ -16,10 +16,8 @@
  */
 package io.github.rejeb.dataform.language.gcp.auth;
 
-import com.google.auth.oauth2.GoogleAuthUtils;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.UserCredentials;
-import com.intellij.ide.util.PropertiesComponent;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.progress.ProcessCanceledException;
@@ -30,17 +28,12 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class DataformCredentialsServiceImpl implements DataformCredentialsService {
 
     private static final Logger LOG = Logger.getInstance(DataformCredentialsServiceImpl.class);
-
-    private static final String SIGNED_OUT_KEY = "dataform.gcp.auth.signedOut";
 
     private final DataformCredentialsStore store = new PasswordSafeCredentialsStore();
     private final AtomicBoolean signInRunning = new AtomicBoolean(false);
@@ -63,9 +56,6 @@ public final class DataformCredentialsServiceImpl implements DataformCredentials
                 return current;
             }
             GoogleCredentials resolved = fromStore();
-            if (resolved == null) {
-                resolved = fromApplicationDefault();
-            }
             if (resolved == null) {
                 lastKnownSignedIn = Boolean.FALSE;
                 throw new GcpAuthRequiredException(
@@ -122,7 +112,9 @@ public final class DataformCredentialsServiceImpl implements DataformCredentials
             if (ApplicationManager.getApplication().isDispatchThread()) {
                 return null;
             }
-            store.load().ifPresent(stored -> accountEmail = stored.accountEmail());
+            store.load()
+                    .filter(DataformCredentialsServiceImpl::isIssuedToConfiguredClient)
+                    .ifPresent(stored -> accountEmail = stored.accountEmail());
             accountEmailLoaded = true;
         }
         return accountEmail;
@@ -155,7 +147,6 @@ public final class DataformCredentialsServiceImpl implements DataformCredentials
             accountEmailLoaded = true;
             lastKnownSignedIn = Boolean.FALSE;
             store.clear();
-            setSignedOut(true);
         }
         DataformAuthState.getInstance().markAuthRequired(AuthTrigger.USER_ACTION);
     }
@@ -169,7 +160,6 @@ public final class DataformCredentialsServiceImpl implements DataformCredentials
                 accountEmailLoaded = true;
                 cached = null;
                 lastKnownSignedIn = null;
-                setSignedOut(false);
             }
             get();
             DataformAuthState.getInstance().markAuthenticated();
@@ -186,6 +176,11 @@ public final class DataformCredentialsServiceImpl implements DataformCredentials
     @Nullable
     private GoogleCredentials fromStore() {
         Optional<StoredCredentials> stored = store.load();
+        if (stored.isPresent() && !isIssuedToConfiguredClient(stored.get())) {
+            LOG.info("Discarding the stored Google credential: it was issued to another OAuth client.");
+            store.clear();
+            stored = Optional.empty();
+        }
         if (stored.isEmpty()) {
             accountEmailLoaded = true;
             return null;
@@ -203,34 +198,8 @@ public final class DataformCredentialsServiceImpl implements DataformCredentials
         return tryRefresh(credentials) ? credentials : null;
     }
 
-    @Nullable
-    private GoogleCredentials fromApplicationDefault() {
-        if (isSignedOut()) {
-            return null;
-        }
-        String envPath = System.getenv("GOOGLE_APPLICATION_CREDENTIALS");
-        String adcPath = envPath != null ? envPath : GoogleAuthUtils.getWellKnownCredentialsPath();
-        Path path = Path.of(adcPath);
-        if (!Files.exists(path)) {
-            return null;
-        }
-        try (InputStream stream = Files.newInputStream(path)) {
-            GoogleCredentials credentials = GoogleCredentials
-                    .fromStream(stream, SslConfig.httpTransportFactory())
-                    .createScoped();
-            return tryRefresh(credentials) ? credentials : null;
-        } catch (IOException e) {
-            LOG.debug("Application default credentials are not usable.", e);
-            return null;
-        }
-    }
-
-    private static boolean isSignedOut() {
-        return PropertiesComponent.getInstance().getBoolean(SIGNED_OUT_KEY, false);
-    }
-
-    private static void setSignedOut(boolean signedOut) {
-        PropertiesComponent.getInstance().setValue(SIGNED_OUT_KEY, signedOut, false);
+    private static boolean isIssuedToConfiguredClient(@NotNull StoredCredentials credentials) {
+        return OAuthClientConfig.clientId().equals(credentials.clientId());
     }
 
     private boolean tryRefresh(@NotNull GoogleCredentials credentials) {

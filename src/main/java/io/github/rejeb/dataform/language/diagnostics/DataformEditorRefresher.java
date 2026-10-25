@@ -57,6 +57,20 @@ public final class DataformEditorRefresher {
     }
 
     /**
+     * Repaints every view of the Dataform diagnostics of the project: the inlays under the problems
+     * as well as the annotations and the banners {@link #refresh} repaints.
+     *
+     * @param project the project whose editors to repaint
+     */
+    public static void refreshWithInlays(@NotNull Project project) {
+        if (project.isDisposed()) {
+            return;
+        }
+        ValidationProblemInlayManager.getInstance(project).refreshAll();
+        refresh(project);
+    }
+
+    /**
      * Restarts the daemon on the open Dataform files and refreshes the editor banners of the
      * project, once for every request made before the previous one reached the EDT.
      */

@@ -30,15 +30,8 @@ import org.jetbrains.annotations.NotNull;
  *
  * <p>A folded region can only display a single line, so the full value is offered here.</p>
  */
-public class DataformExpressionValueDocumentationTarget implements DocumentationTarget {
-
-    private final String source;
-    private final String value;
-
-    public DataformExpressionValueDocumentationTarget(@NotNull String source, @NotNull String value) {
-        this.source = source;
-        this.value = value;
-    }
+public record DataformExpressionValueDocumentationTarget(@NotNull String source, @NotNull String value)
+        implements DocumentationTarget {
 
     @Override
     public @NotNull Pointer<? extends DocumentationTarget> createPointer() {

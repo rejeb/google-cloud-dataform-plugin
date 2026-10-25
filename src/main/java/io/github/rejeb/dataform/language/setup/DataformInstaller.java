@@ -16,11 +16,8 @@
  */
 package io.github.rejeb.dataform.language.setup;
 
-import com.intellij.notification.Notification;
 import com.intellij.notification.NotificationAction;
-import com.intellij.notification.NotificationGroupManager;
 import com.intellij.notification.NotificationType;
-import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.application.ApplicationActivationListener;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
@@ -31,6 +28,7 @@ import com.intellij.openapi.wm.IdeFrame;
 import com.intellij.util.messages.MessageBusConnection;
 import io.github.rejeb.dataform.language.settings.DataformToolsConfigurable;
 import io.github.rejeb.dataform.language.settings.DataformToolsSettings;
+import io.github.rejeb.dataform.language.util.DataformNotifications;
 import io.github.rejeb.dataform.language.util.NodeJsNpmUtils;
 import io.github.rejeb.dataform.language.util.Utils;
 import kotlin.Unit;
@@ -41,7 +39,6 @@ import org.jetbrains.annotations.Nullable;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
-
 
 public class DataformInstaller implements ProjectActivity {
 
@@ -93,7 +90,6 @@ public class DataformInstaller implements ProjectActivity {
         return null;
     }
 
-
     public static void checkAndSetup(@NotNull Project project) {
         DataformToolsSettings settings = DataformToolsSettings.getInstance();
         NodeInterpreterManager nim = NodeInterpreterManager.getInstance(project);
@@ -114,7 +110,6 @@ public class DataformInstaller implements ProjectActivity {
             return;
         }
 
-
         if (settings.getCoreInstallPath().isBlank()) {
             Path root = dataformRootDir.get();
             String core = root.resolve("core").toAbsolutePath().toString();
@@ -134,24 +129,12 @@ public class DataformInstaller implements ProjectActivity {
         return Optional.empty();
     }
 
-
     private static void showConfigureDataformNotification(@NotNull Project project) {
-        NotificationGroupManager.getInstance()
-                .getNotificationGroup("Dataform.Notifications")
-                .createNotification(
-                        "Dataform not configured",
+        DataformNotifications.create("Dataform not configured",
                         "Dataform CLI and Core were not found. Please configure their paths.",
                         NotificationType.WARNING)
-                .addAction(new NotificationAction("Configure") {
-                    @Override
-                    public void actionPerformed(@NotNull AnActionEvent e,
-                                                @NotNull Notification notification) {
-                        ShowSettingsUtil.getInstance()
-                                .showSettingsDialog(project, DataformToolsConfigurable.class);
-                        notification.expire();
-                    }
-                })
+                .addAction(NotificationAction.createSimpleExpiring("Configure", () -> ShowSettingsUtil.getInstance()
+                        .showSettingsDialog(project, DataformToolsConfigurable.class)))
                 .notify(project);
     }
-
 }

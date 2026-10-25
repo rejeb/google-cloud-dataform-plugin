@@ -16,13 +16,10 @@
  */
 package io.github.rejeb.dataform.language.gcp.service;
 
-import com.intellij.openapi.Disposable;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.util.Disposer;
 import io.github.rejeb.dataform.language.gcp.common.GcpApiException;
-import io.github.rejeb.dataform.language.gcp.execution.workflow.BigQueryJobOperations;
-import io.github.rejeb.dataform.language.gcp.execution.workflow.BigQueryJobOperationsHandler;
+import io.github.rejeb.dataform.language.gcp.execution.workflow.repository.BigQueryJobRepository;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.WorkflowOperations;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.WorkflowOperationsHandler;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.BigQueryJobDetails;
@@ -50,7 +47,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
-public final class DataformGcpServiceImpl implements DataformGcpService, Disposable {
+public final class DataformGcpServiceImpl implements DataformGcpService {
 
     private static final Logger LOG = Logger.getInstance(DataformGcpServiceImpl.class);
 
@@ -59,24 +56,19 @@ public final class DataformGcpServiceImpl implements DataformGcpService, Disposa
     private final AtomicBoolean loading = new AtomicBoolean(false);
     private final DataformGcpFileCache fileCache;
     private final WorkflowOperations workflowOperations;
-    private final BigQueryJobOperations bigQueryJobOperations;
+    private final BigQueryJobRepository bigQueryJobRepository;
 
     public DataformGcpServiceImpl(@NotNull Project project) {
         this.project = project;
         this.fileCache = DataformGcpFileCache.getInstance(project);
 
         GcpDataformWorkspaceRepository repository = new GcpDataformWorkspaceRepository();
-        Disposer.register(this, repository);
 
         var configProvider = new WorkflowSettingsGcpConfigProvider(GcpRepositorySettings.getInstance(project));
         this.workspaceOperations = new WorkspaceOperationsHandler(repository, configProvider, project);
         WorkflowRepository workflowRepository = new GcpDataformWorkflowRepository();
         this.workflowOperations = new WorkflowOperationsHandler(workflowRepository, configProvider);
-        this.bigQueryJobOperations = new BigQueryJobOperationsHandler(new GcpBigQueryJobRepository());
-    }
-
-    @Override
-    public void dispose() {
+        this.bigQueryJobRepository = new GcpBigQueryJobRepository();
     }
 
     @Override
@@ -88,11 +80,6 @@ public final class DataformGcpServiceImpl implements DataformGcpService, Disposa
     @Override
     public @NotNull String getFileContent(@Nullable String workspaceId, @NotNull String filePath) {
         return workspaceOperations.getFileContent(workspaceId, filePath);
-    }
-
-    @Override
-    public void invalidateCache() {
-        fileCache.invalidate();
     }
 
     @Override
@@ -186,11 +173,6 @@ public final class DataformGcpServiceImpl implements DataformGcpService, Disposa
     }
 
     @Override
-    public boolean isLoading() {
-        return loading.get();
-    }
-
-    @Override
     public void createGcpRepository(@NotNull DataformRepositoryConfig config) {
         workspaceOperations.createRepository(config);
     }
@@ -243,12 +225,12 @@ public final class DataformGcpServiceImpl implements DataformGcpService, Disposa
             @NotNull String project,
             @Nullable String location
     ) {
-        return bigQueryJobOperations.getJobDetails(jobId, project, location);
+        return bigQueryJobRepository.getJobDetails(jobId, project, location);
     }
 
     @Override
     @Nullable
     public String resolveDatasetLocation(@NotNull String project, @NotNull String dataset) {
-        return bigQueryJobOperations.resolveDatasetLocation(project, dataset);
+        return bigQueryJobRepository.resolveDatasetLocation(project, dataset);
     }
 }

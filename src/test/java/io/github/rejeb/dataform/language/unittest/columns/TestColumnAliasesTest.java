@@ -24,11 +24,11 @@ import io.github.rejeb.dataform.language.diagnostics.compile.ConfigSchemaFixture
 import io.github.rejeb.dataform.language.evaluation.DataformExpressionEvaluationService;
 import io.github.rejeb.dataform.language.evaluation.DataformExpressionEvaluationServiceImpl;
 import io.github.rejeb.dataform.language.evaluation.DataformTemplateSyntax;
-import io.github.rejeb.dataform.language.lineage.column.ColumnRef;
+import io.github.rejeb.dataform.language.columns.model.ColumnRef;
 import io.github.rejeb.dataform.language.psi.SqlxInputBlock;
 import io.github.rejeb.dataform.language.psi.SqlxJsLiteralExpression;
 import io.github.rejeb.dataform.language.psi.SqlxSqlBlock;
-import io.github.rejeb.dataform.language.refactoring.column.ColumnRenameFixture;
+import io.github.rejeb.dataform.language.columns.rename.ColumnRenameFixture;
 import io.github.rejeb.dataform.language.unittest.schema.TestBlockKind;
 
 import java.util.List;

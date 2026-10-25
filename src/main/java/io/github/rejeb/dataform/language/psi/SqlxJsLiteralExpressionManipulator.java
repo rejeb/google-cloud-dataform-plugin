@@ -32,10 +32,7 @@ public class SqlxJsLiteralExpressionManipulator extends AbstractElementManipulat
                                                        @NotNull TextRange range,
                                                        @NotNull String newContent)
             throws IncorrectOperationException {
-        String oldText = element.getText();
-        String newText = oldText.substring(0, range.getStartOffset())
-                + newContent
-                + oldText.substring(range.getEndOffset());
+        String newText = range.replace(element.getText(), newContent);
 
         String fakeFile = "{(`" + newText + "`)}";
 
@@ -46,10 +43,5 @@ public class SqlxJsLiteralExpressionManipulator extends AbstractElementManipulat
                 PsiTreeUtil.findChildOfType(fileFromText, SqlxJsLiteralExpression.class);
         if (newElement == null) return element;
         return (SqlxJsLiteralExpression) element.replace(newElement);
-    }
-
-    @Override
-    public @NotNull TextRange getRangeInElement(@NotNull SqlxJsLiteralExpression element) {
-        return TextRange.from(0, element.getTextLength());
     }
 }

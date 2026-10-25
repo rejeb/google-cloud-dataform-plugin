@@ -20,6 +20,7 @@ import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
+import io.github.rejeb.dataform.language.schema.sql.SqlPsiParts;
 
 import java.util.List;
 import java.util.Optional;
@@ -33,7 +34,7 @@ public class TestAliasPathsTest extends BasePlatformTestCase {
         PsiElement leaf = InjectedLanguageManager.getInstance(getProject()).findInjectedElementAt(host, offset);
         assertNotNull(leaf);
         for (PsiElement e = leaf; e != null && !(e instanceof PsiFile); e = e.getParent()) {
-            if (TestAliasPaths.isType(e, TestAliasPaths.AS_EXPRESSION)
+            if (SqlPsiParts.isType(e, TestAliasPaths.AS_EXPRESSION)
                     && TestAliasPaths.aliasIdentifier(e) != null
                     && com.intellij.psi.util.PsiTreeUtil.isAncestor(TestAliasPaths.aliasIdentifier(e), leaf, false)) {
                 return TestAliasPaths.pathOf(e);

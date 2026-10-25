@@ -36,9 +36,10 @@ public interface DataformCredentialsService {
     }
 
     /**
-     * Resolves a usable credential from the in-memory cache, then from the shared store, then from
-     * the gcloud application default credentials as a read-only fallback. The fallback is disabled
-     * once the user explicitly signed out, until the next successful sign-in.
+     * Resolves a usable credential from the in-memory cache, then from the shared store. Only a
+     * credential obtained through {@link #signIn(Project)} with the configured OAuth client is used:
+     * a stored credential issued to another client is deleted, and credentials found outside the
+     * plugin, such as the gcloud application default credentials, are never read.
      *
      * @return a usable credential
      * @throws GcpAuthRequiredException when the user must sign in
@@ -80,8 +81,7 @@ public interface DataformCredentialsService {
     void signIn(@Nullable Project project);
 
     /**
-     * Forgets the credential, both in memory and in the shared store, and stops falling back to the
-     * gcloud application default credentials until the next successful sign-in.
+     * Forgets the credential, both in memory and in the shared store.
      */
     void signOut();
 }

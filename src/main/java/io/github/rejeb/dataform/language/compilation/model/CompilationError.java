@@ -47,7 +47,6 @@ public class CompilationError {
         return actionName;
     }
 
-
     public boolean matchFileName(String fileName) {
         return DataformPaths.pointsTo(fileName, this.fileName);
     }

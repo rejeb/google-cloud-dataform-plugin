@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "io.github.rejeb"
-version = "0.2.23"
+version = "0.2.24"
 
 repositories {
     mavenCentral()

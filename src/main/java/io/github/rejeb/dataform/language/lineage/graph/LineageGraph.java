@@ -16,13 +16,13 @@
  */
 package io.github.rejeb.dataform.language.lineage.graph;
 
+import io.github.rejeb.dataform.language.util.DirectedAdjacency;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -36,17 +36,11 @@ import java.util.Set;
 public final class LineageGraph {
 
     private final Map<String, LineageNode> nodes;
-    private final Map<String, Set<String>> predecessors;
-    private final Map<String, Set<String>> successors;
-    private final Map<String, Set<String>> ancestorsCache = new java.util.concurrent.ConcurrentHashMap<>();
-    private final Map<String, Set<String>> descendantsCache = new java.util.concurrent.ConcurrentHashMap<>();
+    private final DirectedAdjacency adjacency;
 
-    private LineageGraph(Map<String, LineageNode> nodes,
-                         Map<String, Set<String>> predecessors,
-                         Map<String, Set<String>> successors) {
+    private LineageGraph(Map<String, LineageNode> nodes, DirectedAdjacency adjacency) {
         this.nodes = nodes;
-        this.predecessors = predecessors;
-        this.successors = successors;
+        this.adjacency = adjacency;
     }
 
     public @NotNull Collection<LineageNode> nodes() {
@@ -59,36 +53,22 @@ public final class LineageGraph {
 
     /** Direct dependencies of {@code id} (nodes that feed into it). */
     public @NotNull Set<String> predecessors(@NotNull String id) {
-        return predecessors.getOrDefault(id, Set.of());
+        return adjacency.predecessors(id);
     }
 
     /** Nodes that depend on {@code id}. */
     public @NotNull Set<String> successors(@NotNull String id) {
-        return successors.getOrDefault(id, Set.of());
+        return adjacency.successors(id);
     }
 
     /** Transitive upstream closure of {@code id} (cycle-guarded, memoized). */
     public @NotNull Set<String> ancestors(@NotNull String id) {
-        return ancestorsCache.computeIfAbsent(id, k -> traverse(k, true));
+        return adjacency.upstream(id);
     }
 
     /** Transitive downstream closure of {@code id} (cycle-guarded, memoized). */
     public @NotNull Set<String> descendants(@NotNull String id) {
-        return descendantsCache.computeIfAbsent(id, k -> traverse(k, false));
-    }
-
-    private @NotNull Set<String> traverse(@NotNull String id, boolean upstream) {
-        Set<String> result = new java.util.LinkedHashSet<>();
-        java.util.Deque<String> queue = new java.util.ArrayDeque<>();
-        queue.add(id);
-        while (!queue.isEmpty()) {
-            String current = queue.poll();
-            Set<String> next = upstream ? predecessors(current) : successors(current);
-            for (String n : next) {
-                if (result.add(n)) queue.add(n);
-            }
-        }
-        return result;
+        return adjacency.downstream(id);
     }
 
     public boolean isEmpty() {
@@ -102,8 +82,7 @@ public final class LineageGraph {
     public static final class Builder {
 
         private final Map<String, LineageNode> nodes = new LinkedHashMap<>();
-        private final Map<String, Set<String>> predecessors = new LinkedHashMap<>();
-        private final Map<String, Set<String>> successors = new LinkedHashMap<>();
+        private final DirectedAdjacency.Builder adjacency = DirectedAdjacency.builder();
 
         private Builder() {
         }
@@ -120,21 +99,12 @@ public final class LineageGraph {
          */
         public @NotNull Builder addEdge(@NotNull String fromId, @NotNull String toId) {
             if (!nodes.containsKey(fromId) || !nodes.containsKey(toId)) return this;
-            successors.computeIfAbsent(fromId, k -> new LinkedHashSet<>()).add(toId);
-            predecessors.computeIfAbsent(toId, k -> new LinkedHashSet<>()).add(fromId);
+            adjacency.addEdge(fromId, toId);
             return this;
         }
 
         public @NotNull LineageGraph build() {
-            Map<String, Set<String>> frozenPred = new LinkedHashMap<>();
-            predecessors.forEach((k, v) -> frozenPred.put(k, Collections.unmodifiableSet(new LinkedHashSet<>(v))));
-            Map<String, Set<String>> frozenSucc = new LinkedHashMap<>();
-            successors.forEach((k, v) -> frozenSucc.put(k, Collections.unmodifiableSet(new LinkedHashSet<>(v))));
-            return new LineageGraph(
-                    Collections.unmodifiableMap(new LinkedHashMap<>(nodes)),
-                    Collections.unmodifiableMap(frozenPred),
-                    Collections.unmodifiableMap(frozenSucc)
-            );
+            return new LineageGraph(Collections.unmodifiableMap(new LinkedHashMap<>(nodes)), adjacency.build());
         }
     }
 }

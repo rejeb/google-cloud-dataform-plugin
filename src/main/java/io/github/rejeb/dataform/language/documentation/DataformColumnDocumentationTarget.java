@@ -26,15 +26,8 @@ import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-public class DataformColumnDocumentationTarget implements DocumentationTarget {
-
-    private final ColumnInfo myColumn;
-    private final String myTableName;
-
-    public DataformColumnDocumentationTarget(@NotNull ColumnInfo column, @Nullable String tableName) {
-        this.myColumn = column;
-        this.myTableName = tableName;
-    }
+public record DataformColumnDocumentationTarget(@NotNull ColumnInfo column, @Nullable String tableName)
+        implements DocumentationTarget {
 
     @Override
     public @NotNull Pointer<? extends DocumentationTarget> createPointer() {
@@ -43,16 +36,16 @@ public class DataformColumnDocumentationTarget implements DocumentationTarget {
 
     @Override
     public @NotNull TargetPresentation computePresentation() {
-        TargetPresentationBuilder builder = TargetPresentation.builder(myColumn.name())
+        TargetPresentationBuilder builder = TargetPresentation.builder(column.name())
                 .icon(AllIcons.Nodes.Field);
-        return myTableName == null
+        return tableName == null
                 ? builder.presentation()
-                : builder.locationText(myTableName).presentation();
+                : builder.locationText(tableName).presentation();
     }
 
     @Override
     public @Nullable DocumentationResult computeDocumentation() {
         return DocumentationResult.documentation(
-                DataformDocumentationRenderer.renderColumn(myColumn, myTableName));
+                DataformDocumentationRenderer.renderColumn(column, tableName));
     }
 }

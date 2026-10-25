@@ -28,7 +28,7 @@ import io.github.rejeb.dataform.language.compilation.model.CompiledOperation;
 import io.github.rejeb.dataform.language.compilation.model.CompiledTable;
 import io.github.rejeb.dataform.language.compilation.model.Declaration;
 import io.github.rejeb.dataform.language.compilation.model.Target;
-import io.github.rejeb.dataform.language.completion.config.ConfigSchemaLookup;
+import io.github.rejeb.dataform.language.config.ConfigSchemaLookup;
 import io.github.rejeb.dataform.language.psi.SqlxConfigBlock;
 import io.github.rejeb.dataform.language.psi.SqlxFile;
 import io.github.rejeb.dataform.language.psi.SqlxJsBlock;

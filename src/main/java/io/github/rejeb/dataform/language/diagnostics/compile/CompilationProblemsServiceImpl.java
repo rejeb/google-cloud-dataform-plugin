@@ -24,8 +24,13 @@ import com.intellij.psi.PsiFile;
 import com.intellij.psi.util.CachedValueProvider;
 import com.intellij.psi.util.CachedValuesManager;
 import com.intellij.psi.util.PsiModificationTracker;
+import io.github.rejeb.dataform.language.compilation.CompilationFailures;
+import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
+import io.github.rejeb.dataform.language.compilation.model.CompilationError;
+import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.diagnostics.CompilationDiagnostic;
-import io.github.rejeb.dataform.language.diagnostics.CompilationDiagnosticService;
+import io.github.rejeb.dataform.language.diagnostics.PlacedProblems;
+import io.github.rejeb.dataform.language.diagnostics.compile.CompilationErrorParser;
 import io.github.rejeb.dataform.language.diagnostics.sql.hint.SqlHint;
 import io.github.rejeb.dataform.language.psi.SqlxFile;
 import io.github.rejeb.dataform.language.util.DataformProjectLayout;
@@ -36,7 +41,11 @@ import org.jetbrains.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 /**
  * Default {@link CompilationProblemsService}. What it computes depends on the file and on the last
@@ -49,30 +58,32 @@ public final class CompilationProblemsServiceImpl implements CompilationProblems
     static final String PREFIX = "Dataform: ";
 
     private final Project project;
+    private final Map<String, CacheEntry> cache = new ConcurrentHashMap<>();
+    private final Map<String, CacheEntry> raisedCache = new ConcurrentHashMap<>();
+    private final AtomicLong modificationCount = new AtomicLong();
 
     public CompilationProblemsServiceImpl(@NotNull Project project) {
         this.project = project;
     }
 
     @Override
-    public @NotNull CompilationProblems diagnose(@NotNull PsiFile file) {
-        if (InjectedLanguageManager.getInstance(project).isInjectedFragment(file)) return CompilationProblems.NONE;
+    public @NotNull PlacedProblems diagnose(@NotNull PsiFile file) {
+        if (InjectedLanguageManager.getInstance(project).isInjectedFragment(file)) return PlacedProblems.NONE;
         VirtualFile virtualFile = file.getOriginalFile().getVirtualFile();
-        if (virtualFile == null) return CompilationProblems.NONE;
+        if (virtualFile == null) return PlacedProblems.NONE;
         return CachedValuesManager.getCachedValue(file, () -> CachedValueProvider.Result.create(
                 compute(file, virtualFile),
                 PsiModificationTracker.MODIFICATION_COUNT,
-                CompilationDiagnosticService.getInstance(project)));
+                this));
     }
 
-    private @NotNull CompilationProblems compute(@NotNull PsiFile file, @NotNull VirtualFile virtualFile) {
-        CompilationDiagnosticService diagnostics = CompilationDiagnosticService.getInstance(project);
+    private @NotNull PlacedProblems compute(@NotNull PsiFile file, @NotNull VirtualFile virtualFile) {
         String path = virtualFile.getPath();
         List<SqlxValidationProblem> located = new ArrayList<>();
         List<String> unlocated = new ArrayList<>();
         Set<TextRange> taken = new HashSet<>();
         boolean shown = file instanceof SqlxFile || DataformProjectLayout.isDataformScript(virtualFile);
-        for (CompilationDiagnostic diagnostic : diagnostics.getDiagnostics(virtualFile)) {
+        for (CompilationDiagnostic diagnostic : getDiagnostics(virtualFile)) {
             ParsedCompilationError error = CompilationErrorParser.parse(
                     diagnostic.message(), diagnostic.stack(), diagnostic.reportedFileName());
             TextRange range = shown ? CompilationErrorPlacer.place(file, path, error) : null;
@@ -83,7 +94,7 @@ public final class CompilationProblemsServiceImpl implements CompilationProblems
             }
         }
         if (shown && !(file instanceof SqlxFile)) {
-            for (CompilationDiagnostic diagnostic : diagnostics.getDiagnosticsRaisedIn(virtualFile)) {
+            for (CompilationDiagnostic diagnostic : getDiagnosticsRaisedIn(virtualFile)) {
                 ParsedCompilationError error = CompilationErrorParser.parse(
                         diagnostic.message(), diagnostic.stack(), diagnostic.reportedFileName());
                 TextRange range = CompilationErrorPlacer.placeRaised(file, path, error);
@@ -92,8 +103,7 @@ public final class CompilationProblemsServiceImpl implements CompilationProblems
                 }
             }
         }
-        if (located.isEmpty() && unlocated.isEmpty()) return CompilationProblems.NONE;
-        return new CompilationProblems(List.copyOf(located), List.copyOf(unlocated));
+        return PlacedProblems.of(located, unlocated);
     }
 
     private static @NotNull SqlxValidationProblem problemOf(@NotNull PsiFile file, @NotNull String path,
@@ -114,5 +124,78 @@ public final class CompilationProblemsServiceImpl implements CompilationProblems
         if (error.indexOfFrameIn(path) <= 0) return null;
         StackFrame top = error.frames().getFirst();
         return top.path().startsWith("definitions/") || top.path().startsWith("includes/") ? top : null;
+    }
+
+
+    private record GraphStamp(int identity, long modificationCount) {
+    }
+
+    private record CacheEntry(GraphStamp graph, List<CompilationDiagnostic> diagnostics) {
+    }
+
+    private @NotNull GraphStamp stampOf(@Nullable CompiledGraph graph) {
+        return new GraphStamp(System.identityHashCode(graph),
+                DataformCompilationService.getInstance(project).getModificationCount());
+    }
+
+    @Override
+    public @NotNull List<CompilationDiagnostic> getDiagnostics(@NotNull VirtualFile file) {
+        if (!DataformProjectLayout.isInDataformProject(file)) {
+            return List.of();
+        }
+        CompiledGraph graph = DataformCompilationService.getInstance(project).getCompiledGraph();
+        return cached(cache, file, graph, () -> CompilationFailures.errorsOf(graph).stream()
+                .filter(error -> error.matchFileName(file.getPath()))
+                .map(error -> diagnosticOf(file, error))
+                .toList());
+    }
+
+    @Override
+    public void invalidate() {
+        cache.clear();
+        raisedCache.clear();
+        modificationCount.incrementAndGet();
+    }
+
+    @Override
+    public @NotNull List<CompilationDiagnostic> getDiagnosticsRaisedIn(@NotNull VirtualFile file) {
+        if (!DataformProjectLayout.isInDataformProject(file)) {
+            return List.of();
+        }
+        CompiledGraph graph = DataformCompilationService.getInstance(project).getCompiledGraph();
+        return cached(raisedCache, file, graph, () -> CompilationFailures.errorsOf(graph).stream()
+                .filter(error -> error.getStack() != null && !error.matchFileName(file.getPath()))
+                .filter(error -> CompilationErrorParser.parse(error.getMessage(), error.getStack(), error.getFileName())
+                        .indexOfFrameIn(file.getPath()) >= 0)
+                .map(error -> diagnosticOf(file, error))
+                .toList());
+    }
+
+    private @NotNull List<CompilationDiagnostic> cached(@NotNull Map<String, CacheEntry> entries,
+                                                       @NotNull VirtualFile file, @Nullable CompiledGraph graph,
+                                                       @NotNull Supplier<List<CompilationDiagnostic>> compute) {
+        GraphStamp stamp = stampOf(graph);
+        CacheEntry cached = entries.get(file.getPath());
+        if (cached != null && cached.graph().equals(stamp)) {
+            return cached.diagnostics();
+        }
+        List<CompilationDiagnostic> computed = compute.get();
+        entries.put(file.getPath(), new CacheEntry(stamp, computed));
+        return computed;
+    }
+
+    /**
+     * Moves on every {@link #invalidate()} and on every change of the compiled graph, so what is
+     * computed from the diagnostics follows a compilation whoever ran it.
+     */
+    @Override
+    public long getModificationCount() {
+        return modificationCount.get() + DataformCompilationService.getInstance(project).getModificationCount();
+    }
+
+    private static @NotNull CompilationDiagnostic diagnosticOf(@NotNull VirtualFile file, @NotNull CompilationError error) {
+        return new CompilationDiagnostic(file,
+                error.getMessage() != null ? error.getMessage() : "Compilation error",
+                error.getStack(), error.getFileName());
     }
 }

@@ -23,6 +23,7 @@ import com.intellij.openapi.util.NlsSafe;
 import com.intellij.psi.PsiFile;
 import com.intellij.sql.psi.SqlLanguage;
 import io.github.rejeb.dataform.language.SqlxLanguage;
+import io.github.rejeb.dataform.language.util.DataformNotifications;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -39,7 +40,7 @@ public class SqlxFormattingService extends AsyncDocumentFormattingService {
 
     @Override
     protected @NotNull String getNotificationGroupId() {
-        return "Dataform.Notifications";
+        return DataformNotifications.GROUP_ID;
     }
 
     @Override
