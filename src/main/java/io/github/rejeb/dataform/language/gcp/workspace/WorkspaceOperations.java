@@ -105,6 +105,14 @@ public interface WorkspaceOperations {
     void createWorkspace(@NotNull String workspaceId);
 
     /**
+     * Deletes a workspace of the active GCP Dataform repository.
+     *
+     * @param workspaceId the ID of the workspace to delete
+     * @throws GcpApiException if deletion fails or config is missing
+     */
+    void deleteWorkspace(@NotNull String workspaceId);
+
+    /**
      * Returns all files with uncommitted Git changes in the given workspace.
      *
      * @throws GcpApiException on API error

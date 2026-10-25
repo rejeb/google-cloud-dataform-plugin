@@ -88,16 +88,6 @@ public final class DataformToolsSettingsImpl
     }
 
     @Override
-    public boolean isCompileOnSave() {
-        return state.compileOnSave;
-    }
-
-    @Override
-    public void setCompileOnSave(boolean value) {
-        state.compileOnSave = value;
-    }
-
-    @Override
     public void update(@NotNull String coreInstallPath,
                        @NotNull String sqlfluffExecutablePath,
                        @NotNull String sqlfluffConfigPath,

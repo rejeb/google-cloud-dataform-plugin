@@ -59,7 +59,9 @@ public final class DataformCompileOnEditListener implements EditorFactoryListene
         if (!DataformProjectLayout.isDataformSource(file)) {
             return;
         }
-        DataformProjects.forEachOwning(file, project ->
-                DataformAutoCompileService.getInstance(project).scheduleCompileAfterEdit());
+        DataformProjects.forEachOwning(file, project -> {
+            DataformCompilationService.getInstance(project).noteSourceChanged();
+            DataformAutoCompileService.getInstance(project).scheduleCompileAfterEdit();
+        });
     }
 }

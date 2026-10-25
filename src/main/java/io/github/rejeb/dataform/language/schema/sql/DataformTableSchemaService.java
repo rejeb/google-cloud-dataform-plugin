@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 public interface DataformTableSchemaService extends PersistentStateComponent<DataformTableSchemaService.State>, ModificationTracker {
     static DataformTableSchemaService getInstance(Project project) {
@@ -46,6 +47,19 @@ public interface DataformTableSchemaService extends PersistentStateComponent<Dat
     void refreshAsync(@NotNull CompiledGraph graph,
                       boolean forceRefresh,
                       @NotNull Set<String> failedFileNames);
+
+    /**
+     * Same as {@link #refreshAsync}, telling when the schemas of the given graph are published and
+     * what the run did. A graph older than the current compiled graph is not extracted: the future
+     * then follows the refresh already planned, if any.
+     */
+    @NotNull
+    default CompletableFuture<SchemaRefreshOutcome> refresh(@NotNull CompiledGraph graph,
+                                                            boolean forceRefresh,
+                                                            @NotNull Set<String> failedFileNames) {
+        refreshAsync(graph, forceRefresh, failedFileNames);
+        return CompletableFuture.completedFuture(SchemaRefreshOutcome.NOT_RUN);
+    }
 
     @NotNull
     Map<String, DataformDasTable> getAllTables();

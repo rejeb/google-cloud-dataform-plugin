@@ -157,6 +157,17 @@ public class WorkspaceOperationsTest extends BasePlatformTestCase {
                 () -> handlerWithResolver(fullConfig, List.of(path)).pushCode("dev"));
     }
 
+    public void testDeleteWorkspaceCallsRepositoryWithActiveRepositoryCoordinates() {
+        handler(fullConfig).deleteWorkspace("intellij-run-1");
+
+        verify(repository).deleteWorkspace("test-project", "europe-west1", "test-repo", "intellij-run-1");
+    }
+
+    public void testDeleteWorkspaceFailsWhenConfigMissing() {
+        assertThrows(GcpApiException.class, () -> handler(emptyConfig).deleteWorkspace("intellij-run-1"));
+        verifyNoInteractions(repository);
+    }
+
     public void testWorkspaceFromResourceNameExtractsId() {
         Workspace workspace = Workspace.fromResourceName(
                 "projects/p/locations/l/repositories/r/workspaces/my-workspace"

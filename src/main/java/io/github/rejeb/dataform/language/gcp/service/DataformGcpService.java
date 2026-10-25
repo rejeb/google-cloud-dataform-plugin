@@ -104,6 +104,15 @@ public interface DataformGcpService {
     void createWorkspace(@NotNull String workspaceId);
 
     /**
+     * Deletes a workspace of the active GCP Dataform repository.
+     * Must be called off the EDT.
+     *
+     * @param workspaceId the ID of the workspace to delete
+     * @throws GcpApiException if deletion fails (not found, permissions, network…)
+     */
+    void deleteWorkspace(@NotNull String workspaceId);
+
+    /**
      * Returns all uncommitted file changes in the given workspace.
      * Must be called off the EDT.
      */

@@ -193,6 +193,27 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
         );
     }
 
+    /**
+     * Deletes a workspace of the active GCP Dataform repository.
+     *
+     * @param workspaceId the ID of the workspace to delete
+     * @throws GcpApiException if deletion fails or config is missing
+     */
+    @Override
+    public void deleteWorkspace(@NotNull String workspaceId) {
+        RepositoryCoordinates config = readConfig();
+        if (config == null) {
+            throw new GcpApiException(
+                    "No active repository config — configure a repository first.");
+        }
+        workspaceRepository.deleteWorkspace(
+                config.projectId(),
+                config.location(),
+                config.repositoryId(),
+                workspaceId
+        );
+    }
+
     @Override
     @NotNull
     public List<UncommittedChange> fetchGitStatuses(@NotNull String workspaceId) {

@@ -50,8 +50,7 @@ public class DataformToolsConfigurable implements Configurable {
                 || !panel.getSqlfluffConfigPath().equals(service.getSqlfluffConfigPath())
                 || !panel.getSqlfluffExtraArgs().equals(service.getSqlfluffExtraArgs())
                 || panel.isFoldTemplateExpressions() != service.isFoldTemplateExpressions()
-                || panel.isShowInlineCompilationErrors() != service.isShowInlineCompilationErrors()
-                || panel.isCompileOnSave() != service.isCompileOnSave();
+                || panel.isShowInlineCompilationErrors() != service.isShowInlineCompilationErrors();
     }
 
     @Override
@@ -68,7 +67,6 @@ public class DataformToolsConfigurable implements Configurable {
         boolean inlineErrorsChanged =
                 panel.isShowInlineCompilationErrors() != settings.isShowInlineCompilationErrors();
         settings.setShowInlineCompilationErrors(panel.isShowInlineCompilationErrors());
-        settings.setCompileOnSave(panel.isCompileOnSave());
         if (foldChanged) {
             refreshFoldingInOpenEditors();
         }
@@ -103,6 +101,5 @@ public class DataformToolsConfigurable implements Configurable {
         panel.setSqlfluffExtraArgs(service.getSqlfluffExtraArgs());
         panel.setFoldTemplateExpressions(service.isFoldTemplateExpressions());
         panel.setShowInlineCompilationErrors(service.isShowInlineCompilationErrors());
-        panel.setCompileOnSave(service.isCompileOnSave());
     }
 }

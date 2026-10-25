@@ -183,6 +183,11 @@ public final class DataformGcpServiceImpl implements DataformGcpService {
     }
 
     @Override
+    public void deleteWorkspace(@NotNull String workspaceId) {
+        workspaceOperations.deleteWorkspace(workspaceId);
+    }
+
+    @Override
     @NotNull
     public List<UncommittedChange> fetchGitStatuses(@NotNull String workspaceId) {
         try {

@@ -81,14 +81,4 @@ public interface DataformToolsSettings {
      * Enables or disables showing compilation errors inline in the editor.
      */
     void setShowInlineCompilationErrors(boolean value);
-
-    /**
-     * Tells whether the project is recompiled in the background when a source file is saved.
-     */
-    boolean isCompileOnSave();
-
-    /**
-     * Enables or disables recompiling the project when a source file is saved.
-     */
-    void setCompileOnSave(boolean value);
 }

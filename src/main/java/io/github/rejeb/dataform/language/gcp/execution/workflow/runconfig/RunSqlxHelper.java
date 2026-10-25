@@ -24,7 +24,6 @@ import com.intellij.openapi.vfs.VirtualFile;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.Mode;
-import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
@@ -69,7 +68,6 @@ public class RunSqlxHelper {
                 runManager.createConfiguration(name, type.getConfigurationFactories()[0]);
         DataformWorkflowRunConfigurationOptions options =
                 ((DataformWorkflowRunConfiguration) settings.getConfiguration()).getOptions();
-        options.setWorkspaceId(GcpRepositorySettings.getInstance(project).getSelectedWorkspaceId());
         options.setTransitiveDependenciesIncluded(false);
         options.setTransitiveDependentsIncluded(false);
         options.setFullyRefreshIncrementalTables(false);

@@ -29,7 +29,6 @@ import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.columns.model.ColumnRef;
 import io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasTable;
-import io.github.rejeb.dataform.language.settings.DataformToolsSettings;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -42,21 +41,6 @@ public class DataformAutoCompileServiceImplTest extends BasePlatformTestCase {
 
     public void testServiceIsRegisteredAndResolvable() {
         assertNotNull(DataformAutoCompileService.getInstance(getProject()));
-    }
-
-    public void testScheduleIsANoOpWhenCompileOnSaveIsDisabled() {
-        DataformToolsSettings settings = DataformToolsSettings.getInstance();
-        boolean previous = settings.isCompileOnSave();
-        try {
-            settings.setCompileOnSave(false);
-            DataformAutoCompileService.getInstance(getProject()).scheduleCompile();
-        } finally {
-            settings.setCompileOnSave(previous);
-        }
-    }
-
-    public void testCompileOnSaveDefaultsToEnabled() {
-        assertTrue(DataformToolsSettings.getInstance().isCompileOnSave());
     }
 
     public void testTableSchemasAreRefreshedAfterASaveTriggeredCompilation() throws Exception {

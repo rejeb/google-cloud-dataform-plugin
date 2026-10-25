@@ -20,12 +20,14 @@ import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.fileEditor.FileDocumentManagerListener;
 import com.intellij.openapi.vfs.VirtualFile;
+import io.github.rejeb.dataform.language.columns.impact.ColumnImpactService;
 import io.github.rejeb.dataform.language.util.DataformProjectLayout;
 import io.github.rejeb.dataform.language.util.DataformProjects;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Triggers a background recompilation whenever a Dataform source file is saved.
+ * Triggers a background recompilation and a column impact check whenever a Dataform source file
+ * is saved.
  */
 public final class DataformCompileOnSaveListener implements FileDocumentManagerListener {
 
@@ -35,7 +37,10 @@ public final class DataformCompileOnSaveListener implements FileDocumentManagerL
         if (!DataformProjectLayout.isDataformSource(file)) {
             return;
         }
-        DataformProjects.forEachOwning(file, project ->
-                DataformAutoCompileService.getInstance(project).scheduleCompile());
+        DataformProjects.forEachOwning(file, project -> {
+            DataformCompilationService.getInstance(project).noteSourceChanged();
+            ColumnImpactService.getInstance(project).noteSourceSaved();
+            DataformAutoCompileService.getInstance(project).scheduleCompile();
+        });
     }
 }

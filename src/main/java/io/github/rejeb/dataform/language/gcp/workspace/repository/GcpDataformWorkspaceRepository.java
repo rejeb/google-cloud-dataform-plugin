@@ -281,6 +281,17 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
     }
 
     @Override
+    public void deleteWorkspace(
+            @NotNull String projectId,
+            @NotNull String location,
+            @NotNull String repositoryId,
+            @NotNull String workspaceId
+    ) {
+        DataformApi.run(projectId, e -> "Error deleting workspace \"" + workspaceId + "\": " + e.getMessage(), client ->
+                client.deleteWorkspace(workspaceName(projectId, location, repositoryId, workspaceId)));
+    }
+
+    @Override
     @NotNull
     public List<UncommittedChange> fetchFileGitStatuses(
             @NotNull String projectId,

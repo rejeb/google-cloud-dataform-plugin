@@ -22,10 +22,6 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectManager;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
 
-import java.util.List;
-import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
-import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
-
 public class DataformWorkflowConfigurationFactoryTest extends BasePlatformTestCase {
 
     private ConfigurationFactory factory() {
@@ -39,17 +35,5 @@ public class DataformWorkflowConfigurationFactoryTest extends BasePlatformTestCa
 
         assertNotNull("the platform builds a template configuration on the default project",
                 configuration);
-    }
-
-    public void testTemplateConfigurationOfARealProjectCarriesTheSelectedWorkspace() {
-        GcpRepositorySettings settings = GcpRepositorySettings.getInstance(getProject());
-        settings.saveAllConfigs(List.of(new DataformRepositoryConfig(
-                "config-1", "My repo", "my-project", "my-repo", "europe-west1", "")));
-        settings.setSelectedWorkspaceId("my-workspace");
-
-        RunConfiguration configuration = factory().createTemplateConfiguration(getProject());
-
-        assertEquals("my-workspace",
-                ((DataformWorkflowRunConfiguration) configuration).getOptions().getWorkspaceId());
     }
 }

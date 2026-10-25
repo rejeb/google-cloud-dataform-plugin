@@ -29,6 +29,7 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectUtil;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.util.concurrency.AppExecutorUtil;
 import io.github.rejeb.dataform.language.compilation.model.CompilationError;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.compilation.model.GraphErrors;
@@ -40,6 +41,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -59,6 +61,8 @@ public final class DataformCompilationServiceImpl
     private final Project project;
     private final ReentrantLock compileLock = new ReentrantLock();
     private final AtomicLong graphModificationCount = new AtomicLong();
+    private final CompilationFreshness freshness =
+            new CompilationFreshness(AppExecutorUtil.getAppExecutorService());
     private volatile CompiledGraph compiledGraph;
     private volatile State currentState = new State();
 
@@ -104,6 +108,7 @@ public final class DataformCompilationServiceImpl
         flushFiles(project);
         LOG.info("Dataform compile: documents flushed in "
                 + (System.currentTimeMillis() - flushStartedAt) + " ms");
+        long generation = freshness.currentGeneration();
         boolean waited = !compileLock.tryLock();
         if (waited) {
             compileLock.lock();
@@ -118,15 +123,16 @@ public final class DataformCompilationServiceImpl
                     && (!forceRefresh || waited);
             if (reuse) {
                 LOG.info("Sources unchanged, using cached compiled graph");
+                freshness.markCompiled(generation);
                 return compiledGraph;
             }
-            return runCompilation();
+            return runCompilation(generation);
         } finally {
             compileLock.unlock();
         }
     }
 
-    private CompiledGraph runCompilation() {
+    private CompiledGraph runCompilation(long generation) {
         LOG.info("Running compilation");
         try {
             Optional<GeneralCommandLine> cmd = project.getService(DataformInterpreterManager.class)
@@ -152,6 +158,7 @@ public final class DataformCompilationServiceImpl
                     currentState.compiledGraphJson = GSON.toJson(this.compiledGraph);
                     currentState.lastCompileTimestamp = processStartedAt;
                 }
+                freshness.markCompiled(generation);
                 graphChanged();
 
                 return this.compiledGraph;
@@ -174,6 +181,21 @@ public final class DataformCompilationServiceImpl
     @Override
     public CompiledGraph getCompiledGraph() {
         return compiledGraph;
+    }
+
+    @Override
+    public void noteSourceChanged() {
+        freshness.noteSourceChanged();
+    }
+
+    @Override
+    public boolean isUpToDate() {
+        return compiledGraph != null && freshness.isUpToDate();
+    }
+
+    @Override
+    public @NotNull CompletableFuture<CompiledGraph> upToDateGraph() {
+        return freshness.upToDateGraph(() -> compile(false), this::getCompiledGraph);
     }
 
     @Override

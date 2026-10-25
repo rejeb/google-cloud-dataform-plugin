@@ -117,6 +117,19 @@ public interface WorkspaceRepository {
     );
 
     /**
+     * Deletes a workspace of the given GCP Dataform repository.
+     *
+     * @param workspaceId ID of the workspace to delete
+     * @throws GcpApiException if the API call fails (e.g. not found, permission denied)
+     */
+    void deleteWorkspace(
+            @NotNull String projectId,
+            @NotNull String location,
+            @NotNull String repositoryId,
+            @NotNull String workspaceId
+    );
+
+    /**
      * Returns all files with uncommitted Git changes in the given workspace.
      *
      * @throws GcpApiException on API error

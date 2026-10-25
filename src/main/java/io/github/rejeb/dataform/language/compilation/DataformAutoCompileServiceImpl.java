@@ -32,7 +32,6 @@ import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.diagnostics.DataformEditorRefresher;
 import io.github.rejeb.dataform.language.diagnostics.compile.CompilationProblemsService;
 import io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService;
-import io.github.rejeb.dataform.language.settings.DataformToolsSettings;
 import io.github.rejeb.dataform.language.util.DataformProjectLayout;
 import io.github.rejeb.dataform.language.validation.DataformEditActivityService;
 import org.jetbrains.annotations.NotNull;
@@ -77,7 +76,7 @@ public final class DataformAutoCompileServiceImpl implements DataformAutoCompile
     }
 
     private void schedule(long delayMs) {
-        if (project.isDisposed() || !DataformToolsSettings.getInstance().isCompileOnSave()) {
+        if (project.isDisposed()) {
             return;
         }
         if (running.get()) {

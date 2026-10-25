@@ -190,6 +190,8 @@
         <projectService serviceInterface="io.github.rejeb.dataform.language.validation.SqlxValidationService"
                         serviceImplementation="io.github.rejeb.dataform.language.validation.SqlxValidationServiceImpl"
         />
+        <projectService serviceInterface="io.github.rejeb.dataform.language.columns.impact.ColumnImpactService"
+                        serviceImplementation="io.github.rejeb.dataform.language.columns.impact.ColumnImpactServiceImpl"/>
         <projectService serviceInterface="io.github.rejeb.dataform.language.diagnostics.sql.bigquery.BigQueryDiagnosticsService"
                         serviceImplementation="io.github.rejeb.dataform.language.diagnostics.sql.bigquery.BigQueryDiagnosticsServiceImpl"
         />
@@ -371,6 +373,9 @@
         <annotator
                 language="SQL"
                 implementationClass="io.github.rejeb.dataform.language.highlight.SqlxSqlProblemAnnotator"/>
+        <annotator
+                language="SQLX"
+                implementationClass="io.github.rejeb.dataform.language.columns.rename.downstream.DownstreamRenameAnnotator"/>
 
         <localInspection
                 language="JavaScript"

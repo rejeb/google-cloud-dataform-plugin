@@ -26,8 +26,6 @@ import java.util.List;
 
 public class DataformWorkflowRunConfigurationOptions extends RunConfigurationOptions {
 
-    private final StoredProperty<String> workspaceId =
-            string("").provideDelegate(this, "workspaceId");
     private final StoredProperty<Mode> selectedMode =
             doEnum(Mode.ACTIONS, Mode.class).provideDelegate(this, "selectedMode");
     private final StoredProperty<Boolean> transitiveDependenciesIncluded =
@@ -44,14 +42,6 @@ public class DataformWorkflowRunConfigurationOptions extends RunConfigurationOpt
 
     private final StoredProperty<List<String>> includedTargets =
             this.<String>list().provideDelegate(this, "includedTargets");
-
-    public String getWorkspaceId() {
-        return workspaceId.getValue(this);
-    }
-
-    public void setWorkspaceId(String v) {
-        workspaceId.setValue(this, v);
-    }
 
     public Mode getSelectedMode() {
         return selectedMode.getValue(this);

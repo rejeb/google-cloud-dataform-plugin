@@ -35,6 +35,7 @@ import com.intellij.openapi.fileTypes.UnknownFileType;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.progress.Task;
+import com.intellij.openapi.progress.util.ProgressIndicatorUtils;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.popup.JBPopup;
 import com.intellij.openapi.ui.popup.JBPopupFactory;
@@ -43,13 +44,13 @@ import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiManager;
 import com.intellij.sql.SqlFileType;
+import com.intellij.util.ExceptionUtil;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
 import icons.DatabaseIcons;
 import io.github.rejeb.dataform.language.compilation.CompilationFailures;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationEvent;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
-import io.github.rejeb.dataform.language.compilation.model.CompilationError;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.compilation.model.CompiledQuery;
 import io.github.rejeb.dataform.language.compilation.model.CompiledTest;
@@ -74,10 +75,7 @@ import org.jetbrains.annotations.Nullable;
 import java.awt.*;
 import java.beans.PropertyChangeListener;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.UnaryOperator;
-import java.util.stream.Collectors;
 import javax.swing.*;
 
 /**
@@ -175,18 +173,14 @@ public class SqlxCompiledPreviewEditor extends UserDataHolderBase implements Fil
                     String path = file.getCanonicalPath();
                     if (unitTestFile) {
                         foundTest = graph.findTestByFileName(path).stream().findFirst().orElse(null);
-                        foundErrors = graph.findCompilationErrorByFileName(path).stream()
-                                .map(CompilationError::getMessage)
-                                .filter(Objects::nonNull)
-                                .reduce((a, b) -> a + "\n" + b)
-                                .orElse(null);
+                        foundErrors = PreviewQueries.errorsOf(graph, path);
                     } else {
                         compiledQueries = graph.findCompiledQueryByFileName(path);
                         graphTargets = GraphTarget.targetsOf(graph, path);
                         fileLineage = new LineageExtractorImpl().extract(graph);
                     }
                 }
-                if (graph != null && refreshSchemas) {
+                if (graph != null && refreshSchemas && svc.isUpToDate()) {
                     DataformTableSchemaService.getInstance(project)
                             .refreshAsync(graph, false, CompilationFailures.fileNamesOf(graph));
                 }
@@ -308,11 +302,64 @@ public class SqlxCompiledPreviewEditor extends UserDataHolderBase implements Fil
     }
 
     public void executeQuery(@NotNull AnActionEvent e) {
-        List<FormattedCompiledQuery> queries = mode == SqlxPreviewMode.UNIT_TEST
-                ? TestQueries.of(compiledTest).stream()
-                        .map(q -> new FormattedCompiledQuery(q.label(), null, null, q.sql(), null, null))
-                        .toList()
-                : rawQueries.stream().map(q -> format(q, UnaryOperator.identity())).toList();
+        Component source = e.getInputEvent() != null
+                ? (Component) e.getInputEvent().getSource()
+                : getComponent();
+        DataformCompilationService svc = DataformCompilationService.getInstance(project);
+        if (svc.isUpToDate()) {
+            CompiledGraph graph = svc.getCompiledGraph();
+            String path = file.getCanonicalPath();
+            if (graph != null && path != null) {
+                runOrChoose(PreviewQueries.executable(graph, path, mode == SqlxPreviewMode.UNIT_TEST), source);
+            }
+            return;
+        }
+        executeOnceCompiled(svc, source);
+    }
+
+    private void executeOnceCompiled(@NotNull DataformCompilationService svc, @NotNull Component source) {
+        ProgressManager.getInstance().run(new Task.Backgroundable(project, "Waiting for Dataform compilation…", true) {
+            private List<FormattedCompiledQuery> queries = List.of();
+            private String errors;
+
+            @Override
+            public void run(@NotNull ProgressIndicator indicator) {
+                indicator.setIndeterminate(true);
+                CompiledGraph graph = ProgressIndicatorUtils.awaitWithCheckCanceled(svc.upToDateGraph());
+                String path = file.getCanonicalPath();
+                if (graph == null || path == null) {
+                    return;
+                }
+                boolean unitTestFile = ReadAction.nonBlocking(() -> {
+                    PsiFile psiFile = PsiManager.getInstance(project).findFile(file);
+                    return psiFile != null && SqlxUnitTests.isUnitTestFile(psiFile);
+                }).executeSynchronously();
+                queries = PreviewQueries.executable(graph, path, unitTestFile);
+                errors = PreviewQueries.errorsOf(graph, path);
+            }
+
+            @Override
+            public void onSuccess() {
+                if (queries.stream().anyMatch(q -> q.query() != null && !q.query().isBlank())) {
+                    runOrChoose(queries, source);
+                } else if (errors != null) {
+                    DataformNotifications.create("Dataform compilation failed", errors, NotificationType.ERROR)
+                            .notify(project);
+                }
+            }
+
+            @Override
+            public void onThrowable(@NotNull Throwable error) {
+                Throwable cause = ExceptionUtil.getRootCause(error);
+                DataformNotifications.create("Dataform compilation failed",
+                                cause.getMessage() != null ? cause.getMessage() : cause.getClass().getSimpleName(),
+                                NotificationType.ERROR)
+                        .notify(project);
+            }
+        });
+    }
+
+    private void runOrChoose(@NotNull List<FormattedCompiledQuery> queries, @NotNull Component source) {
         if (queries.isEmpty()) return;
 
         if (queries.size() == 1) {
@@ -334,10 +381,7 @@ public class SqlxCompiledPreviewEditor extends UserDataHolderBase implements Fil
                             .ifPresent(q -> runQueries(List.of(q))))
                     .createPopup();
 
-            Component sourceComponent = e.getInputEvent() != null
-                    ? (Component) e.getInputEvent().getSource()
-                    : getComponent();
-            popup.showUnderneathOf(sourceComponent);
+            popup.showUnderneathOf(source);
         }
     }
 
@@ -402,7 +446,7 @@ public class SqlxCompiledPreviewEditor extends UserDataHolderBase implements Fil
     private void refreshQueryView() {
         if (!queryViewStale) return;
         queryViewStale = false;
-        queryPanel.setContent(rawQueries.stream().map(q -> format(q, sql -> Utils.formatSql(project, sql))).toList());
+        queryPanel.setContent(rawQueries.stream().map(q -> PreviewQueries.format(q, sql -> Utils.formatSql(project, sql))).toList());
     }
 
     private void refreshTestView() {
@@ -421,16 +465,6 @@ public class SqlxCompiledPreviewEditor extends UserDataHolderBase implements Fil
     @NotNull
     public SqlxPreviewMode getMode() {
         return mode;
-    }
-
-    private static FormattedCompiledQuery format(CompiledQuery q, UnaryOperator<String> sql) {
-        return new FormattedCompiledQuery(q.tableName(), joinOrNull(q.preOps(), sql),
-                joinOrNull(q.incrementalPreOps(), sql), q.query() == null ? null : sql.apply(q.query()),
-                joinOrNull(q.postOps(), sql), joinOrNull(q.compilationErrors(), UnaryOperator.identity()));
-    }
-
-    private static @Nullable String joinOrNull(@Nullable List<String> parts, UnaryOperator<String> map) {
-        return parts == null || parts.isEmpty() ? null : parts.stream().map(map).collect(Collectors.joining("\n"));
     }
 
     public View getActiveView() {

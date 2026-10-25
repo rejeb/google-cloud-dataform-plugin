@@ -58,6 +58,7 @@ public final class DataformExternalChangeListener implements AsyncFileListener {
             public void afterVfsChange() {
                 DataformProjects.forEachOpen(project -> {
                     if (holds(project, changedOnDisk)) {
+                        DataformCompilationService.getInstance(project).noteSourceChanged();
                         DataformAutoCompileService.getInstance(project).scheduleCompile();
                     }
                 });

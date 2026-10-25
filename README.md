@@ -76,6 +76,9 @@ Dataform expressions are folded to their evaluated value in the editor, the way 
 - **Column Navigation**: `Ctrl+Click` from a column in a SQLX query to its declaration in the source table
 
 ### Column Refactoring and Usages
+- **Rename Downstream Usages**: After a column is renamed in its action and saved, the new name is
+  highlighted while downstream actions still read the old one; its quick fix, also offered in a
+  balloon, renames those reads through the rename preview
 - **Rename Column** (`Shift+F6`): Renames a column of a Dataform table in the action declaring it and
   in every action reading it, following the column lineage. When the column comes from a `SELECT *`,
   a dialog asks whether to expand the star or declare the new name locally
@@ -89,6 +92,9 @@ Dataform expressions are folded to their evaluated value in the editor, the way 
 ### Errors and Validation
 - **In-Place Errors**: Dataform compilation errors and BigQuery dry-run errors are placed on the
   tokens they refer to, with inline chips in the editor
+- **Column Impact Analysis**: On save, columns renamed, removed or retyped are compared with the
+  actions reading them; the broken ones are listed per file in the Build tool window, and their
+  errors in the editor name the change behind them
 - **Unplaced Errors Banner**: Errors that cannot be located in the file are listed in an editor banner
 - **Validation**: Dataform validation problems are highlighted at their exact range, with hints and
   quick fixes, once typing stops
@@ -106,7 +112,8 @@ Dataform expressions are folded to their evaluated value in the editor, the way 
   appear in the IDE test runner, with expected and actual rows side by side on failure
 
 ### Table Schemas and Column Completion
-- **Schema Resolution**: Table schemas are resolved through BigQuery dry-runs of the compiled queries
+- **Schema Resolution**: Table schemas are resolved through BigQuery dry-runs of the compiled queries,
+  for tables, views and operations declaring `hasOutput: true`
 - **Column Completion**: Completion for columns of tables produced by your Dataform project, including
   qualified names and nested `STRUCT`/`RECORD` fields
 - **Safe Introspection**: Pre-operations that would create, alter, insert, update or delete are filtered
@@ -145,7 +152,8 @@ A split editor next to any `.sqlx` file, with three views:
 - **BigQuery Job Details**: Job id, bytes processed and billed, duration and child job queries for each executed action
 
 ### BigQuery Query Execution
-- **Execute Query**: Run the compiled query of an action directly from the preview editor
+- **Execute Query**: Run the compiled query of an action directly from the preview editor; when an
+  edit is not compiled yet, it waits for the compilation so the query matches the sources
 - **Results Grid**: Paged results shown in the Services view, with query statistics
 
 ### SQLX Formatting
@@ -156,7 +164,8 @@ A split editor next to any `.sqlx` file, with three views:
 - **Module Builder**: Create new Dataform projects with proper structure
 - **CLI Integration**: Automatic Dataform CLI installation and setup
 - **Project Indexing**: Fast indexing of Dataform core definitions and JavaScript symbols
-- **Compilation**: Project compilation integrated with the IDE build, with errors reported in the Build tool window
+- **Compilation**: Project compilation integrated with the IDE build; compilation errors and failing
+  BigQuery dry-runs are reported in the Build tool window, grouped per file
 - **Automatic Compilation**: The project is recompiled after edits once typing stops, on save, and
   after external changes such as a checkout, a pull or a rollback
 - **New SQLX File**: `File` → `New` → `SQLX File`
@@ -165,7 +174,7 @@ A split editor next to any `.sqlx` file, with three views:
   `package.json` when a project is opened
 - **Settings**: Under `Settings` → `Tools` → `Dataform`: Dataform core install path and one-click
   CLI & core installation, Sqlfluff executable, config and arguments, and toggles for expression
-  folding, inline compilation and BigQuery errors, and recompiling on save
+  folding, and inline compilation and BigQuery errors
 
 ## Installation
 

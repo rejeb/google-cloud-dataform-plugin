@@ -45,6 +45,7 @@ import org.jetbrains.annotations.Nullable;
 import javax.swing.*;
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -54,9 +55,11 @@ public class DataformWorkflowRunProfileState
 
     private static final Logger LOG = Logger.getInstance(DataformWorkflowRunProfileState.class);
     private static final int POLL_INTERVAL_MS = 500;
+    private static final String TEMPORARY_WORKSPACE_PREFIX = "intellij-run-";
 
     private final ExecutionEnvironment environment;
     private final DataformWorkflowRunConfiguration configuration;
+    private final String workspaceId = newTemporaryWorkspaceId();
     private volatile WorkflowInvocationProgress lastProgress;
 
     public DataformWorkflowRunProfileState(
@@ -113,12 +116,34 @@ public class DataformWorkflowRunProfileState
                              @NotNull WorkflowExecutionConsole console) throws Exception {
         DataformGcpService service = DataformGcpService.getInstance(project);
 
-        publishAndDisplay(project, console, runningProgress("Uploading files to workspace"));
-        service.pushCode(configuration.getOptions().getWorkspaceId());
+        publishAndDisplay(project, console, runningProgress("Creating temporary workspace"));
+        service.createWorkspace(workspaceId);
+        try {
+            publishAndDisplay(project, console, runningProgress("Uploading files to workspace"));
+            service.pushCode(workspaceId);
 
-        publishAndDisplay(project, console, runningProgress("Starting Workflow execution"));
-        WorkflowCreationResult workflowRun = service.createWorkflowRun(configuration.toWorkflowRunRequest());
-        pollUntilTerminal(project, indicator, console, service, workflowRun);
+            publishAndDisplay(project, console, runningProgress("Starting Workflow execution"));
+            WorkflowCreationResult workflowRun = service.createWorkflowRun(configuration.toWorkflowRunRequest(workspaceId));
+            pollUntilTerminal(project, indicator, console, service, workflowRun);
+        } finally {
+            deleteTemporaryWorkspace(service);
+        }
+    }
+
+    private void deleteTemporaryWorkspace(@NotNull DataformGcpService service) {
+        ProgressManager.getInstance().executeNonCancelableSection(() -> {
+            try {
+                service.deleteWorkspace(workspaceId);
+            } catch (Exception e) {
+                LOG.warn("Failed to delete temporary Dataform workspace " + workspaceId, e);
+            }
+        });
+    }
+
+    @NotNull
+    private static String newTemporaryWorkspaceId() {
+        return TEMPORARY_WORKSPACE_PREFIX + System.currentTimeMillis() + "-"
+                + UUID.randomUUID().toString().substring(0, 8);
     }
 
     private void pollUntilTerminal(@NotNull Project project,
@@ -189,7 +214,7 @@ public class DataformWorkflowRunProfileState
     @NotNull
     private WorkflowInvocationProgress failedProgress(@NotNull Throwable cause) {
         WorkflowInvocationProgress last = lastProgress;
-        String invocationName = last != null ? last.invocationName() : configuration.getOptions().getWorkspaceId();
+        String invocationName = last != null ? last.invocationName() : workspaceId;
         List<InvocationActionResult> actions = last == null
                 ? List.of()
                 : last.actions().stream().map(action -> markFailedIfPending(action, cause)).toList();
@@ -242,7 +267,7 @@ public class DataformWorkflowRunProfileState
 
     @NotNull
     private WorkflowInvocationProgress runningProgress(@NotNull String label) {
-        return new WorkflowInvocationProgress(label + " " + configuration.getOptions().getWorkspaceId(),
+        return new WorkflowInvocationProgress(label + " " + workspaceId,
                 WorkflowInvocationState.RUNNING, List.of(), null);
     }
 }

@@ -30,7 +30,6 @@ import com.intellij.psi.PsiFile;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.Mode;
-import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
 import io.github.rejeb.dataform.language.unittest.SqlxUnitTests;
 import org.jetbrains.annotations.NotNull;
 
@@ -59,7 +58,6 @@ public class DataformSqlxRunConfigurationProducer
         VirtualFile file = getFile(context);
         if (file == null) return false;
         config.getOptions().setIncludedTargets(actionTargets(context, file));
-        config.getOptions().setWorkspaceId(resolveWorkspaceId(config, context));
         config.setName(file.getNameWithoutExtension());
         config.getOptions().setSelectedMode(Mode.ACTIONS);
         return true;
@@ -73,18 +71,6 @@ public class DataformSqlxRunConfigurationProducer
                         graph.findCompiledQueryByFileName(file.getCanonicalPath()).stream()
                 )
                 .flatMap(q -> Optional.ofNullable(q.tableName()).stream()).toList();
-    }
-
-    @NotNull
-    private static String resolveWorkspaceId(@NotNull DataformWorkflowRunConfiguration config,
-                                             @NotNull ConfigurationContext context) {
-        String current = config.getOptions().getWorkspaceId();
-        if (current != null && !current.isBlank()) {
-            return current;
-        }
-        String selected = GcpRepositorySettings.getInstance(context.getProject())
-                .getSelectedWorkspaceId();
-        return selected != null ? selected : "";
     }
 
     @Override
@@ -109,8 +95,8 @@ public class DataformSqlxRunConfigurationProducer
     }
 
     /**
-     * Resolves the workspace to run against, then opens the run configuration editor so the options
-     * prefilled from the source location are reviewed before the workflow is launched.
+     * Opens the run configuration editor so the options prefilled from the source location are
+     * reviewed before the workflow is launched.
      */
     @Override
     public void onFirstRun(@NotNull ConfigurationFromContext configFromContext,
@@ -122,10 +108,6 @@ public class DataformSqlxRunConfigurationProducer
             startRunnable.run();
             return;
         }
-
-        DataformWorkflowRunConfiguration config =
-                (DataformWorkflowRunConfiguration) configFromContext.getConfiguration();
-        config.getOptions().setWorkspaceId(resolveWorkspaceId(config, context));
 
         RunnerAndConfigurationSettings settings = configFromContext.getConfigurationSettings();
         settings.setEditBeforeRun(false);

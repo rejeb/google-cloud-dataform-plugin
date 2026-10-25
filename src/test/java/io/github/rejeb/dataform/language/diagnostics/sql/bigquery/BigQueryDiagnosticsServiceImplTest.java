@@ -18,13 +18,24 @@ package io.github.rejeb.dataform.language.diagnostics.sql.bigquery;
 
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiFile;
+import io.github.rejeb.dataform.language.columns.impact.ColumnChange;
+import io.github.rejeb.dataform.language.columns.impact.ColumnImpact;
+import io.github.rejeb.dataform.language.columns.impact.ColumnImpactService;
+import io.github.rejeb.dataform.language.columns.impact.ColumnImpactServiceImpl;
+import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
+import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
+import io.github.rejeb.dataform.language.compilation.model.CompiledOperation;
+import io.github.rejeb.dataform.language.compilation.model.Target;
 import io.github.rejeb.dataform.language.diagnostics.PlacedProblems;
+import io.github.rejeb.dataform.language.schema.sql.DryRunErrorRegistry;
+import io.github.rejeb.dataform.language.schema.sql.DryRunFailure;
 import io.github.rejeb.dataform.language.schema.sql.DataformProjectFixture;
 import io.github.rejeb.dataform.language.schema.sql.DryRunQueryText;
 import io.github.rejeb.dataform.language.util.MappedText;
 import io.github.rejeb.dataform.language.validation.SqlxValidationProblem;
 import io.github.rejeb.dataform.language.validation.SqlxValidationService;
 
+import java.lang.reflect.Field;
 import java.util.List;
 
 import static io.github.rejeb.dataform.language.diagnostics.sql.bigquery.BigQueryFailures.*;
@@ -65,6 +76,72 @@ public class BigQueryDiagnosticsServiceImplTest extends DataformProjectFixture {
         assertEquals("Did you mean 'order_id'?", problem.hint());
         assertEquals("Replace with 'order_id'", problem.fixes().getFirst().label());
         assertEquals(List.of(), diagnostics.unlocated());
+    }
+
+    public void testAFailureColumnChangeExplainsNamesTheChange() {
+        PsiFile file = openText(SQLX);
+        MappedText sent = sent(getProject(), COMPILED);
+        String message = "Unrecognized name: order_idd" + at(sent, "order_idd");
+        report(getProject(), message, sent);
+        ColumnChange change = new ColumnChange("proj.ds.silver_orders", ColumnChange.Kind.REMOVED,
+                "order_idd", null, "INT64", null);
+        ((ColumnImpactServiceImpl) ColumnImpactService.getInstance(getProject())).publish(List.of(
+                new ColumnImpact(change, List.of(new DryRunBuildProblem(ACTION, null, 0, 0,
+                        "Unrecognized name: order_idd", message, "order_idd")))));
+
+        assertEquals("BigQuery: Unrecognized name: order_idd — Column `order_idd` no longer exists in `silver_orders`",
+                diagnose(file).located().getFirst().message());
+    }
+
+    public void testAFailedOperationIsPlacedInItsFile() throws Exception {
+        String operationPath = "definitions/silver_operation.sqlx";
+        String operationSqlx = "config { type: \"operations\", hasOutput: true }\n\nSELECT\n  order_idd\n"
+                + "FROM ${ref(\"silver_orders\")}\n";
+        String compiled = "\n\nSELECT\n  order_idd\nFROM `proj.ds.silver_orders`\n";
+        CompiledGraph graph = DataformCompilationService.getInstance(getProject()).getCompiledGraph();
+        List<CompiledOperation> previous = graph.getOperations();
+        setField(graph, "operations", List.of(operation("silver_operation", operationPath, compiled)));
+        setField(graph, "fileNameIndex", null);
+        try {
+            PsiFile file = openPath(operationPath, operationSqlx);
+            MappedText sent = sent(getProject(), compiled);
+            DryRunErrorRegistry.getInstance(getProject()).reportFailure("proj.ds.silver_operation",
+                    new DryRunFailure("Unrecognized name: order_idd" + at(sent, "order_idd"), sent));
+
+            PlacedProblems diagnostics = diagnose(file);
+
+            assertEquals(1, diagnostics.located().size());
+            assertEquals(TextRange.from(operationSqlx.indexOf("order_idd"), 9), diagnostics.located().getFirst().range());
+        } finally {
+            DryRunErrorRegistry.getInstance(getProject()).clear("proj.ds.silver_operation");
+            setField(graph, "operations", previous);
+            setField(graph, "fileNameIndex", null);
+        }
+    }
+
+    private PsiFile openPath(String path, String text) {
+        PsiFile file = myFixture.addFileToProject(path, text);
+        myFixture.configureFromExistingVirtualFile(file.getVirtualFile());
+        return myFixture.getFile();
+    }
+
+    private static CompiledOperation operation(String name, String fileName, String query) throws Exception {
+        Target target = new Target();
+        setField(target, "database", "proj");
+        setField(target, "schema", "ds");
+        setField(target, "name", name);
+        CompiledOperation operation = new CompiledOperation();
+        setField(operation, "target", target);
+        setField(operation, "fileName", fileName);
+        setField(operation, "queries", List.of(query));
+        setField(operation, "hasOutput", true);
+        return operation;
+    }
+
+    private static void setField(Object target, String name, Object value) throws Exception {
+        Field field = target.getClass().getDeclaredField(name);
+        field.setAccessible(true);
+        field.set(target, value);
     }
 
     public void testAnErrorInTheValueOfAHoleIsPlacedOnTheHole() {

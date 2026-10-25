@@ -49,8 +49,6 @@ public final class DataformToolsSettingsPanel {
             new JBCheckBox("Fold Dataform expressions to their evaluated value");
     private final JBCheckBox showInlineCompilationErrorsBox =
             new JBCheckBox("Show Dataform compilation and BigQuery errors inline in the editor");
-    private final JBCheckBox compileOnSaveBox =
-            new JBCheckBox("Recompile the Dataform project when a source file is saved");
     private final JButton    installButton    = new JButton("Install Dataform CLI & Core");
     private final JTextPane  statusPane       = buildStatusPane();
     private final JScrollPane statusScrollPane = buildStatusScrollPane();
@@ -100,7 +98,6 @@ public final class DataformToolsSettingsPanel {
                 .addVerticalGap(10)
                 .addComponent(foldTemplateExpressionsBox)
                 .addComponent(showInlineCompilationErrorsBox)
-                .addComponent(compileOnSaveBox)
                 .addVerticalGap(10)
                 .addComponent(buttonRow)
                 .addVerticalGap(5)
@@ -277,7 +274,4 @@ public final class DataformToolsSettingsPanel {
 
     public boolean isShowInlineCompilationErrors() { return showInlineCompilationErrorsBox.isSelected(); }
     public void    setShowInlineCompilationErrors(boolean value) { showInlineCompilationErrorsBox.setSelected(value); }
-
-    public boolean isCompileOnSave() { return compileOnSaveBox.isSelected(); }
-    public void    setCompileOnSave(boolean value) { compileOnSaveBox.setSelected(value); }
 }

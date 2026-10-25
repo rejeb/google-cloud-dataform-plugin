@@ -18,22 +18,14 @@ package io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig;
 
 import com.intellij.openapi.options.SettingsEditor;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.ui.ComboBox;
 import com.intellij.ui.JBColor;
 import com.intellij.ui.components.JBCheckBox;
-import com.intellij.ui.components.JBLabel;
 import com.intellij.util.ui.FormBuilder;
 import com.intellij.util.ui.JBUI;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.Mode;
-import com.intellij.openapi.application.ApplicationManager;
-import com.intellij.openapi.application.ModalityState;
-import com.intellij.openapi.diagnostic.Logger;
-import io.github.rejeb.dataform.language.gcp.service.DataformGcpService;
-import io.github.rejeb.dataform.language.gcp.workspace.Workspace;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.awt.*;
@@ -43,10 +35,6 @@ import java.util.Set;
 
 public class DataformWorkflowSettingsEditor
         extends SettingsEditor<DataformWorkflowRunConfiguration> {
-
-    private static final Logger LOG = Logger.getInstance(DataformWorkflowSettingsEditor.class);
-
-    private final ComboBox<String> workspaceCombo = new ComboBox<>();
 
     private final CheckboxMultiSelectField targetsField = new CheckboxMultiSelectField();
     private final CheckboxMultiSelectField tagsField = new CheckboxMultiSelectField();
@@ -64,14 +52,8 @@ public class DataformWorkflowSettingsEditor
     private final CompiledGraph graph;
 
     private Mode selectedMode = Mode.ACTIONS;
-    private volatile String pendingWorkspaceId;
-    private volatile boolean disposed = false;
-    private volatile boolean workspacesLoaded = false;
 
     public DataformWorkflowSettingsEditor(@NotNull Project project) {
-        workspaceCombo.addItem("");
-        loadWorkspaces(project);
-
         this.graph = DataformCompilationService.getInstance(project).getCompiledGraph();
         tagsField.setItems(graph != null ? graph.getTags() : Set.of());
         targetsField.setItems(graph != null ? graph.getAllTargets() : List.of());
@@ -81,8 +63,6 @@ public class DataformWorkflowSettingsEditor
         cardPanel.add(buildAllView(), Mode.ALL.name());
 
         mainPanel = FormBuilder.createFormBuilder()
-                .addLabeledComponent(new JBLabel("Workspace"), workspaceCombo)
-                .addSeparator()
                 .addComponent(buildModeBar())
                 .addComponent(cardPanel)
                 .addSeparator()
@@ -93,33 +73,6 @@ public class DataformWorkflowSettingsEditor
                 .getPanel();
 
         selectMode(Mode.ALL);
-    }
-
-    private void loadWorkspaces(@NotNull Project project) {
-        workspaceCombo.setEnabled(false);
-        ApplicationManager.getApplication().executeOnPooledThread(() -> {
-            List<String> workspaceIds;
-            try {
-                workspaceIds = DataformGcpService.getInstance(project).listWorkspaces().stream()
-                        .map(Workspace::workspaceId)
-                        .toList();
-            } catch (Exception e) {
-                LOG.warn("Failed to list Dataform workspaces for the run configuration editor.", e);
-                workspaceIds = List.of();
-            }
-            List<String> loaded = workspaceIds;
-            ApplicationManager.getApplication().invokeLater(() -> {
-                if (disposed) {
-                    return;
-                }
-                loaded.forEach(workspaceCombo::addItem);
-                workspaceCombo.setEnabled(true);
-                workspacesLoaded = true;
-                if (pendingWorkspaceId != null) {
-                    selectWorkspace(pendingWorkspaceId);
-                }
-            }, ModalityState.any());
-        });
     }
 
     private JPanel buildActionsView() {
@@ -260,8 +213,6 @@ public class DataformWorkflowSettingsEditor
 
     @Override
     protected void resetEditorFrom(@NotNull DataformWorkflowRunConfiguration config) {
-        pendingWorkspaceId = config.getOptions().getWorkspaceId();
-        selectWorkspace(config.getOptions().getWorkspaceId());
         tagsField.setSelectedItems(config.getOptions().getIncludedTags().stream().filter(this.graph.getTags()::contains).toList());
         targetsField.setSelectedItems(config.getOptions().getIncludedTargets().stream().filter(this.graph.getAllTargets()::contains).toList());
 
@@ -275,7 +226,6 @@ public class DataformWorkflowSettingsEditor
 
     @Override
     protected void applyEditorTo(@NotNull DataformWorkflowRunConfiguration config) {
-        config.getOptions().setWorkspaceId(resolveWorkspaceId());
         config.getOptions().setIncludedTags(tagsField.getSelectedItems());
         config.getOptions().setIncludedTargets(targetsField.getSelectedItems());
         config.getOptions().setTransitiveDependenciesIncluded(transitiveDeps.isSelected());
@@ -284,39 +234,9 @@ public class DataformWorkflowSettingsEditor
         config.getOptions().setSelectedMode(selectedMode);
     }
 
-    private void selectWorkspace(@Nullable String workspaceId) {
-        if (workspaceId == null || workspaceId.isBlank()) {
-            workspaceCombo.setSelectedItem("");
-            return;
-        }
-        ComboBoxModel<String> model = workspaceCombo.getModel();
-        for (int i = 0; i < model.getSize(); i++) {
-            if (workspaceId.equals(model.getElementAt(i))) {
-                workspaceCombo.setSelectedItem(workspaceId);
-                return;
-            }
-        }
-        workspaceCombo.addItem(workspaceId);
-        workspaceCombo.setSelectedItem(workspaceId);
-    }
-
-    private String resolveWorkspaceId() {
-        String selected = (String) workspaceCombo.getSelectedItem();
-        if ((selected == null || selected.isBlank()) && !workspacesLoaded) {
-            return pendingWorkspaceId;
-        }
-        return selected;
-    }
-
     @NotNull
     @Override
     protected JComponent createEditor() {
         return mainPanel;
-    }
-
-    @Override
-    protected void disposeEditor() {
-        disposed = true;
-        super.disposeEditor();
     }
 }

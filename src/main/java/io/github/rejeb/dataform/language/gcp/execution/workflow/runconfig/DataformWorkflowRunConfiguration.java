@@ -54,8 +54,11 @@ public class DataformWorkflowRunConfiguration
         return (DataformWorkflowRunConfigurationOptions) super.getOptions();
     }
 
+    /**
+     * Builds the run request of this configuration, executed from the given workspace.
+     */
     @NotNull
-    public WorkflowRunRequest toWorkflowRunRequest() {
+    public WorkflowRunRequest toWorkflowRunRequest(@NotNull String workspaceId) {
         List<InvocationTarget> targets = getOptions().getSelectedMode().equals(Mode.ACTIONS) ? getOptions().getIncludedTargets().stream()
                                                                                   .filter(s -> s != null && !s.isBlank())
                                                                                   .map(DataformWorkflowRunConfiguration::parseTarget)
@@ -63,7 +66,7 @@ public class DataformWorkflowRunConfiguration
                 : List.of();
         List<String> tags = getOptions().getSelectedMode().equals(Mode.TAGS) ? List.copyOf(getOptions().getIncludedTags()) : List.of();
         return new WorkflowRunRequest(
-                getOptions().getWorkspaceId(),
+                workspaceId,
                 tags,
                 targets,
                 !Mode.ALL.equals(getOptions().getSelectedMode()) && getOptions().isTransitiveDependenciesIncluded(),
@@ -89,13 +92,6 @@ public class DataformWorkflowRunConfiguration
     @Override
     public SettingsEditor<? extends RunConfiguration> getConfigurationEditor() {
         return new DataformWorkflowSettingsEditor(getProject());
-    }
-
-    @Override
-    public void checkConfiguration() throws RuntimeConfigurationException {
-        if (getOptions().getWorkspaceId() == null || getOptions().getWorkspaceId().isBlank()) {
-            throw new RuntimeConfigurationError("Workspace ID is required.");
-        }
     }
 
     @Nullable

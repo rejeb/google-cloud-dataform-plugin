@@ -94,6 +94,25 @@ public final class PreOperationsFilter {
                         || normalized.startsWith(prefix + "("));
     }
 
+    /**
+     * Tells whether a text holds one statement and that statement is a query, which a dry-run can
+     * read a schema from.
+     *
+     * @param sql text to classify
+     * @return {@code true} for a lone {@code SELECT}, {@code WITH} or parenthesized query
+     */
+    public static boolean isSingleQuery(@Nullable String sql) {
+        if (sql == null) {
+            return false;
+        }
+        List<String> statements = splitStatements(stripComments(sql));
+        if (statements.size() != 1) {
+            return false;
+        }
+        String normalized = normalize(statements.getFirst());
+        return normalized.startsWith("(") || normalized.startsWith("select ") || normalized.startsWith("with ");
+    }
+
     private static String normalize(@Nullable String statement) {
         if (statement == null) {
             return "";

@@ -21,7 +21,6 @@ import com.intellij.execution.configurations.ConfigurationType;
 import com.intellij.execution.configurations.RunConfiguration;
 import com.intellij.openapi.components.BaseState;
 import com.intellij.openapi.project.Project;
-import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
 import org.jetbrains.annotations.NotNull;
 
 public class DataformWorkflowConfigurationFactory extends ConfigurationFactory {
@@ -36,23 +35,10 @@ public class DataformWorkflowConfigurationFactory extends ConfigurationFactory {
         return DataformWorkflowConfigurationType.ID;
     }
 
-    /**
-     * The platform also builds a template configuration for the default project, which carries no
-     * Dataform settings and where the settings service is not available, so the selected workspace
-     * is only read from a real project.
-     */
     @NotNull
     @Override
     public RunConfiguration createTemplateConfiguration(@NotNull Project project) {
-        DataformWorkflowRunConfiguration configuration =
-                new DataformWorkflowRunConfiguration(project, this, "Dataform Workflow");
-        GcpRepositorySettings settings = project.isDefault()
-                ? null
-                : GcpRepositorySettings.getInstance(project);
-        if (settings != null) {
-            configuration.getOptions().setWorkspaceId(settings.getSelectedWorkspaceId());
-        }
-        return configuration;
+        return new DataformWorkflowRunConfiguration(project, this, "Dataform Workflow");
     }
 
     @NotNull

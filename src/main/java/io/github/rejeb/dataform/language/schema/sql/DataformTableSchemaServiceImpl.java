@@ -37,6 +37,7 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
+import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.compilation.model.*;
 import io.github.rejeb.dataform.language.diagnostics.DataformEditorRefresher;
 import io.github.rejeb.dataform.language.gcp.auth.AuthTrigger;
@@ -58,6 +59,7 @@ import java.util.Set;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.util.concurrency.AppExecutorUtil;
 import com.intellij.psi.PsiManager;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -88,14 +90,16 @@ public final class DataformTableSchemaServiceImpl
     private volatile boolean watchingDocuments = false;
     private final Object pendingLock = new Object();
     private PendingRefresh pending;
+    private CompletableFuture<SchemaRefreshOutcome> runningDone;
 
     private record PendingRefresh(@NotNull CompiledGraph graph,
                                   boolean forceRefresh,
-                                  @NotNull Set<String> failedFileNames) {
+                                  @NotNull Set<String> failedFileNames,
+                                  @NotNull CompletableFuture<SchemaRefreshOutcome> done) {
         PendingRefresh mergedWith(@NotNull CompiledGraph graph,
                                   boolean forceRefresh,
                                   @NotNull Set<String> failedFileNames) {
-            return new PendingRefresh(graph, this.forceRefresh || forceRefresh, failedFileNames);
+            return new PendingRefresh(graph, this.forceRefresh || forceRefresh, failedFileNames, done);
         }
     }
 
@@ -124,18 +128,35 @@ public final class DataformTableSchemaServiceImpl
     public void refreshAsync(@NotNull CompiledGraph graph,
                              boolean forceRefresh,
                              @NotNull Set<String> failedFileNames) {
+        refresh(graph, forceRefresh, failedFileNames);
+    }
+
+    @Override
+    public @NotNull CompletableFuture<SchemaRefreshOutcome> refresh(@NotNull CompiledGraph graph,
+                                                                    boolean forceRefresh,
+                                                                    @NotNull Set<String> failedFileNames) {
+        CompiledGraph current = DataformCompilationService.getInstance(project).getCompiledGraph();
+        CompletableFuture<SchemaRefreshOutcome> done;
         synchronized (pendingLock) {
+            if (current != null && current != graph) {
+                LOG.debug("Schema refresh requested with a stale graph, skipped");
+                if (pending != null) return pending.done();
+                return runningDone != null ? runningDone : CompletableFuture.completedFuture(SchemaRefreshOutcome.NOT_RUN);
+            }
             if (!running.compareAndSet(false, true)) {
                 pending = pending == null
-                        ? new PendingRefresh(graph, forceRefresh, failedFileNames)
+                        ? new PendingRefresh(graph, forceRefresh, failedFileNames, new CompletableFuture<>())
                         : pending.mergedWith(graph, forceRefresh, failedFileNames);
                 LOG.debug("Schema extraction already running, will re-run after completion");
-                return;
+                return pending.done();
             }
             pending = null;
+            done = new CompletableFuture<>();
+            runningDone = done;
         }
         evictStaleEntries(graph);
         startTask(graph, forceRefresh, failedFileNames);
+        return done;
     }
 
     @NotNull
@@ -278,45 +299,57 @@ public final class DataformTableSchemaServiceImpl
         new Task.Backgroundable(project, "Extracting Dataform table schemas…", false) {
             @Override
             public void run(@NotNull ProgressIndicator indicator) {
+                SchemaRefreshOutcome outcome = SchemaRefreshOutcome.NOT_RUN;
                 try {
                     indicator.setIndeterminate(false);
-                    runExtraction(graph, indicator, forceRefresh, failedFileNames);
+                    outcome = runExtraction(graph, indicator, forceRefresh, failedFileNames);
                 } catch (Exception e) {
                     LOG.warn("Schema extraction failed: " + e);
                 } finally {
-                    onTaskFinished();
+                    onTaskFinished(outcome);
                 }
             }
         }.queue();
     }
 
-    private void onTaskFinished() {
+    private void onTaskFinished(@NotNull SchemaRefreshOutcome outcome) {
         snapshotChanged(cache.publish());
         PendingRefresh next;
+        CompletableFuture<SchemaRefreshOutcome> finished;
         synchronized (pendingLock) {
-            running.set(false);
+            finished = runningDone;
             next = pending;
             pending = null;
+            runningDone = next != null ? next.done() : null;
+            if (next == null) {
+                running.set(false);
+            }
         }
         if (next != null) {
-            refreshAsync(next.graph(), next.forceRefresh(), next.failedFileNames());
+            evictStaleEntries(next.graph());
+            startTask(next.graph(), next.forceRefresh(), next.failedFileNames());
         } else if (!project.isDisposed()) {
             project.getMessageBus().syncPublisher(DataformSchemaEvent.TOPIC).onSchemasUpdated();
         }
+        if (finished != null) {
+            finished.complete(outcome);
+        }
     }
 
-    private void runExtraction(@NotNull CompiledGraph graph,
-                               @NotNull ProgressIndicator indicator,
-                               boolean forceRefresh,
-                               @NotNull Set<String> failedFileNames) {
+    @NotNull
+    private SchemaRefreshOutcome runExtraction(@NotNull CompiledGraph graph,
+                                               @NotNull ProgressIndicator indicator,
+                                               boolean forceRefresh,
+                                               @NotNull Set<String> failedFileNames) {
         ExtractionContext ctx = buildContext(graph);
-        if (ctx == null) return;
+        if (ctx == null) return SchemaRefreshOutcome.NOT_RUN;
 
         SchemaRefreshPlan plan = new SchemaRefreshPlanner(project.getBasePath(), cache)
                 .plan(DataformTopologicalSorter.sort(graph), forceRefresh, failedFileNames);
-        if (!plan.waves().isEmpty()) {
-            processAllWaves(plan, ctx, indicator);
-        }
+        if (plan.waves().isEmpty()) return new SchemaRefreshOutcome(true, 0);
+        processAllWaves(plan, ctx, indicator);
+        if (indicator.isCanceled()) return SchemaRefreshOutcome.NOT_RUN;
+        return new SchemaRefreshOutcome(true, plan.waves().stream().mapToInt(List::size).sum());
     }
 
     @Nullable
@@ -446,7 +479,7 @@ public final class DataformTableSchemaServiceImpl
                                        @NotNull Map<String, List<ColumnInfo>> resolvedInThisRun) {
         try {
             if (action.isTable()) return extractTableSchema(action.table(), ctx, resolvedInThisRun);
-            if (action.isOperation()) return OperationSchemaExtraction.extract(action.operation(), ctx);
+            if (action.isOperation()) return extractOperationSchema(action.operation(), ctx, resolvedInThisRun);
             if (action.isDeclaration()) return ctx.dryRun(OperationSchemaExtraction.tableQuery(action.target().getFullName()));
         } catch (ProcessCanceledException e) {
             throw e;
@@ -461,13 +494,38 @@ public final class DataformTableSchemaServiceImpl
     DryRunResult extractTableSchema(@NotNull CompiledTable table,
                                     @NotNull ExtractionContext ctx,
                                     @NotNull Map<String, List<ColumnInfo>> resolvedInThisRun) {
-        List<String> dependencies = table.getDependencyTargets().stream().map(Target::getFullName).toList();
+        return dryRunWithStubs(table.getQuery(), table.getDependencyTargets(),
+                PreOperationsFilter.keepReadOnly(table.getPreOps()), ctx, resolvedInThisRun);
+    }
+
+    /**
+     * Reads the schema of an operation that declares an output. An operation whose last query is
+     * a lone query is dry-run from its SQL like a table, so the schema follows the file and its
+     * errors are reported before the operation runs. An operation writing its table with DDL or
+     * DML has no query to read a schema from, and the table is read instead.
+     */
+    @NotNull
+    DryRunResult extractOperationSchema(@NotNull CompiledOperation operation,
+                                        @NotNull ExtractionContext ctx,
+                                        @NotNull Map<String, List<ColumnInfo>> resolvedInThisRun) {
+        List<String> queries = operation.getQueries();
+        String last = queries.isEmpty() ? null : queries.getLast();
+        if (!PreOperationsFilter.isSingleQuery(last)) return OperationSchemaExtraction.extract(operation, ctx);
+        return dryRunWithStubs(last, operation.getDependencyTargets(), List.of(), ctx, resolvedInThisRun);
+    }
+
+    @NotNull
+    private DryRunResult dryRunWithStubs(@NotNull String sql,
+                                         @NotNull List<Target> dependencyTargets,
+                                         @NotNull List<String> preOperations,
+                                         @NotNull ExtractionContext ctx,
+                                         @NotNull Map<String, List<ColumnInfo>> resolvedInThisRun) {
+        List<String> dependencies = dependencyTargets.stream().map(Target::getFullName).toList();
         Map<String, List<ColumnInfo>> stubs = cache.stubSchemas(dependencies, resolvedInThisRun, ctx.sources());
         MappedText mainQuery = ReadAction.nonBlocking(() ->
-                        DataformCteQueryBuilder.buildMappedDryRunQuery(table.getQuery(), stubs, project))
+                        DataformCteQueryBuilder.buildMappedDryRunQuery(sql, stubs, project))
                 .executeSynchronously();
-        MappedText query = DryRunQueryText.withPreOperations(
-                PreOperationsFilter.keepReadOnly(table.getPreOps()), mainQuery);
+        MappedText query = DryRunQueryText.withPreOperations(preOperations, mainQuery);
         return ctx.dryRun(query.text()).withQuery(query);
     }
 

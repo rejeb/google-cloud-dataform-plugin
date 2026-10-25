@@ -89,4 +89,21 @@ public class PreOperationsFilterTest {
         assertEquals(List.of(), PreOperationsFilter.keepReadOnly(null));
         assertEquals(List.of(), PreOperationsFilter.keepReadOnly(List.of()));
     }
+
+    @Test
+    public void recognizesASingleQuery() {
+        assertTrue(PreOperationsFilter.isSingleQuery("SELECT a FROM t"));
+        assertTrue(PreOperationsFilter.isSingleQuery("-- cleaned rows\nWITH x AS (SELECT 1 AS a) SELECT a FROM x;\n"));
+        assertTrue(PreOperationsFilter.isSingleQuery("(SELECT 1) UNION ALL (SELECT 2)"));
+        assertTrue(PreOperationsFilter.isSingleQuery("SELECT 'a;b' AS a"));
+    }
+
+    @Test
+    public void rejectsScriptsAndStatementsThatWrite() {
+        assertFalse(PreOperationsFilter.isSingleQuery("SELECT 1; SELECT 2"));
+        assertFalse(PreOperationsFilter.isSingleQuery("CREATE TABLE t AS SELECT 1 AS a"));
+        assertFalse(PreOperationsFilter.isSingleQuery("DECLARE x INT64; SELECT x"));
+        assertFalse(PreOperationsFilter.isSingleQuery("  "));
+        assertFalse(PreOperationsFilter.isSingleQuery(null));
+    }
 }

@@ -23,9 +23,10 @@ import com.intellij.psi.PsiFile;
 import com.intellij.psi.util.CachedValueProvider;
 import com.intellij.psi.util.CachedValuesManager;
 import com.intellij.psi.util.PsiModificationTracker;
+import io.github.rejeb.dataform.language.columns.impact.ColumnChange;
+import io.github.rejeb.dataform.language.columns.impact.ColumnImpactService;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
-import io.github.rejeb.dataform.language.compilation.model.CompiledTable;
 import io.github.rejeb.dataform.language.compilation.model.Target;
 import io.github.rejeb.dataform.language.diagnostics.PlacedProblems;
 import io.github.rejeb.dataform.language.diagnostics.sql.hint.PsiSqlScope;
@@ -39,6 +40,7 @@ import io.github.rejeb.dataform.language.schema.sql.DryRunErrorRegistry;
 import io.github.rejeb.dataform.language.schema.sql.DryRunFailure;
 import io.github.rejeb.dataform.language.validation.SqlxValidationProblem;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -64,7 +66,8 @@ public final class BigQueryDiagnosticsServiceImpl implements BigQueryDiagnostics
                 compute(hostFile),
                 PsiModificationTracker.MODIFICATION_COUNT,
                 DryRunErrorRegistry.getInstance(project),
-                DataformTableSchemaService.getInstance(project)));
+                DataformTableSchemaService.getInstance(project),
+                ColumnImpactService.getInstance(project)));
     }
 
     private @NotNull PlacedProblems compute(@NotNull PsiFile hostFile) {
@@ -72,10 +75,13 @@ public final class BigQueryDiagnosticsServiceImpl implements BigQueryDiagnostics
         CompiledGraph graph = DataformCompilationService.getInstance(project).getCompiledGraph();
         if (file == null || graph == null) return PlacedProblems.NONE;
         DryRunErrorRegistry registry = DryRunErrorRegistry.getInstance(project);
+        ColumnImpactService impacts = ColumnImpactService.getInstance(project);
         List<SqlxValidationProblem> located = new ArrayList<>();
         List<String> unlocated = new ArrayList<>();
-        for (CompiledTable table : graph.findTableByFileName(file.getPath())) {
-            Target target = table.getTarget();
+        List<Target> targets = new ArrayList<>();
+        graph.findTableByFileName(file.getPath()).forEach(table -> targets.add(table.getTarget()));
+        graph.findOperationByFileName(file.getPath()).forEach(operation -> targets.add(operation.getTarget()));
+        for (Target target : targets) {
             DryRunFailure failure = target == null || target.getFullName() == null
                     ? null
                     : registry.getFailure(target.getFullName());
@@ -83,7 +89,8 @@ public final class BigQueryDiagnosticsServiceImpl implements BigQueryDiagnostics
             BigQueryError error = BigQueryErrorParser.parse(failure.message());
             BigQueryErrorPlacer.Placement placement = BigQueryErrorPlacer.place(hostFile, failure, error);
             switch (placement.outcome()) {
-                case LOCATED -> located.add(problemOf(hostFile, error, placement.range()));
+                case LOCATED -> located.add(problemOf(hostFile, error, placement.range(),
+                        impacts.changeBehind(target.getFullName(), failure.message())));
                 case UNLOCATED -> unlocated.add(PREFIX + error.message());
                 case STALE -> {
                 }
@@ -94,11 +101,13 @@ public final class BigQueryDiagnosticsServiceImpl implements BigQueryDiagnostics
 
     private static @NotNull SqlxValidationProblem problemOf(@NotNull PsiFile hostFile,
                                                             @NotNull BigQueryError error,
-                                                            @NotNull TextRange range) {
+                                                            @NotNull TextRange range,
+                                                            @Nullable ColumnChange change) {
         SqlScope scope = error.kind() == BigQueryErrorKind.DUPLICATE_COLUMN
                 ? PsiSqlScope.mainQueryOf(hostFile)
                 : PsiSqlScope.at(hostFile, range.getStartOffset());
         SqlHint hint = SqlHints.hintFor(new SqlErrorContext(error, range, hostFile.getText(), scope));
-        return SqlxValidationProblem.bigQueryError(range, PREFIX + error.message(), hint.text(), hint.fixes());
+        String message = PREFIX + error.message() + (change == null ? "" : " — " + change.describe());
+        return SqlxValidationProblem.bigQueryError(range, message, hint.text(), hint.fixes());
     }
 }
