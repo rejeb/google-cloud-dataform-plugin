@@ -6,6 +6,8 @@ A comprehensive IntelliJ IDEA plugin that provides advanced language support for
 ![Platform](https://img.shields.io/badge/platform-IntelliJ-lightgrey.svg)
 ![version](https://img.shields.io/badge/version-0.2.24-green.svg)
 [![Java](https://img.shields.io/badge/Java-21-blue)](https://www.java.com/fr/)
+[![JetBrains Marketplace](https://img.shields.io/jetbrains/plugin/v/30020?label=JetBrains%20Marketplace)](https://plugins.jetbrains.com/plugin/30020)
+[![Downloads](https://img.shields.io/jetbrains/plugin/d/30020)](https://plugins.jetbrains.com/plugin/30020)
 
 ## Features
 
