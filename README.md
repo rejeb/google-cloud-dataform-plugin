@@ -20,6 +20,9 @@ A comprehensive IntelliJ IDEA plugin that provides advanced language support for
   - JSON schema-based completion for configuration files
   - `ref()` completion listing the actions declared in the project, in SQLX and JavaScript files
   - Dataform template expressions (`${...}`), with the `$` key opening completion automatically
+  - `config { }` properties, their enumerated values, and the tags already used in the project
+  - Columns of the action in `config { }`: keys of the `columns` map, `clusterBy`, `uniqueKey`, the
+    `assertions` block, and the partitioning expressions BigQuery accepts in `partitionBy`
 - **Code Navigation**: Navigate between references, includes, and declarations
 - **BigQuery SQL Support**: Native BigQuery SQL dialect integration with proper syntax validation
 - **Declared Variables**: `DECLARE` variables defined in pre-operations resolve inside the query
@@ -30,6 +33,8 @@ A comprehensive IntelliJ IDEA plugin that provides advanced language support for
 - **Columns**: Column name, type, mode and description from the resolved table schema
 - **BigQuery Functions**: Built-in documentation for the BigQuery function catalog, with signature,
   description and examples
+- **Config Keys**: What a `config { }` key expects and, for column-naming keys, the columns the
+  action actually produces
 
 ### Inline Expression Values
 Dataform expressions are folded to their evaluated value in the editor, the way IntelliJ shows
@@ -54,7 +59,7 @@ Dataform expressions are folded to their evaluated value in the editor, the way 
   as Dataform would evaluate them. `ref()` and `self()` use the last compiled graph, so they resolve
   after a build; nothing is folded when a value cannot be computed.
 - Because project JavaScript is executed as you type, the feature can be turned off under
-  **Settings ▸ Tools ▸ Dataform Tools ▸ Fold Dataform expressions to their evaluated value**.
+  **Settings ▸ Tools ▸ Dataform ▸ Fold Dataform expressions to their evaluated value**.
 
 ### Multi-Language Injection
 - **SQL Injection**: BigQuery SQL support within SQLX SQL blocks with template expression handling
@@ -69,6 +74,36 @@ Dataform expressions are folded to their evaluated value in the editor, the way 
 - **Symbol References**: Jump to function declarations and usages
 - **Workflow Settings References**: Link to workflow configuration properties
 - **Column Navigation**: `Ctrl+Click` from a column in a SQLX query to its declaration in the source table
+
+### Column Refactoring and Usages
+- **Rename Column** (`Shift+F6`): Renames a column of a Dataform table in the action declaring it and
+  in every action reading it, following the column lineage. When the column comes from a `SELECT *`,
+  a dialog asks whether to expand the star or declare the new name locally
+- **Find Usages**: Works on Dataform tables, columns, the aliases declaring them, and fields of
+  `STRUCT` columns
+- **Show Column Usages** (`Ctrl+Alt+Shift+U`): A popup listing where the column under the caret is
+  declared and every place that reads it
+- **Diagnose Dataform Column Resolution**: An editor action reporting step by step how the column
+  under the caret is resolved
+
+### Errors and Validation
+- **In-Place Errors**: Dataform compilation errors and BigQuery dry-run errors are placed on the
+  tokens they refer to, with inline chips in the editor
+- **Unplaced Errors Banner**: Errors that cannot be located in the file are listed in an editor banner
+- **Validation**: Dataform validation problems are highlighted at their exact range, with hints and
+  quick fixes, once typing stops
+- **`partitionBy` Inspection**: Reports a `partitionBy` written as an object and replaces it with
+  the BigQuery partitioning expression it stands for
+- **`js { }` Symbols**: Functions and constants of a `js` block used from `${...}` are no longer
+  reported as unused
+
+### Dataform Unit Tests
+- **Create Dataform Test**: Generates `definitions/tests/test_<action>.sqlx` for a table or view,
+  from the project view or the editor menu
+- **Test Editing**: Completion of the tested dataset, input names and column aliases, and
+  `Ctrl+Click` from an alias to the column it stands for
+- **Run Tests on BigQuery**: A `Dataform Unit Tests` run configuration with gutter icons; results
+  appear in the IDE test runner, with expected and actual rows side by side on failure
 
 ### Table Schemas and Column Completion
 - **Schema Resolution**: Table schemas are resolved through BigQuery dry-runs of the compiled queries
@@ -122,7 +157,15 @@ A split editor next to any `.sqlx` file, with three views:
 - **CLI Integration**: Automatic Dataform CLI installation and setup
 - **Project Indexing**: Fast indexing of Dataform core definitions and JavaScript symbols
 - **Compilation**: Project compilation integrated with the IDE build, with errors reported in the Build tool window
-- **Settings**: Dataform core install path and Sqlfluff configuration under `Settings` → `Tools` → `Dataform`
+- **Automatic Compilation**: The project is recompiled after edits once typing stops, on save, and
+  after external changes such as a checkout, a pull or a rollback
+- **New SQLX File**: `File` → `New` → `SQLX File`
+- **Disabled Actions**: SQLX files declaring `disabled: true` are greyed out in the project view
+- **Core Version Migration**: Suggests moving `dataformCoreVersion` from `workflow_settings.yaml` to
+  `package.json` when a project is opened
+- **Settings**: Under `Settings` → `Tools` → `Dataform`: Dataform core install path and one-click
+  CLI & core installation, Sqlfluff executable, config and arguments, and toggles for expression
+  folding, inline compilation and BigQuery errors, and recompiling on save
 
 ## Installation
 
