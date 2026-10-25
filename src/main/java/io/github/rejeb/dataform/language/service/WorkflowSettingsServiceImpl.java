@@ -46,7 +46,7 @@ public final class WorkflowSettingsServiceImpl implements WorkflowSettingsServic
 
     private record Snapshot(@NotNull Map<String, WorkflowSettingsProperty> properties,
                             long stamp,
-                            @NotNull String url) {
+                            @NotNull VirtualFile file) {
     }
 
     private volatile Snapshot snapshot;
@@ -70,15 +70,15 @@ public final class WorkflowSettingsServiceImpl implements WorkflowSettingsServic
         }
 
         long stamp = originalFile.getModificationStamp();
-        String url = fileUrlOf(originalFile);
+        VirtualFile file = originalFile.getVirtualFile();
         Snapshot current = snapshot;
-        if (current != null && current.stamp() == stamp && current.url().equals(url)) {
+        if (current != null && current.stamp() == stamp && current.file().equals(file)) {
             return current.properties();
         }
 
         Map<String, WorkflowSettingsProperty> properties =
                 parseWorkflowSettings(WorkflowSettingsYamlFileWrapper.create(originalFile, project));
-        snapshot = url == null ? null : new Snapshot(properties, stamp, url);
+        snapshot = file == null ? null : new Snapshot(properties, stamp, file);
         return properties;
     }
 
@@ -158,12 +158,6 @@ public final class WorkflowSettingsServiceImpl implements WorkflowSettingsServic
         return candidate != null && !candidate.isDirectory() ? candidate : null;
     }
 
-    @Nullable
-    private static String fileUrlOf(@NotNull YAMLFile file) {
-        VirtualFile virtualFile = file.getVirtualFile();
-        return virtualFile == null ? null : virtualFile.getUrl();
-    }
-
     @NotNull
     public Collection<String> getLeafPathsForPrefix(@Nullable String prefix) {
         List<String> paths = new ArrayList<>();
@@ -223,7 +217,8 @@ public final class WorkflowSettingsServiceImpl implements WorkflowSettingsServic
 
     @Override
     public boolean isWorkflowSettingProperty(@NotNull String property) {
-        return isWorkflowSettingProperty(property,getWorkflowProperties().get(DATAFORM_KEY));
+        WorkflowSettingsProperty root = getWorkflowProperties().get(DATAFORM_KEY);
+        return root != null && isWorkflowSettingProperty(property, root);
     }
 
     private boolean isWorkflowSettingProperty(@NotNull String propertyToFind, @NotNull WorkflowSettingsProperty property) {
@@ -257,8 +252,8 @@ public final class WorkflowSettingsServiceImpl implements WorkflowSettingsServic
 
     @Nullable
     private WorkflowSettingsProperty getOriginalFileProps() {
-        Map<String, WorkflowSettingsProperty> children = this.getWorkflowProperties().get(DATAFORM_KEY)
-                .children();
+        WorkflowSettingsProperty root = this.getWorkflowProperties().get(DATAFORM_KEY);
+        Map<String, WorkflowSettingsProperty> children = root != null ? root.children() : null;
         return children != null ? children.get(PROJECT_CONFIG_KEY) : null;
     }
 }

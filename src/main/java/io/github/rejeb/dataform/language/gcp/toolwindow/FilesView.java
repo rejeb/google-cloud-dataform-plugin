@@ -26,6 +26,9 @@ import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.fileTypes.FileType;
 import com.intellij.openapi.fileTypes.FileTypeManager;
+import com.intellij.openapi.progress.ProgressIndicator;
+import com.intellij.openapi.progress.ProgressManager;
+import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectUtil;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -43,7 +46,6 @@ import io.github.rejeb.dataform.language.gcp.workspace.UncommittedChange;
 import io.github.rejeb.dataform.language.util.DataformNotifications;
 import io.github.rejeb.dataform.language.util.DataformPaths;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 import org.jspecify.annotations.NonNull;
 
 import java.awt.*;
@@ -53,6 +55,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 import javax.swing.*;
 import javax.swing.tree.TreePath;
 
@@ -171,11 +175,47 @@ public class FilesView extends JPanel {
         return label;
     }
 
+    private <T> void loadRemote(@NotNull String title,
+                                @NotNull Supplier<T> loader,
+                                @NotNull Consumer<T> onLoaded) {
+        ProgressManager.getInstance().run(new Task.Backgroundable(project, title) {
+            private T result;
+
+            @Override
+            public void run(@NotNull ProgressIndicator indicator) {
+                result = loader.get();
+            }
+
+            @Override
+            public void onSuccess() {
+                if (!project.isDisposed()) {
+                    onLoaded.accept(result);
+                }
+            }
+
+            @Override
+            public void onThrowable(@NotNull Throwable error) {
+                DataformNotifications.create(title + " failed: " + error.getMessage(),
+                                NotificationType.ERROR)
+                        .notify(project);
+            }
+        });
+    }
+
+    private @NotNull String fetchRemoteContent(@NotNull DataformRepoTreeModel.FileEntry entry) {
+        String workspaceId = GcpRepositorySettings.getInstance(project).getSelectedWorkspaceId();
+        return DataformGcpService.getInstance(project).getFileContent(workspaceId, entry.relativePath());
+    }
+
     private void openInEditor(@NotNull DataformRepoTreeModel.FileEntry entry) {
+        loadRemote("Loading " + entry.displayName() + " from GCP",
+                () -> fetchRemoteContent(entry),
+                content -> showReadOnly(entry, content));
+    }
+
+    private void showReadOnly(@NotNull DataformRepoTreeModel.FileEntry entry, @NotNull String fileContent) {
         FileType fileType = FileTypeManager.getInstance()
                 .getFileTypeByFileName(entry.displayName());
-        String workspaceId = GcpRepositorySettings.getInstance(project).getSelectedWorkspaceId();
-        String fileContent = DataformGcpService.getInstance(project).getFileContent(workspaceId, entry.relativePath());
         String fileName = entry.displayName() + "(readonly)";
         FileEditorManager editorManager = FileEditorManager.getInstance(project);
         Arrays.stream(editorManager.getOpenFiles())
@@ -188,8 +228,13 @@ public class FilesView extends JPanel {
         FileEditorManager.getInstance(project).openFile(virtualFile, true);
     }
 
-    @Nullable
     private void compareWithLocal(@NotNull DataformRepoTreeModel.FileEntry entry) {
+        loadRemote("Loading " + entry.displayName() + " from GCP",
+                () -> fetchRemoteContent(entry),
+                content -> showDiff(entry, content));
+    }
+
+    private void showDiff(@NotNull DataformRepoTreeModel.FileEntry entry, @NotNull String fileContent) {
         FileType fileType = FileTypeManager.getInstance()
                 .getFileTypeByFileName(entry.displayName());
 
@@ -200,8 +245,6 @@ public class FilesView extends JPanel {
         } else {
             localContent = DiffContentFactory.getInstance().create("", fileType);
         }
-        String workspaceId = GcpRepositorySettings.getInstance(project).getSelectedWorkspaceId();
-        String fileContent = DataformGcpService.getInstance(project).getFileContent(workspaceId, entry.relativePath());
         DiffContent remoteContent = DiffContentFactory.getInstance()
                 .create(fileContent, fileType);
 
@@ -245,8 +288,12 @@ public class FilesView extends JPanel {
 
     private void fetchDirectoryToLocal(@NotNull String dirPath) {
         String workspace = GcpRepositorySettings.getInstance(project).getSelectedWorkspaceId();
-        Map<String, String> allFiles = DataformGcpService.getInstance(project).fetchCode(workspace);
+        loadRemote("Fetching " + dirPath + " from GCP",
+                () -> DataformGcpService.getInstance(project).fetchCode(workspace),
+                allFiles -> writeDirectory(dirPath, allFiles));
+    }
 
+    private void writeDirectory(@NotNull String dirPath, @NotNull Map<String, String> allFiles) {
         String prefix = dirPath + "/";
         Map<String, String> matching = allFiles.entrySet().stream()
                 .filter(e -> e.getKey().startsWith(prefix))
@@ -282,11 +329,15 @@ public class FilesView extends JPanel {
     }
 
     private void fetchFileToLocal(@NotNull DataformRepoTreeModel.FileEntry entry) {
+        loadRemote("Fetching " + entry.displayName() + " from GCP",
+                () -> fetchRemoteContent(entry),
+                content -> writeFetchedFile(entry, content));
+    }
+
+    private void writeFetchedFile(@NotNull DataformRepoTreeModel.FileEntry entry, @NotNull String fileContent) {
         WriteCommandAction.runWriteCommandAction(project,
                 "Fetch from GCP: " + entry.displayName(), null, () -> {
                     try {
-                        String workspace = GcpRepositorySettings.getInstance(project).getSelectedWorkspaceId();
-                        String fileContent = DataformGcpService.getInstance(project).getFileContent(workspace, entry.relativePath());
                         writeLocalFile(entry.relativePath(), fileContent);
                     } catch (IOException ex) {
                         DataformNotifications.create("Failed to fetch file: " + ex.getMessage(),

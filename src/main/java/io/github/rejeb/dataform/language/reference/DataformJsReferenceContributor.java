@@ -18,6 +18,8 @@ package io.github.rejeb.dataform.language.reference;
 
 import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.lang.javascript.psi.JSReferenceExpression;
+import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.patterns.PatternCondition;
 import com.intellij.patterns.PlatformPatterns;
 import com.intellij.patterns.PsiElementPattern;
 import com.intellij.psi.*;
@@ -26,12 +28,31 @@ import com.intellij.util.ProcessingContext;
 import io.github.rejeb.dataform.language.index.DataformJsFileIndex;
 import io.github.rejeb.dataform.language.psi.SqlxFile;
 import io.github.rejeb.dataform.language.util.DataformJsSymbolExtractor;
+import io.github.rejeb.dataform.language.util.DataformProjectLayout;
 import org.jetbrains.annotations.NotNull;
 
 public class DataformJsReferenceContributor extends PsiReferenceContributor {
 
     private static final PsiElementPattern.Capture<JSReferenceExpression> JS_REFERENCE =
-            PlatformPatterns.psiElement(JSReferenceExpression.class);
+            PlatformPatterns.psiElement(JSReferenceExpression.class)
+                    .with(new PatternCondition<>("inDataformFile") {
+                        @Override
+                        public boolean accepts(@NotNull JSReferenceExpression element, ProcessingContext context) {
+                            return isInDataformFile(element);
+                        }
+                    });
+
+    private static boolean isInDataformFile(@NotNull PsiElement element) {
+        PsiFile topLevelFile = InjectedLanguageManager.getInstance(element.getProject()).getTopLevelFile(element);
+        if (topLevelFile == null) {
+            return false;
+        }
+        if (topLevelFile instanceof SqlxFile) {
+            return true;
+        }
+        VirtualFile file = topLevelFile.getOriginalFile().getViewProvider().getVirtualFile();
+        return DataformProjectLayout.isInDataformProject(file);
+    }
 
     @Override
     public void registerReferenceProviders(@NotNull PsiReferenceRegistrar registrar) {
