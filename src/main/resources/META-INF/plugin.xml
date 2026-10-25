@@ -105,6 +105,7 @@
                 <li>BigQuery query execution in the Services view, with paged results in a data grid.</li>
                 <li>Google Cloud authentication status and sign-in prompts in the editor.</li>
             </ul>
+            <p>Signing in to Google Cloud is optional. See the <a href="https://rejeb.is-a.dev/dataform-plugin/privacy-policy">Privacy Policy</a> for how the plugin handles your data.</p>
 
             <h2>Formatting</h2>
             <ul>

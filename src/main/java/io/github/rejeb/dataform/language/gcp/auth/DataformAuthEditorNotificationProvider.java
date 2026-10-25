@@ -16,6 +16,7 @@
  */
 package io.github.rejeb.dataform.language.gcp.auth;
 
+import com.intellij.ide.BrowserUtil;
 import com.intellij.openapi.fileEditor.FileEditor;
 import com.intellij.openapi.project.DumbAware;
 import com.intellij.openapi.project.Project;
@@ -37,6 +38,8 @@ import java.util.function.Function;
  */
 public final class DataformAuthEditorNotificationProvider
         implements EditorNotificationProvider, DumbAware {
+
+    private static final String PRIVACY_POLICY_URL = "https://rejeb.is-a.dev/dataform-plugin/privacy-policy";
 
     @Override
     public @Nullable Function<? super FileEditor, ? extends JComponent> collectNotificationData(
@@ -83,6 +86,7 @@ public final class DataformAuthEditorNotificationProvider
         panel.setText(error == null ? message : message + " Last attempt failed: " + error);
         panel.createActionLabel("Sign in to Google Cloud",
                 () -> DataformCredentialsService.getInstance().signIn(project));
+        panel.createActionLabel("Privacy Policy", () -> BrowserUtil.browse(PRIVACY_POLICY_URL));
         panel.createActionLabel("Close",
                 () -> DataformAuthState.getInstance().dismissBanner());
         return panel;
