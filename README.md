@@ -126,7 +126,7 @@ A split editor next to any `.sqlx` file, with three views:
 
 ## Installation
 
-1. Download the plugin from the [JetBrains Marketplace](https://plugins.jetbrains.com/) (once published)
+1. Download the plugin from the [JetBrains Marketplace](https://plugins.jetbrains.com/plugin/30020)
 2. Install via IntelliJ IDEA: `Settings` → `Plugins` → `Marketplace` → Search for "Google Cloud Dataform"
 3. Restart IntelliJ IDEA
 
