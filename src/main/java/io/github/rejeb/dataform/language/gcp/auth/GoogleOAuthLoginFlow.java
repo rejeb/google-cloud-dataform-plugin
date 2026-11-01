@@ -60,7 +60,7 @@ public final class GoogleOAuthLoginFlow {
     private static final Duration HTTP_TIMEOUT = Duration.ofSeconds(30);
     private static final long POLL_MILLIS = 200L;
 
-    private static final String SUCCESS_REDIRECT_URL = "https://docs.cloud.google.com/sdk/auth_success";
+    private static final String SUCCESS_REDIRECT_URL = "https://rejeb.is-a.dev/dataform-plugin/auth_success";
 
     private GoogleOAuthLoginFlow() {
     }

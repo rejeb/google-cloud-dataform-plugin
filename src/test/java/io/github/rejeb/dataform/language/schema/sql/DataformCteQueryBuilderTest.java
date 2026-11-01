@@ -323,4 +323,45 @@ public class DataformCteQueryBuilderTest extends BasePlatformTestCase {
         assertTrue("the query must be kept whole, got:\n" + result,
                 result.contains("SELECT withholding FROM _df_dep"));
     }
+
+    /**
+     * A table whose name is another's followed by a dash: the shorter name used to match inside the
+     * quoted longer one, and won over it. Its stub alias was written into the backticks,
+     * {@code `_df_orders-v2`}, a name no stub defines, and BigQuery rejected the dry-run.
+     */
+    public void testATableNamedLikeAnotherFollowedByADashGetsItsOwnStub() {
+        String query = """
+                WITH recent AS (
+                    SELECT * FROM `proj.ds.orders-v2`
+                )
+                SELECT * FROM recent
+                """;
+        Map<String, List<ColumnInfo>> schemas = new java.util.LinkedHashMap<>();
+        schemas.put("proj.ds.orders", List.of(new ColumnInfo("id", "INTEGER", "NULLABLE", null)));
+        schemas.put("proj.ds.orders-v2", List.of(new ColumnInfo("id", "INTEGER", "NULLABLE", null)));
+        String result = DataformCteQueryBuilder.buildDryRunQuery(query, schemas, getProject());
+        assertTrue("the reference must read the stub defined for it, got:\n" + result,
+                result.contains("SELECT * FROM _df_orders_v2 AS `orders-v2`"));
+        assertTrue("got:\n" + result, result.contains("_df_orders_v2 AS ("));
+        assertFalse("the shorter name must not be found in the longer one, got:\n" + result,
+                result.contains("_df_orders AS ("));
+    }
+
+    /** Without a stub of its own, a table named like another followed by a dash is left as written. */
+    public void testATableNamedLikeAnotherFollowedByADashIsNotReplacedByTheOtherStub() {
+        String query = "SELECT * FROM `proj.ds.orders-v2`";
+        Map<String, List<ColumnInfo>> schemas = Map.of(
+                "proj.ds.orders", List.of(new ColumnInfo("id", "INTEGER", "NULLABLE", null)));
+        String result = DataformCteQueryBuilder.buildDryRunQuery(query, schemas, getProject());
+        assertEquals(query, result);
+    }
+
+    /** A project whose id ends with another project's id holds other tables. */
+    public void testATableOfAProjectNamedLikeAnotherAfterADashIsNotReplaced() {
+        String query = "SELECT * FROM `my-proj.ds.orders`";
+        Map<String, List<ColumnInfo>> schemas = Map.of(
+                "proj.ds.orders", List.of(new ColumnInfo("id", "INTEGER", "NULLABLE", null)));
+        String result = DataformCteQueryBuilder.buildDryRunQuery(query, schemas, getProject());
+        assertEquals(query, result);
+    }
 }

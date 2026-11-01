@@ -1,10 +1,12 @@
+import java.util.Base64
+
 plugins {
     id("org.jetbrains.kotlin.jvm") version "2.4.20"
-    id("org.jetbrains.intellij.platform") version "2.18.1"
+    id("org.jetbrains.intellij.platform") version "2.19.0"
 }
 
 group = "io.github.rejeb"
-version = "0.2.24"
+version = "1.0.0"
 
 repositories {
     mavenCentral()
@@ -14,7 +16,7 @@ repositories {
 }
 
 dependencies {
-    implementation(platform("com.google.cloud:libraries-bom:26.85.0"))
+    implementation(platform("com.google.cloud:libraries-bom:26.91.0"))
     implementation("com.google.cloud:google-cloud-dataform")
     implementation("com.google.cloud:google-cloud-bigquery")
     testImplementation("org.mockito:mockito-core:5.23.0")
@@ -73,10 +75,36 @@ intellijPlatform {
     }
 }
 
+val oauthClientId = providers.gradleProperty("dataformOAuthClientId").orElse("")
+val oauthClientSecret = providers.gradleProperty("dataformOAuthClientSecret").orElse("")
+val oauthResourcesDir = layout.buildDirectory.dir("generated/oauth-resources")
+
+val generateOAuthClientResource by tasks.registering(WriteProperties::class) {
+    destinationFile = oauthResourcesDir.map {
+        it.file("io/github/rejeb/dataform/language/gcp/auth/oauth-client.properties")
+    }
+    property("clientId", oauthClientId.map(::base64))
+    property("clientSecret", oauthClientSecret.map(::base64))
+}
+
+fun base64(value: String): String =
+    Base64.getEncoder().encodeToString(value.toByteArray(Charsets.UTF_8))
+
 tasks {
     withType<JavaCompile> {
         sourceCompatibility = "21"
         targetCompatibility = "21"
+    }
+    processResources {
+        dependsOn(generateOAuthClientResource)
+    }
+    buildPlugin {
+        doFirst {
+            check(oauthClientId.get().isNotBlank() && oauthClientSecret.get().isNotBlank()) {
+                "OAuth client missing: set dataformOAuthClientId and dataformOAuthClientSecret " +
+                        "in ~/.gradle/gradle.properties or as ORG_GRADLE_PROJECT_ environment variables."
+            }
+        }
     }
 }
 
@@ -84,6 +112,9 @@ sourceSets {
     main {
         java {
             srcDirs("src/main/gen", "src/main/java")
+        }
+        resources {
+            srcDir(oauthResourcesDir)
         }
     }
     test {
@@ -97,5 +128,7 @@ tasks.test {
     useJUnitPlatform()
     systemProperty("idea.suppressed.plugins.id", "org.jetbrains.plugins.vue")
     systemProperty("idea.plugins.host", "http://localhost:0")
+    systemProperty("dataform.plugin.oauth.clientId", "test-client-id.apps.googleusercontent.com")
+    systemProperty("dataform.plugin.oauth.clientSecret", "test-client-secret")
 }
 

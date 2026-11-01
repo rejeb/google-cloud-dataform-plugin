@@ -16,23 +16,34 @@
  */
 package io.github.rejeb.dataform.language.gcp.auth;
 
+import com.intellij.openapi.diagnostic.Logger;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.List;
+import java.util.Properties;
 
 /**
  * OAuth client used by the plugin sign-in flow.
  * <p>
- * The defaults are the Google Cloud SDK desktop client, so that the sign-in produces exactly the
- * same kind of credential as {@code gcloud auth application-default login}. These values are not
- * owned by this plugin and Google may rotate them at any time: both are overridable with system
- * properties so a fork or an internal build can register its own desktop client instead.
+ * The default client is not part of the sources: the build writes it, Base64 encoded, to the
+ * {@code oauth-client.properties} resource from the {@code dataformOAuthClientId} and
+ * {@code dataformOAuthClientSecret} Gradle properties. A build without them has no default client
+ * and sign-in stays disabled. Both values are overridable, in plain text, with system properties so
+ * a fork or an internal build can register its own desktop client instead.
  */
 public final class OAuthClientConfig {
 
+    private static final Logger LOG = Logger.getInstance(OAuthClientConfig.class);
+
     private static final String CLIENT_ID_PROPERTY = "dataform.plugin.oauth.clientId";
     private static final String CLIENT_SECRET_PROPERTY = "dataform.plugin.oauth.clientSecret";
-    private static final String DEFAULT_CLIENT_ID =
-            "764086051850-6qr4p6gpi6hn506pt8ejuq83di341hur.apps.googleusercontent.com";
-    private static final String DEFAULT_CLIENT_SECRET = "d-FL95Q19q7MQmFpd7hHD0Ty";
+    private static final String DEFAULTS_RESOURCE = "oauth-client.properties";
+    private static final Properties DEFAULTS = loadDefaults();
+    private static final String DEFAULT_CLIENT_ID = decode(DEFAULTS.getProperty("clientId", ""));
+    private static final String DEFAULT_CLIENT_SECRET = decode(DEFAULTS.getProperty("clientSecret", ""));
 
     public static final String AUTH_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth";
     public static final String TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
@@ -66,5 +77,26 @@ public final class OAuthClientConfig {
      */
     public static boolean isConfigured() {
         return !clientId().isBlank() && !clientSecret().isBlank();
+    }
+
+    private static Properties loadDefaults() {
+        Properties properties = new Properties();
+        try (InputStream input = OAuthClientConfig.class.getResourceAsStream(DEFAULTS_RESOURCE)) {
+            if (input != null) {
+                properties.load(input);
+            }
+        } catch (IOException e) {
+            LOG.warn("Cannot read the default OAuth client", e);
+        }
+        return properties;
+    }
+
+    static String decode(String encoded) {
+        try {
+            return new String(Base64.getDecoder().decode(encoded.trim()), StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException e) {
+            LOG.warn("The default OAuth client is not valid Base64");
+            return "";
+        }
     }
 }

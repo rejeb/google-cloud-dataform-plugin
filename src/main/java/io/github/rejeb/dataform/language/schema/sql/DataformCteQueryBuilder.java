@@ -197,21 +197,24 @@ public final class DataformCteQueryBuilder {
         return excluded.stream().anyMatch(ex -> ex.contains(range));
     }
 
+    /**
+     * Whether a match is a whole table name rather than a part of a longer one. An edge closed by a
+     * backtick ends the name; any other edge must not touch a character a name goes on with.
+     */
     private static boolean isBoundaryMatch(@NotNull String text, int start, int end) {
-        if (start > 0) {
-            char before = text.charAt(start - 1);
-            // If the match starts with a backtick, no boundary check needed
-            if (text.charAt(start) != '`' && (Character.isLetterOrDigit(before) || before == '_')) {
-                return false;
-            }
+        if (start > 0 && text.charAt(start) != '`' && isNameCharacter(text.charAt(start - 1))) {
+            return false;
         }
-        if (end < text.length()) {
-            char after = text.charAt(end);
-            if (text.charAt(end - 1) != '`' && (Character.isLetterOrDigit(after) || after == '_')) {
-                return false;
-            }
-        }
-        return true;
+        return end >= text.length() || text.charAt(end - 1) == '`' || !isNameCharacter(text.charAt(end));
+    }
+
+    /**
+     * Whether a character may go on a table path: a dash as well as a word character, since project
+     * ids and table names hold dashes, so {@code orders} is not the table {@code orders-v2} begins
+     * with, nor {@code proj} the project {@code my-proj} ends with.
+     */
+    private static boolean isNameCharacter(char character) {
+        return isWordCharacter(character) || character == '-';
     }
 
     @NotNull

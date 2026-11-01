@@ -73,10 +73,9 @@ public final class DataformAuthEditorNotificationProvider
         }
 
         if (!OAuthClientConfig.isConfigured()) {
-            panel.setText("Dataform cannot sign in to Google Cloud: the OAuth client was overridden "
-                    + "with an empty value. Fix the dataform.plugin.oauth.clientId and "
-                    + "dataform.plugin.oauth.clientSecret system properties, or remove them to use "
-                    + "the default client.");
+            panel.setText("Dataform cannot sign in to Google Cloud: no OAuth client is configured. "
+                    + "Set the dataform.plugin.oauth.clientId and dataform.plugin.oauth.clientSecret "
+                    + "system properties, or use a plugin build that ships a default client.");
             panel.createActionLabel("Close",
                     () -> DataformAuthState.getInstance().dismissBanner());
             return panel;
