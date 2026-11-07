@@ -17,6 +17,7 @@
 package io.github.rejeb.dataform.language.gcp.auth;
 
 import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectManager;
 import com.intellij.ui.EditorNotifications;
@@ -90,11 +91,14 @@ public final class DataformAuthStateImpl implements DataformAuthState {
 
     private void refreshBanners() {
         ApplicationManager.getApplication().invokeLater(() -> {
+            ApplicationManager.getApplication().getMessageBus()
+                    .syncPublisher(DataformAuthListener.TOPIC)
+                    .authStatusChanged(status);
             for (Project project : ProjectManager.getInstance().getOpenProjects()) {
                 if (!project.isDisposed()) {
                     EditorNotifications.getInstance(project).updateAllNotifications();
                 }
             }
-        });
+        }, ModalityState.any());
     }
 }

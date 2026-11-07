@@ -110,20 +110,12 @@ public final class CompilationProblemsServiceImpl implements CompilationProblems
                                                             @NotNull ParsedCompilationError error,
                                                             @NotNull TextRange range,
                                                             @Nullable String compiledFile) {
-        StackFrame origin = raisedElsewhere(error, path);
+        StackFrame origin = CompilationHints.raisedElsewhere(error, path);
         StringBuilder message = new StringBuilder(PREFIX).append(error.message());
         if (origin != null) message.append(" (raised in ").append(origin.path()).append(':').append(origin.line()).append(')');
         if (compiledFile != null) message.append(" (while compiling ").append(compiledFile).append(')');
-        SqlHint hint = origin != null
-                ? new SqlHint("Fix it in " + origin.path() + " line " + origin.line() + ".", List.of())
-                : CompilationHints.hintFor(error, range, file.getText(), PsiCompilationScope.at(file, range.getStartOffset()));
+        SqlHint hint = CompilationHints.hintAt(file, path, error, range);
         return SqlxValidationProblem.compilationError(range, message.toString(), hint.text(), hint.fixes());
-    }
-
-    private static @Nullable StackFrame raisedElsewhere(@NotNull ParsedCompilationError error, @NotNull String path) {
-        if (error.indexOfFrameIn(path) <= 0) return null;
-        StackFrame top = error.frames().getFirst();
-        return top.path().startsWith("definitions/") || top.path().startsWith("includes/") ? top : null;
     }
 
 

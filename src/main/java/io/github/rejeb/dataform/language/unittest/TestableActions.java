@@ -38,7 +38,11 @@ public final class TestableActions {
      * compiler.
      */
     public static boolean isTestable(@Nullable CompiledTable table) {
-        return table != null && table.getTarget() != null && TESTABLE_TYPES.contains(table.getActionKind());
+        if (table == null || table.getTarget() == null) {
+            return false;
+        }
+        String kind = table.getActionKind();
+        return kind != null && TESTABLE_TYPES.contains(kind);
     }
 
     /**

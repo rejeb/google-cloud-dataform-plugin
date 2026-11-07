@@ -16,9 +16,12 @@
  */
 package io.github.rejeb.dataform.language.gcp.toolwindow.action;
 
-import com.intellij.icons.AllIcons;
+import io.github.rejeb.dataform.language.DataformIcons;
+import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
+import io.github.rejeb.dataform.language.gcp.auth.AuthStatus;
+import io.github.rejeb.dataform.language.gcp.auth.DataformAuthState;
 import io.github.rejeb.dataform.language.gcp.toolwindow.dispatcher.GcpPanelActionDispatcher;
 import org.jetbrains.annotations.NotNull;
 
@@ -29,12 +32,22 @@ public class RefreshAction extends AnAction {
     public RefreshAction(
             @NotNull GcpPanelActionDispatcher callback
     ) {
-        super(() -> "Refresh", AllIcons.Actions.Refresh);
+        super(() -> "Refresh", DataformIcons.REFRESH);
         this.callback = callback;
     }
 
     @Override
     public void actionPerformed(@NotNull AnActionEvent e) {
         callback.refreshWorkspaces();
+    }
+
+    @Override
+    public void update(@NotNull AnActionEvent e) {
+        e.getPresentation().setEnabled(DataformAuthState.getInstance().getStatus() == AuthStatus.NONE);
+    }
+
+    @Override
+    public @NotNull ActionUpdateThread getActionUpdateThread() {
+        return ActionUpdateThread.BGT;
     }
 }

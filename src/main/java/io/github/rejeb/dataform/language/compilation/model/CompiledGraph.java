@@ -128,7 +128,7 @@ public class CompiledGraph {
      */
     public @NotNull List<GraphAction> actionsOfFile(@NotNull String fileName) {
         List<GraphAction> actions = new ArrayList<>();
-        findTableByFileName(fileName).forEach(t -> addAction(actions, t.getTarget(), t.getType(), t.getFileName(),
+        findTableByFileName(fileName).forEach(t -> addAction(actions, t.getTarget(), t.getKind(), t.getFileName(),
                 t.getDependencyTargets(), true));
         findOperationByFileName(fileName).forEach(o -> addAction(actions, o.getTarget(), "operation", o.getFileName(),
                 o.getDependencyTargets(), o.isHasOutput()));

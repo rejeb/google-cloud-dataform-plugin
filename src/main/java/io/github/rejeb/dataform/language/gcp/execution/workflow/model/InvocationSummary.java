@@ -31,8 +31,54 @@ public record InvocationSummary(
         @Nullable String sourceWorkspaceName,
         @Nullable String contents,
         @NotNull Instant startTime,
-        @Nullable Instant endTime
+        @Nullable Instant endTime,
+        @Nullable String serviceAccount
 ) {
+
+    private static final int PROJECT_SEGMENT = 1;
+    private static final int LOCATION_SEGMENT = 3;
+    private static final int REPOSITORY_SEGMENT = 5;
+
+    /**
+     * A summary of an invocation run with the default service account.
+     */
+    public InvocationSummary(@NotNull String invocationName, @NotNull String compilationResultName,
+                             @NotNull String sourceType, @Nullable String sourceWorkspaceName,
+                             @Nullable String contents, @NotNull Instant startTime, @Nullable Instant endTime) {
+        this(invocationName, compilationResultName, sourceType, sourceWorkspaceName, contents, startTime, endTime,
+                null);
+    }
+
+    /**
+     * The Google Cloud project of the invocation, read from its resource name.
+     */
+    @Nullable
+    public String project() {
+        return segment(PROJECT_SEGMENT);
+    }
+
+    /**
+     * The location of the repository, read from the resource name of the invocation.
+     */
+    @Nullable
+    public String location() {
+        return segment(LOCATION_SEGMENT);
+    }
+
+    /**
+     * The id of the Dataform repository, read from the resource name of the invocation.
+     */
+    @Nullable
+    public String repository() {
+        return segment(REPOSITORY_SEGMENT);
+    }
+
+    @Nullable
+    private String segment(int index) {
+        String[] parts = invocationName.split("/");
+        return parts.length > index && !parts[index].isBlank() ? parts[index] : null;
+    }
+
     /**
      * Returns the short ID extracted from the compilation result resource name
      * (last path segment after the final '/').
@@ -50,8 +96,18 @@ public record InvocationSummary(
      */
     @NotNull
     public String gcpConsoleUrl() {
-        String url = dataformConsoleUrl(invocationName, "workflows");
+        String url = workflowConsoleUrl(invocationName);
         return url != null ? url : CONSOLE_URL;
+    }
+
+    /**
+     * Returns the GCP Console URL of the workflow invocation with the given resource name
+     * ({@code projects/p/locations/l/repositories/r/workflowInvocations/i}), or null when the name
+     * is malformed.
+     */
+    @Nullable
+    public static String workflowConsoleUrl(@NotNull String invocationName) {
+        return dataformConsoleUrl(invocationName, "workflows");
     }
 
     /**

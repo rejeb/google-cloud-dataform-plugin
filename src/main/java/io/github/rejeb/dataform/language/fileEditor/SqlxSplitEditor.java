@@ -16,22 +16,19 @@
  */
 package io.github.rejeb.dataform.language.fileEditor;
 
-import com.intellij.execution.actions.RunContextAction;
-import com.intellij.execution.executors.DefaultRunExecutor;
-import com.intellij.icons.AllIcons;
 import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.fileEditor.TextEditor;
 import com.intellij.openapi.fileEditor.TextEditorWithPreview;
-import com.intellij.ui.JBColor;
-import com.intellij.util.IconUtil;
-import icons.DatabaseIcons;
-import io.github.rejeb.dataform.language.compilation.DataformBuildAction;
+import com.intellij.openapi.project.DumbAware;
+import io.github.rejeb.dataform.language.DataformIcons;
+import io.github.rejeb.dataform.language.fileEditor.action.CompileProjectAction;
 import io.github.rejeb.dataform.language.fileEditor.action.ExecuteQueryAction;
+import io.github.rejeb.dataform.language.fileEditor.action.RunFileAction;
+import io.github.rejeb.dataform.language.ui.Toolbars;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
-import java.util.List;
 
 public class SqlxSplitEditor extends TextEditorWithPreview {
 
@@ -62,49 +59,72 @@ public class SqlxSplitEditor extends TextEditorWithPreview {
     @Override
     protected @Nullable ActionGroup createLeftToolbarActionGroup() {
         DefaultActionGroup group = new DefaultActionGroup();
-        group.add(new DataformBuildAction(myPreview.getProject(), "Compile", "Compile", AllIcons.Actions.Compile));
-        group.addSeparator();
+        group.add(new CompileProjectAction(myPreview.getProject()));
         group.add(new ExecuteQueryAction(myPreview));
         group.addSeparator();
-        group.add(new RunContextAction(new DefaultRunExecutor()));
+        group.add(new RunFileAction(myPreview));
         return group;
     }
 
     @Override
-    protected @Nullable ActionGroup createRightToolbarActionGroup() {
-        DefaultActionGroup group = new DefaultActionGroup();
-        group.addSeparator();
-        group.add(getShowEditorAction());
-        group.addSeparator();
-        group.add(new ShowViewAction(
-                "Query", "Show compiled SQL query",
-                DatabaseIcons.Sql,
-                SqlxCompiledPreviewEditor.View.QUERY
-        ));
-        group.add(new ShowViewAction(
-                "Schema", "Show table schema",
-                AllIcons.Nodes.DataTables,
-                SqlxCompiledPreviewEditor.View.SCHEMA
-        ));
-        group.add(new ShowViewAction(
-                "Lineage", "Show lineage graph",
-                IconUtil.colorize(AllIcons.CodeWithMe.CwmShared, JBColor.BLUE),
-                SqlxCompiledPreviewEditor.View.LINEAGE
-        ));
-        group.add(new ShowViewAction(
-                "Test", "Show the compiled test and expected output queries",
-                AllIcons.Nodes.Test,
-                SqlxCompiledPreviewEditor.View.TEST
-        ));
-        return group;
+    protected boolean isShowActionsInTabs() {
+        return false;
+    }
+
+    @Override
+    protected @NotNull ActionToolbar createRightToolbar() {
+        DefaultActionGroup group = new DefaultActionGroup(createViewActionGroup(), Separator.create(),
+                previewViewActionGroup());
+        return ActionManager.getInstance().createActionToolbar(ActionPlaces.TEXT_EDITOR_WITH_PREVIEW, group, true);
     }
 
     @Override
     protected @NotNull ActionGroup createViewActionGroup() {
-        return new DefaultActionGroup(List.of());
+        return new DefaultActionGroup(
+                new LayoutAction("Editor only", DataformIcons.LAYOUT_EDITOR_ONLY, Layout.SHOW_EDITOR),
+                new LayoutAction("Editor and preview", DataformIcons.LAYOUT_EDITOR_AND_PREVIEW,
+                        Layout.SHOW_EDITOR_AND_PREVIEW),
+                new LayoutAction("Preview only", DataformIcons.LAYOUT_PREVIEW_ONLY, Layout.SHOW_PREVIEW));
     }
 
-    private class ShowViewAction extends AnAction implements Toggleable {
+    private @NotNull ActionGroup previewViewActionGroup() {
+        return new DefaultActionGroup(
+                new ShowViewAction("Query", "Show the compiled queries", DataformIcons.PREVIEW_QUERY,
+                        SqlxCompiledPreviewEditor.View.QUERY),
+                new ShowViewAction("Schema", "Show the schemas of the actions", DataformIcons.PREVIEW_SCHEMA,
+                        SqlxCompiledPreviewEditor.View.SCHEMA),
+                new ShowViewAction("Lineage", "Show the lineage of the file", DataformIcons.LINEAGE,
+                        SqlxCompiledPreviewEditor.View.LINEAGE),
+                new ShowViewAction("Test", "Show the compiled test and expected output queries",
+                        DataformIcons.PREVIEW_TEST, SqlxCompiledPreviewEditor.View.TEST));
+    }
+
+    private final class LayoutAction extends ToggleAction implements DumbAware {
+
+        private final Layout layout;
+
+        LayoutAction(@NotNull String text, @NotNull Icon icon, @NotNull Layout layout) {
+            super(text, text, icon);
+            this.layout = layout;
+        }
+
+        @Override
+        public boolean isSelected(@NotNull AnActionEvent e) {
+            return getLayout() == layout;
+        }
+
+        @Override
+        public void setSelected(@NotNull AnActionEvent e, boolean state) {
+            if (state) setLayout(layout);
+        }
+
+        @Override
+        public @NotNull ActionUpdateThread getActionUpdateThread() {
+            return ActionUpdateThread.EDT;
+        }
+    }
+
+    private class ShowViewAction extends AnAction implements Toggleable, DumbAware {
 
         private final SqlxCompiledPreviewEditor.View view;
 
@@ -113,33 +133,33 @@ public class SqlxSplitEditor extends TextEditorWithPreview {
                        @NotNull SqlxCompiledPreviewEditor.View view) {
             super(text, description, icon);
             this.view = view;
+            Toolbars.withText(this);
         }
 
         @Override
         public void actionPerformed(@NotNull AnActionEvent e) {
-            boolean isThisViewActive = myPreview.getActiveView() == view;
-
-            if (!isThisViewActive || getLayout() == Layout.SHOW_EDITOR) {
-                setLayout(Layout.SHOW_EDITOR_AND_PREVIEW);
-                myPreview.showPanel(view);
-            } else {
+            if (isShown()) {
                 setLayout(Layout.SHOW_EDITOR);
+            } else {
+                if (getLayout() != Layout.SHOW_PREVIEW) setLayout(Layout.SHOW_EDITOR_AND_PREVIEW);
+                myPreview.showPanel(view);
             }
-
-            Toggleable.setSelected(e.getPresentation(), getLayout() != Layout.SHOW_EDITOR);
+            Toggleable.setSelected(e.getPresentation(), isShown());
         }
 
         @Override
         public void update(@NotNull AnActionEvent e) {
             e.getPresentation().setVisible(myPreview.getMode().shows(view));
-            boolean active = getLayout() == Layout.SHOW_EDITOR_AND_PREVIEW
-                    && myPreview.getActiveView() == view;
-            Toggleable.setSelected(e.getPresentation(), active);
+            Toggleable.setSelected(e.getPresentation(), isShown());
+        }
+
+        private boolean isShown() {
+            return getLayout() != Layout.SHOW_EDITOR && myPreview.getActiveView() == view;
         }
 
         @Override
         public @NotNull ActionUpdateThread getActionUpdateThread() {
-            return ActionUpdateThread.BGT;
+            return ActionUpdateThread.EDT;
         }
     }
 }

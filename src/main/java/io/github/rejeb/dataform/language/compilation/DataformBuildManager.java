@@ -19,28 +19,36 @@ package io.github.rejeb.dataform.language.compilation;
 import com.intellij.build.*;
 import com.intellij.build.events.FinishBuildEvent;
 import com.intellij.build.events.MessageEvent;
+import com.intellij.build.events.OutputBuildEvent;
 import com.intellij.build.events.StartBuildEvent;
 import com.intellij.build.events.impl.FailureResultImpl;
 import com.intellij.build.events.impl.SuccessResultImpl;
+import com.intellij.execution.process.ProcessOutputType;
 import com.intellij.icons.AllIcons;
 import com.intellij.ide.nls.NlsMessages;
 import com.intellij.notification.NotificationType;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.editor.Document;
+import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectUtil;
+import com.intellij.openapi.util.text.LineColumn;
+import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.ExceptionUtil;
 import com.intellij.util.ThreeState;
 import io.github.rejeb.dataform.language.compilation.model.CompilationError;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
+import io.github.rejeb.dataform.language.diagnostics.compile.BuildErrorPlacement;
 import io.github.rejeb.dataform.language.diagnostics.sql.bigquery.DryRunBuildProblem;
 import io.github.rejeb.dataform.language.diagnostics.sql.bigquery.DryRunBuildProblems;
 import io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService;
 import io.github.rejeb.dataform.language.schema.sql.SchemaRefreshOutcome;
 import io.github.rejeb.dataform.language.util.DataformNotifications;
 import io.github.rejeb.dataform.language.util.DataformPaths;
+import io.github.rejeb.dataform.language.util.DataformProjectLayout;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -93,6 +101,12 @@ public final class DataformBuildManager {
             try {
                 DataformCompilationService service = DataformCompilationService.getInstance(project);
                 CompiledGraph compiledGraph = service.compile(true);
+                CliRun run = service.lastCliRun();
+                CliFailure failure = run != null ? CliFailureExplainer.explain(run) : null;
+                if (failure != null) {
+                    reportCliFailure(project, buildViewManager, context, run, failure, compiledGraph);
+                    return;
+                }
 
                 if (compiledGraph == null) {
                     reportError(buildViewManager, context, "dataform compile returned no output — check stderr",
@@ -105,8 +119,10 @@ public final class DataformBuildManager {
 
                 List<CompilationError> errors = CompilationFailures.errorsOf(compiledGraph);
                 for (CompilationError error : errors) {
-                    reportError(buildViewManager, context, BuildErrorText.title(error), BuildErrorText.details(error),
-                            resolveFilePosition(project, error));
+                    PlacedError placed = ReadAction.nonBlocking(() -> BuildErrorPlacement.place(project, error))
+                            .executeSynchronously();
+                    reportError(buildViewManager, context, BuildErrorText.title(error),
+                            BuildErrorText.placedDetails(error, placed), filePosition(project, error, placed));
                 }
 
                 String schemaCheck = null;
@@ -122,6 +138,10 @@ public final class DataformBuildManager {
                     failedQueries = problems.size();
                     schemaCheck = SchemaCheckText.of(outcome, failedQueries);
                 }
+
+                buildViewManager.onEvent(context, output(context, BuildSummaryText.header(run)
+                        + BuildSummaryText.of(compiledActions(compiledGraph), errors.size(),
+                        CompilationFailures.fileNamesOf(compiledGraph).size(), schemaCheck)));
 
                 String compileResult = errors.isEmpty()
                         ? "Dataform compile succeeded"
@@ -233,6 +253,86 @@ public final class DataformBuildManager {
                 .withGroup(TASK_NAME);
         if (position != null) event = event.withFilePosition(position);
         return event.build();
+    }
+
+    /**
+     * Reports a run of the CLI that compiled nothing: one error explaining it, one placed on the
+     * setting of {@code workflow_settings.yaml} it is about when there is one, and the output of the
+     * CLI in the console of the build node.
+     */
+    private static void reportCliFailure(@NotNull Project project, @NotNull BuildViewManager buildViewManager,
+                                         @NotNull DataformBuildContext context, @NotNull CliRun run,
+                                         @NotNull CliFailure failure, @Nullable CompiledGraph graph) {
+        boolean previousGraph = graph != null && compiledActions(graph) > 0;
+        reportError(buildViewManager, context, failure.title(),
+                CliFailureExplainer.describe(failure, run, previousGraph), null);
+        String key = failure.settingsKey();
+        if (key != null) {
+            SettingPlacement setting = ReadAction.nonBlocking(() -> settingPlacement(project, key)).executeSynchronously();
+            if (setting != null) {
+                reportError(buildViewManager, context, failure.title(), setting.description(failure), setting.position());
+            }
+        }
+        String stderr = run.stderr().isBlank() || run.stderr().endsWith("\n") ? run.stderr() : run.stderr() + "\n";
+        buildViewManager.onEvent(context, output(context, BuildSummaryText.header(run) + stderr + "\n"
+                + BuildSummaryText.processEnd(run)));
+        finishBuild(buildViewManager, context, false, failure.title());
+        showNotification(project, failure.title(), "See Build window", NotificationType.ERROR);
+    }
+
+    @Nullable
+    private static SettingPlacement settingPlacement(@NotNull Project project, @NotNull String key) {
+        VirtualFile file = DataformPaths.findInProject(project, DataformProjectLayout.WORKFLOW_SETTINGS_YAML);
+        if (file == null) return null;
+        Document document = FileDocumentManager.getInstance().getDocument(file);
+        if (document == null) return null;
+        String text = document.getText();
+        int offset = CliFailureExplainer.keyOffset(text, key);
+        if (offset < 0) return null;
+        LineColumn at = StringUtil.offsetToLineColumn(text, offset);
+        return new SettingPlacement(new FilePosition(file.toNioPath(), at.line, at.column),
+                DataformProjectLayout.WORKFLOW_SETTINGS_YAML + ":" + (at.line + 1) + ":" + (at.column + 1) + "\n"
+                        + CodeFrame.of(text, at.line, at.column, key.length()));
+    }
+
+    private record SettingPlacement(@NotNull FilePosition position, @NotNull String frame) {
+
+        @NotNull
+        String description(@NotNull CliFailure failure) {
+            return BuildErrorText.details(String.join("\n", failure.cause()) + "\n" + String.join("\n", failure.fix()))
+                    + "\n\n" + frame;
+        }
+    }
+
+    /**
+     * Text printed in the console of the build node.
+     */
+    @NotNull
+    static OutputBuildEvent output(@NotNull Object buildId, @NotNull String text) {
+        return OutputBuildEvent.builder(text)
+                .withParentId(buildId)
+                .withOutputType(ProcessOutputType.STDOUT)
+                .build();
+    }
+
+    private static int compiledActions(@NotNull CompiledGraph graph) {
+        return sizeOf(graph.getTables()) + sizeOf(graph.getAssertions()) + sizeOf(graph.getOperations());
+    }
+
+    private static int sizeOf(@Nullable List<?> list) {
+        return list == null ? 0 : list.size();
+    }
+
+    /**
+     * The position an error is listed at: where it is placed in its file, or the start of its file
+     * when it is not placed there, as when it is thrown in an include.
+     */
+    @Nullable
+    private static FilePosition filePosition(@NotNull Project project, @NotNull CompilationError error,
+                                             @Nullable PlacedError placed) {
+        FilePosition start = resolveFilePosition(project, error);
+        if (start == null || placed == null || placed.thrownInPath() != null) return start;
+        return new FilePosition(start.getPath(), placed.line(), placed.column());
     }
 
     @Nullable

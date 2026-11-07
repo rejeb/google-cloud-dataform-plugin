@@ -16,83 +16,68 @@
  */
 package io.github.rejeb.dataform.language.gcp.toolwindow.action;
 
-import com.intellij.icons.AllIcons;
 import com.intellij.openapi.actionSystem.ActionUpdateThread;
-import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
-import com.intellij.openapi.ui.Messages;
-import com.intellij.ui.JBColor;
-import com.intellij.util.IconUtil;
+import com.intellij.openapi.project.DumbAwareAction;
+import io.github.rejeb.dataform.language.DataformIcons;
 import io.github.rejeb.dataform.language.gcp.toolwindow.dispatcher.GcpPanelActionDispatcher;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import javax.swing.*;
+import javax.swing.Icon;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
-public final class WorkspaceTransferAction extends AnAction {
+/**
+ * Copies files between the project and the selected workspace; disabled while the repository's
+ * main branch is shown.
+ */
+public final class WorkspaceTransferAction extends DumbAwareAction {
 
     private final Supplier<@Nullable String> workspaceIdSupplier;
-    private final String verb;
-    private final Function<String, String> enabledText;
-    private final String disabledText;
     private final Consumer<String> transfer;
 
     private WorkspaceTransferAction(@NotNull Supplier<@Nullable String> workspaceIdSupplier, @NotNull String text,
-                                    @NotNull Icon icon, @NotNull String verb,
-                                    @NotNull Function<String, String> enabledText, @NotNull String disabledText,
+                                    @NotNull String description, @NotNull Icon icon,
                                     @NotNull Consumer<String> transfer) {
-        super(() -> text, icon);
+        super(text, description, icon);
         this.workspaceIdSupplier = workspaceIdSupplier;
-        this.verb = verb;
-        this.enabledText = enabledText;
-        this.disabledText = disabledText;
         this.transfer = transfer;
     }
 
     /**
-     * The action fetching the files of the selected workspace into the local project.
+     * The action copying the files of the selected workspace into the project.
      */
     public static @NotNull WorkspaceTransferAction pull(@NotNull Supplier<@Nullable String> workspaceIdSupplier,
                                                         @NotNull GcpPanelActionDispatcher dispatcher) {
-        return new WorkspaceTransferAction(workspaceIdSupplier, "Fetch Files from Workspace to Local",
-                IconUtil.colorize(AllIcons.Actions.CheckOut, JBColor.GREEN), "pulling",
-                id -> "Pull workspace '" + id + "' files to local", "Select a Workspace to Enable Pull",
-                dispatcher::pull);
+        return new WorkspaceTransferAction(workspaceIdSupplier, "Pull", "Copy the workspace files into the project",
+                DataformIcons.PULL, dispatcher::pull);
     }
 
     /**
-     * The action sending the local files to the selected workspace.
+     * The action copying the project files into the selected workspace.
      */
     public static @NotNull WorkspaceTransferAction push(@NotNull Supplier<@Nullable String> workspaceIdSupplier,
                                                         @NotNull GcpPanelActionDispatcher dispatcher) {
-        return new WorkspaceTransferAction(workspaceIdSupplier, "Send Local Files to Workspace",
-                IconUtil.colorize(AllIcons.Vcs.Push, JBColor.BLUE), "pushing",
-                id -> "Push local files to workspace '" + id + "'", "Select a workspace to enable push",
-                dispatcher::push);
+        return new WorkspaceTransferAction(workspaceIdSupplier, "Push", "Copy the project files into the workspace",
+                DataformIcons.PUSH, dispatcher::push);
     }
 
     @Override
     public void actionPerformed(@NotNull AnActionEvent e) {
         String workspaceId = workspaceIdSupplier.get();
-        if (workspaceId == null) {
-            Messages.showWarningDialog("Please select a workspace before " + verb + ".", "No Workspace Selected");
-            return;
+        if (workspaceId != null) {
+            transfer.accept(workspaceId);
         }
-        transfer.accept(workspaceId);
     }
 
     @Override
     public void update(@NotNull AnActionEvent e) {
-        String workspaceId = workspaceIdSupplier.get();
-        e.getPresentation().setEnabled(workspaceId != null);
-        e.getPresentation().setText(workspaceId != null ? enabledText.apply(workspaceId) : disabledText);
+        e.getPresentation().setEnabled(workspaceIdSupplier.get() != null);
     }
 
     @Override
     public @NotNull ActionUpdateThread getActionUpdateThread() {
-        return ActionUpdateThread.EDT;
+        return ActionUpdateThread.BGT;
     }
 }

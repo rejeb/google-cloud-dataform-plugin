@@ -62,6 +62,15 @@ public class CompiledTable implements ExecutableAction {
         return kind == null ? null : kind.toLowerCase(Locale.ROOT);
     }
 
+    /**
+     * Returns the kind of action as Dataform compiled it, or {@link #getType()} when the graph gives
+     * none: the kind to show to the user.
+     */
+    public String getKind() {
+        String kind = getActionKind();
+        return kind != null ? kind : getType();
+    }
+
     @Override
     public Target getTarget() {
         return target;

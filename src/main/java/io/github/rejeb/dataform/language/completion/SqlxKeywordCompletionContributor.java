@@ -42,6 +42,7 @@ import io.github.rejeb.dataform.language.unittest.SqlxUnitTests;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Set;
+import java.util.regex.Pattern;
 
 public class SqlxKeywordCompletionContributor extends CompletionContributor {
     public SqlxKeywordCompletionContributor() {
@@ -66,6 +67,7 @@ public class SqlxKeywordCompletionContributor extends CompletionContributor {
         private static final int CARET_IN_BLOCK = " {\n  ".length();
         private static final int BLOCK_LOOKAHEAD = 4;
         private static final double KEYWORD_PRIORITY = 100;
+        private static final Pattern KEYWORD_LINE_PREFIX = Pattern.compile("\\s*[A-Za-z_]*");
 
         @Override
         protected void addCompletions(@NotNull CompletionParameters parameters,
@@ -79,7 +81,7 @@ public class SqlxKeywordCompletionContributor extends CompletionContributor {
                 return;
             }
 
-            if (!isAtStartOfLine(position)) {
+            if (!isAtStartOfLine(parameters)) {
                 return;
             }
 
@@ -143,24 +145,12 @@ public class SqlxKeywordCompletionContributor extends CompletionContributor {
             ctx.getEditor().getCaretModel().moveToOffset(keywordEnd + CARET_IN_BLOCK);
         }
 
-        private boolean isAtStartOfLine(PsiElement element) {
-            PsiElement prev = element.getPrevSibling();
-
-            while (prev != null) {
-                String text = prev.getText();
-
-                if (text.contains("\n")) {
-                    return true;
-                }
-
-                if (!text.trim().isEmpty()) {
-                    return false;
-                }
-
-                prev = prev.getPrevSibling();
-            }
-
-            return true;
+        private static boolean isAtStartOfLine(@NotNull CompletionParameters parameters) {
+            Editor hostEditor = InjectedLanguageEditorUtil.getTopLevelEditor(parameters.getEditor());
+            Document document = hostEditor.getDocument();
+            int caret = hostEditor.getCaretModel().getOffset();
+            int lineStart = document.getLineStartOffset(document.getLineNumber(caret));
+            return KEYWORD_LINE_PREFIX.matcher(document.getCharsSequence().subSequence(lineStart, caret)).matches();
         }
     }
 }

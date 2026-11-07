@@ -27,35 +27,90 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Project-level service storing the latest BigQuery result per table.
- * Acts as the source of truth for the Services view nodes.
+ * Project-level service storing the latest BigQuery query run per table, from its start to its
+ * result. Acts as the source of truth for the Services view nodes.
  */
 @Service(Service.Level.PROJECT)
 public final class QueryResultsRegistry {
 
-    private final Map<String, BigQueryJobResult> results = new LinkedHashMap<>();
+    private final Map<String, QueryRun> runs = new LinkedHashMap<>();
 
     public static QueryResultsRegistry getInstance(@NotNull Project project) {
         return project.getService(QueryResultsRegistry.class);
     }
 
-    /** Upsert: replaces any existing result for the same tableName. */
-    public synchronized void put(@NotNull BigQueryJobResult result) {
-        results.put(result.tableName(), result);
+    /**
+     * Lists a run that has just started, in place of the last run of the same table.
+     */
+    public synchronized void start(@NotNull QueryRun run) {
+        release(runs.put(run.tableName(), run));
     }
 
-    public synchronized @NotNull List<BigQueryJobResult> getAll() {
-        return new ArrayList<>(results.values());
+    /**
+     * Records the result of a started run and returns the finished run, or {@code null} when the
+     * run was removed or followed by another run of its table; the result is then released.
+     */
+    public synchronized @Nullable QueryRun finish(@NotNull QueryRun run, @NotNull BigQueryJobResult result,
+                                                  boolean cancelled) {
+        if (runs.get(run.tableName()) != run) {
+            disposePages(result);
+            return null;
+        }
+        QueryRun finished = run.finished(result, cancelled);
+        runs.put(run.tableName(), finished);
+        return finished;
     }
 
-    public synchronized @Nullable BigQueryJobResult get(@NotNull String tableName) {
-        return results.get(tableName);
+    public synchronized @NotNull List<QueryRun> getAll() {
+        return new ArrayList<>(runs.values());
     }
 
+    public synchronized @Nullable QueryRun get(@NotNull String tableName) {
+        return runs.get(tableName);
+    }
+
+    /**
+     * Removes the run of the table, cancelling it when it is still running.
+     */
     public synchronized void remove(@NotNull String tableName) {
-        BigQueryJobResult removed = results.remove(tableName);
-        if (removed != null && removed.pagedResult() != null) {
-            removed.pagedResult().dispose();
+        release(runs.remove(tableName));
+    }
+
+    /**
+     * Whether a run is over and can be removed by {@link #removeFinished()}.
+     */
+    public synchronized boolean hasFinished() {
+        return runs.values().stream().anyMatch(QueryRun::isFinished);
+    }
+
+    /**
+     * Removes every finished run and keeps the running ones.
+     */
+    public synchronized void removeFinished() {
+        runs.values().removeIf(run -> {
+            if (!run.isFinished()) {
+                return false;
+            }
+            release(run);
+            return true;
+        });
+    }
+
+    private static void release(@Nullable QueryRun run) {
+        if (run == null) {
+            return;
+        }
+        if (run.cancel() != null) {
+            run.cancel().run();
+        }
+        if (run.result() != null) {
+            disposePages(run.result());
+        }
+    }
+
+    private static void disposePages(@NotNull BigQueryJobResult result) {
+        if (result.pagedResult() != null) {
+            result.pagedResult().dispose();
         }
     }
 }

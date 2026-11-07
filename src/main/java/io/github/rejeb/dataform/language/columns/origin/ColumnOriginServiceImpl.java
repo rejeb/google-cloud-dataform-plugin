@@ -59,6 +59,11 @@ public final class ColumnOriginServiceImpl implements ColumnOriginService {
     }
 
     @Override
+    public @Nullable PsiFile buildingFile(@NotNull ColumnRef column) {
+        return builtFileOf(column.tableFullName());
+    }
+
+    @Override
     public @Nullable PsiElement declaringElement(@NotNull ColumnRef column) {
         PsiFile file = builtFileOf(column.tableFullName());
         if (file == null) return null;

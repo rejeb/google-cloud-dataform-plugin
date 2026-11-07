@@ -16,26 +16,36 @@
  */
 package io.github.rejeb.dataform.language.gcp.execution.bigquery.serviceview;
 
-import com.intellij.execution.services.ServiceViewContributor;
 import com.intellij.execution.services.ServiceViewDescriptor;
+import com.intellij.execution.services.ServiceViewGroupingContributor;
 import com.intellij.execution.services.SimpleServiceViewDescriptor;
-import com.intellij.icons.AllIcons;
+import com.intellij.openapi.actionSystem.ActionGroup;
+import com.intellij.openapi.actionSystem.DefaultActionGroup;
 import com.intellij.openapi.project.Project;
+import io.github.rejeb.dataform.language.DataformIcons;
 import io.github.rejeb.dataform.language.gcp.execution.bigquery.QueryResultsRegistry;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
 
 /**
- * Root contributor registered in plugin.xml.
- * Visible in the Services tool window only when results exist.
+ * Contributor of the query runs to the Services view, registered in plugin.xml. Every run is listed
+ * under one Dataform Queries node, which the view shows whether or not it groups by service type.
  */
 public final class DataformQueryContributor
-        implements ServiceViewContributor<QueryResultNode> {
+        implements ServiceViewGroupingContributor<QueryResultNode, QueryGroup> {
+
+    private static final String ROOT_NAME = "Dataform";
 
     @Override
     public @NotNull ServiceViewDescriptor getViewDescriptor(@NotNull Project project) {
-        return new SimpleServiceViewDescriptor("Dataform Queries", AllIcons.Nodes.DataTables);
+        return new SimpleServiceViewDescriptor(ROOT_NAME, DataformIcons.QUERIES, QueryGroup.NAME) {
+
+            @Override
+            public @NotNull ActionGroup getToolbarActions() {
+                return new DefaultActionGroup(new RemoveFinishedQueriesAction());
+            }
+        };
     }
 
     @Override
@@ -43,7 +53,7 @@ public final class DataformQueryContributor
         return QueryResultsRegistry.getInstance(project)
                 .getAll()
                 .stream()
-                .map(QueryResultNode::new)
+                .map(run -> new QueryResultNode(project, run))
                 .toList();
     }
 
@@ -52,6 +62,16 @@ public final class DataformQueryContributor
             @NotNull Project project,
             @NotNull QueryResultNode node
     ) {
-        return node.getViewDescriptor(project);
+        return node.getViewDescriptor();
+    }
+
+    @Override
+    public @NotNull List<QueryGroup> getGroups(@NotNull QueryResultNode node) {
+        return List.of(node.group());
+    }
+
+    @Override
+    public @NotNull ServiceViewDescriptor getGroupDescriptor(@NotNull QueryGroup group) {
+        return group.getViewDescriptor();
     }
 }

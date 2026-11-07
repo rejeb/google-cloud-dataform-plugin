@@ -22,12 +22,12 @@ import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectManager;
 import com.intellij.openapi.ui.TextFieldWithBrowseButton;
+import com.intellij.openapi.ui.panel.ComponentPanelBuilder;
+import com.intellij.ui.TitledSeparator;
 import com.intellij.ui.components.JBCheckBox;
-import com.intellij.ui.components.JBLabel;
-import com.intellij.ui.components.JBScrollPane;
+import com.intellij.ui.components.fields.ExpandableTextField;
 import com.intellij.util.ui.FormBuilder;
-import com.intellij.util.ui.JBUI;
-import com.intellij.util.ui.UIUtil;
+import io.github.rejeb.dataform.language.ui.StatusLabel;
 import io.github.rejeb.dataform.language.util.InstallResult;
 import io.github.rejeb.dataform.language.util.NodeJsNpmUtils;
 import io.github.rejeb.dataform.language.setup.DataformInstaller;
@@ -41,17 +41,19 @@ import java.util.Optional;
 
 public final class DataformToolsSettingsPanel {
 
+    private static final String INSTALL_TEXT = "Install Dataform CLI & Core";
+
     private final TextFieldWithBrowseButton coreInstallField    = new TextFieldWithBrowseButton();
     private final TextFieldWithBrowseButton sqlfluffExecutableField = new TextFieldWithBrowseButton();
     private final TextFieldWithBrowseButton sqlfluffConfigField = new TextFieldWithBrowseButton();
-    private final JTextField sqlfluffArgsField = new JTextField();
+    private final ExpandableTextField sqlfluffArgsField = new ExpandableTextField();
     private final JBCheckBox foldTemplateExpressionsBox =
             new JBCheckBox("Fold Dataform expressions to their evaluated value");
     private final JBCheckBox showInlineCompilationErrorsBox =
             new JBCheckBox("Show Dataform compilation and BigQuery errors inline in the editor");
-    private final JButton    installButton    = new JButton("Install Dataform CLI & Core");
-    private final JTextPane  statusPane       = buildStatusPane();
-    private final JScrollPane statusScrollPane = buildStatusScrollPane();
+    private final JButton    installButton    = new JButton(INSTALL_TEXT);
+    private final StatusLabel installStatus   = new StatusLabel();
+    private final BigQueryCostSettingsPanel costSettingsPanel = new BigQueryCostSettingsPanel();
     private final JPanel     panel;
 
     public DataformToolsSettingsPanel() {
@@ -79,96 +81,33 @@ public final class DataformToolsSettingsPanel {
                         .withDescription("Choose a .sqlfluff config file (optional)")
         );
 
-        JPanel buttonRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        JPanel buttonRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         buttonRow.add(installButton);
 
         panel = FormBuilder.createFormBuilder()
-                .addVerticalGap(10)
-                .addLabeledComponent(new JBLabel("Dataform Core directory"), new JSeparator())
-                .addComponent(coreInstallField, 10)
-                .addVerticalGap(10)
-                .addLabeledComponent(new JBLabel("SQLFluff executable"), new JSeparator())
-                .addComponent(sqlfluffExecutableField, 10)
-                .addVerticalGap(10)
-                .addLabeledComponent(new JBLabel("SQLFluff config file (optional)"), new JSeparator())
-                .addComponent(sqlfluffConfigField, 10)
-                .addVerticalGap(10)
-                .addLabeledComponent(new JBLabel("SQLFluff extra args"), new JSeparator())
-                .addComponent(sqlfluffArgsField, 10)
-                .addVerticalGap(10)
+                .addComponent(new TitledSeparator("Dataform CLI"))
+                .addLabeledComponent("Dataform Core directory:", coreInstallField)
+                .addComponentToRightColumn(buttonRow)
+                .addComponentToRightColumn(installStatus)
+                .addComponent(new TitledSeparator("SQLFluff formatter"), 12)
+                .addLabeledComponent("Executable:", sqlfluffExecutableField)
+                .addComponentToRightColumn(comment("Formats the SQL of SQLX files with sqlfluff fix --dialect bigquery."))
+                .addLabeledComponent("Config file:", sqlfluffConfigField)
+                .addComponentToRightColumn(comment("Optional. Passed as --config."))
+                .addLabeledComponent("Extra arguments:", sqlfluffArgsField)
+                .addComponentToRightColumn(comment("Added after the arguments above, separated by spaces."))
+                .addComponent(new TitledSeparator("Editor"), 12)
                 .addComponent(foldTemplateExpressionsBox)
                 .addComponent(showInlineCompilationErrorsBox)
-                .addVerticalGap(10)
-                .addComponent(buttonRow)
-                .addVerticalGap(5)
-                .addComponent(statusScrollPane)
+                .addComponent(costSettingsPanel.getComponent(), 12)
                 .addComponentFillVertically(new JPanel(), 0)
                 .getPanel();
 
         refreshNodeJsState();
     }
 
-    // ── Status pane ───────────────────────────────────────────────────────
-
-    private static JTextPane buildStatusPane() {
-        JTextPane pane = new JTextPane();
-        pane.setContentType("text/plain");
-        pane.setEditable(false);
-        pane.setOpaque(false);
-        pane.setBorder(null);
-        return pane;
-    }
-
-    private JScrollPane buildStatusScrollPane() {
-        JScrollPane scroll = new JBScrollPane(statusPane);
-        scroll.setBorder(null);
-        scroll.setOpaque(false);
-        scroll.getViewport().setOpaque(false);
-        scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-        scroll.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
-        scroll.setPreferredSize(new Dimension(400, 0));
-        scroll.setVisible(false);
-        return scroll;
-    }
-
-    private void updateStatusPaneHeight() {
-        statusPane.setSize(new Dimension(statusScrollPane.getViewport().getWidth(), Integer.MAX_VALUE));
-        int preferredHeight = statusPane.getPreferredSize().height;
-        int height = Math.min(preferredHeight + 4, 250);
-        statusScrollPane.setPreferredSize(new Dimension(400, height));
-        statusScrollPane.revalidate();
-    }
-
-    private void showInfo(@NotNull String text) {
-        statusPane.setForeground(UIUtil.getLabelForeground());
-        statusPane.setFont(JBUI.Fonts.smallFont());
-        statusPane.setText(text);
-        statusScrollPane.setVisible(true);
-        updateStatusPaneHeight();
-    }
-
-    private void showWarning(@NotNull String text) {
-        statusPane.setForeground(UIUtil.getErrorForeground());
-        statusPane.setFont(JBUI.Fonts.smallFont());
-        statusPane.setText("⚠ " + text);
-        statusScrollPane.setVisible(true);
-        updateStatusPaneHeight();
-    }
-
-    private void showError(@NotNull String text) {
-        statusPane.setForeground(UIUtil.getErrorForeground());
-        statusPane.setFont(JBUI.Fonts.smallFont());
-        statusPane.setText("❌ " + text);
-        statusScrollPane.setVisible(true);
-        updateStatusPaneHeight();
-    }
-
-    private void showSuccess(@NotNull String text) {
-        statusPane.setForeground(JBUI.CurrentTheme.NotificationInfo.foregroundColor());
-        statusPane.setFont(JBUI.Fonts.smallFont());
-        statusPane.setText("✅ " + text);
-        statusScrollPane.setVisible(true);
-        updateStatusPaneHeight();
+    private static @NotNull JComponent comment(@NotNull String text) {
+        return ComponentPanelBuilder.createCommentComponent(text, true);
     }
 
     // ── Node.js state ─────────────────────────────────────────────────────
@@ -182,11 +121,11 @@ public final class DataformToolsSettingsPanel {
 
         if (nodeConfigured) {
             NodeInterpreterManager nim = NodeInterpreterManager.getInstance(openProjects[0]);
-            showInfo("Packages will be installed globally into the current " +
+            installStatus.info("Packages will be installed globally into the current " +
                     "Node.js installation: " + nim.nodeInstallDir());
         } else {
-            showWarning("Node.js is not configured. Please set it up in " +
-                    "Settings → Languages & Frameworks → Node.js " +
+            installStatus.warning("Node.js is not configured. Please set it up in " +
+                    "Settings → Languages & Frameworks → JavaScript Runtime " +
                     "before installing Dataform packages.");
         }
     }
@@ -205,8 +144,7 @@ public final class DataformToolsSettingsPanel {
         }
 
         installButton.setEnabled(false);
-        installButton.setText("Installing…");
-        statusScrollPane.setVisible(false);
+        installStatus.progress("Installing @dataform/cli and @dataform/core…");
 
         ApplicationManager.getApplication().executeOnPooledThread(() -> {
 
@@ -219,8 +157,7 @@ public final class DataformToolsSettingsPanel {
             if (!cliResult.success()) {
                 ApplicationManager.getApplication().invokeLater(() -> {
                     installButton.setEnabled(true);
-                    installButton.setText("Install Dataform CLI & Core");
-                    showError("@dataform/cli installation failed " +
+                    installStatus.error("@dataform/cli installation failed " +
                             "(@dataform/core installation was skipped):\n" +
                             cliResult.errorMessage());
                 }, ModalityState.any());
@@ -240,10 +177,9 @@ public final class DataformToolsSettingsPanel {
 
             ApplicationManager.getApplication().invokeLater(() -> {
                 installButton.setEnabled(true);
-                installButton.setText("Install Dataform CLI & Core");
 
                 if (!coreResult.success()) {
-                    showError("@dataform/core installation failed:\n" +
+                    installStatus.error("@dataform/core installation failed:\n" +
                             coreResult.errorMessage());
                     return;
                 }
@@ -252,7 +188,7 @@ public final class DataformToolsSettingsPanel {
                     coreInstallField.setText(root.resolve("core").toAbsolutePath().toString());
                 });
 
-                showSuccess("Dataform CLI and Core installed successfully.");
+                installStatus.ok("Dataform CLI and Core installed successfully.");
 
             }, ModalityState.any());
         });
@@ -274,4 +210,9 @@ public final class DataformToolsSettingsPanel {
 
     public boolean isShowInlineCompilationErrors() { return showInlineCompilationErrorsBox.isSelected(); }
     public void    setShowInlineCompilationErrors(boolean value) { showInlineCompilationErrorsBox.setSelected(value); }
+
+    /**
+     * Returns the "BigQuery cost" section of the page.
+     */
+    public BigQueryCostSettingsPanel getCostSettingsPanel() { return costSettingsPanel; }
 }

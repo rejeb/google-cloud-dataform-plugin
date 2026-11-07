@@ -67,7 +67,7 @@ public class SqlxSqlBlockInjector implements MultiHostInjector {
 
         if (hasOverlappingRanges(jsRanges)) return;
 
-        VirtualFile vFile = sqlBlock.getContainingFile().getVirtualFile();
+        VirtualFile vFile = sqlBlock.getContainingFile().getOriginalFile().getVirtualFile();
         String currentFileName = vFile != null ? vFile.getNameWithoutExtension() : null;
 
         registrar.startInjecting(BigQueryDialect.INSTANCE);

@@ -40,6 +40,7 @@ public final class GcpDataformWorkflowRepository implements WorkflowRepository {
             @NotNull String projectId,
             @NotNull String location,
             @NotNull String repositoryId,
+            @NotNull String serviceAccount,
             @NotNull WorkflowRunRequest request
     ) {
         return DataformApi.call(projectId, "Error creating workflow run.", client -> {
@@ -57,30 +58,13 @@ public final class GcpDataformWorkflowRepository implements WorkflowRepository {
                             .build()
             );
 
-            InvocationConfig.Builder config = InvocationConfig.newBuilder()
-                    .setTransitiveDependenciesIncluded(request.transitiveDependenciesIncluded())
-                    .setTransitiveDependentsIncluded(request.transitiveDependentsIncluded())
-                    .setFullyRefreshIncrementalTablesEnabled(request.fullyRefreshIncrementalTables());
-
-            request.includedTags().forEach(config::addIncludedTags);
-
-            for (InvocationTarget t : request.includedTargets()) {
-                Target.Builder tb = Target.newBuilder()
-                        .setSchema(t.schema())
-                        .setName(t.name());
-                if (t.database() != null) {
-                    tb.setDatabase(t.database());
-                }
-                config.addIncludedTargets(tb.build());
-            }
-
             WorkflowInvocation invocation = client.createWorkflowInvocation(
                     CreateWorkflowInvocationRequest.newBuilder()
                             .setParent(repoName)
                             .setWorkflowInvocation(
                                     WorkflowInvocation.newBuilder()
                                             .setCompilationResult(compilation.getName())
-                                            .setInvocationConfig(config.build())
+                                            .setInvocationConfig(invocationConfig(request, serviceAccount))
                                             .build()
                             )
                             .build()
@@ -88,6 +72,31 @@ public final class GcpDataformWorkflowRepository implements WorkflowRepository {
 
             return new WorkflowCreationResult(invocation.getName(), wsName);
         });
+    }
+
+    @NotNull
+    static InvocationConfig invocationConfig(@NotNull WorkflowRunRequest request, @NotNull String serviceAccount) {
+        InvocationConfig.Builder config = InvocationConfig.newBuilder()
+                .setTransitiveDependenciesIncluded(request.transitiveDependenciesIncluded())
+                .setTransitiveDependentsIncluded(request.transitiveDependentsIncluded())
+                .setFullyRefreshIncrementalTablesEnabled(request.fullyRefreshIncrementalTables());
+
+        if (!serviceAccount.isBlank()) {
+            config.setServiceAccount(serviceAccount.trim());
+        }
+
+        request.includedTags().forEach(config::addIncludedTags);
+
+        for (InvocationTarget t : request.includedTargets()) {
+            Target.Builder tb = Target.newBuilder()
+                    .setSchema(t.schema())
+                    .setName(t.name());
+            if (t.database() != null) {
+                tb.setDatabase(t.database());
+            }
+            config.addIncludedTargets(tb.build());
+        }
+        return config.build();
     }
 
     @Override
@@ -232,6 +241,9 @@ public final class GcpDataformWorkflowRepository implements WorkflowRepository {
         String contents = inv.hasInvocationConfig()
                 ? buildContentsLabel(inv.getInvocationConfig())
                 : "Full workflow";
+        String serviceAccount = inv.hasInvocationConfig() && !inv.getInvocationConfig().getServiceAccount().isBlank()
+                ? inv.getInvocationConfig().getServiceAccount()
+                : null;
 
         return new InvocationSummary(
                 inv.getName(),
@@ -240,7 +252,8 @@ public final class GcpDataformWorkflowRepository implements WorkflowRepository {
                 workspaceFullName,
                 contents,
                 startTime,
-                endTime
+                endTime,
+                serviceAccount
         );
     }
 

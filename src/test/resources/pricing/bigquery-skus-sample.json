@@ -1,0 +1,274 @@
+{
+  "skus": [
+    {
+      "name": "services/24E6-581D-38E5/skus/1DF5-1F98-1DD1",
+      "skuId": "1DF5-1F98-1DD1",
+      "description": "Analysis",
+      "category": {
+        "serviceDisplayName": "BigQuery",
+        "resourceFamily": "ApplicationServices",
+        "resourceGroup": "OnDemandAnalysis",
+        "usageType": "OnDemand"
+      },
+      "serviceRegions": [
+        "us",
+        "europe"
+      ],
+      "pricingInfo": [
+        {
+          "summary": "",
+          "pricingExpression": {
+            "usageUnit": "TiBy",
+            "displayQuantity": 1,
+            "tieredRates": [
+              {
+                "startUsageAmount": 0,
+                "unitPrice": {
+                  "currencyCode": "USD",
+                  "units": "0",
+                  "nanos": 0
+                }
+              },
+              {
+                "startUsageAmount": 1,
+                "unitPrice": {
+                  "currencyCode": "USD",
+                  "units": "6",
+                  "nanos": 250000000
+                }
+              }
+            ],
+            "usageUnitDescription": "tebibyte",
+            "baseUnit": "By",
+            "baseUnitDescription": "byte",
+            "baseUnitConversionFactor": 1099511627776
+          },
+          "aggregationInfo": {
+            "aggregationLevel": "ACCOUNT",
+            "aggregationInterval": "MONTHLY",
+            "aggregationCount": 1
+          },
+          "currencyConversionRate": 1,
+          "effectiveTime": "2026-11-01T07:00:00Z"
+        }
+      ],
+      "serviceProviderName": "Google",
+      "geoTaxonomy": {
+        "type": "MULTI_REGIONAL",
+        "regions": [
+          "US",
+          "EU"
+        ]
+      }
+    },
+    {
+      "name": "services/24E6-581D-38E5/skus/936C-3A69-3EF8",
+      "skuId": "936C-3A69-3EF8",
+      "description": "Analysis (europe-west1)",
+      "category": {
+        "serviceDisplayName": "BigQuery",
+        "resourceFamily": "ApplicationServices",
+        "resourceGroup": "OnDemandAnalysis",
+        "usageType": "OnDemand"
+      },
+      "serviceRegions": [
+        "europe-west1"
+      ],
+      "pricingInfo": [
+        {
+          "summary": "",
+          "pricingExpression": {
+            "usageUnit": "TiBy",
+            "displayQuantity": 1,
+            "tieredRates": [
+              {
+                "startUsageAmount": 0,
+                "unitPrice": {
+                  "currencyCode": "USD",
+                  "units": "0",
+                  "nanos": 0
+                }
+              },
+              {
+                "startUsageAmount": 1,
+                "unitPrice": {
+                  "currencyCode": "USD",
+                  "units": "7",
+                  "nanos": 500000000
+                }
+              }
+            ],
+            "usageUnitDescription": "tebibyte",
+            "baseUnit": "By",
+            "baseUnitDescription": "byte",
+            "baseUnitConversionFactor": 1099511627776
+          },
+          "aggregationInfo": {
+            "aggregationLevel": "ACCOUNT",
+            "aggregationInterval": "MONTHLY",
+            "aggregationCount": 1
+          },
+          "currencyConversionRate": 1,
+          "effectiveTime": "2026-11-01T07:00:00Z"
+        }
+      ],
+      "serviceProviderName": "Google",
+      "geoTaxonomy": {
+        "type": "REGIONAL",
+        "regions": [
+          "europe-west1"
+        ]
+      }
+    },
+    {
+      "name": "services/24E6-581D-38E5/skus/D09B-1220-6F27",
+      "skuId": "D09B-1220-6F27",
+      "description": "Analysis (aws-us-east-1)",
+      "category": {
+        "serviceDisplayName": "BigQuery",
+        "resourceFamily": "ApplicationServices",
+        "resourceGroup": "OnDemandAnalysis",
+        "usageType": "OnDemand"
+      },
+      "serviceRegions": [
+        "aws-us-east-1"
+      ],
+      "pricingInfo": [
+        {
+          "summary": "",
+          "pricingExpression": {
+            "usageUnit": "TiBy",
+            "displayQuantity": 1,
+            "tieredRates": [
+              {
+                "startUsageAmount": 0,
+                "unitPrice": {
+                  "currencyCode": "USD",
+                  "units": "7",
+                  "nanos": 812500000
+                }
+              }
+            ],
+            "usageUnitDescription": "tebibyte",
+            "baseUnit": "By",
+            "baseUnitDescription": "byte",
+            "baseUnitConversionFactor": 1099511627776
+          },
+          "currencyConversionRate": 1,
+          "effectiveTime": "2026-11-01T07:00:00Z"
+        }
+      ],
+      "serviceProviderName": "Google",
+      "geoTaxonomy": {
+        "type": "REGIONAL",
+        "regions": [
+          "aws-us-east-1"
+        ]
+      }
+    },
+    {
+      "name": "services/24E6-581D-38E5/skus/FED8-23FC-20EF",
+      "skuId": "FED8-23FC-20EF",
+      "description": "Analysis Slots Attribution",
+      "category": {
+        "serviceDisplayName": "BigQuery",
+        "resourceFamily": "ApplicationServices",
+        "resourceGroup": "OnDemandAnalysis",
+        "usageType": "OnDemand"
+      },
+      "serviceRegions": [
+        "global"
+      ],
+      "pricingInfo": [
+        {
+          "summary": "",
+          "pricingExpression": {
+            "usageUnit": "mo",
+            "displayQuantity": 1,
+            "tieredRates": [
+              {
+                "startUsageAmount": 0,
+                "unitPrice": {
+                  "currencyCode": "USD",
+                  "units": "0",
+                  "nanos": 0
+                }
+              }
+            ],
+            "usageUnitDescription": "month",
+            "baseUnit": "s",
+            "baseUnitDescription": "second",
+            "baseUnitConversionFactor": 2595600
+          },
+          "currencyConversionRate": 1,
+          "effectiveTime": "2026-11-01T07:00:00Z"
+        }
+      ],
+      "serviceProviderName": "Google",
+      "geoTaxonomy": {
+        "type": "GLOBAL",
+        "regions": []
+      }
+    },
+    {
+      "name": "services/24E6-581D-38E5/skus/0018-A5A0-9D6D",
+      "skuId": "0018-A5A0-9D6D",
+      "description": "Active Logical Storage (us-central1)",
+      "category": {
+        "serviceDisplayName": "BigQuery",
+        "resourceFamily": "ApplicationServices",
+        "resourceGroup": "ActiveStorage",
+        "usageType": "OnDemand"
+      },
+      "serviceRegions": [
+        "us-central1"
+      ],
+      "pricingInfo": [
+        {
+          "summary": "",
+          "pricingExpression": {
+            "usageUnit": "GiBy.mo",
+            "displayQuantity": 1,
+            "tieredRates": [
+              {
+                "startUsageAmount": 0,
+                "unitPrice": {
+                  "currencyCode": "USD",
+                  "units": "0",
+                  "nanos": 0
+                }
+              },
+              {
+                "startUsageAmount": 10,
+                "unitPrice": {
+                  "currencyCode": "USD",
+                  "units": "0",
+                  "nanos": 23000000
+                }
+              }
+            ],
+            "usageUnitDescription": "gibibyte month",
+            "baseUnit": "By.s",
+            "baseUnitDescription": "byte second",
+            "baseUnitConversionFactor": 2787004278374400.0
+          },
+          "aggregationInfo": {
+            "aggregationLevel": "ACCOUNT",
+            "aggregationInterval": "MONTHLY",
+            "aggregationCount": 1
+          },
+          "currencyConversionRate": 1,
+          "effectiveTime": "2026-11-01T07:00:00Z"
+        }
+      ],
+      "serviceProviderName": "Google",
+      "geoTaxonomy": {
+        "type": "REGIONAL",
+        "regions": [
+          "us-central1"
+        ]
+      }
+    }
+  ],
+  "nextPageToken": ""
+}

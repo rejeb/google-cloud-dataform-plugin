@@ -78,11 +78,12 @@ class LineageModelColumnTest {
         model.selectColumn(b.id());
         assertEquals(Set.of(src.id(), mid.id()), model.visibleIds());
 
-        model.setSearchQuery("mid");
+        model.toggleType("table");
+        model.toggleType("table");
         assertEquals(Set.of(src.id(), mid.id()), model.visibleIds());
 
         model.clearColumnSelection();
-        assertEquals(Set.of(mid.id()), model.visibleIds());
+        assertEquals(Set.of(src.id(), mid.id(), other.id()), model.visibleIds());
     }
 
     private LineageNode node(String fullName) {

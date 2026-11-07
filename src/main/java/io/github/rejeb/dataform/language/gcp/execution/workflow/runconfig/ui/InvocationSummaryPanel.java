@@ -16,89 +16,148 @@
  */
 package io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.ui;
 
-import com.intellij.ui.AnimatedIcon;
-import com.intellij.ui.ScrollPaneFactory;
+import com.intellij.openapi.Disposable;
+import com.intellij.openapi.actionSystem.ActionUpdateThread;
+import com.intellij.openapi.actionSystem.AnActionEvent;
+import com.intellij.openapi.ide.CopyPasteManager;
+import com.intellij.openapi.project.DumbAwareAction;
+import com.intellij.ui.InlineBanner;
 import com.intellij.ui.components.JBLabel;
-import com.intellij.ui.components.JBTextArea;
+import com.intellij.ui.components.JBLoadingPanel;
+import com.intellij.ui.components.JBScrollPane;
 import com.intellij.ui.components.JBTextField;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
+import io.github.rejeb.dataform.language.DataformIcons;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.InvocationSummary;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowInvocationProgress;
+import io.github.rejeb.dataform.language.gcp.pricing.CostText;
+import io.github.rejeb.dataform.language.ui.Banners;
+import io.github.rejeb.dataform.language.ui.DetailsForm;
+import io.github.rejeb.dataform.language.ui.ReadOnlyTextFields;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
-import java.awt.*;
-import java.time.Duration;
-import java.time.Instant;
 import javax.swing.*;
+import java.awt.*;
+import java.awt.datatransfer.StringSelection;
+import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
 
-public class InvocationSummaryPanel extends JPanel {
+import static io.github.rejeb.dataform.language.util.Utils.formatBytes;
 
-    private static final String CARD_LOADING = "loading";
-    private static final String CARD_CONTENT = "content";
-    private static final String CARD_ERROR = "error";
+/**
+ * The detail of the invocation of a workflow run, shown when its root is selected, as the prototype
+ * draws it: a "Workflow invocation" header with its id, then the Invocation, Actions, Repository and
+ * BigQuery groups in two columns.
+ */
+public class InvocationSummaryPanel extends JPanel implements Disposable {
 
+    private static final String TITLE = "Workflow invocation";
+    private static final String NO_VALUE = "—";
+    private static final String PLACE = "Dataform.RunConsoleInvocation";
 
-    private final CardLayout cardLayout = new CardLayout();
-    private final JPanel cards = new JPanel(cardLayout);
+    private final String runConfiguration;
+    private final DetailHeader header;
+    private final JBLoadingPanel loadingPanel;
+    private final InlineBanner failureBanner = Banners.error("");
+    private final Map<String, JBTextField> values = new HashMap<>();
+    private final JBLabel totalProcessedNote = new JBLabel();
+    private final JBTextField totalCostLabel = ReadOnlyTextFields.singleLine(NO_VALUE);
+    private final JBLabel totalCostNote = new JBLabel();
+    private final Color valueForeground;
+    private @Nullable String invocationId;
 
-    private final JLabel urlLabel = new JBLabel();
-    private final JLabel sourceLabel = new JBLabel();
-    private final JBTextField startTimeLabel = RunConfigUiUtils.selectableValue("");
-    private final JBTextField statusLabel = RunConfigUiUtils.selectableValue("");
-    private final JBTextField durationLabel = RunConfigUiUtils.selectableValue("—");
-    private final JBTextField compilationLabel = RunConfigUiUtils.selectableValue("");
-    private final JBTextField sourceTypeLabel = RunConfigUiUtils.selectableValue("");
-    private final JBTextField contentsLabel = RunConfigUiUtils.selectableValue("");
-    private final JBTextArea errorText = RunConfigUiUtils.selectableTextArea("");
-
-    public InvocationSummaryPanel() {
+    /**
+     * @param runConfiguration the name of the run configuration that started the run
+     */
+    public InvocationSummaryPanel(@NotNull String runConfiguration) {
         super(new BorderLayout());
-        setBorder(JBUI.Borders.empty(8, 12));
-        setBackground(UIUtil.getPanelBackground());
-
-        cards.add(buildLoadingCard(), CARD_LOADING);
-        cards.add(buildContentCard(), CARD_CONTENT);
-        cards.add(buildErrorCard(), CARD_ERROR);
-        cardLayout.show(cards, CARD_LOADING);
-
-        add(cards, BorderLayout.CENTER);
+        this.runConfiguration = runConfiguration;
+        setOpaque(false);
+        header = new DetailHeader(PLACE, true, new CopyInvocationIdAction());
+        header.show(DataformIcons.STATUS_PENDING, TITLE, null);
+        totalProcessedNote.setForeground(UIUtil.getContextHelpForeground());
+        JPanel columns = DetailsForm.columns(left(), right());
+        valueForeground = values.get("Failed").getForeground();
+        failureBanner.setVisible(false);
+        JPanel content = new JPanel(new BorderLayout(0, JBUI.scale(12)));
+        content.setOpaque(false);
+        content.setBorder(JBUI.Borders.empty(14, 16));
+        content.add(failureBanner, BorderLayout.NORTH);
+        content.add(columns, BorderLayout.CENTER);
+        JBScrollPane scroll = new JBScrollPane(content);
+        scroll.setBorder(JBUI.Borders.empty());
+        scroll.setOpaque(false);
+        scroll.getViewport().setOpaque(false);
+        loadingPanel = new JBLoadingPanel(new BorderLayout(), this);
+        loadingPanel.setOpaque(false);
+        loadingPanel.add(scroll, BorderLayout.CENTER);
+        loadingPanel.startLoading();
+        add(header, BorderLayout.NORTH);
+        add(loadingPanel, BorderLayout.CENTER);
     }
 
-    private JPanel buildErrorCard() {
-        JPanel panel = new JPanel(new BorderLayout(0, 6));
-        panel.setBackground(UIUtil.getPanelBackground());
-
-        JBLabel title = new JBLabel("Workflow execution failed");
-        title.setForeground(UIUtil.getErrorForeground());
-        title.setFont(title.getFont().deriveFont(Font.BOLD));
-
-        panel.add(title, BorderLayout.NORTH);
-        panel.add(ScrollPaneFactory.createScrollPane(errorText, true), BorderLayout.CENTER);
-        return panel;
+    @NotNull
+    private JComponent left() {
+        DetailsForm form = DetailsForm.create().group("Invocation");
+        rows(form, "State", "Started", "Duration", "Run configuration", "Included actions");
+        form.group("Actions");
+        rows(form, "Succeeded", "Failed", "Skipped", "Cancelled", "Remaining");
+        return form.build();
     }
 
-    private JPanel buildLoadingCard() {
-        JPanel panel = new JPanel(new GridBagLayout());
-        panel.setBackground(UIUtil.getPanelBackground());
-        JBLabel spinner = new JBLabel(AnimatedIcon.Big.INSTANCE);
-        spinner.setHorizontalAlignment(SwingConstants.CENTER);
-        panel.add(spinner);
-        return panel;
+    @NotNull
+    private JComponent right() {
+        DetailsForm form = DetailsForm.create().group("Repository");
+        rows(form, "Repository", "Project", "Location", "Compilation", "Service account");
+        JBTextField processed = ReadOnlyTextFields.singleLine(NO_VALUE);
+        values.put("Bytes processed", processed);
+        form.group("BigQuery")
+                .row("Bytes processed", RunConfigUiUtils.costRow(processed, totalProcessedNote));
+        values.put("Bytes billed", form.row("Bytes billed"));
+        form.row("Estimated cost", RunConfigUiUtils.costRow(totalCostLabel, totalCostNote));
+        values.put("Estimated cost", totalCostLabel);
+        return form.build();
     }
 
-    private JPanel buildContentCard() {
-        JPanel panel = new JPanel(new GridBagLayout());
-        panel.setBackground(UIUtil.getPanelBackground());
+    private void rows(@NotNull DetailsForm form, @NotNull String... keys) {
+        for (String key : keys) {
+            values.put(key, form.row(key));
+        }
+    }
 
-        String[] keys = {"Execution URL", "Start time", "Status", "Duration",
-                "Compilation ID", "Source type", "Source", "Contents"};
-        Component[] valueLabels = {urlLabel, startTimeLabel, statusLabel, durationLabel,
-                compilationLabel, sourceTypeLabel, sourceLabel, contentsLabel};
+    @Override
+    public void dispose() {
+    }
 
-        RunConfigUiUtils.addKeyValueRows(panel, keys, valueLabels, true);
+    boolean isLoading() {
+        return loadingPanel.isLoading();
+    }
 
-        return panel;
+    @NotNull
+    InlineBanner failureBanner() {
+        return failureBanner;
+    }
+
+    @NotNull
+    DetailHeader header() {
+        return header;
+    }
+
+    /**
+     * The text of a row, {@code null} when there is no such row.
+     */
+    @Nullable
+    String value(@NotNull String key) {
+        JBTextField field = values.get(key);
+        return field != null ? field.getText() : null;
+    }
+
+    @NotNull
+    JBTextField valueField(@NotNull String key) {
+        return values.get(key);
     }
 
     /**
@@ -107,34 +166,80 @@ public class InvocationSummaryPanel extends JPanel {
      */
     public void update(@NotNull WorkflowInvocationProgress progress) {
         InvocationSummary summary = progress.summary();
+        boolean failed = progress.errorMessage() != null && !progress.errorMessage().isBlank();
+        if (failed) Banners.setMessage(failureBanner, progress.errorMessage());
+        failureBanner.setVisible(failed);
+        ActionCounts counts = ActionCounts.of(progress.actions());
+        set("State", RunText.state(progress.state()));
+        set("Run configuration", runConfiguration);
+        set("Included actions", String.valueOf(counts.total()));
+        set("Succeeded", String.valueOf(counts.succeeded()));
+        set("Failed", String.valueOf(counts.failed()));
+        set("Skipped", String.valueOf(counts.skipped()));
+        set("Cancelled", String.valueOf(counts.cancelled()));
+        set("Remaining", String.valueOf(counts.remaining()));
+        values.get("Failed").setForeground(counts.failed() > 0 ? RunStatusHeader.FAILED_COUNT.getFgColor() : valueForeground);
         if (summary == null) {
-            if (progress.errorMessage() != null) {
-                errorText.setText(progress.errorMessage());
-                errorText.setCaretPosition(0);
-                cardLayout.show(cards, CARD_ERROR);
-            }
+            header.show(ActionStateIcons.of(progress.state()), TITLE, null);
+            if (failed) loadingPanel.stopLoading();
             return;
         }
+        loadingPanel.stopLoading();
+        invocationId = RunConfigUiUtils.shortName(summary.invocationName());
+        header.show(ActionStateIcons.of(progress.state()), TITLE, invocationId,
+                InvocationSummary.workflowConsoleUrl(summary.invocationName()),
+                "Open the workflow invocation in the Google Cloud console");
+        set("Started", RunConfigUiUtils.DATE_TIME.format(summary.startTime()));
+        Duration elapsed = RunText.elapsed(summary);
+        set("Duration", elapsed != null ? RunText.duration(elapsed) : null);
+        set("Repository", summary.repository());
+        set("Project", summary.project());
+        set("Location", summary.location());
+        set("Compilation", summary.compilationResultId());
+        set("Service account", summary.serviceAccount());
+    }
 
-        cardLayout.show(cards, CARD_CONTENT);
+    /**
+     * Shows the bytes and cost of the actions whose job details are known. Must be called on the
+     * EDT.
+     */
+    public void updateTotals(@NotNull RunCostTotals totals) {
+        if (totals.withJobs() == 0) {
+            set("Bytes processed", null);
+            totalProcessedNote.setText("");
+            set("Bytes billed", null);
+            RunConfigUiUtils.showCost(totalCostLabel, totalCostNote, new CostText(NO_VALUE, "", true));
+            return;
+        }
+        set("Bytes processed", formatBytes(totals.bytesProcessed()));
+        totalProcessedNote.setText(totals.coverageNote());
+        set("Bytes billed", formatBytes(totals.bytesBilled()));
+        RunConfigUiUtils.showCost(totalCostLabel, totalCostNote, totals.costText());
+    }
 
-        RunConfigUiUtils.setLink(urlLabel, RunConfigUiUtils.shortName(summary.invocationName()), summary.gcpConsoleUrl());
-        startTimeLabel.setText(RunConfigUiUtils.DATE_TIME.format(summary.startTime()));
-        statusLabel.setText(progress.state().name());
-        Instant endTime = summary.endTime() != null ? summary.endTime() : Instant.now();
-        durationLabel.setText(RunConfigUiUtils.formatDuration(Duration.between(summary.startTime(), endTime)));
+    private void set(@NotNull String key, @Nullable String value) {
+        values.get(key).setText(value != null && !value.isBlank() ? value : NO_VALUE);
+    }
 
-        compilationLabel.setText(summary.compilationResultId());
-        sourceTypeLabel.setText(summary.sourceType());
+    private final class CopyInvocationIdAction extends DumbAwareAction {
 
-        String wsUrl = summary.workspaceConsoleUrl();
-        if (wsUrl != null && summary.sourceWorkspaceName() != null) {
-            RunConfigUiUtils.setLink(sourceLabel, RunConfigUiUtils.shortName(summary.sourceWorkspaceName()), wsUrl);
-        } else {
-            sourceLabel.setText(summary.sourceWorkspaceName() != null
-                    ? RunConfigUiUtils.shortName(summary.sourceWorkspaceName()) : "—");
+        private CopyInvocationIdAction() {
+            super("Copy Invocation ID", "Copy the ID of the workflow invocation", DataformIcons.COPY);
         }
 
-        contentsLabel.setText(summary.contents() != null ? summary.contents() : "Full workflow");
+        @Override
+        public void actionPerformed(@NotNull AnActionEvent e) {
+            if (invocationId != null) CopyPasteManager.getInstance().setContents(new StringSelection(invocationId));
+        }
+
+        @Override
+        public void update(@NotNull AnActionEvent e) {
+            e.getPresentation().setEnabled(invocationId != null);
+        }
+
+        @Override
+        public @NotNull ActionUpdateThread getActionUpdateThread() {
+            return ActionUpdateThread.EDT;
+        }
     }
 }

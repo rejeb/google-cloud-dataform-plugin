@@ -23,12 +23,16 @@ import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.EditorFactory;
 import com.intellij.openapi.editor.Inlay;
+import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Key;
+import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiFile;
 import com.intellij.util.concurrency.AppExecutorUtil;
+import io.github.rejeb.dataform.language.SqlxFileType;
 import io.github.rejeb.dataform.language.settings.DataformToolsSettings;
+import io.github.rejeb.dataform.language.util.DataformProjectLayout;
 import io.github.rejeb.dataform.language.validation.SqlxValidationProblem;
 import io.github.rejeb.dataform.language.validation.SqlxValidationService;
 import io.github.rejeb.dataform.language.util.SqlxEditors;
@@ -36,6 +40,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -45,9 +50,12 @@ public final class ValidationProblemInlayManagerImpl implements ValidationProble
 
     private static final Key<List<Inlay<?>>> CHIPS =
             Key.create("dataform.compilation.error.chips");
+    private static final int MAX_PARALLEL_VALIDATIONS = 2;
 
     private final Project project;
     private final AtomicBoolean refreshAllPending = new AtomicBoolean();
+    private final ExecutorService validationExecutor = AppExecutorUtil.createBoundedApplicationPoolExecutor(
+            "Dataform validation chips", MAX_PARALLEL_VALIDATIONS);
 
     public ValidationProblemInlayManagerImpl(@NotNull Project project) {
         this.project = project;
@@ -89,10 +97,12 @@ public final class ValidationProblemInlayManagerImpl implements ValidationProble
      * Starts a refresh for one editor. Validation resolves references, which reads indexes and the
      * virtual file system, so it runs in a background read action; only the inlays themselves are
      * touched on the EDT. Existing chips are kept until the new ones are ready, so a refresh does
-     * not make them blink.
+     * not make them blink. Every editor of the IDE comes through here, and only those over a file
+     * the validation applies to are worth a read action.
      */
     private void refreshOnEdt(@NotNull Editor editor) {
-        if (!DataformToolsSettings.getInstance().isShowInlineCompilationErrors()) {
+        if (!DataformToolsSettings.getInstance().isShowInlineCompilationErrors()
+                || !showsValidatedFile(editor)) {
             clear(editor);
             return;
         }
@@ -108,7 +118,13 @@ public final class ValidationProblemInlayManagerImpl implements ValidationProble
                 .coalesceBy(this, editor)
                 .finishOnUiThread(ModalityState.defaultModalityState(),
                         problems -> applyProblems(editor, problems))
-                .submit(AppExecutorUtil.getAppExecutorService());
+                .submit(validationExecutor);
+    }
+
+    private static boolean showsValidatedFile(@NotNull Editor editor) {
+        VirtualFile file = FileDocumentManager.getInstance().getFile(editor.getDocument());
+        return file != null
+                && (SqlxFileType.INSTANCE.equals(file.getFileType()) || DataformProjectLayout.isDataformScript(file));
     }
 
     private void applyProblems(@NotNull Editor editor,

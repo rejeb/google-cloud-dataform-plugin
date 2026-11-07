@@ -109,6 +109,7 @@ public final class RefCallLiterals {
      */
     public static boolean isRefCall(@NotNull JSCallExpression call) {
         return call.getMethodExpression() instanceof JSReferenceExpression method
+                && method.getReferenceName() != null
                 && REF_FUNCTIONS.contains(method.getReferenceName());
     }
 

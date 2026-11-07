@@ -92,7 +92,114 @@ class LineageModelTest {
         LineageModel m = new LineageModel(null);
         m.setGraph(sampleGraph());
         m.setSearchQuery("BET");
-        assertEquals(Set.of(id("p.b.beta")), m.visibleIds());
+        assertEquals(Set.of(id("p.b.beta")), m.searchMatches());
+    }
+
+    @Test
+    void searchKeepsEveryNodeAndDimsTheOthers() {
+        LineageModel m = new LineageModel(null);
+        m.setGraph(sampleGraph());
+        m.setSearchQuery("bet");
+        assertEquals(Set.of(id("p.a.alpha"), id("p.b.beta"), id("p.a.gamma")), m.visibleIds());
+        assertEquals(Set.of(id("p.a.alpha"), id("p.a.gamma")), m.dimmedIds());
+    }
+
+    @Test
+    void withoutSearchOrSelectionNothingIsDimmedNorMatched() {
+        LineageModel m = new LineageModel(null);
+        m.setGraph(sampleGraph());
+        m.setHover(id("p.a.alpha"));
+        assertTrue(m.dimmedIds().isEmpty());
+        assertTrue(m.highlightedIds().isEmpty());
+        assertTrue(m.searchMatches().isEmpty());
+    }
+
+    /** up2 -> up1 -> mid -> down1 -> down2, up1 -> down1, other -> down1, and an isolated lone. */
+    private static LineageGraph chainGraph() {
+        LineageGraph.Builder builder = LineageGraph.builder();
+        for (String name : List.of("up2", "up1", "mid", "down1", "down2", "other", "lone")) {
+            builder.addNode(node("p.s." + name, "s", "table", List.of()));
+        }
+        return builder
+                .addEdge(id("p.s.up2"), id("p.s.up1"))
+                .addEdge(id("p.s.up1"), id("p.s.mid"))
+                .addEdge(id("p.s.mid"), id("p.s.down1"))
+                .addEdge(id("p.s.down1"), id("p.s.down2"))
+                .addEdge(id("p.s.up1"), id("p.s.down1"))
+                .addEdge(id("p.s.other"), id("p.s.down1"))
+                .build();
+    }
+
+    @Test
+    void selectingANodeDimsEveryNodeOutsideItsLineage() {
+        LineageModel m = new LineageModel(null);
+        m.setGraph(chainGraph());
+        m.select(id("p.s.mid"));
+        assertEquals(Set.of(id("p.s.other"), id("p.s.lone")), m.dimmedIds());
+    }
+
+    @Test
+    void selectingANodeHighlightsItsWholeUpstreamAndDownstream() {
+        LineageModel m = new LineageModel(null);
+        m.setGraph(chainGraph());
+        m.select(id("p.s.mid"));
+        assertEquals(Set.of(id("p.s.up2"), id("p.s.up1"), id("p.s.down1"), id("p.s.down2")), m.highlightedIds());
+    }
+
+    @Test
+    void lineageEdgesAreThePathsThroughTheSelection() {
+        LineageModel m = new LineageModel(null);
+        m.setGraph(chainGraph());
+        m.select(id("p.s.mid"));
+        assertTrue(m.isSelectionLineageEdge(id("p.s.up2"), id("p.s.up1")));
+        assertTrue(m.isSelectionLineageEdge(id("p.s.up1"), id("p.s.mid")));
+        assertTrue(m.isSelectionLineageEdge(id("p.s.mid"), id("p.s.down1")));
+        assertTrue(m.isSelectionLineageEdge(id("p.s.down1"), id("p.s.down2")));
+        assertFalse(m.isSelectionLineageEdge(id("p.s.up1"), id("p.s.down1")));
+        assertFalse(m.isSelectionLineageEdge(id("p.s.other"), id("p.s.down1")));
+        m.select(null);
+        assertFalse(m.isSelectionLineageEdge(id("p.s.up1"), id("p.s.mid")));
+    }
+
+    @Test
+    void theSelectionTakesOverFromTheSearchUntilItIsCleared() {
+        LineageModel m = new LineageModel(null);
+        m.setGraph(chainGraph());
+        m.setSearchQuery("lone");
+        m.select(id("p.s.mid"));
+        assertEquals(Set.of(id("p.s.other"), id("p.s.lone")), m.dimmedIds());
+        assertFalse(m.highlightedIds().contains(id("p.s.lone")));
+        assertEquals(Set.of(id("p.s.lone")), m.searchMatches());
+
+        m.select(null);
+        assertEquals(Set.of(id("p.s.lone")), m.highlightedIds());
+        assertEquals(6, m.dimmedIds().size());
+    }
+
+    @Test
+    void aLineageCoveringEveryShownNodeIsNotOutlined() {
+        LineageModel m = new LineageModel(null);
+        m.setGraph(sampleGraph());
+        m.setScopeIds(Set.of(id("p.a.alpha"), id("p.b.beta")));
+        m.select(id("p.b.beta"));
+        assertTrue(m.dimmedIds().isEmpty());
+        assertTrue(m.highlightedIds().isEmpty());
+    }
+
+    @Test
+    void resetFiltersShowsEveryActionAgain() {
+        LineageModel m = new LineageModel(null);
+        m.setGraph(sampleGraph());
+        m.toggleType("view");
+        m.toggleSchema("a");
+        m.toggleTag("x");
+        m.focusOn(id("p.a.alpha"));
+        m.setSearchQuery("gam");
+        m.resetFilters();
+        assertEquals(Set.of(id("p.a.alpha"), id("p.b.beta"), id("p.a.gamma")), m.visibleIds());
+        assertTrue(m.enabledTags().isEmpty());
+        assertEquals("", m.searchQuery());
+        assertEquals(null, m.focusId());
     }
 
     @Test
@@ -102,14 +209,6 @@ class LineageModelTest {
         m.focusOn(id("p.a.alpha"));
         assertEquals(Set.of(id("p.a.alpha"), id("p.b.beta")), m.visibleIds(),
                 "focus keeps alpha + downstream beta, excludes isolated gamma");
-    }
-
-    @Test
-    void highlightLineageIsSelfPlusAncestorsAndDescendants() {
-        LineageModel m = new LineageModel(null);
-        m.setGraph(sampleGraph());
-        m.select(id("p.b.beta"));
-        assertEquals(Set.of(id("p.b.beta"), id("p.a.alpha")), m.highlightLineage());
     }
 
     @Test

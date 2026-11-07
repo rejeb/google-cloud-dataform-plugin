@@ -28,10 +28,12 @@ import org.jetbrains.annotations.Nullable;
  * @param creationTime     Job creation timestamp in ms
  * @param startTime        Job start timestamp in ms
  * @param endTime          Job end timestamp in ms
- * @param bytesProcessed   Total bytes billed
+ * @param bytesProcessed   Total bytes processed
+ * @param bytesBilled      Total bytes billed
  * @param cacheHit         Whether results were served from cache
  * @param statementType    SQL statement type (e.g. "SELECT")
- * @param totalRows        Tolal row count
+ * @param totalRows        Total row count
+ * @param slotMillis       Slot time consumed, in milliseconds
  */
 public record BigQueryJobStats(
         @NotNull String jobId,
@@ -41,7 +43,9 @@ public record BigQueryJobStats(
         long startTime,
         long endTime,
         long bytesProcessed,
+        long bytesBilled,
         boolean cacheHit,
         @Nullable String statementType,
-        long totalRows
+        long totalRows,
+        long slotMillis
 ) {}

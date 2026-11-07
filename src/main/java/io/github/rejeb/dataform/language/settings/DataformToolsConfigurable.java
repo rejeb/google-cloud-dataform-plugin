@@ -17,15 +17,21 @@
 package io.github.rejeb.dataform.language.settings;
 
 import com.intellij.codeInsight.folding.CodeFoldingManager;
+import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.EditorFactory;
 import com.intellij.openapi.options.Configurable;
+import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.openapi.project.Project;
 import io.github.rejeb.dataform.language.diagnostics.DataformEditorRefresher;
 import io.github.rejeb.dataform.language.folding.DataformMultilineFoldManager;
+import io.github.rejeb.dataform.language.gcp.pricing.BigQueryPricingService;
+import io.github.rejeb.dataform.language.gcp.pricing.PriceListStatus;
 import io.github.rejeb.dataform.language.util.DataformProjects;
 
 import javax.swing.*;
+import java.time.ZoneId;
 
 public class DataformToolsConfigurable implements Configurable {
 
@@ -39,7 +45,19 @@ public class DataformToolsConfigurable implements Configurable {
     @Override
     public JComponent createComponent() {
         panel = new DataformToolsSettingsPanel();
+        BigQueryCostSettingsPanel costPanel = panel.getCostSettingsPanel();
+        costPanel.setPriceListStatus(describe(BigQueryPricingService.getInstance().status()));
+        costPanel.onRefresh(() -> {
+            costPanel.setPriceListStatus("Price list: downloading…");
+            BigQueryPricingService.getInstance().refresh().thenAccept(status ->
+                    ApplicationManager.getApplication().invokeLater(
+                            () -> costPanel.setPriceListStatus(describe(status)), ModalityState.any()));
+        });
         return panel.getPanel();
+    }
+
+    private static String describe(PriceListStatus status) {
+        return status.describe(ZoneId.systemDefault());
     }
 
     @Override
@@ -50,12 +68,14 @@ public class DataformToolsConfigurable implements Configurable {
                 || !panel.getSqlfluffConfigPath().equals(service.getSqlfluffConfigPath())
                 || !panel.getSqlfluffExtraArgs().equals(service.getSqlfluffExtraArgs())
                 || panel.isFoldTemplateExpressions() != service.isFoldTemplateExpressions()
-                || panel.isShowInlineCompilationErrors() != service.isShowInlineCompilationErrors();
+                || panel.isShowInlineCompilationErrors() != service.isShowInlineCompilationErrors()
+                || panel.getCostSettingsPanel().isModified(service);
     }
 
     @Override
-    public void apply() {
+    public void apply() throws ConfigurationException {
         DataformToolsSettings settings = DataformToolsSettings.getInstance();
+        panel.getCostSettingsPanel().apply(settings);
         boolean foldChanged = panel.isFoldTemplateExpressions() != settings.isFoldTemplateExpressions();
         settings.update(
                 panel.getCoreInstallPath(),
@@ -101,5 +121,6 @@ public class DataformToolsConfigurable implements Configurable {
         panel.setSqlfluffExtraArgs(service.getSqlfluffExtraArgs());
         panel.setFoldTemplateExpressions(service.isFoldTemplateExpressions());
         panel.setShowInlineCompilationErrors(service.isShowInlineCompilationErrors());
+        panel.getCostSettingsPanel().reset(service);
     }
 }

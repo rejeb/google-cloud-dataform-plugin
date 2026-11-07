@@ -18,10 +18,11 @@ package io.github.rejeb.dataform.language.lineage.view;
 
 import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.scale.JBUIScale;
+import com.intellij.util.ui.JBFont;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
-import io.github.rejeb.dataform.language.lineage.graph.LineageNode;
 import io.github.rejeb.dataform.language.lineage.model.LineageModel;
+import io.github.rejeb.dataform.language.ui.UiText;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.JPanel;
@@ -30,30 +31,50 @@ import java.awt.Dimension;
 import java.util.Set;
 
 /**
- * Bottom status row: visible/total node count, visible edge count, layout direction,
- * the selected node's qualified name (right-aligned), and the current zoom level.
+ * Bottom status row. In the project view: how many of the nodes are shown, whether one is
+ * selected, and the zoom level on the right. In the file view: how many nodes are shown and how to
+ * open one.
  */
 public final class StatusBar extends JPanel {
 
+    private static final int HEIGHT = 24;
+    private static final String FILE_HINT = "double-click a node to open its file";
+
     private final LineageModel model;
+    private final boolean fileView;
     private final JBLabel left = new JBLabel();
     private final JBLabel right = new JBLabel();
     private int zoomPercent = 100;
 
     public StatusBar(@NotNull LineageModel model) {
+        this(model, false);
+    }
+
+    private StatusBar(@NotNull LineageModel model, boolean fileView) {
         super(new BorderLayout());
         this.model = model;
+        this.fileView = fileView;
+        setBackground(UIUtil.getPanelBackground());
         setBorder(JBUI.Borders.compound(
                 JBUI.Borders.customLine(UIUtil.getBoundsColor(), 1, 0, 0, 0),
-                JBUI.Borders.empty(2, 8)));
-        setPreferredSize(new Dimension(0, JBUIScale.scale(22)));
-        left.setForeground(UIUtil.getLabelDisabledForeground());
-        right.setForeground(UIUtil.getLabelDisabledForeground());
+                JBUI.Borders.empty(0, 10)));
+        setPreferredSize(new Dimension(0, JBUIScale.scale(HEIGHT)));
+        for (JBLabel label : new JBLabel[]{left, right}) {
+            label.setFont(JBFont.medium());
+            label.setForeground(UIUtil.getContextHelpForeground());
+        }
         add(left, BorderLayout.WEST);
         add(right, BorderLayout.EAST);
 
         refresh();
         model.addListener(m -> refresh());
+    }
+
+    /**
+     * The status row of the lineage tab of a file: the number of nodes shown and how to open one.
+     */
+    public static @NotNull StatusBar forFile(@NotNull LineageModel model) {
+        return new StatusBar(model, true);
     }
 
     public void setZoom(int percent) {
@@ -63,28 +84,14 @@ public final class StatusBar extends JPanel {
 
     private void refresh() {
         Set<String> visible = model.visibleIds();
+        if (fileView) {
+            left.setText(UiText.dot(visible.size() == 1 ? "1 node" : visible.size() + " nodes", FILE_HINT));
+            right.setText("");
+            return;
+        }
         int total = model.graph().nodes().size();
-        int edges = countVisibleEdges(visible);
-
-        left.setText(visible.size() + "/" + total + " nodes  ·  "
-                + edges + " edges  ·  " + model.direction());
-
-        String selected = "";
-        if (model.selectedId() != null) {
-            LineageNode node = model.graph().node(model.selectedId());
-            if (node != null) selected = node.fullName() + "   ";
-        }
-        right.setText(selected + zoomPercent + "%");
-    }
-
-    private int countVisibleEdges(@NotNull Set<String> visible) {
-        int count = 0;
-        for (LineageNode node : model.graph().nodes()) {
-            if (!visible.contains(node.id())) continue;
-            for (String pred : model.graph().predecessors(node.id())) {
-                if (visible.contains(pred)) count++;
-            }
-        }
-        return count;
+        String shown = visible.size() + " of " + total + " nodes";
+        left.setText(model.selectedId() != null ? UiText.dot(shown, "1 selected") : shown);
+        right.setText(zoomPercent + "%");
     }
 }

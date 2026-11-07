@@ -54,6 +54,31 @@ public class SqlxSqlBlockInjectorTest extends BasePlatformTestCase {
         assertEquals("SELECT MAX(order_id) AS top_order FROM t", injectedSql(file));
     }
 
+    public void testAnInjectedFileWithAnEvaluatedHoleCanBeCopied() {
+        PsiFile file = sqlx("SELECT ${constants.A} AS a FROM t");
+        seed(file, "constants.A", "500");
+        PsiFile sql = InjectedFiles.of(java.util.List.of(PsiTreeUtil.findChildOfType(file, SqlxSqlBlock.class))).getFirst();
+
+        assertEquals("SELECT 500 AS a FROM t", sql.copy().getText());
+    }
+
+    public void testAnInjectedFileWithASelfHoleCanBeCopied() {
+        PsiFile file = sqlx("SELECT a FROM ${self()}");
+        PsiFile sql = InjectedFiles.of(java.util.List.of(PsiTreeUtil.findChildOfType(file, SqlxSqlBlock.class))).getFirst();
+
+        assertEquals(sql.getText(), sql.copy().getText());
+    }
+
+    public void testACopyOfTheFileInjectsTheValuesOfTheOriginal() {
+        PsiFile file = sqlx("SELECT ${constants.A} AS a FROM t");
+        seed(file, "constants.A", "500");
+
+        PsiFile copy = (PsiFile) file.copy();
+
+        assertEquals("SELECT 500 AS a FROM t",
+                InjectedFiles.of(java.util.List.of(PsiTreeUtil.findChildOfType(copy, SqlxSqlBlock.class))).getFirst().getText());
+    }
+
     public void testAHoleWithoutAValueIsStillFillerInsideAnExpression() {
         PsiFile file = sqlx("SELECT ${helpers.top_value(\"order_id\")} AS top_order FROM t");
         assertEquals("SELECT NULL AS top_order FROM t", injectedSql(file));

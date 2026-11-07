@@ -125,8 +125,7 @@ public final class SqlRenameEditCollector {
                                            @NotNull List<String> warnings) {
         PsiElement declaration = origins.declaringElement(column);
         if (declaration == null) {
-            warnings.add("The file declaring " + column.tableFullName() + "."
-                    + column.columnName() + " could not be opened, so it keeps the old name");
+            warnings.add(missingDeclaration(origins, column));
             return;
         }
         PsiFile hostFile = HostRanges.hostPsiFileOf(declaration);
@@ -160,6 +159,15 @@ public final class SqlRenameEditCollector {
         if (!aliases.isEmpty()) {
             collectLocalReads(origins, hostFile, column, renamed, newName, edits);
         }
+    }
+
+    private static @NotNull String missingDeclaration(@NotNull ColumnOriginService origins, @NotNull ColumnRef column) {
+        String name = column.tableFullName() + "." + column.columnName();
+        PsiFile file = origins.buildingFile(column);
+        return file == null
+                ? "The file declaring " + name + " could not be opened, so it keeps the old name"
+                : name + " has no select-list item in " + file.getName()
+                + ", so it keeps the old name. Rename it there by hand.";
     }
 
     /**

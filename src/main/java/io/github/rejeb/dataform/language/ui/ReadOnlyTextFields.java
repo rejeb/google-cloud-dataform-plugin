@@ -24,9 +24,11 @@ import com.intellij.util.ui.UIUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import javax.swing.JComponent;
 import javax.swing.JMenuItem;
 import javax.swing.JPopupMenu;
 import javax.swing.JTable;
+import javax.swing.border.EmptyBorder;
 import javax.swing.table.TableCellEditor;
 import javax.swing.text.JTextComponent;
 import java.awt.Color;
@@ -71,7 +73,8 @@ public final class ReadOnlyTextFields {
 
     /**
      * Creates a table cell editor that shows the cell value as read-only text, so that a click on a cell
-     * lets the user select part of its text.
+     * lets the user select part of its text. The text keeps the font, colour and padding the cell is
+     * rendered with, so it does not move when the editor opens.
      */
     public static @NotNull TableCellEditor cellEditor(@NotNull JTable table) {
         JBTextField field = singleLine("", table.getBackground());
@@ -84,6 +87,13 @@ public final class ReadOnlyTextFields {
             @Override
             public Component getTableCellEditorComponent(JTable t, Object value, boolean selected, int row, int column) {
                 field.setText(value != null ? value.toString() : "");
+                Component cell = t.getCellRenderer(row, column)
+                        .getTableCellRendererComponent(t, value, false, false, row, column);
+                field.setFont(cell.getFont());
+                field.setForeground(cell.getForeground());
+                field.setBorder(cell instanceof JComponent component && component.getBorder() != null
+                        ? new EmptyBorder(component.getBorder().getBorderInsets(component))
+                        : JBUI.Borders.empty());
                 return field;
             }
         };

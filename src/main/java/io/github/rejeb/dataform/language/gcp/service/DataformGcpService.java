@@ -22,6 +22,8 @@ import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowCr
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowProgressSession;
 import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
 import io.github.rejeb.dataform.language.gcp.workspace.UncommittedChange;
+import io.github.rejeb.dataform.language.gcp.workspace.CommitRoute;
+import io.github.rejeb.dataform.language.gcp.workspace.MainBranchSource;
 import io.github.rejeb.dataform.language.gcp.workspace.Workspace;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -38,15 +40,45 @@ public interface DataformGcpService {
         return project.getService(DataformGcpService.class);
     }
 
+    /**
+     * Reads where the files of the active repository come from when no workspace is selected.
+     * {@link MainBranchSource#DATAFORM} when the repository cannot be read. Must be called off the EDT.
+     */
+    @NotNull MainBranchSource refreshMainBranchSource();
+
+    /**
+     * Same as {@link #refreshMainBranchSource()}, without reading the repository again when its answer
+     * is known. Must be called off the EDT.
+     */
+    @NotNull MainBranchSource mainBranchSource();
+
+    /**
+     * How commits of the active repository reach Git. Must be called off the EDT.
+     *
+     * @return the route, {@code null} when no repository is active or it cannot be read
+     */
+    @Nullable CommitRoute commitRoute();
+
+    /**
+     * Brings the branch of the Git remote up to date, when that is what {@link #mainBranchSource()} reads.
+     * Must be called off the EDT.
+     *
+     * @throws io.github.rejeb.dataform.language.gcp.gitremote.GitRemoteBranchException when the remote
+     *                                                                                  cannot be reached
+     */
+    void fetchMainBranch();
+
     /** Lists all workspaces. Must be called off the EDT. */
     @NotNull List<Workspace> listWorkspaces();
 
     /**
      * Pushes the commits of the workspace to the remote Git repository. Must be called off the EDT.
      *
+     * @param remoteBranch the branch of the remote receiving the commits, {@code null} for the default
+     *                     branch of the repository
      * @throws io.github.rejeb.dataform.language.gcp.common.GcpApiException when the push fails
      */
-    void pushGitCommits(@NotNull String workspaceId);
+    void pushGitCommits(@NotNull String workspaceId, @Nullable String remoteBranch);
 
     /**
      * Uploads the local project files to the workspace. Must be called off the EDT.
@@ -156,7 +188,7 @@ public interface DataformGcpService {
      * Return all files and directories of workspace
      * <p>
      * if the workspace is null,
-     * Return all files and directories of repository
+     * Return all files and directories of {@link #mainBranchSource()}
      *
      * @param workspaceId the workspace ID
      * @return List<String> paths

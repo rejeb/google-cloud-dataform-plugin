@@ -17,15 +17,16 @@
 package io.github.rejeb.dataform.language.fileEditor;
 
 import com.intellij.ui.components.JBScrollPane;
+import com.intellij.ui.components.panels.VerticalLayout;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
 
-import javax.swing.BoxLayout;
 import javax.swing.JPanel;
 import java.awt.BorderLayout;
 
 /**
- * A preview tab showing sections stacked vertically in a scroll pane, on the panel background.
+ * A preview tab showing sections stacked vertically at their own height in a scroll pane, on the
+ * panel background.
  * Subclasses fill {@link #sectionsPanel} and may add components around the scroll pane.
  */
 abstract class SectionsPreviewPanel extends JPanel {
@@ -37,10 +38,9 @@ abstract class SectionsPreviewPanel extends JPanel {
         setOpaque(true);
         setBackground(UIUtil.getPanelBackground());
 
-        sectionsPanel = new JPanel();
-        sectionsPanel.setLayout(new BoxLayout(sectionsPanel, BoxLayout.Y_AXIS));
+        sectionsPanel = new JPanel(new VerticalLayout(0));
         sectionsPanel.setOpaque(false);
-        sectionsPanel.setBorder(JBUI.Borders.empty(8, 10));
+        sectionsPanel.setBorder(JBUI.Borders.empty(6, 12, 24, 12));
 
         JBScrollPane scroll = new JBScrollPane(sectionsPanel);
         scroll.setBorder(JBUI.Borders.empty());

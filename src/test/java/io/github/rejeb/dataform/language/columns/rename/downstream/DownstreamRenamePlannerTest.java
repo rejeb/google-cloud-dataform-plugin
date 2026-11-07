@@ -21,6 +21,7 @@ import com.intellij.openapi.fileEditor.FileDocumentManager;
 import io.github.rejeb.dataform.language.columns.rename.ColumnRenameFixture;
 import io.github.rejeb.dataform.language.columns.rename.plan.ColumnRenamePlan;
 import io.github.rejeb.dataform.language.columns.rename.usage.ColumnRenameEdit;
+import io.github.rejeb.dataform.language.diagnostics.compile.ConfigSchemaFixture;
 
 import java.util.List;
 import java.util.Set;
@@ -71,6 +72,23 @@ public class DownstreamRenamePlannerTest extends ColumnRenameFixture {
                 "gold.sqlx|email|customer_email",
                 "silver.sqlx|\"email\"|\"customer_email\"",
                 "silver.sqlx|email|customer_email"), editsOf(plan));
+    }
+
+    public void testATestInputMockingTheRenamedTableTakesTheNewName() throws Exception {
+        ConfigSchemaFixture.install(getProject(), getTestRootDisposable());
+        installRenamedCustomers(
+                new Action("silver", "SELECT customer_id, email AS contact FROM `p.d.customers`",
+                        List.of("customers"), List.of("customer_id", "contact")),
+                "config { type: \"table\" }\n\nSELECT customer_id, email AS contact\nFROM ${ref(\"customers\")}\n");
+        addTest("test_silver", "silver", "config {\n  type: \"test\",\n  dataset: \"silver\"\n}\n\n"
+                + "input \"customers\" {\n  SELECT 1 AS customer_id, 'a' AS email\n}\n\n"
+                + "SELECT 1 AS customer_id, 'a' AS contact\n");
+
+        ColumnRenamePlan plan = DownstreamRenamePlanner.plan(getProject(), EMAIL);
+
+        assertEquals(List.of(
+                "silver.sqlx|email|customer_email",
+                "test_silver.sqlx|email|customer_email"), editsOf(plan));
     }
 
     public void testAnUnqualifiedReadAmongSeveralTablesIsReportedNotRenamed() {

@@ -16,7 +16,6 @@
  */
 package io.github.rejeb.dataform.language.lineage.view;
 
-import com.intellij.ui.ColorUtil;
 import com.intellij.ui.scale.JBUIScale;
 import com.intellij.util.ui.UIUtil;
 import io.github.rejeb.dataform.language.lineage.graph.LineageNode;
@@ -27,22 +26,24 @@ import org.jetbrains.annotations.NotNull;
 
 import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
-import java.awt.Color;
 import java.awt.Composite;
-import java.awt.Font;
+import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.geom.Line2D;
 import javax.swing.JComponent;
 
-/** Measures and paints a single node box: type stripe, glyph badge, name and subtitle. */
+/** Measures and paints a single node box: type glyph, name and schema. */
 final class NodeRenderer {
 
+    private static final int MIN_WIDTH = 170;
     private static final int LEFT_PAD = 10;
-    private static final int BADGE = 22;
+    private static final int GLYPH = 18;
+    private static final int NODE_ARC = 14;
     private static final int TEXT_GAP = 8;
     private static final int RIGHT_PAD = 10;
     private static final float DIM_ALPHA = 0.28f;
     private static final int MARKER = 12;
+    private static final int MATCH_RING = 2;
 
     private final JComponent host;
     private final LineageModel model;
@@ -52,31 +53,22 @@ final class NodeRenderer {
         this.model = model;
     }
 
-    /** Width a single node needs for its own label, clamped to the density minimum and a maximum. */
+    /** Width a single node needs for its own label, clamped to the prototype minimum and a maximum. */
     int measureWidth(@NotNull String id) {
-        boolean comfortable = model.density() == Density.COMFORTABLE;
-        int min = comfortable ? 180 : 160;
         int max = JBUIScale.scale(460);
         LineageNode node = model.graph().node(id);
-        if (node == null) return min;
-        var nameFm = host.getFontMetrics(LineageTheme.monospace(comfortable ? 12f : 11f));
-        int textW;
-        if (comfortable) {
-            var subFm = host.getFontMetrics(LineageTheme.monospace(10f));
-            int nameW = nameFm.stringWidth(node.name());
-            int subW = subFm.stringWidth(node.schema() + " · " + node.dataformType());
-            textW = Math.max(nameW, subW);
-        } else {
-            textW = nameFm.stringWidth(node.name());
+        if (node == null) return MIN_WIDTH;
+        int textW = host.getFontMetrics(LineageTheme.nodeNameFont()).stringWidth(node.name());
+        if (model.density() == Density.COMFORTABLE) {
+            textW = Math.max(textW, host.getFontMetrics(LineageTheme.nodeSchemaFont()).stringWidth(node.schema()));
         }
-        int total = LEFT_PAD + BADGE + TEXT_GAP + textW + RIGHT_PAD;
-        return Math.max(min, Math.min(total, max));
+        int total = LEFT_PAD + GLYPH + TEXT_GAP + textW + RIGHT_PAD;
+        return Math.max(MIN_WIDTH, Math.min(total, max));
     }
 
-    /** Alpha a node is painted with: dimmed when a lineage highlight excludes it. */
+    /** Alpha a node is painted with: faded when the selection's lineage or the search leaves it out. */
     float alphaOf(@NotNull String id) {
-        java.util.Set<String> highlight = model.highlightLineage();
-        return !highlight.isEmpty() && !highlight.contains(id) ? DIM_ALPHA : 1f;
+        return model.dimmedIds().contains(id) ? DIM_ALPHA : 1f;
     }
 
     void paint(@NotNull Graphics2D g2, @NotNull LineageNode node, @NotNull NodePosition pos,
@@ -87,56 +79,65 @@ final class NodeRenderer {
         int w = pos.width();
         int x = (int) Math.round(pos.x());
         int y = (int) Math.round(pos.y());
-        Color type = LineageTheme.typeColor(node.dataformType());
 
-        g2.setColor(LineageTheme.nodeBackground());
-        g2.fillRoundRect(x, y, w, nodeH, 10, 10);
-        if (selected) {
-            g2.setColor(LineageTheme.accentColor());
-            g2.setStroke(new BasicStroke(2f));
-        } else {
-            g2.setColor(LineageTheme.nodeBorder());
-            g2.setStroke(new BasicStroke(1f));
-        }
-        g2.drawRoundRect(x, y, w, nodeH, 10, 10);
+        if (model.highlightedIds().contains(pos.id())) paintMatchOutline(g2, x, y, w, nodeH);
+        paintBox(g2, x, y, w, nodeH, selected, pos.id().equals(model.hoverId()));
 
-        g2.setColor(type);
-        g2.fillRoundRect(x, y, 4, nodeH, 4, 4);
+        int glyphX = x + LEFT_PAD;
+        TypeGlyphIcon.of(node.dataformType()).paintIcon(host, g2, glyphX, y + (nodeH - GLYPH) / 2);
 
-        int by = y + (nodeH - BADGE) / 2;
-        int bx = x + LEFT_PAD;
-        g2.setColor(ColorUtil.toAlpha(type, 40));
-        g2.fillRoundRect(bx, by, BADGE, BADGE, 6, 6);
-        g2.setColor(type);
-        g2.setFont(LineageTheme.monospace(12f).deriveFont(Font.BOLD));
-        String glyph = LineageTheme.glyphFor(node.dataformType());
-        var fm = g2.getFontMetrics();
-        g2.drawString(glyph, bx + (BADGE - fm.stringWidth(glyph)) / 2,
-                by + (BADGE + fm.getAscent() - fm.getDescent()) / 2);
-
-        int textX = bx + BADGE + TEXT_GAP;
+        int textX = glyphX + GLYPH + TEXT_GAP;
         int textAvail = (x + w - RIGHT_PAD) - textX;
         if (node.disabled()) {
             textAvail -= MARKER + TEXT_GAP;
             paintDisabledMarker(g2, x + w - RIGHT_PAD - MARKER, y + (nodeH - MARKER) / 2);
         }
-        if (model.density() == Density.COMFORTABLE) {
-            g2.setColor(UIUtil.getLabelForeground());
-            g2.setFont(LineageTheme.monospace(12f));
-            g2.drawString(LineageTheme.clip(g2, node.name(), textAvail), textX, y + 18);
-            g2.setColor(UIUtil.getLabelDisabledForeground());
-            g2.setFont(LineageTheme.monospace(10f));
-            g2.drawString(LineageTheme.clip(g2, node.schema() + " · " + node.dataformType(), textAvail),
-                    textX, y + 32);
-        } else {
-            g2.setColor(UIUtil.getLabelForeground());
-            g2.setFont(LineageTheme.monospace(11f));
-            var nfm = g2.getFontMetrics();
-            int ty = y + (nodeH + nfm.getAscent() - nfm.getDescent()) / 2;
-            g2.drawString(LineageTheme.clip(g2, node.name(), textAvail), textX, ty);
-        }
+        paintTexts(g2, node, textX, y, nodeH, textAvail, selected);
 
         g2.setComposite(oldComposite);
+    }
+
+    private static void paintBox(@NotNull Graphics2D g2, int x, int y, int w, int h,
+                                 boolean selected, boolean hovered) {
+        g2.setColor(selected ? UIUtil.getListSelectionBackground(true) : LineageTheme.nodeBackground());
+        g2.fillRoundRect(x, y, w, h, NODE_ARC, NODE_ARC);
+        if (selected) {
+            g2.setColor(LineageTheme.accentColor());
+            g2.setStroke(new BasicStroke(2f));
+        } else {
+            g2.setColor(hovered ? UIUtil.getContextHelpForeground() : LineageTheme.nodeBorder());
+            g2.setStroke(new BasicStroke(1f));
+        }
+        g2.drawRoundRect(x, y, w, h, NODE_ARC, NODE_ARC);
+        g2.setStroke(new BasicStroke(1f));
+    }
+
+    private static void paintMatchOutline(@NotNull Graphics2D g2, int x, int y, int w, int h) {
+        int ring = MATCH_RING;
+        g2.setColor(LineageTheme.searchMatch());
+        g2.setStroke(new BasicStroke(ring));
+        g2.drawRoundRect(x - ring / 2 - 1, y - ring / 2 - 1, w + ring + 2, h + ring + 2,
+                NODE_ARC + 2 * ring, NODE_ARC + 2 * ring);
+        g2.setStroke(new BasicStroke(1f));
+    }
+
+    private void paintTexts(@NotNull Graphics2D g2, @NotNull LineageNode node, int x, int y, int nodeH,
+                            int available, boolean selected) {
+        FontMetrics nameFm = g2.getFontMetrics(LineageTheme.nodeNameFont());
+        g2.setColor(UIUtil.getLabelForeground());
+        g2.setFont(LineageTheme.nodeNameFont());
+        if (model.density() != Density.COMFORTABLE) {
+            int baseline = y + (nodeH + nameFm.getAscent() - nameFm.getDescent()) / 2;
+            g2.drawString(LineageTheme.clip(g2, node.name(), available), x, baseline);
+            return;
+        }
+        FontMetrics schemaFm = g2.getFontMetrics(LineageTheme.nodeSchemaFont());
+        int top = y + (nodeH - nameFm.getHeight() - schemaFm.getHeight()) / 2;
+        g2.drawString(LineageTheme.clip(g2, node.name(), available), x, top + nameFm.getAscent());
+        g2.setColor(selected ? LineageTheme.selectedSchema() : UIUtil.getContextHelpForeground());
+        g2.setFont(LineageTheme.nodeSchemaFont());
+        g2.drawString(LineageTheme.clip(g2, node.schema(), available), x,
+                top + nameFm.getHeight() + schemaFm.getAscent());
     }
 
     /**

@@ -48,6 +48,8 @@ public class SqlxSqlfluffFormatter {
     private static final String PLACEHOLDER_PREFIX = "__SQLX_TPL_";
     private static final String PLACEHOLDER_SUFFIX = "__";
     private static final int SQLFLUFF_TIMEOUT_MS = 10_000;
+    private static final String EXCLUDE_RULES = "--exclude-rules";
+    private static final String COLUMN_ORDER_RULE = "ST06";
 
     public static List<CompletableFuture<BlockChange>> processText(@NotNull PsiFile file, @NotNull TextRange rangeToReformat) {
         PsiFile hostFile = resolveHostFile(file);
@@ -208,29 +210,25 @@ public class SqlxSqlfluffFormatter {
         }
     }
 
+    @NotNull
+    static List<String> arguments(@NotNull String configPath, @NotNull String extraArgs) {
+        List<String> extra = Arrays.stream(extraArgs.split("\\s+")).filter(argument -> !argument.isEmpty()).toList();
+        List<String> arguments = new ArrayList<>(List.of("fix", "--dialect", "bigquery", "-f", "-"));
+        if (!configPath.isEmpty()) {
+            arguments.add("--config");
+            arguments.add(configPath);
+        } else if (extra.stream().noneMatch(argument -> argument.startsWith(EXCLUDE_RULES))) {
+            arguments.add(EXCLUDE_RULES);
+            arguments.add(COLUMN_ORDER_RULE);
+        }
+        arguments.addAll(extra);
+        return arguments;
+    }
+
     private static @NotNull CapturingProcessHandler getCapturingProcessHandler(DataformToolsSettings settings) throws ExecutionException {
         GeneralCommandLine cmd = new GeneralCommandLine();
         cmd.setExePath(settings.getSqlfluffExecutablePath());
-        cmd.addParameter("fix");
-        cmd.addParameter("--dialect");
-        cmd.addParameter("bigquery");
-        cmd.addParameter("-f");
-        cmd.addParameter("-");
-
-        String configPath = settings.getSqlfluffConfigPath();
-        if (!configPath.isEmpty()) {
-            cmd.addParameter("--config");
-            cmd.addParameter(configPath);
-        }
-
-        String extraArgs = settings.getSqlfluffExtraArgs();
-        if (!extraArgs.isEmpty()) {
-            for (String arg : extraArgs.split("\\s+")) {
-                if (!arg.isEmpty()) {
-                    cmd.addParameter(arg);
-                }
-            }
-        }
+        cmd.addParameters(arguments(settings.getSqlfluffConfigPath(), settings.getSqlfluffExtraArgs()));
 
         cmd.setCharset(StandardCharsets.UTF_8);
 

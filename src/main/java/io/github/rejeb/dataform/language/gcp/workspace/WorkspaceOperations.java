@@ -29,6 +29,36 @@ import java.util.Map;
 public interface WorkspaceOperations {
 
     /**
+     * Reads where the files of the configured repository come from when no workspace is selected.
+     * Dataform refuses to serve the files of a repository linked to a Git remote without a workspace.
+     * {@link MainBranchSource#DATAFORM} when the repository cannot be read, so that the listing
+     * reports the real failure.
+     */
+    @NotNull MainBranchSource refreshMainBranchSource();
+
+    /**
+     * Same as {@link #refreshMainBranchSource()}, without reading the repository again when its answer
+     * is known.
+     */
+    @NotNull MainBranchSource mainBranchSource();
+
+    /**
+     * How commits of the configured repository reach Git. The repository is read again only when
+     * unknown; the local clone is looked for each time.
+     *
+     * @return the route, {@code null} when no repository is configured or it cannot be read
+     */
+    @Nullable CommitRoute commitRoute();
+
+    /**
+     * Brings the branch of the Git remote up to date, when that is what {@link #mainBranchSource()} reads.
+     *
+     * @throws io.github.rejeb.dataform.language.gcp.gitremote.GitRemoteBranchException when the remote
+     *                                                                                  cannot be reached
+     */
+    void fetchMainBranch();
+
+    /**
      * Lists all workspaces in the configured GCP Dataform repository.
      */
     @NotNull List<Workspace> listWorkspaces();
@@ -36,10 +66,12 @@ public interface WorkspaceOperations {
     /**
      * Commits and pushes local workspace changes to the remote repository.
      *
-     * @param workspaceId the target workspace ID
+     * @param workspaceId  the target workspace ID
+     * @param remoteBranch the branch of the Git remote receiving the commits, {@code null} for the
+     *                     default branch of the repository
      * @throws GcpApiException on API error
      */
-    void pushGitCommits(@NotNull String workspaceId);
+    void pushGitCommits(@NotNull String workspaceId, @Nullable String remoteBranch);
 
     /**
      * Fetches file contents from the given workspace or from repo main if {@code null}.
@@ -140,7 +172,7 @@ public interface WorkspaceOperations {
      * if the workspace is null,
      * Return all files and directories of repository
      *
-     * @param workspaceId the workspace ID
+     * @param workspaceId the workspace ID, or {@code null} to read from {@link #mainBranchSource()}
      * @return List<String> paths
      */
     List<String> listAllPaths(@Nullable String workspaceId);

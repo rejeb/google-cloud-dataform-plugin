@@ -121,6 +121,22 @@ public class DataformRefDocumentationTest extends BasePlatformTestCase {
         assertTrue(html, html.contains("view"));
     }
 
+    public void testATableIsDocumentedWithTheKindDataformCompiledItTo() {
+        ProjectStateInstaller.installGraph(getProject(), getTestRootDisposable(), new Gson().fromJson("""
+                {"tables": [
+                  {"type": "incremental", "target": {"database": "p", "schema": "d", "name": "orders"},
+                   "fileName": "definitions/orders.sqlx"}
+                ]}""", CompiledGraph.class));
+        PsiFile file = myFixture.configureByText("test.sqlx",
+                "config { type: \"table\" }\nSELECT * FROM ${ref(\"ord<caret>ers\")}");
+
+        String html = ((DataformTableDocumentationTarget) new DataformRefDocumentationTargetProvider()
+                .documentationTargets(file, myFixture.getCaretOffset()).get(0)).html();
+
+        assertTrue(html, html.contains("incremental"));
+        assertFalse(html, html.contains("view"));
+    }
+
     public void testDocumentationRendersWithoutCompiledGraph() {
         PsiFile file = myFixture.configureByText("test.sqlx",
                 "config { type: \"table\" }\nSELECT * FROM ${ref(\"my_ta<caret>ble\")}");

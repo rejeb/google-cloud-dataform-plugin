@@ -16,10 +16,10 @@
  */
 package io.github.rejeb.dataform.language.fileEditor.action;
 
-import com.intellij.icons.AllIcons;
 import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
+import io.github.rejeb.dataform.language.DataformIcons;
 import io.github.rejeb.dataform.language.fileEditor.SqlxCompiledPreviewEditor;
 import io.github.rejeb.dataform.language.fileEditor.SqlxPreviewMode;
 import org.jetbrains.annotations.NotNull;
@@ -29,7 +29,7 @@ public class ExecuteQueryAction extends AnAction {
     private final SqlxCompiledPreviewEditor preview;
 
     public ExecuteQueryAction(@NotNull SqlxCompiledPreviewEditor preview) {
-        super("Execute Query", "Execute the compiled BigQuery SQL", AllIcons.Nodes.Alias);
+        super("Run query", "Run the compiled query in BigQuery", DataformIcons.RUN);
         this.preview = preview;
     }
 
@@ -41,10 +41,10 @@ public class ExecuteQueryAction extends AnAction {
     @Override
     public void update(@NotNull AnActionEvent e) {
         boolean unitTest = preview.getMode() == SqlxPreviewMode.UNIT_TEST;
-        e.getPresentation().setText(unitTest ? "Execute Test Query" : "Execute Query");
+        e.getPresentation().setText(unitTest ? "Run test query" : "Run query");
         e.getPresentation().setDescription(unitTest
-                ? "Execute the test query or the expected output on BigQuery"
-                : "Execute the compiled BigQuery SQL");
+                ? "Run the test query or the expected output in BigQuery"
+                : "Run the compiled query in BigQuery");
         e.getPresentation().setEnabled(preview.hasQuery());
     }
 

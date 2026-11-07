@@ -19,14 +19,29 @@ package io.github.rejeb.dataform.language.gcp.service;
 import com.intellij.notification.NotificationType;
 import com.intellij.util.messages.Topic;
 import io.github.rejeb.dataform.language.gcp.workspace.UncommittedChange;
+import io.github.rejeb.dataform.language.gcp.workspace.CommitRoute;
+import io.github.rejeb.dataform.language.gcp.workspace.MainBranchSource;
 import io.github.rejeb.dataform.language.gcp.workspace.Workspace;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 
 public interface DataformGcpEvent {
 
     Topic<DataformGcpEvent> TOPIC = Topic.create("DataformGcpEvent", DataformGcpEvent.class);
+
+    /**
+     * Called on the event thread with how commits of the active repository reach Git, {@code null} when
+     * the repository cannot be read, before its workspaces are reported.
+     */
+    default void onCommitRouteLoaded(@Nullable CommitRoute route) {}
+
+    /**
+     * Called on the event thread with where the active repository is read from when no workspace is
+     * selected, before its workspaces are reported.
+     */
+    default void onMainBranchLoaded(@NotNull MainBranchSource source) {}
 
     default void onWorkspacesLoaded(@NotNull List<Workspace> workspaces) {}
 
@@ -35,4 +50,10 @@ public interface DataformGcpEvent {
     default void onGitStatusesLoaded(@NotNull List<UncommittedChange> changes) {}
 
     default void onNotification(@NotNull String message, @NotNull NotificationType type) {}
+
+    /**
+     * Called on the event thread after the active repository of the project was set from outside
+     * the tool window.
+     */
+    default void onRepositoryChanged() {}
 }

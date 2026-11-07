@@ -24,9 +24,13 @@ import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.util.Ref;
+import com.intellij.openapi.util.text.StringUtil;
+import io.github.rejeb.dataform.language.gcp.gitremote.GitRemoteBranchException;
 import io.github.rejeb.dataform.language.gcp.service.DataformGcpEvent;
 import io.github.rejeb.dataform.language.gcp.service.DataformGcpService;
 import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
+import io.github.rejeb.dataform.language.gcp.workspace.CommitRoute;
+import io.github.rejeb.dataform.language.gcp.workspace.MainBranchSource;
 import io.github.rejeb.dataform.language.gcp.workspace.UncommittedChange;
 import io.github.rejeb.dataform.language.gcp.workspace.Workspace;
 import org.jetbrains.annotations.NotNull;
@@ -34,6 +38,8 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.Set;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 public class GcpPanelActionDispatcherImpl implements GcpPanelActionDispatcher {
@@ -49,6 +55,7 @@ public class GcpPanelActionDispatcherImpl implements GcpPanelActionDispatcher {
     @Override
     public void refreshWorkspaces() {
         runInBackground("Loading Dataform workspaces…", indicator -> {
+            loadMainBranchSource();
             loadWorkspaces();
             String workspaceId = GcpRepositorySettings.getInstance(project).getSelectedWorkspaceId();
             fetchFiles(workspaceId);
@@ -62,8 +69,11 @@ public class GcpPanelActionDispatcherImpl implements GcpPanelActionDispatcher {
     public void fetchFiles(@Nullable String workspaceId) {
         String title = workspaceId != null
                 ? "Fetching from workspace '" + workspaceId + "'…"
-                : "Reading files from repo main branch…";
+                : "Reading the repository files…";
         runInBackground(title, indicator -> {
+            if (workspaceId == null) {
+                fetchMainBranch();
+            }
             List<String> files = gcpService().listAllPaths(workspaceId);
             ApplicationManager.getApplication().invokeLater(() -> publish().onFilesLoaded(List.copyOf(files)));
         }, null, error -> {
@@ -102,19 +112,51 @@ public class GcpPanelActionDispatcherImpl implements GcpPanelActionDispatcher {
     }
 
     @Override
-    public void pushGitCommits(@NotNull String workspaceId) {
-        runInBackground("Pushing commits…", indicator -> gcpService().pushGitCommits(workspaceId),
-                null, failure("Push commits failed: "));
+    public void pushGitCommits(@NotNull String workspaceId, @Nullable String remoteBranch) {
+        runInBackground(pushingTitle(remoteBranch), indicator -> gcpService().pushGitCommits(workspaceId, remoteBranch),
+                () -> notifyPushed(remoteBranch), failure("Push commits failed: "));
     }
 
     @Override
-    public void commitAndPush(@NotNull String workspaceId, @NotNull List<String> paths, @NotNull String message) {
+    public void commitAndPush(@NotNull String workspaceId, @NotNull List<String> paths, @NotNull String message,
+                              @Nullable String remoteBranch) {
+        AtomicBoolean committed = new AtomicBoolean();
+        Consumer<Throwable> reportFailure = failure("Commit & Push failed: ");
         runInBackground("Committing and pushing changes…", indicator -> {
             indicator.setText("Committing changes…");
             gcpService().commitWorkspaceChanges(workspaceId, paths, message);
-            indicator.setText("Pushing commits…");
-            gcpService().pushGitCommits(workspaceId);
-        }, () -> fetchGitStatusesInternal(workspaceId), failure("Commit & Push failed: "));
+            committed.set(true);
+            indicator.setText(pushingTitle(remoteBranch));
+            gcpService().pushGitCommits(workspaceId, remoteBranch);
+        }, () -> {
+            notifyPushed(remoteBranch);
+            fetchGitStatusesInternal(workspaceId);
+        }, error -> {
+            reportFailure.accept(error);
+            if (committed.get()) {
+                fetchGitStatusesInternal(workspaceId);
+            }
+        });
+    }
+
+    @Override
+    public void refreshWhenCommitRouteChanges(@Nullable CommitRoute known) {
+        runInBackground("Checking the Git settings of the project…", indicator -> {
+            if (!Objects.equals(gcpService().commitRoute(), known)) {
+                ApplicationManager.getApplication().invokeLater(this::refreshWorkspaces, project.getDisposed());
+            }
+        }, null, null);
+    }
+
+    private static @NotNull String pushingTitle(@Nullable String remoteBranch) {
+        return remoteBranch == null ? "Pushing commits…" : "Pushing commits to " + remoteBranch + "…";
+    }
+
+    private void notifyPushed(@Nullable String remoteBranch) {
+        if (remoteBranch != null) {
+            publish().onNotification("Commits pushed to " + StringUtil.escapeXmlEntities(remoteBranch) + " on the Git remote.",
+                    NotificationType.INFORMATION);
+        }
     }
 
     @Override
@@ -152,6 +194,26 @@ public class GcpPanelActionDispatcherImpl implements GcpPanelActionDispatcher {
             List<UncommittedChange> changes = gcpService().fetchGitStatuses(workspaceId);
             ApplicationManager.getApplication().invokeLater(() -> publish().onGitStatusesLoaded(changes));
         }, null, null);
+    }
+
+    private void fetchMainBranch() {
+        try {
+            gcpService().fetchMainBranch();
+        } catch (GitRemoteBranchException e) {
+            String message = "Could not fetch the Git remote, showing the last fetched files: "
+                    + StringUtil.escapeXmlEntities(e.getMessage());
+            ApplicationManager.getApplication().invokeLater(
+                    () -> publish().onNotification(message, NotificationType.WARNING));
+        }
+    }
+
+    private void loadMainBranchSource() {
+        MainBranchSource source = gcpService().refreshMainBranchSource();
+        CommitRoute route = gcpService().commitRoute();
+        ApplicationManager.getApplication().invokeLater(() -> {
+            publish().onCommitRouteLoaded(route);
+            publish().onMainBranchLoaded(source);
+        });
     }
 
     private void loadWorkspaces() {

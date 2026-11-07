@@ -71,7 +71,7 @@ public class DataformTableDocumentationTarget implements DocumentationTarget {
     String html() {
         CompiledGraph graph = myProject.getService(DataformCompilationService.class).getCompiledGraph();
         ActionInfo info = graph == null ? ActionInfo.NONE : graph.findTableByReference(myAction)
-                .map(t -> new ActionInfo(fullName(t.getTarget()), t.getType(), t.getFileName(),
+                .map(t -> new ActionInfo(fullName(t.getTarget()), t.getKind(), t.getFileName(),
                         t.getActionDescriptor() == null ? null : t.getActionDescriptor().getDescription()))
                 .or(() -> graph.findDeclarationByReference(myAction)
                         .map(d -> new ActionInfo(fullName(d.getTarget()), "declaration", d.getFileName(), null)))

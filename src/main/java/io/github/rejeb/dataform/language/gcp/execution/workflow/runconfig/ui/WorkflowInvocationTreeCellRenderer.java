@@ -16,62 +16,88 @@
  */
 package io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.ui;
 
-import com.intellij.icons.AllIcons;
-import com.intellij.ui.AnimatedIcon;
+import com.intellij.ide.ui.UISettings;
+import com.intellij.ui.ColoredTreeCellRenderer;
+import com.intellij.ui.SimpleTextAttributes;
+import com.intellij.util.ui.JBUI;
+import com.intellij.util.ui.UIUtil;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.InvocationActionResult;
-import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowInvocationState;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
-import java.awt.*;
 import javax.swing.*;
 import javax.swing.tree.DefaultMutableTreeNode;
-import javax.swing.tree.DefaultTreeCellRenderer;
+import java.awt.*;
 
-public class WorkflowInvocationTreeCellRenderer extends DefaultTreeCellRenderer {
+/**
+ * Renders the rows of a workflow run as the prototype does: the status icon, the action name then
+ * its schema grayed, and its duration grayed at the right end of the row, as the test runner shows
+ * test durations; the root shows the run configuration in bold and the time the run took.
+ */
+public class WorkflowInvocationTreeCellRenderer extends ColoredTreeCellRenderer {
+
+    private static final int RIGHT_GAP = 8;
+
+    private @Nullable String rightText;
+    private Color rightColor;
 
     @Override
-    public Component getTreeCellRendererComponent(
-            JTree tree, Object value, boolean sel,
-            boolean expanded, boolean leaf, int row, boolean hasFocus
-    ) {
-        super.getTreeCellRendererComponent(tree, value, sel, expanded, leaf, row, hasFocus);
-
-        if (!(value instanceof DefaultMutableTreeNode node)) return this;
-
+    public void customizeCellRenderer(@NotNull JTree tree, Object value, boolean selected, boolean expanded,
+                                      boolean leaf, int row, boolean hasFocus) {
+        rightText = null;
+        setToolTipText(null);
+        rightColor = selected ? UIUtil.getTreeSelectionForeground(hasFocus) : SimpleTextAttributes.GRAYED_ATTRIBUTES.getFgColor();
+        if (!(value instanceof DefaultMutableTreeNode node)) return;
         Object userObject = node.getUserObject();
-
-        if (userObject instanceof WorkflowInvocationTreeModel.InvocationRootNode rootNode) {
-            setText(RunConfigUiUtils.shortName(rootNode.invocationName()));
-            setIcon(iconForInvocationState(rootNode.state()));
+        if (userObject instanceof WorkflowInvocationTreeModel.InvocationRootNode root) {
+            setIcon(ActionStateIcons.of(root.state()));
+            append(root.title(), SimpleTextAttributes.REGULAR_BOLD_ATTRIBUTES);
+            rightText = root.elapsed() != null ? RunText.duration(root.elapsed()) : null;
         } else if (userObject instanceof InvocationActionResult action) {
-            setText(action.target()
-                    + (action.failureReason() != null ? " — " + action.failureReason() : ""));
-            setIcon(iconForActionState(action));
+            setIcon(ActionStateIcons.of(action.state()));
+            append(RunText.name(action.target()));
+            String schema = RunText.schema(action.target());
+            if (schema != null) append(" " + schema, SimpleTextAttributes.GRAYED_ATTRIBUTES);
+            rightText = RunText.duration(action);
+            setToolTipText(action.failureReason() != null ? action.failureReason() : action.target());
         }
-
-        return this;
     }
 
-    @NotNull
-    private Icon iconForInvocationState(@NotNull WorkflowInvocationState state) {
-        return switch (state) {
-            case RUNNING -> AnimatedIcon.Default.INSTANCE;
-            case SUCCEEDED -> AllIcons.RunConfigurations.TestPassed;
-            case FAILED -> AllIcons.RunConfigurations.TestFailed;
-            case CANCELLED -> AllIcons.RunConfigurations.TestIgnored;
-            default -> AllIcons.RunConfigurations.TestUnknown;
-        };
+    /**
+     * The text drawn at the right end of the row: the duration of the action or of the run.
+     */
+    @Nullable
+    String rightText() {
+        return rightText;
     }
 
-    @NotNull
-    private Icon iconForActionState(@NotNull InvocationActionResult action) {
-        return switch (action.state()) {
-            case RUNNING -> AnimatedIcon.Default.INSTANCE;
-            case SUCCEEDED -> AllIcons.RunConfigurations.TestPassed;
-            case FAILED -> AllIcons.RunConfigurations.TestFailed;
-            case SKIPPED, DISABLED, CANCELLED -> AllIcons.RunConfigurations.TestIgnored;
-            case PENDING -> AllIcons.RunConfigurations.TestNotRan;
-            default -> AllIcons.RunConfigurations.TestUnknown;
-        };
+    @Override
+    public @NotNull Dimension getPreferredSize() {
+        Dimension size = super.getPreferredSize();
+        if (rightText != null) size.width += rightWidth();
+        return size;
+    }
+
+    @Override
+    protected void paintComponent(Graphics g) {
+        if (rightText == null) {
+            super.paintComponent(g);
+            return;
+        }
+        UISettings.setupAntialiasing(g);
+        int textRight = getWidth() - rightWidth();
+        Shape clip = g.getClip();
+        if (textRight > 0) {
+            g.setColor(rightColor);
+            g.setFont(getFont());
+            g.drawString(rightText, textRight + JBUI.scale(RIGHT_GAP), getTextBaseLine(g.getFontMetrics(), getHeight()));
+            g.clipRect(0, 0, textRight, getHeight());
+        }
+        super.paintComponent(g);
+        g.setClip(clip);
+    }
+
+    private int rightWidth() {
+        return getFontMetrics(getFont()).stringWidth(rightText) + 2 * JBUI.scale(RIGHT_GAP);
     }
 }

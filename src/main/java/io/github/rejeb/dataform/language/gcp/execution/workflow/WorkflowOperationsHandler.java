@@ -43,7 +43,8 @@ public final class WorkflowOperationsHandler implements WorkflowOperations {
     public WorkflowCreationResult createWorkflowRun(@NotNull WorkflowRunRequest request) {
         RepositoryCoordinates config = requireConfig();
         return repository.createWorkflowRun(
-                config.projectId(), config.location(), config.repositoryId(), request);
+                config.projectId(), config.location(), config.repositoryId(),
+                configProvider.getServiceAccount(), request);
     }
 
     @Override

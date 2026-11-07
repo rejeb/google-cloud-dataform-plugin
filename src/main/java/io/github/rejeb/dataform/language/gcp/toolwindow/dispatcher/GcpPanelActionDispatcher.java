@@ -16,6 +16,7 @@
  */
 package io.github.rejeb.dataform.language.gcp.toolwindow.dispatcher;
 
+import io.github.rejeb.dataform.language.gcp.workspace.CommitRoute;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -64,9 +65,19 @@ public interface GcpPanelActionDispatcher {
     /**
      * Pushes git commits to the remote for the given workspace.
      *
-     * @param workspaceId target workspace id
+     * @param workspaceId  target workspace id
+     * @param remoteBranch the branch of the remote receiving the commits, {@code null} for the default
+     *                     branch of the repository
      */
-    void pushGitCommits(@NotNull String workspaceId);
+    void pushGitCommits(@NotNull String workspaceId, @Nullable String remoteBranch);
+
+    /**
+     * Reloads the repository when the way its commits reach Git is no longer {@code known}, as when the
+     * project has just become a local clone.
+     *
+     * @param known the route the caller works with, {@code null} when it has none
+     */
+    void refreshWhenCommitRouteChanges(@Nullable CommitRoute known);
 
     /**
      * Commits then pushes the given file paths atomically.
@@ -74,8 +85,11 @@ public interface GcpPanelActionDispatcher {
      * @param workspaceId target workspace id
      * @param paths       file paths to commit
      * @param message     commit message
+     * @param remoteBranch the branch of the remote receiving the commits, {@code null} for the default
+     *                     branch of the repository
      */
-    void commitAndPush(@NotNull String workspaceId, @NotNull List<String> paths, @NotNull String message);
+    void commitAndPush(@NotNull String workspaceId, @NotNull List<String> paths, @NotNull String message,
+                       @Nullable String remoteBranch);
 
     /**
      * Creates a new workspace and publishes the updated workspace list on success.

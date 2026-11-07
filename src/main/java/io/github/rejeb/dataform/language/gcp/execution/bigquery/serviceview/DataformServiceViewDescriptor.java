@@ -16,33 +16,76 @@
  */
 package io.github.rejeb.dataform.language.gcp.execution.bigquery.serviceview;
 
-import com.intellij.execution.services.ServiceEventListener;
-import com.intellij.execution.services.SimpleServiceViewDescriptor;
-import com.intellij.icons.AllIcons;
+import com.intellij.execution.services.ServiceViewDescriptor;
 import com.intellij.ide.DeleteProvider;
-import com.intellij.openapi.actionSystem.*;
+import com.intellij.ide.projectView.PresentationData;
+import com.intellij.navigation.ItemPresentation;
+import com.intellij.openapi.actionSystem.ActionGroup;
+import com.intellij.openapi.actionSystem.ActionUpdateThread;
+import com.intellij.openapi.actionSystem.DataContext;
+import com.intellij.openapi.actionSystem.DataSink;
+import com.intellij.openapi.actionSystem.DefaultActionGroup;
+import com.intellij.openapi.actionSystem.PlatformDataKeys;
+import com.intellij.openapi.actionSystem.UiDataProvider;
+import com.intellij.openapi.fileEditor.OpenFileDescriptor;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
-import io.github.rejeb.dataform.language.gcp.execution.bigquery.BigQueryJobResult;
+import com.intellij.pom.Navigatable;
+import com.intellij.ui.SimpleTextAttributes;
 import io.github.rejeb.dataform.language.gcp.execution.bigquery.QueryResultsRegistry;
+import io.github.rejeb.dataform.language.gcp.execution.bigquery.QueryRun;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import javax.swing.*;
+import javax.swing.JComponent;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 
-public class DataformServiceViewDescriptor extends SimpleServiceViewDescriptor implements UiDataProvider {
-    private final BigQueryJobResult result;
+/**
+ * The Services node of a query run: its status, its table and the time it started.
+ */
+public class DataformServiceViewDescriptor implements ServiceViewDescriptor, UiDataProvider {
+
+    private static final DateTimeFormatter CLOCK = DateTimeFormatter.ofPattern("HH:mm");
+
+    private final QueryRun run;
     private final Project project;
 
-    public DataformServiceViewDescriptor(Project project, BigQueryJobResult result) {
-        super(result.tableName(), AllIcons.Providers.BigQuery);
-        this.result = result;
+    public DataformServiceViewDescriptor(@NotNull Project project, @NotNull QueryRun run) {
+        this.run = run;
         this.project = project;
     }
 
     @Override
+    public @NotNull ItemPresentation getPresentation() {
+        PresentationData presentation = new PresentationData();
+        presentation.setIcon(QueryRunIcons.of(run.state()));
+        presentation.addText(run.shortName(), SimpleTextAttributes.REGULAR_ATTRIBUTES);
+        presentation.addText("  " + CLOCK.withZone(ZoneId.systemDefault()).format(Instant.ofEpochMilli(run.createdAt())),
+                SimpleTextAttributes.GRAYED_ATTRIBUTES);
+        presentation.setTooltip(run.tableName());
+        return presentation;
+    }
+
+    @Override
+    public @NotNull String getId() {
+        return run.tableName();
+    }
+
+    @Override
     public @Nullable JComponent getContentComponent() {
-        return new QueryExecutionPanel(project, result);
+        return QueryResultPanels.getInstance(project).panelFor(run);
+    }
+
+    @Override
+    public @NotNull ActionGroup getToolbarActions() {
+        return new DefaultActionGroup(new RemoveFinishedQueriesAction());
+    }
+
+    @Override
+    public @Nullable Navigatable getNavigatable() {
+        return run.source() != null ? new OpenFileDescriptor(project, run.source()) : null;
     }
 
     @Override
@@ -58,18 +101,15 @@ public class DataformServiceViewDescriptor extends SimpleServiceViewDescriptor i
             public void deleteElement(@NotNull DataContext ctx) {
                 int choice = Messages.showYesNoDialog(
                         project,
-                        "Remove result for \"" + result.tableName() + "\" ?",
+                        "Remove result for \"" + run.tableName() + "\" ?",
                         "Delete",
                         "Delete",
                         "Cancel",
                         Messages.getWarningIcon()
                 );
                 if (choice != Messages.YES) return;
-                QueryResultsRegistry.getInstance(project).remove(result.tableName());
-                project.getMessageBus()
-                        .syncPublisher(ServiceEventListener.TOPIC)
-                        .handle(ServiceEventListener.ServiceEvent
-                                .createResetEvent(DataformQueryContributor.class));
+                QueryResultsRegistry.getInstance(project).remove(run.tableName());
+                QueryResultsView.refresh(project);
             }
 
             @Override

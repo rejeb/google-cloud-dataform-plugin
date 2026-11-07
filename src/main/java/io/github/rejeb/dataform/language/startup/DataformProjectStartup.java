@@ -67,16 +67,7 @@ public class DataformProjectStartup implements ProjectActivity {
         if (!Utils.isDataformProject(project)) return null;
         DataformValueFoldClickListener.attachToOpenEditors();
         DataformEvaluationFocusListener.requestForSelectedFiles(project);
-        if (GcpRepositorySettings.getInstance(project).getActiveConfig() != null) {
-            List<String> cached = DataformGcpService.getInstance(project).getCachedFiles();
-            if (cached.isEmpty()) {
-                DataformGcpService.getInstance(project).refreshFilesAsync(null, files ->
-                        LOG.info("Dataform GCP file cache loaded: " + files.size() + " files.")
-                );
-            } else {
-                LOG.info("Dataform GCP file cache restored from disk: " + cached.size() + " files.");
-            }
-        }
+        loadRemoteFileCache(project);
         if (DataformCompilationService.getInstance(project).getCompiledGraph() == null) {
             ProgressManager.getInstance().run(new Task.Backgroundable(project, "Dataform: compiling", false) {
                 @Override
@@ -118,6 +109,20 @@ public class DataformProjectStartup implements ProjectActivity {
         });
 
         return null;
+    }
+
+    static void loadRemoteFileCache(@NotNull Project project) {
+        GcpRepositorySettings settings = GcpRepositorySettings.getInstance(project);
+        if (settings.getActiveConfig() != null) {
+            List<String> cached = DataformGcpService.getInstance(project).getCachedFiles();
+            if (cached.isEmpty()) {
+                DataformGcpService.getInstance(project).refreshFilesAsync(settings.getSelectedWorkspaceId(), files ->
+                        LOG.info("Dataform GCP file cache loaded: " + files.size() + " files.")
+                );
+            } else {
+                LOG.info("Dataform GCP file cache restored from disk: " + cached.size() + " files.");
+            }
+        }
     }
 
     private static void ensureGitignoreContainsDataform(

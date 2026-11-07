@@ -17,11 +17,14 @@
 package io.github.rejeb.dataform.language.completion;
 
 import com.google.gson.Gson;
+import com.intellij.codeInsight.lookup.LookupElement;
+import com.intellij.codeInsight.lookup.LookupElementPresentation;
 import com.intellij.openapi.application.WriteAction;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.testing.ProjectStateInstaller;
 
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -126,6 +129,23 @@ public class DataformRefCompletionTest extends BasePlatformTestCase {
 
         assertNotNull(lookups);
         assertEquals("got " + lookups, List.of("compiled-p", "d", "mart", "raw"), lookups.subList(0, 4));
+    }
+
+    public void testATableShowsTheKindDataformCompiledItTo() {
+        complete("ref(\"p\", \"mart\", \"<caret>\");");
+
+        assertEquals("table", typeTextOf("customers"));
+        assertEquals("view", typeTextOf("payments"));
+    }
+
+    private String typeTextOf(String lookupString) {
+        LookupElement element = Arrays.stream(myFixture.getLookupElements())
+                .filter(e -> lookupString.equals(e.getLookupString()))
+                .findFirst()
+                .orElseThrow();
+        LookupElementPresentation presentation = new LookupElementPresentation();
+        element.renderElement(presentation);
+        return presentation.getTypeText();
     }
 
     private List<String> complete(String code) {

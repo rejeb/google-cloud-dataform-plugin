@@ -16,7 +16,7 @@
  */
 package io.github.rejeb.dataform.language.gcp.toolwindow.action;
 
-import com.intellij.icons.AllIcons;
+import io.github.rejeb.dataform.language.DataformIcons;
 import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
@@ -29,7 +29,7 @@ public class CreateWorkspaceAction extends AnAction {
     private final GcpPanelActionDispatcher dispatcher;
 
     public CreateWorkspaceAction(@NotNull GcpPanelActionDispatcher dispatcher) {
-        super(() -> "Create Workspace", AllIcons.Actions.NewFolder);
+        super(() -> "Create Workspace…", DataformIcons.ADD);
         this.dispatcher = dispatcher;
     }
 
@@ -38,7 +38,7 @@ public class CreateWorkspaceAction extends AnAction {
         String workspaceId = Messages.showInputDialog(
                 "Enter a name for the new workspace:",
                 "Create Workspace",
-                AllIcons.Actions.NewFolder,
+                null,
                 "",
                 null
         );

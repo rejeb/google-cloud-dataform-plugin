@@ -97,4 +97,40 @@ public final class DataformToolsSettingsImpl
         state.sqlfluffConfigPath = sqlfluffConfigPath;
         state.sqlfluffExtraArgs = sqlfluffExtraArgs;
     }
+
+    @Override
+    public boolean isShowEstimatedCost() {
+        return state.showEstimatedCost;
+    }
+
+    @Override
+    public @NotNull BigQueryPriceMode getPriceMode() {
+        for (BigQueryPriceMode mode : BigQueryPriceMode.values()) {
+            if (mode.name().equals(state.priceMode)) {
+                return mode;
+            }
+        }
+        return BigQueryPriceMode.LIST_PRICE;
+    }
+
+    @Override
+    public @NotNull String getFixedPricePerTib() {
+        return state.fixedPricePerTib == null ? "" : state.fixedPricePerTib;
+    }
+
+    @Override
+    public @NotNull String getCurrency() {
+        return state.currency == null || state.currency.isBlank() ? "USD" : state.currency;
+    }
+
+    @Override
+    public void updateCostSettings(boolean showEstimatedCost,
+                                   @NotNull BigQueryPriceMode mode,
+                                   @NotNull String fixedPricePerTib,
+                                   @NotNull String currency) {
+        state.showEstimatedCost = showEstimatedCost;
+        state.priceMode = mode.name();
+        state.fixedPricePerTib = fixedPricePerTib;
+        state.currency = currency;
+    }
 }

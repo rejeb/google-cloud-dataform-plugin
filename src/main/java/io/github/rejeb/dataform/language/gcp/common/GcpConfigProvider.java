@@ -30,6 +30,9 @@ public interface GcpConfigProvider {
     /** @return Dataform repository ID on GCP, or {@code null} if not configured. */
     @Nullable String getRepositoryId();
 
+    /** @return service account workflow runs execute as, blank when none is configured. */
+    @NotNull String getServiceAccount();
+
     /**
      * Returns the Git author identity to use for pull operations.
      * Never null — implementations should provide a sensible default.

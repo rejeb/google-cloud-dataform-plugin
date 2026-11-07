@@ -16,16 +16,21 @@
  */
 package io.github.rejeb.dataform.language.lineage.view;
 
-import com.intellij.icons.AllIcons;
 import com.intellij.openapi.actionSystem.ActionManager;
 import com.intellij.openapi.actionSystem.ActionToolbar;
 import com.intellij.openapi.actionSystem.DefaultActionGroup;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.project.Project;
-import com.intellij.ui.OnePixelSplitter;
+import com.intellij.openapi.ui.ThreeComponentsSplitter;
+import com.intellij.ui.DocumentAdapter;
 import com.intellij.ui.SearchTextField;
+import com.intellij.ui.components.JBLabel;
+import com.intellij.ui.scale.JBUIScale;
+import com.intellij.util.ui.JBFont;
+import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
+import io.github.rejeb.dataform.language.DataformIcons;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.lineage.model.LineageModel;
@@ -33,6 +38,7 @@ import io.github.rejeb.dataform.language.lineage.service.LineageGraphService;
 import org.jetbrains.annotations.NotNull;
 
 import java.awt.BorderLayout;
+import java.awt.Dimension;
 import java.awt.event.ActionEvent;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
@@ -42,27 +48,29 @@ import javax.swing.JComponent;
 import javax.swing.JPanel;
 import javax.swing.KeyStroke;
 import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
 
 /**
- * Project-wide lineage view: a toolbar (search + view toggles) over a three-column body
- * (filters | graph canvas | details) with a bottom status bar. The details column is
- * revealed only when a node is selected.
+ * Project-wide lineage view, as in the UI prototype: a toolbar (filters toggle, search, view
+ * toggles, fit, refresh and legend) over a three-column body (filters | graph canvas | details)
+ * with a bottom status bar. The details column starts 300 pixels wide and is resized by dragging
+ * its divider; it shows an empty state while nothing is selected and can be hidden from the
+ * toolbar or its own header.
  */
 public final class LineageProjectPanel extends JPanel {
+
+    private static final int SEARCH_WIDTH = 280;
+    private static final int DETAILS_WIDTH = 300;
+    private static final int MIN_SIDE_WIDTH = 160;
 
     private final Project project;
     private final LineageModel model;
     private final GraphCanvas canvas;
     private final FiltersPanel filtersPanel;
-    private final SearchTextField searchField = new SearchTextField();
+    private final SearchTextField searchField = new SearchTextField(false);
+    private final JBLabel foundLabel = new JBLabel();
     private final LineageCards cards;
     private final DetailsPanel detailsPanel;
-    private final OnePixelSplitter detailsSplitter;
     private final AtomicLong refreshGeneration = new AtomicLong();
-
-    private boolean detailsCollapsed;
-    private String lastSelectionKey = "";
 
     public LineageProjectPanel(@NotNull Project project, @NotNull LineageModel model) {
         super(new BorderLayout());
@@ -72,26 +80,41 @@ public final class LineageProjectPanel extends JPanel {
         setBackground(UIUtil.getPanelBackground());
 
         canvas = new GraphCanvas(project, model);
-        filtersPanel = new FiltersPanel(model, canvas::fitToView);
+        filtersPanel = new FiltersPanel(model);
         detailsPanel = new DetailsPanel(project, model);
-        detailsPanel.setReduceHandler(() -> {
-            detailsCollapsed = true;
-            update();
-        });
+        detailsPanel.setHideHandler(() -> setDetailsShown(false));
         StatusBar statusBar = new StatusBar(model);
         canvas.setZoomListener(statusBar::setZoom);
+        canvas.setSelectionHandler(() -> setDetailsShown(true));
 
-        detailsSplitter = new OnePixelSplitter(false, 0.74f);
-        detailsSplitter.setFirstComponent(canvas);
-        detailsSplitter.setSecondComponent(null);
+        ThreeComponentsSplitter graphArea = new ThreeComponentsSplitter(false, true);
+        graphArea.setInnerComponent(new CanvasOverlayPanel(canvas, new LineageFocusBanner(model).view(),
+                LineageToolbarSupport.zoomControls(canvas)));
+        graphArea.setLastComponent(detailsPanel);
+        graphArea.setMinSize(JBUIScale.scale(MIN_SIDE_WIDTH));
+        graphArea.setLastSize(JBUIScale.scale(DETAILS_WIDTH));
 
-        cards = new LineageCards(model, buildToolbar(), filtersPanel, detailsSplitter, statusBar,
+        cards = new LineageCards(model, buildToolbar(), filtersPanel, graphArea, statusBar,
                 "Compile the Dataform project to see the lineage.");
         add(cards, BorderLayout.CENTER);
 
         installSearchShortcut();
         update();
         model.addListener(m -> update());
+    }
+
+    /**
+     * The search field of the toolbar.
+     */
+    @NotNull SearchTextField searchField() {
+        return searchField;
+    }
+
+    /**
+     * The "N found" label next to the search field, hidden while the search is empty.
+     */
+    @NotNull JBLabel foundLabel() {
+        return foundLabel;
     }
 
     /**
@@ -118,31 +141,42 @@ public final class LineageProjectPanel extends JPanel {
 
     private JComponent buildToolbar() {
         searchField.getTextEditor().getEmptyText().setText("Search tables, tags…   " + fSearchHint());
-        searchField.addDocumentListener(new DocumentListener() {
-            @Override public void insertUpdate(DocumentEvent e) { model.setSearchQuery(searchField.getText()); }
-            @Override public void removeUpdate(DocumentEvent e) { model.setSearchQuery(searchField.getText()); }
-            @Override public void changedUpdate(DocumentEvent e) { model.setSearchQuery(searchField.getText()); }
+        searchField.addDocumentListener(new DocumentAdapter() {
+            @Override
+            protected void textChanged(@NotNull DocumentEvent e) {
+                model.setSearchQuery(searchField.getText());
+            }
         });
+        searchField.setPreferredSize(new Dimension(JBUIScale.scale(SEARCH_WIDTH), searchField.getPreferredSize().height));
+        foundLabel.setFont(JBFont.medium());
+        foundLabel.setForeground(UIUtil.getContextHelpForeground());
+        foundLabel.setBorder(JBUI.Borders.empty(0, 2, 0, 4));
 
         DefaultActionGroup group = new DefaultActionGroup();
-        group.add(LineageToolbarSupport.toggle("Toggle filters", "Show or hide the filters sidebar",
+        group.add(LineageToolbarSupport.toggle("Show filters", "Show or hide the filters",
                 () -> LineageIcons.FILTERS, filtersPanel::isVisible,
                 () -> filtersPanel.setVisible(!filtersPanel.isVisible())));
-        group.add(LineageToolbarSupport.directionToggle(model));
+        group.add(LineageToolbarSupport.component(searchField));
+        group.add(LineageToolbarSupport.component(foundLabel));
+        group.addSeparator();
+        group.add(LineageToolbarSupport.directionAction(model));
         group.add(LineageToolbarSupport.densityToggle(model));
-        group.add(LineageToolbarSupport.toggle("Minimap", "Show or hide the minimap",
+        group.add(LineageToolbarSupport.toggle("Show minimap", "Show or hide the minimap",
                 () -> LineageIcons.MINIMAP, model::minimapVisible, model::toggleMinimap));
-        group.add(LineageToolbarSupport.toggle("Details", "Show or hide the details panel for the current selection",
-                () -> AllIcons.Actions.PreviewDetails,
-                () -> detailsSplitter.getSecondComponent() != null, this::toggleDetails));
-        group.add(LineageToolbarSupport.action("Re-layout", "Recompile and refresh lineage",
-                LineageIcons.RELAYOUT, () -> refresh(true)));
+        group.add(LineageToolbarSupport.toggle("Show details", "Show or hide the details of the selection",
+                () -> LineageIcons.DETAILS, detailsPanel::isVisible,
+                () -> setDetailsShown(!detailsPanel.isVisible())));
+        group.addSeparator();
+        group.add(LineageToolbarSupport.action("Fit to view", "Fit the graph to the visible area",
+                LineageIcons.FIT, canvas::fitToView));
+        group.add(LineageToolbarSupport.action("Recompile and refresh", "Recompile the project and refresh the lineage",
+                DataformIcons.REFRESH, () -> refresh(true)));
+        group.add(LineageToolbarSupport.legendAction(() -> LineageLegend.orderedTypes(model.typeCounts().keySet())));
 
         ActionToolbar toolbar = ActionManager.getInstance()
                 .createActionToolbar("DataformLineageToolbar", group, true);
         toolbar.setTargetComponent(this);
-
-        return LineageToolbarSupport.header(project.getName(), searchField, toolbar);
+        return LineageToolbarSupport.toolbarRow(toolbar);
     }
 
     private static String fSearchHint() {
@@ -165,25 +199,19 @@ public final class LineageProjectPanel extends JPanel {
         });
     }
 
-    /**
-     * Shows or hides the details panel for the current selection. Does nothing when nothing is
-     * selected, since the panel only has content for a selected node or column.
-     */
-    private void toggleDetails() {
-        if (model.selectedId() == null) return;
-        detailsCollapsed = !detailsCollapsed;
-        update();
+    private void setDetailsShown(boolean shown) {
+        if (detailsPanel.isVisible() == shown) return;
+        detailsPanel.setVisible(shown);
+        revalidate();
+        repaint();
     }
 
     private void update() {
         cards.showEmpty(model.graph().isEmpty());
-        boolean hasSelection = model.selectedId() != null;
-        String selectionKey = String.valueOf(model.selectedId());
-        if (hasSelection && !selectionKey.equals(lastSelectionKey)) {
-            detailsCollapsed = false;
-        }
-        lastSelectionKey = selectionKey;
-        boolean showDetails = hasSelection && !detailsCollapsed && !model.graph().isEmpty();
-        detailsSplitter.setSecondComponent(showDetails ? detailsPanel : null);
+        String query = model.searchQuery();
+        if (!query.equals(searchField.getText())) searchField.setText(query);
+        boolean searching = !query.isBlank();
+        foundLabel.setVisible(searching);
+        foundLabel.setText(searching ? model.searchMatches().size() + " found" : "");
     }
 }

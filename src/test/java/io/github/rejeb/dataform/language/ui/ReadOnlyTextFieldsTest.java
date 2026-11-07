@@ -20,13 +20,19 @@ import com.intellij.testFramework.fixtures.BasePlatformTestCase;
 import com.intellij.ui.components.JBTextArea;
 import com.intellij.ui.components.JBTextField;
 import com.intellij.ui.table.JBTable;
+import com.intellij.util.ui.JBUI;
 
 import javax.swing.JMenuItem;
 import javax.swing.JPopupMenu;
+import javax.swing.JTable;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableCellEditor;
 import javax.swing.text.JTextComponent;
+import java.awt.Color;
+import java.awt.Component;
 import java.awt.Cursor;
+import java.awt.Font;
 import java.util.Arrays;
 import java.util.List;
 
@@ -85,5 +91,29 @@ public class ReadOnlyTextFieldsTest extends BasePlatformTestCase {
 
         JTextComponent second = (JTextComponent) cellEditor.getTableCellEditorComponent(table, null, false, 0, 1);
         assertEquals("", second.getText());
+    }
+
+    public void testTheCellEditorKeepsTheLookOfTheCell() {
+        Font font = new Font(Font.MONOSPACED, Font.PLAIN, 11);
+        Color color = new Color(0xCF8E6D);
+        JBTable table = new JBTable(new DefaultTableModel(new Object[][]{{"STRING"}}, new Object[]{"Type"}));
+        table.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable t, Object value, boolean selected,
+                                                           boolean focused, int row, int column) {
+                super.getTableCellRendererComponent(t, value, selected, focused, row, column);
+                setFont(font);
+                setForeground(color);
+                setBorder(JBUI.Borders.empty(0, 10));
+                return this;
+            }
+        });
+        TableCellEditor cellEditor = ReadOnlyTextFields.cellEditor(table);
+
+        JTextComponent field = (JTextComponent) cellEditor.getTableCellEditorComponent(table, "STRING", true, 0, 0);
+
+        assertEquals(font, field.getFont());
+        assertEquals(color, field.getForeground());
+        assertEquals(JBUI.scale(10), field.getInsets().left);
     }
 }

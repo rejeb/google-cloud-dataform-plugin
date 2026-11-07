@@ -81,4 +81,32 @@ public interface DataformToolsSettings {
      * Enables or disables showing compilation errors inline in the editor.
      */
     void setShowInlineCompilationErrors(boolean value);
+
+    /**
+     * Tells whether the compiled query preview shows the estimated cost of each query.
+     */
+    boolean isShowEstimatedCost();
+
+    /**
+     * Returns how BigQuery bytes are priced.
+     */
+    @NotNull BigQueryPriceMode getPriceMode();
+
+    /**
+     * Returns the fixed price per TiB, as typed in the settings, used in fixed price mode.
+     */
+    @NotNull String getFixedPricePerTib();
+
+    /**
+     * Returns the ISO 4217 code of the currency costs are shown in.
+     */
+    @NotNull String getCurrency();
+
+    /**
+     * Updates all BigQuery cost settings at once.
+     */
+    void updateCostSettings(boolean showEstimatedCost,
+                            @NotNull BigQueryPriceMode mode,
+                            @NotNull String fixedPricePerTib,
+                            @NotNull String currency);
 }

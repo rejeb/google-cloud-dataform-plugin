@@ -21,14 +21,19 @@ import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.ValidationInfo;
-import com.intellij.ui.JBColor;
-import com.intellij.ui.components.JBLabel;
+import com.intellij.openapi.ui.panel.ComponentPanelBuilder;
+import com.intellij.ui.TitledSeparator;
+import com.intellij.ui.components.ActionLink;
 import com.intellij.ui.components.JBTextField;
 import com.intellij.util.ui.FormBuilder;
 import com.intellij.util.ui.JBUI;
+import io.github.rejeb.dataform.language.gcp.common.DataformLocations;
+import io.github.rejeb.dataform.language.gcp.common.GcpApiErrors;
 import io.github.rejeb.dataform.language.gcp.common.GcpApiException;
 import io.github.rejeb.dataform.language.gcp.service.DataformGcpService;
 import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
+import io.github.rejeb.dataform.language.ui.FilteringComboBox;
+import io.github.rejeb.dataform.language.ui.StatusLabel;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -42,13 +47,13 @@ public class RepositoryEditPanel extends JPanel {
     private final JBTextField labelField = new JBTextField(30);
     private final JBTextField projectIdField = new JBTextField(30);
     private final JBTextField repositoryIdField = new JBTextField(30);
-    private final JBTextField locationField = new JBTextField(30);
+    private final FilteringComboBox locationField = new FilteringComboBox(DataformLocations.all());
     private final ServiceAccountComboBox serviceAccountField;
     private @Nullable String loadedConfigId;
 
     private final JButton testButton = new JButton("Test Connection");
-    private final JButton createGcpButton = new JButton("Create in GCP");
-    private final JLabel statusLabel = new JBLabel();
+    private final ActionLink createLink = new ActionLink("Create in Google Cloud");
+    private final StatusLabel statusLabel = new StatusLabel();
 
     /**
      * Called on the EDT once the repository was created in GCP; the owning dialog flushes and
@@ -62,28 +67,38 @@ public class RepositoryEditPanel extends JPanel {
         this.project = project;
         this.serviceAccountField = new ServiceAccountComboBox(project, () -> projectIdField.getText().trim());
 
-        testButton.addActionListener(e -> runAction(ActionKind.TEST));
-        createGcpButton.addActionListener(e -> runAction(ActionKind.CREATE_GCP));
+        testButton.addActionListener(e -> runAction(false));
+        createLink.addActionListener(e -> runAction(true));
+        createLink.setVisible(false);
 
-        JPanel actionRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+        JPanel actionRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         actionRow.add(testButton);
-        actionRow.add(createGcpButton);
-        actionRow.add(Box.createHorizontalStrut(8));
+        actionRow.add(Box.createHorizontalStrut(JBUI.scale(8)));
         actionRow.add(statusLabel);
 
         JPanel form = FormBuilder.createFormBuilder()
-                .addLabeledComponent(new JBLabel("Label:"), labelField, 1, false)
-                .addLabeledComponent(new JBLabel("GCP Project ID:"), projectIdField, 1, false)
-                .addLabeledComponent(new JBLabel("Repository ID:"), repositoryIdField, 1, false)
-                .addLabeledComponent(new JBLabel("Location:"), locationField, 1, false)
-                .addLabeledComponent(new JBLabel("Service Account:"), serviceAccountField, 1, false)
+                .addComponent(new TitledSeparator("Repository"))
+                .addLabeledComponent("Label:", labelField)
+                .addLabeledComponent("GCP Project ID:", projectIdField)
+                .addLabeledComponent("Repository ID:", repositoryIdField)
+                .addLabeledComponent("Location:", locationField)
+                .addComponentToRightColumn(comment("The region of the Dataform repository, such as europe-west1."))
+                .addComponent(new TitledSeparator("Authentication"), 12)
+                .addLabeledComponent("Service Account:", serviceAccountField)
+                .addComponentToRightColumn(comment("Optional. Workflow runs started from the IDE execute as this "
+                        + "account. Also set on the repository when it is created from here."))
+                .addComponent(actionRow, 12)
+                .addComponent(createLink)
                 .addComponentFillVertically(new JPanel(), 0)
-                .addComponent(actionRow)
                 .getPanel();
         form.setBorder(JBUI.Borders.empty(8, 12));
 
         add(form, BorderLayout.CENTER);
         setEnabled(false);
+    }
+
+    private static @NotNull JComponent comment(@NotNull String text) {
+        return ComponentPanelBuilder.createCommentComponent(text, true);
     }
 
     /**
@@ -112,7 +127,8 @@ public class RepositoryEditPanel extends JPanel {
         repositoryIdField.setText(repositoryId);
         locationField.setText(location);
         serviceAccountField.setText(serviceAccount);
-        statusLabel.setText("");
+        statusLabel.clear();
+        createLink.setVisible(false);
     }
 
     public void focusLabel() {
@@ -128,7 +144,7 @@ public class RepositoryEditPanel extends JPanel {
             return new ValidationInfo("GCP Project ID is required.", projectIdField);
         if (repositoryIdField.getText().isBlank())
             return new ValidationInfo("Repository ID is required.", repositoryIdField);
-        if (locationField.getText().isBlank())
+        if (locationText().isBlank())
             return new ValidationInfo("Location is required.", locationField);
         return null;
     }
@@ -141,7 +157,7 @@ public class RepositoryEditPanel extends JPanel {
                 label.isEmpty() ? labelFallback : label,
                 projectIdField.getText().trim(),
                 repositoryIdField.getText().trim(),
-                locationField.getText().trim(),
+                locationText(),
                 serviceAccountField.getText().trim()
         );
     }
@@ -154,59 +170,83 @@ public class RepositoryEditPanel extends JPanel {
         repositoryIdField.setEnabled(enabled);
         locationField.setEnabled(enabled);
         serviceAccountField.setEnabled(enabled);
-        testButton.setEnabled(enabled);
-        createGcpButton.setEnabled(enabled);
+        setButtonsEnabled(enabled);
     }
 
-    private enum ActionKind {TEST, CREATE_GCP}
+    @NotNull
+    StatusLabel status() {
+        return statusLabel;
+    }
 
-    private void runAction(@NotNull ActionKind kind) {
+    @NotNull
+    ActionLink createLink() {
+        return createLink;
+    }
+
+    /**
+     * Shows the outcome of a connection test or of a creation; a test that found no repository
+     * offers to create it.
+     */
+    void showResult(boolean creation, @Nullable GcpApiException failure) {
+        if (failure == null) {
+            statusLabel.ok(creation ? "Repository created in Google Cloud" : "Connection successful");
+            createLink.setVisible(false);
+            return;
+        }
+        statusLabel.error(failure.getMessage() != null ? failure.getMessage() : "Request failed");
+        createLink.setVisible(!creation && GcpApiErrors.isNotFound(failure));
+    }
+
+    private @NotNull String locationText() {
+        return locationField.getText();
+    }
+
+    private void runAction(boolean creation) {
         ValidationInfo validation = validationInfo();
         if (validation != null) {
-            setStatus(false, validation.message);
+            statusLabel.error(validation.message);
             return;
         }
 
         DataformRepositoryConfig config = buildConfig("temp");
         setButtonsEnabled(false);
-
-        String taskTitle = switch (kind) {
-            case TEST -> "Testing Dataform connection…";
-            case CREATE_GCP -> "Creating Dataform repository in GCP…";
-        };
+        String taskTitle = creation ? "Creating Dataform repository in GCP…" : "Testing Dataform connection…";
+        statusLabel.progress(creation ? "Creating repository…" : "Testing connection…");
 
         ProgressManager.getInstance().run(
                 new Task.Backgroundable(project, taskTitle) {
-                    private boolean success;
-                    private String message;
+                    private @Nullable GcpApiException failure;
 
                     @Override
                     public void run(@NotNull ProgressIndicator indicator) {
                         try {
-                            switch (kind) {
-                                case TEST -> DataformGcpService.getInstance(project)
-                                        .testConnection(config);
-                                case CREATE_GCP -> DataformGcpService.getInstance(project)
-                                        .createGcpRepository(config);
+                            DataformGcpService service = DataformGcpService.getInstance(project);
+                            if (creation) {
+                                service.createGcpRepository(config);
+                            } else {
+                                service.testConnection(config);
                             }
-                            success = true;
-                            message = switch (kind) {
-                                case TEST -> "✓ Connection successful";
-                                case CREATE_GCP -> "✓ Repository created in GCP";
-                            };
                         } catch (GcpApiException e) {
-                            success = false;
-                            message = "✗ " + e.getMessage();
+                            failure = e;
                         }
                     }
 
                     @Override
                     public void onSuccess() {
-                        setButtonsEnabled(true);
-                        setStatus(success, message);
-                        if (success && kind == ActionKind.CREATE_GCP) {
+                        showResult(creation, failure);
+                        if (failure == null && creation) {
                             onCreateSuccess.run();
                         }
+                    }
+
+                    @Override
+                    public void onThrowable(@NotNull Throwable error) {
+                        statusLabel.error(error.getMessage() != null ? error.getMessage() : "Request failed");
+                    }
+
+                    @Override
+                    public void onFinished() {
+                        setButtonsEnabled(true);
                     }
                 }
         );
@@ -214,11 +254,6 @@ public class RepositoryEditPanel extends JPanel {
 
     private void setButtonsEnabled(boolean enabled) {
         testButton.setEnabled(enabled);
-        createGcpButton.setEnabled(enabled);
-    }
-
-    private void setStatus(boolean success, @NotNull String text) {
-        statusLabel.setForeground(success ? JBColor.GREEN : JBColor.RED);
-        statusLabel.setText(text);
+        createLink.setEnabled(enabled);
     }
 }

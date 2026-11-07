@@ -42,7 +42,9 @@ public class CreateSqlxFileAction extends CreateFileFromTemplateAction implement
                                @NotNull CreateFileFromTemplateDialog.Builder builder) {
         builder.setTitle(DIALOG_TITLE);
         for (SqlxFileTemplate template : SqlxFileTemplate.values()) {
-            builder.addKind(template.getKind(), DataformIcons.FILE, template.getTemplateName());
+            builder.addKind(template.getKind(),
+                    template == SqlxFileTemplate.TEST ? DataformIcons.TEST_FILE : DataformIcons.FILE,
+                    template.getTemplateName());
         }
     }
 

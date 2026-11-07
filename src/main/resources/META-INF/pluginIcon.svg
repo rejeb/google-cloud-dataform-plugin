@@ -1,3 +1,39 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
-    <image href="data:image/jpeg;base64,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" width="40" height="40"/>
+<!--
+  Licensed to the Apache Software Foundation (ASF) under one or more
+  contributor license agreements. See the NOTICE file distributed with
+  this work for additional information regarding copyright ownership.
+  The ASF licenses this file to You under the Apache License, Version 2.0
+  (the "License"); you may not use this file except in compliance with
+  the License.  You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40" fill="none">
+  <defs>
+    <mask id="dm" maskUnits="userSpaceOnUse" x="0" y="0" width="40" height="40">
+      <rect width="40" height="40" fill="#fff"/>
+      <circle cx="12" cy="10" r="5.4" fill="#000"/>
+      <circle cx="12" cy="30" r="5.4" fill="#000"/>
+      <circle cx="28.5" cy="20" r="5.4" fill="#000"/>
+    </mask>
+  </defs>
+  <rect x="3" y="3" width="34" height="34" rx="8" fill="#E8F1FF"/>
+  <g mask="url(#dm)" stroke-width="3">
+    <path d="M12 10V30" stroke="#2F8CFF"/>
+    <path d="M12 10H16.95C24.11 10 28.5 14.2 28.5 20" stroke="#FF3B3B"/>
+    <path d="M28.5 20C28.5 25.8 24.11 30 16.95 30H12" stroke="#6C86B0"/>
+  </g>
+  <rect x="16" y="23" width="6" height="2.5" fill="#FF3B3B"/>
+  <g fill="#041430">
+    <circle cx="12" cy="10" r="3.2"/>
+    <circle cx="12" cy="30" r="3.2"/>
+    <circle cx="28.5" cy="20" r="3.2"/>
+  </g>
+  <rect x="3.5" y="3.5" width="33" height="33" rx="7.5" stroke="#2F8CFF" stroke-opacity=".55"/>
 </svg>

@@ -16,13 +16,13 @@
  */
 package io.github.rejeb.dataform.language.gcp.toolwindow.action;
 
-import com.intellij.icons.AllIcons;
 import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.project.DumbAware;
 import com.intellij.openapi.project.Project;
+import io.github.rejeb.dataform.language.DataformIcons;
 import io.github.rejeb.dataform.language.gcp.auth.AuthStatus;
 import io.github.rejeb.dataform.language.gcp.auth.DataformAuthState;
 import io.github.rejeb.dataform.language.gcp.auth.DataformCredentialsService;
@@ -51,12 +51,9 @@ public final class GcpAuthAction extends AnAction implements DumbAware {
         boolean inProgress = DataformAuthState.getInstance().getStatus() == AuthStatus.IN_PROGRESS;
         String email = DataformCredentialsService.getInstance().getAccountEmail();
 
-        e.getPresentation().setIcon(signedIn
-                ? AllIcons.Actions.Exit
-                : AllIcons.General.User);
-        e.getPresentation().setText(signedIn
-                ? (email != null ? "Sign Out of Google Cloud (" + email + ")" : "Sign Out of Google Cloud")
-                : "Sign In to Google Cloud");
+        e.getPresentation().setIcon(DataformIcons.ACCOUNT);
+        e.getPresentation().setText(signedIn ? "Sign Out of Google Cloud" : "Sign In to Google Cloud");
+        e.getPresentation().setDescription(signedIn && email != null ? "Signed in as " + email : null);
         e.getPresentation().setEnabled(!inProgress);
     }
 

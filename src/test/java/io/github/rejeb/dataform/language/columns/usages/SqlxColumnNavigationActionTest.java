@@ -37,6 +37,14 @@ public class SqlxColumnNavigationActionTest extends DataformProjectFixture {
                 action instanceof SqlxColumnNavigationAction);
     }
 
+    public void testTheReplacementKeepsThePlatformTextForTheNavigateMenu() {
+        AnAction action = ActionManager.getInstance().getAction("GotoDeclaration");
+
+        assertEquals("Go to Declaration or Usages", action.getTemplatePresentation().getText());
+        assertEquals("Navigate to the declaration of the symbol at caret or show its usages",
+                action.getTemplatePresentation().getDescription());
+    }
+
     public void testItStillIsAGoToDeclarationAction() {
         assertTrue("everything that is not a Dataform column must keep the platform's behaviour",
                 ActionManager.getInstance().getAction("GotoDeclaration")

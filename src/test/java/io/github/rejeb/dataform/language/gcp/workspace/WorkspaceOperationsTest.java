@@ -24,12 +24,19 @@ import com.intellij.testFramework.fixtures.BasePlatformTestCase;
 import io.github.rejeb.dataform.language.gcp.common.CommitAuthorConfig;
 import io.github.rejeb.dataform.language.gcp.common.GcpApiException;
 import io.github.rejeb.dataform.language.gcp.common.GcpConfigProvider;
+import io.github.rejeb.dataform.language.gcp.gitremote.FakeGitRemoteBranch;
+import io.github.rejeb.dataform.language.gcp.gitremote.GitRemoteBranch;
+import io.github.rejeb.dataform.language.gcp.gitremote.GitRemoteBranchException;
 import io.github.rejeb.dataform.language.gcp.workspace.repository.WorkspaceRepository;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import io.github.rejeb.dataform.language.gcp.gitremote.LocalClones;
+import io.github.rejeb.dataform.language.gcp.gitremote.GitRemoteBranches;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.mockito.Mockito.*;
 
@@ -189,12 +196,15 @@ public class WorkspaceOperationsTest extends BasePlatformTestCase {
     }
 
     public void testFetchCodeWithoutWorkspaceIdReadsTheRepositoryMainBranch() {
+        repositoryIs(HOSTED);
+
         handler(fullConfig).fetchCode(null);
 
         verify(repository).readAllFiles("test-project", "europe-west1", "test-repo", null);
     }
 
     public void testFetchCodeReturnsTheFilesReadFromTheRepository() {
+        repositoryIs(HOSTED);
         Map<String, String> expected = Map.of(
                 "definitions/my_table.sqlx", "SELECT 1",
                 "workflow_settings.yaml", "defaultProject: test"
@@ -222,6 +232,7 @@ public class WorkspaceOperationsTest extends BasePlatformTestCase {
     }
 
     public void testPullCodeReadsAllFilesFromTheRepository() {
+        repositoryIs(HOSTED);
         handler(fullConfig).pullCode(null);
 
         verify(repository).readAllFiles("test-project", "europe-west1", "test-repo", null);
@@ -246,11 +257,289 @@ public class WorkspaceOperationsTest extends BasePlatformTestCase {
     }
 
     public void testPullCodePropagatesGcpApiException() {
+        repositoryIs(HOSTED);
         doThrow(new GcpApiException("failure", new RuntimeException()))
                 .when(repository).readAllFiles(any(), any(), any(), any());
 
         assertThrows(GcpApiException.class, () -> handler(fullConfig).pullCode(null));
     }
 
+    public void testFetchGitStatusesHidesTheNodeModulesAndTheGitignoredPaths() {
+        myFixture.addFileToProject(".gitignore", "*.log\n");
+        UncommittedChange table = new UncommittedChange("definitions/a.sqlx", UncommittedChange.ChangeState.ADDED);
+        when(repository.fetchFileGitStatuses("test-project", "europe-west1", "test-repo", "demo")).thenReturn(List.of(
+                table,
+                new UncommittedChange("node_modules/@dataform/core/package.json", UncommittedChange.ChangeState.ADDED),
+                new UncommittedChange("logs/run.log", UncommittedChange.ChangeState.MODIFIED)));
 
+        List<UncommittedChange> changes = handler(fullConfig).fetchGitStatuses("demo");
+
+        assertEquals(List.of(table), changes);
+    }
+
+    private static final DataformRepository LINKED =
+            new DataformRepository("test-repo", "https://example.com/r.git", "main", "");
+    private static final DataformRepository HOSTED = new DataformRepository("test-repo", null, null, "");
+    private static final FakeGitRemoteBranch BRANCH =
+            new FakeGitRemoteBranch("main", Map.of("definitions/a.sqlx", "SELECT 'remote'"));
+
+    private void repositoryIs(DataformRepository described) {
+        when(repository.findRepository("test-project", "europe-west1", "test-repo")).thenReturn(described);
+    }
+
+    private void repositoryUnreadable() {
+        when(repository.findRepository("test-project", "europe-west1", "test-repo"))
+                .thenThrow(new GcpApiException("permission denied"));
+    }
+
+    private WorkspaceOperationsHandler cloneOf(GitRemoteBranch branch) {
+        return new WorkspaceOperationsHandler(repository, fullConfig, getProject(), p -> List.of(), r -> branch);
+    }
+
+    private void verifyNoRepositoryLevelRead() {
+        verify(repository, never()).listAllPaths(any(), any(), any(), any());
+        verify(repository, never()).readAllFiles(any(), any(), any(), any());
+        verify(repository, never()).getFileContent(any(), any(), any(), any(), any());
+    }
+
+    public void testAHostedRepositoryIsReadFromDataform() {
+        repositoryIs(HOSTED);
+        when(repository.listAllPaths("test-project", "europe-west1", "test-repo", null))
+                .thenReturn(List.of("definitions/a.sqlx"));
+
+        assertSame(MainBranchSource.DATAFORM, cloneOf(BRANCH).refreshMainBranchSource());
+        assertEquals(List.of("definitions/a.sqlx"), cloneOf(BRANCH).listAllPaths(null));
+    }
+
+    public void testALinkedRepositoryWithACloneIsReadFromItsRemoteBranch() {
+        repositoryIs(LINKED);
+
+        assertEquals(new MainBranchSource.GitRemote(BRANCH), cloneOf(BRANCH).refreshMainBranchSource());
+    }
+
+    public void testALinkedRepositoryWithoutACloneHasNoSource() {
+        repositoryIs(LINKED);
+
+        assertSame(MainBranchSource.UNAVAILABLE, cloneOf(null).refreshMainBranchSource());
+    }
+
+    public void testWithoutTheGitPluginALinkedRepositoryHasNoSource() {
+        repositoryIs(LINKED);
+        WorkspaceOperationsHandler handler =
+                new WorkspaceOperationsHandler(repository, fullConfig, getProject(), p -> List.of(), null);
+
+        assertSame(MainBranchSource.UNAVAILABLE, handler.refreshMainBranchSource());
+    }
+
+    public void testAnUnreadableRepositoryIsReadFromDataformSoTheRealErrorSurfaces() {
+        repositoryUnreadable();
+        when(repository.listAllPaths("test-project", "europe-west1", "test-repo", null))
+                .thenThrow(new GcpApiException("repository not found"));
+
+        assertSame(MainBranchSource.DATAFORM, cloneOf(BRANCH).refreshMainBranchSource());
+        assertThrows(GcpApiException.class, "repository not found", () -> cloneOf(BRANCH).listAllPaths(null));
+    }
+
+    public void testNoConfiguredRepositoryCallsNothing() {
+        WorkspaceOperationsHandler handler = handler(emptyConfig);
+
+        assertSame(MainBranchSource.DATAFORM, handler.refreshMainBranchSource());
+        assertSame(MainBranchSource.DATAFORM, handler.mainBranchSource());
+        assertEmpty(handler.listAllPaths(null));
+        verifyNoInteractions(repository);
+    }
+
+    public void testTheRemoteBranchServesEveryReadWithoutAWorkspace() {
+        repositoryIs(LINKED);
+        WorkspaceOperationsHandler handler = cloneOf(BRANCH);
+
+        assertEquals(List.of("definitions/a.sqlx"), handler.listAllPaths(null));
+        assertEquals("SELECT 'remote'", handler.getFileContent(null, "definitions/a.sqlx"));
+        assertEquals(Map.of("definitions/a.sqlx", "SELECT 'remote'"), handler.fetchCode(null));
+        verifyNoRepositoryLevelRead();
+    }
+
+    public void testWithoutACloneNoReadReachesTheRepositoryApi() {
+        repositoryIs(LINKED);
+        WorkspaceOperationsHandler handler = cloneOf(null);
+
+        assertEmpty(handler.listAllPaths(null));
+        assertEquals("", handler.getFileContent(null, "definitions/a.sqlx"));
+        assertTrue(handler.fetchCode(null).isEmpty());
+        handler.pullCode(null);
+        verifyNoRepositoryLevelRead();
+    }
+
+    public void testReadingAWorkspaceNeedsNoLookup() {
+        when(repository.getFileContent(any(), any(), any(), any(), any())).thenReturn("");
+        WorkspaceOperationsHandler handler = cloneOf(BRANCH);
+
+        handler.listAllPaths("dev");
+        handler.getFileContent("dev", "definitions/a.sqlx");
+        handler.fetchCode("dev");
+
+        verify(repository, never()).findRepository(any(), any(), any());
+        verify(repository).listAllPaths("test-project", "europe-west1", "test-repo", "dev");
+    }
+
+    public void testReadsReuseTheKnownSource() {
+        repositoryIs(LINKED);
+        WorkspaceOperationsHandler handler = cloneOf(BRANCH);
+
+        handler.refreshMainBranchSource();
+        handler.listAllPaths(null);
+        handler.getFileContent(null, "definitions/a.sqlx");
+
+        verify(repository, times(1)).findRepository(any(), any(), any());
+    }
+
+    public void testRefreshingSeesTheRemoteBeingRemoved() {
+        repositoryIs(LINKED);
+        WorkspaceOperationsHandler handler = cloneOf(BRANCH);
+        handler.refreshMainBranchSource();
+        repositoryIs(HOSTED);
+
+        assertSame(MainBranchSource.DATAFORM, handler.refreshMainBranchSource());
+        assertSame(MainBranchSource.DATAFORM, handler.mainBranchSource());
+    }
+
+    public void testAFailedLookupIsNotRemembered() {
+        when(repository.findRepository("test-project", "europe-west1", "test-repo"))
+                .thenThrow(new GcpApiException("offline"))
+                .thenReturn(LINKED);
+        WorkspaceOperationsHandler handler = cloneOf(BRANCH);
+
+        assertSame(MainBranchSource.DATAFORM, handler.mainBranchSource());
+        assertEquals(new MainBranchSource.GitRemote(BRANCH), handler.mainBranchSource());
+    }
+
+    public void testAnotherRepositoryIsLookedUpAgain() {
+        repositoryIs(LINKED);
+        WorkspaceOperationsHandler handler = cloneOf(BRANCH);
+        handler.mainBranchSource();
+        when(fullConfig.getRepositoryId()).thenReturn("other-repo");
+        when(repository.findRepository("test-project", "europe-west1", "other-repo")).thenReturn(HOSTED);
+
+        assertSame(MainBranchSource.DATAFORM, handler.mainBranchSource());
+    }
+
+    public void testFetchingUpdatesTheRemoteBranch() {
+        repositoryIs(LINKED);
+        FakeGitRemoteBranch branch = new FakeGitRemoteBranch("main", Map.of());
+
+        cloneOf(branch).fetchMainBranch();
+
+        assertEquals(1, branch.fetches());
+    }
+
+    public void testFetchingAHostedRepositoryDoesNothing() {
+        repositoryIs(HOSTED);
+        FakeGitRemoteBranch branch = new FakeGitRemoteBranch("main", Map.of());
+
+        cloneOf(branch).fetchMainBranch();
+
+        assertEquals(0, branch.fetches());
+    }
+
+    public void testAFailedFetchIsReported() {
+        repositoryIs(LINKED);
+        FakeGitRemoteBranch branch = new FakeGitRemoteBranch("main", Map.of());
+        branch.failFetchWith(new GitRemoteBranchException("offline", null));
+
+        assertThrows(GitRemoteBranchException.class, "offline", () -> cloneOf(branch).fetchMainBranch());
+    }
+
+    public void testAFailedRefreshForgetsTheKnownSource() {
+        when(repository.findRepository("test-project", "europe-west1", "test-repo"))
+                .thenReturn(LINKED)
+                .thenThrow(new GcpApiException("offline"))
+                .thenReturn(HOSTED);
+        WorkspaceOperationsHandler handler = cloneOf(BRANCH);
+        handler.refreshMainBranchSource();
+
+        assertSame(MainBranchSource.DATAFORM, handler.refreshMainBranchSource());
+        assertSame(MainBranchSource.DATAFORM, handler.mainBranchSource());
+
+        verify(repository, times(3)).findRepository(any(), any(), any());
+    }
+
+    public void testTheActiveRepositoryIsTheOneAlreadyRead() {
+        repositoryIs(LINKED);
+        WorkspaceOperationsHandler handler = cloneOf(null);
+        handler.refreshMainBranchSource();
+
+        assertEquals(LINKED, handler.commitRoute().repository());
+
+        verify(repository, times(1)).findRepository(any(), any(), any());
+    }
+
+    public void testTheActiveRepositoryIsReadWhenUnknown() {
+        repositoryIs(HOSTED);
+
+        assertEquals(HOSTED, cloneOf(null).commitRoute().repository());
+    }
+
+    public void testAnUnreadableRepositoryIsNotActive() {
+        repositoryUnreadable();
+
+        assertNull(cloneOf(null).commitRoute());
+    }
+
+    public void testNoConfiguredRepositoryIsNotActive() {
+        assertNull(handler(emptyConfig).commitRoute());
+    }
+
+    public void testPushingSendsTheBranchToTheApi() {
+        handler(fullConfig).pushGitCommits("dev", "dev");
+
+        verify(repository).pushGitCommits(eq("test-project"), eq("europe-west1"), eq("test-repo"), eq("dev"), eq("dev"), any());
+    }
+
+    public void testPushingWithoutABranchLeavesItToTheApi() {
+        handler(fullConfig).pushGitCommits("dev", null);
+
+        verify(repository).pushGitCommits(eq("test-project"), eq("europe-west1"), eq("test-repo"), eq("dev"), isNull(), any());
+    }
+
+    private WorkspaceOperationsHandler routing(GitRemoteBranches branches, LocalClones clones) {
+        return new WorkspaceOperationsHandler(repository, fullConfig, getProject(), p -> List.of(), branches, clones);
+    }
+
+    public void testARepositoryWithoutRemoteHasNoClone() {
+        repositoryIs(HOSTED);
+
+        assertEquals(new CommitRoute(HOSTED, CommitRoute.LocalClone.NONE), routing(r -> null, r -> false).commitRoute());
+    }
+
+    public void testARemoteWithoutCloneHasNoClone() {
+        repositoryIs(LINKED);
+
+        assertEquals(new CommitRoute(LINKED, CommitRoute.LocalClone.NONE), routing(r -> null, r -> false).commitRoute());
+    }
+
+    public void testACloneWithTheGitPluginIsKnownAsSuch() {
+        repositoryIs(LINKED);
+
+        assertEquals(new CommitRoute(LINKED, CommitRoute.LocalClone.WITH_GIT_PLUGIN),
+                routing(r -> null, r -> true).commitRoute());
+    }
+
+    public void testACloneWithoutTheGitPluginIsStillAClone() {
+        repositoryIs(LINKED);
+
+        assertEquals(new CommitRoute(LINKED, CommitRoute.LocalClone.WITHOUT_GIT_PLUGIN),
+                routing(null, r -> true).commitRoute());
+    }
+
+    public void testACloneAddedLaterIsNoticedWithoutReadingTheRepositoryAgain() {
+        repositoryIs(LINKED);
+        AtomicBoolean clone = new AtomicBoolean();
+        WorkspaceOperationsHandler handler = routing(r -> null, r -> clone.get());
+        assertEquals(CommitRoute.LocalClone.NONE, handler.commitRoute().localClone());
+
+        clone.set(true);
+
+        assertEquals(CommitRoute.LocalClone.WITH_GIT_PLUGIN, handler.commitRoute().localClone());
+        verify(repository, times(1)).findRepository(any(), any(), any());
+    }
 }

@@ -21,6 +21,7 @@ import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
+import com.intellij.openapi.actionSystem.Presentation;
 import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.command.WriteCommandAction;
@@ -32,6 +33,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.concurrency.AppExecutorUtil;
+import io.github.rejeb.dataform.language.compilation.DataformAutoCompileService;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.compilation.model.CompiledTable;
@@ -54,11 +56,14 @@ import java.util.stream.Collectors;
 
 /**
  * Creates {@code definitions/tests/test_<action>.sqlx} for the tables and views a SQLX or JS file
- * declares, asking which ones when the file declares several.
+ * declares, asking which ones when the file declares several. The action shows on every SQLX file and
+ * on the JS files holding actions, and is disabled, with the reason as its description, when the file
+ * declares no table or view.
  */
 public final class CreateDataformTestAction extends AnAction implements DumbAware {
 
-    private static final Set<String> EXTENSIONS = Set.of("sqlx", "js");
+    private static final String SQLX = "sqlx";
+    private static final String JS = "js";
 
     @Override
     public @NotNull ActionUpdateThread getActionUpdateThread() {
@@ -69,7 +74,37 @@ public final class CreateDataformTestAction extends AnAction implements DumbAwar
     public void update(@NotNull AnActionEvent e) {
         Project project = e.getProject();
         VirtualFile file = e.getData(CommonDataKeys.VIRTUAL_FILE);
-        e.getPresentation().setEnabledAndVisible(project != null && !testableActions(project, file).isEmpty());
+        Availability availability = project == null ? Availability.HIDDEN : availability(project, file);
+        Presentation presentation = e.getPresentation();
+        presentation.setVisible(availability != Availability.HIDDEN);
+        presentation.setEnabled(availability == Availability.ENABLED);
+        presentation.setDescription(availability.reason != null
+                ? availability.reason
+                : getTemplatePresentation().getDescription());
+    }
+
+    private static Availability availability(@NotNull Project project, @Nullable VirtualFile file) {
+        if (file == null || !isSourceFile(file)) {
+            return Availability.HIDDEN;
+        }
+        boolean sqlx = SQLX.equals(file.getExtension());
+        CompiledGraph graph = DataformCompilationService.getInstance(project).getCompiledGraph();
+        if (graph == null) {
+            return sqlx ? Availability.NOT_COMPILED : Availability.HIDDEN;
+        }
+        if (!testableActions(graph, file).isEmpty()) {
+            return Availability.ENABLED;
+        }
+        return sqlx || holdsActions(graph, file) ? Availability.NOT_TESTABLE : Availability.HIDDEN;
+    }
+
+    private static boolean isSourceFile(@NotNull VirtualFile file) {
+        String extension = file.getExtension();
+        return !file.isDirectory() && (SQLX.equals(extension) || JS.equals(extension));
+    }
+
+    private static boolean holdsActions(@NotNull CompiledGraph graph, @NotNull VirtualFile file) {
+        return !graph.actionsOfFile(file.getPath()).isEmpty() || !graph.findTestByFileName(file.getPath()).isEmpty();
     }
 
     @Override
@@ -109,12 +144,15 @@ public final class CreateDataformTestAction extends AnAction implements DumbAwar
      */
     @NotNull
     public static List<CompiledTable> testableActions(@NotNull Project project, @Nullable VirtualFile file) {
-        if (file == null || file.isDirectory() || !EXTENSIONS.contains(file.getExtension())
-                || definitionsDirOf(file) == null) {
+        CompiledGraph graph = DataformCompilationService.getInstance(project).getCompiledGraph();
+        return graph == null ? List.of() : testableActions(graph, file);
+    }
+
+    private static List<CompiledTable> testableActions(@NotNull CompiledGraph graph, @Nullable VirtualFile file) {
+        if (file == null || !isSourceFile(file) || definitionsDirOf(file) == null) {
             return List.of();
         }
-        CompiledGraph graph = DataformCompilationService.getInstance(project).getCompiledGraph();
-        return graph == null ? List.of() : TestableActions.in(graph, file);
+        return TestableActions.in(graph, file);
     }
 
     /**
@@ -175,6 +213,9 @@ public final class CreateDataformTestAction extends AnAction implements DumbAwar
             }
         });
         created.forEach(file -> FileEditorManager.getInstance(project).openFile(file, true));
+        if (!created.isEmpty()) {
+            DataformAutoCompileService.getInstance(project).scheduleCompile();
+        }
         if (!skipped.isEmpty()) {
             notify(project, "Existing tests left untouched: " + String.join(", ", skipped), NotificationType.INFORMATION);
         }
@@ -183,5 +224,19 @@ public final class CreateDataformTestAction extends AnAction implements DumbAwar
     private static void notify(@NotNull Project project, @NotNull String message, @NotNull NotificationType type) {
         DataformNotifications.create(message, type)
                 .notify(project);
+    }
+
+    private enum Availability {
+        HIDDEN(null),
+        NOT_COMPILED("Compile the Dataform project to create a test"),
+        NOT_TESTABLE("Dataform tests are only supported for tables and views"),
+        ENABLED(null);
+
+        @Nullable
+        private final String reason;
+
+        Availability(@Nullable String reason) {
+            this.reason = reason;
+        }
     }
 }

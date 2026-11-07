@@ -31,6 +31,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
 /**
@@ -86,6 +87,31 @@ public final class DataformProjectFilesResolver {
         });
 
         return List.copyOf(paths);
+    }
+
+    /**
+     * The workspace paths that git should not report as changes: those under the directories a
+     * push never sends ({@code node_modules}, {@code .dataform}…) and those the project
+     * {@code .gitignore} excludes, an ignored directory hiding everything below it. The
+     * {@code .gcloudignore} only limits what a push sends, so it hides nothing here.
+     */
+    @NotNull
+    public static Predicate<String> gitIgnored(@NotNull Project project) {
+        VirtualFile contentRoot = resolveContentRoot(project);
+        List<IgnoreRule> rules = contentRoot == null ? List.of() : readIgnorePatterns(contentRoot, ".gitignore");
+        return relativePath -> isGitIgnored(relativePath, rules);
+    }
+
+    private static boolean isGitIgnored(@NotNull String relativePath, @NotNull List<IgnoreRule> rules) {
+        String[] segments = relativePath.split("/");
+        StringBuilder directory = new StringBuilder();
+        for (int i = 0; i < segments.length - 1; i++) {
+            if (ALWAYS_IGNORED_DIRS.contains(segments[i])) return true;
+            if (i > 0) directory.append('/');
+            directory.append(segments[i]);
+            if (isIgnored(directory.toString(), true, rules)) return true;
+        }
+        return isIgnored(relativePath, false, rules);
     }
 
     @NotNull

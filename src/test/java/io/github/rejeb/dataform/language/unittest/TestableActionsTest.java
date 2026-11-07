@@ -16,6 +16,7 @@
  */
 package io.github.rejeb.dataform.language.unittest;
 
+import com.google.gson.Gson;
 import com.intellij.psi.PsiFile;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
@@ -57,6 +58,13 @@ public class TestableActionsTest extends BasePlatformTestCase {
     public void testWindowsFileNamesAreMatched() {
         UnitTestGraphFixture.installWithBackslashes(getProject(), getTestRootDisposable());
         assertEquals(List.of("js_table", "js_view"), testableIn("definitions/multi.js"));
+    }
+
+    public void testAnActionTheGraphGivesNoKindIsNotTestable() {
+        CompiledTable table = new Gson().fromJson(
+                "{\"target\": {\"database\": \"p\", \"schema\": \"d\", \"name\": \"no_kind\"}}",
+                CompiledTable.class);
+        assertFalse(TestableActions.isTestable(table));
     }
 
     public void testIsTestableRejectsNull() {

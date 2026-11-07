@@ -133,13 +133,14 @@ public class SqlxTemplateExpressionCompletionContributor extends CompletionContr
             return name == null || name.isEmpty() ? DEFAULT_CONTEXT_NAME : name;
         }
 
+        /**
+         * Reads the place of the dollar from the caret of the host editor. Offsets of the completion
+         * copy cannot be mapped to the host: a template expression evaluated in the original file is
+         * injected there as its value, and in the copy, which has no file, as a filler of another
+         * length.
+         */
         private static int hostOffsetOf(@NotNull CompletionParameters parameters, @NotNull String prefix) {
-            PsiFile originalFile = parameters.getOriginalFile();
-            int dollarOffset = parameters.getOffset() - prefix.length();
-            InjectedLanguageManager manager = InjectedLanguageManager.getInstance(originalFile.getProject());
-            return manager.isInjectedFragment(originalFile)
-                    ? manager.injectedToHost(originalFile, dollarOffset)
-                    : dollarOffset;
+            return SqlxEditors.host(parameters.getEditor()).getCaretModel().getOffset() - prefix.length();
         }
 
         private static void moveCaretInside(@NotNull InsertionContext ctx,

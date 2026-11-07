@@ -33,6 +33,8 @@ import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
 import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
 import io.github.rejeb.dataform.language.gcp.settings.WorkflowSettingsGcpConfigProvider;
 import io.github.rejeb.dataform.language.gcp.workspace.UncommittedChange;
+import io.github.rejeb.dataform.language.gcp.workspace.CommitRoute;
+import io.github.rejeb.dataform.language.gcp.workspace.MainBranchSource;
 import io.github.rejeb.dataform.language.gcp.workspace.Workspace;
 import io.github.rejeb.dataform.language.gcp.workspace.WorkspaceOperations;
 import io.github.rejeb.dataform.language.gcp.workspace.WorkspaceOperationsHandler;
@@ -109,6 +111,26 @@ public final class DataformGcpServiceImpl implements DataformGcpService {
     }
 
     @Override
+    public @NotNull MainBranchSource refreshMainBranchSource() {
+        return workspaceOperations.refreshMainBranchSource();
+    }
+
+    @Override
+    public @NotNull MainBranchSource mainBranchSource() {
+        return workspaceOperations.mainBranchSource();
+    }
+
+    @Override
+    public @Nullable CommitRoute commitRoute() {
+        return workspaceOperations.commitRoute();
+    }
+
+    @Override
+    public void fetchMainBranch() {
+        workspaceOperations.fetchMainBranch();
+    }
+
+    @Override
     @NotNull
     public List<Workspace> listWorkspaces() {
         try {
@@ -120,9 +142,9 @@ public final class DataformGcpServiceImpl implements DataformGcpService {
     }
 
     @Override
-    public void pushGitCommits(@NotNull String workspaceId) {
+    public void pushGitCommits(@NotNull String workspaceId, @Nullable String remoteBranch) {
         try {
-            workspaceOperations.pushGitCommits(workspaceId);
+            workspaceOperations.pushGitCommits(workspaceId, remoteBranch);
         } catch (GcpApiException e) {
             LOG.warn("Failed to push commits of Dataform workspace: " + workspaceId, e);
             throw e;

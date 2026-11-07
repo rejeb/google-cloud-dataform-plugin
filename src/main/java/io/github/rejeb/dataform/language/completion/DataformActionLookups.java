@@ -66,7 +66,7 @@ public final class DataformActionLookups {
         return graph.getTables().stream()
                 .filter(table -> table.getTarget() != null && !table.isDisabled())
                 .filter(table -> schema == null || schema.equals(refSchema(table.getCanonicalTarget(), table.getTarget())))
-                .map(table -> lookup(table.getTarget(), AllIcons.Nodes.DataTables, table.getType(), ACTION_PRIORITY))
+                .map(table -> lookup(table.getTarget(), AllIcons.Nodes.DataTables, table.getKind(), ACTION_PRIORITY))
                 .toList();
     }
 

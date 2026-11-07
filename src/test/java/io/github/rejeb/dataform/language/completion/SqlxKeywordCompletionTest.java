@@ -169,4 +169,53 @@ public class SqlxKeywordCompletionTest extends BasePlatformTestCase {
         assertTrue("keyword must be inserted with its block, got [" + hostText() + "]",
                 hostText().contains("pre_operations {"));
     }
+
+    private void assertNoKeywordProposed() {
+        myFixture.completeBasic();
+        List<String> lookups = myFixture.getLookupElementStrings();
+        for (String keyword : List.of("config", "js", "pre_operations", "post_operations")) {
+            assertFalse(keyword + " must not be proposed, got " + lookups,
+                    lookups != null && lookups.contains(keyword));
+        }
+    }
+
+    public void testNoKeywordAfterAQualifierInTheMiddleOfALine() {
+        configureDefinition("mart.sqlx", "config { type: \"table\" }\n\nSELECT b.<caret> FROM `p.d.t` b\n");
+
+        assertNoKeywordProposed();
+    }
+
+    public void testNoKeywordAfterAQualifierOpeningALine() {
+        configureDefinition("mart.sqlx", "config { type: \"table\" }\n\nSELECT\n  b.<caret>\nFROM `p.d.t` b\n");
+
+        assertNoKeywordProposed();
+    }
+
+    public void testNoKeywordAfterADigit() {
+        configureDefinition("mart.sqlx", "config { type: \"table\" }\n\nSELECT 1<caret>\n");
+
+        assertNoKeywordProposed();
+    }
+
+    public void testNoKeywordAfterADigitOpeningALine() {
+        configureDefinition("mart.sqlx", "config { type: \"table\" }\n\nSELECT\n  1<caret>\n");
+
+        assertNoKeywordProposed();
+    }
+
+    public void testNoKeywordInTheMiddleOfALine() {
+        configureDefinition("mart.sqlx", "config { type: \"table\" }\n\nSELECT 1 AS a FROM <caret>\n");
+
+        assertNoKeywordProposed();
+    }
+
+    public void testKeywordsAreProposedOnAnIndentedEmptyLine() {
+        configureDefinition("mart.sqlx", "config { type: \"table\" }\n\nSELECT 1\n\n    <caret>\n");
+
+        myFixture.completeBasic();
+
+        List<String> lookups = myFixture.getLookupElementStrings();
+        assertNotNull("expected a completion popup", lookups);
+        assertTrue("got " + lookups, lookups.contains("config"));
+    }
 }

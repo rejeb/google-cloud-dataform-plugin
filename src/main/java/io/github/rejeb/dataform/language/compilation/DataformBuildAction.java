@@ -40,16 +40,6 @@ public class DataformBuildAction extends AnAction {
         this.project = project;
     }
 
-    public DataformBuildAction(@NotNull Project project,
-                               @NotNull @NlsActions.ActionText String text,
-                               @NotNull @NlsActions.ActionDescription String description,
-                               @NotNull Icon icon) {
-        super(text, description, icon);
-        this.context = new DataformBuildContext(project);
-        context.finished(true, "Build finished");
-        this.project = project;
-    }
-
     @Override
     public void actionPerformed(@NotNull AnActionEvent e) {
         ApplicationManager.getApplication().executeOnPooledThread(() ->

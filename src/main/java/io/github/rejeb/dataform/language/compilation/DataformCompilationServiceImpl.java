@@ -18,6 +18,8 @@ package io.github.rejeb.dataform.language.compilation;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonParser;
 import com.intellij.execution.configurations.GeneralCommandLine;
 import com.intellij.execution.process.ProcessOutput;
 import com.intellij.execution.util.ExecUtil;
@@ -34,10 +36,12 @@ import io.github.rejeb.dataform.language.compilation.model.CompilationError;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.compilation.model.GraphErrors;
 import io.github.rejeb.dataform.language.setup.DataformInterpreterManager;
+import io.github.rejeb.dataform.language.setup.NodeInterpreterManager;
 import io.github.rejeb.dataform.language.util.DataformProjectLayout;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -57,6 +61,8 @@ public final class DataformCompilationServiceImpl
     private static final Logger LOG = Logger.getInstance(DataformCompilationServiceImpl.class);
     private static final Gson GSON = new GsonBuilder().create();
     private static final Set<String> IGNORED_DIRECTORIES = DataformProjectLayout.IGNORED_DIRECTORIES;
+    private static final String DEFAULT_COMMAND = "dataform compile --json";
+    private static final String NO_NODE = "No Node.js interpreter is configured.";
 
     private final Project project;
     private final ReentrantLock compileLock = new ReentrantLock();
@@ -64,6 +70,7 @@ public final class DataformCompilationServiceImpl
     private final CompilationFreshness freshness =
             new CompilationFreshness(AppExecutorUtil.getAppExecutorService());
     private volatile CompiledGraph compiledGraph;
+    private volatile @Nullable CliRun lastCliRun;
     private volatile State currentState = new State();
 
     public DataformCompilationServiceImpl(Project project) {
@@ -77,8 +84,14 @@ public final class DataformCompilationServiceImpl
 
     @Override
     public void loadState(@NotNull State state) {
+        boolean hasGraph = state.compiledGraphJson != null && !state.compiledGraphJson.isBlank();
+        if (hasGraph && state.compiledGraphFormat != State.RAW_CLI_OUTPUT) {
+            LOG.info("Dropped a compiled graph saved in an older format, the project compiles again");
+            this.currentState = new State();
+            return;
+        }
         this.currentState = state;
-        if (state.compiledGraphJson != null && !state.compiledGraphJson.isBlank()) {
+        if (hasGraph) {
             try {
                 this.compiledGraph = GSON.fromJson(state.compiledGraphJson, CompiledGraph.class);
                 LOG.info("Restored compiled graph from persistent state");
@@ -134,13 +147,22 @@ public final class DataformCompilationServiceImpl
 
     private CompiledGraph runCompilation(long generation) {
         LOG.info("Running compilation");
+        long startedAt = System.currentTimeMillis();
+        String commandLine = DEFAULT_COMMAND;
+        String directory = projectDirectory();
         try {
             Optional<GeneralCommandLine> cmd = project.getService(DataformInterpreterManager.class)
                     .buildDataformCompileCommand();
             if (cmd.isPresent()) {
+                commandLine = cmd.get().getCommandLineString();
+                if (cmd.get().getWorkDirectory() != null) {
+                    directory = cmd.get().getWorkDirectory().getPath();
+                }
                 long processStartedAt = System.currentTimeMillis();
                 ProcessOutput output = ExecUtil.execAndGetOutput(cmd.get(), 300000);
                 String compilationResult = output.getStdout();
+                lastCliRun = new CliRun(commandLine, directory, nodePath(), output.getExitCode(),
+                        compilationResult.isBlank(), output.getStderr(), System.currentTimeMillis() - processStartedAt);
                 LOG.info("Dataform compile: '" + cmd.get().getExePath() + "' returned "
                         + compilationResult.length() + " chars in "
                         + (System.currentTimeMillis() - processStartedAt) + " ms");
@@ -154,9 +176,7 @@ public final class DataformCompilationServiceImpl
                     }
                     this.compiledGraph.setGraphErrors(graphErrors);
                 } else {
-                    this.compiledGraph = GSON.fromJson(compilationResult, CompiledGraph.class);
-                    currentState.compiledGraphJson = GSON.toJson(this.compiledGraph);
-                    currentState.lastCompileTimestamp = processStartedAt;
+                    rememberCompilation(compilationResult, processStartedAt);
                 }
                 freshness.markCompiled(generation);
                 graphChanged();
@@ -165,10 +185,42 @@ public final class DataformCompilationServiceImpl
             }
         } catch (Exception e) {
             LOG.warn("Error during compilation", e);
+            lastCliRun = new CliRun(commandLine, directory, nodePath(), null, true,
+                    e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName(),
+                    System.currentTimeMillis() - startedAt);
             return buildEmptyCompiledGraph(e);
         }
 
+        lastCliRun = new CliRun(commandLine, directory, null, null, true, NO_NODE, System.currentTimeMillis() - startedAt);
         return buildEmptyCompiledGraph(null);
+    }
+
+    void rememberCompilation(@NotNull String output, long startedAt) {
+        JsonElement graph = JsonParser.parseString(output);
+        this.compiledGraph = GSON.fromJson(graph, CompiledGraph.class);
+        currentState.compiledGraphJson = GSON.toJson(graph);
+        currentState.compiledGraphFormat = State.RAW_CLI_OUTPUT;
+        currentState.lastCompileTimestamp = startedAt;
+    }
+
+    @Override
+    public @Nullable CliRun lastCliRun() {
+        return lastCliRun;
+    }
+
+    @Override
+    public long lastCompiledAt() {
+        return currentState.lastCompileTimestamp;
+    }
+
+    private @NotNull String projectDirectory() {
+        VirtualFile projectDir = ProjectUtil.guessProjectDir(project);
+        return projectDir != null ? projectDir.getPath() : project.getBasePath() != null ? project.getBasePath() : "";
+    }
+
+    private @Nullable String nodePath() {
+        Path nodeBinDir = NodeInterpreterManager.getInstance(project).nodeBinDir();
+        return nodeBinDir != null ? nodeBinDir.toString() : null;
     }
 
     private void graphChanged() {

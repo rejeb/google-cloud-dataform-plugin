@@ -31,6 +31,8 @@ public interface WorkflowRepository {
     /**
      * Compiles the workspace and creates a workflow run.
      *
+     * @param serviceAccount the service account the run executes as; blank leaves the identity to
+     *                       the Dataform repository
      * @return the GCP resource name of the created workflow run
      * @throws GcpApiException on API error
      */
@@ -38,6 +40,7 @@ public interface WorkflowRepository {
             @NotNull String projectId,
             @NotNull String location,
             @NotNull String repositoryId,
+            @NotNull String serviceAccount,
             @NotNull WorkflowRunRequest request
     );
 

@@ -87,4 +87,28 @@ public final class SslConfig {
                 .header("Authorization", "Bearer " + token).timeout(timeout).GET().build();
         return httpClient(timeout).send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
     }
+
+    /**
+     * Sends a POST request with a JSON body, authorized by an OAuth access token.
+     *
+     * @param url      the URL to post to
+     * @param token    the access token
+     * @param jsonBody the request body, sent as UTF-8 JSON
+     * @param timeout  how long connecting and answering may each take
+     * @return the response, with its body read as UTF-8 text
+     * @throws IOException          when the request fails
+     * @throws InterruptedException when the thread is interrupted while waiting
+     */
+    @NotNull
+    public static HttpResponse<String> postJsonWithBearer(@NotNull String url, @NotNull String token,
+                                                          @NotNull String jsonBody,
+                                                          @NotNull Duration timeout) throws IOException, InterruptedException {
+        HttpRequest request = HttpRequest.newBuilder(URI.create(url))
+                .header("Authorization", "Bearer " + token)
+                .header("Content-Type", "application/json; charset=utf-8")
+                .timeout(timeout)
+                .POST(HttpRequest.BodyPublishers.ofString(jsonBody, StandardCharsets.UTF_8))
+                .build();
+        return httpClient(timeout).send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+    }
 }

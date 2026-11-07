@@ -47,6 +47,12 @@ public class WorkflowSettingsGcpConfigProvider implements GcpConfigProvider {
         return gcpRepositorySettings.getRepositoryId();
     }
 
+    @Override
+    public @NotNull String getServiceAccount() {
+        DataformRepositoryConfig active = gcpRepositorySettings.getActiveConfig();
+        return active == null ? "" : active.serviceAccount();
+    }
+
     /**
      * Resolves the author name and email from the Google credential the plugin is signed in with.
      * Falls back to the system user name when the identity cannot be resolved.

@@ -51,6 +51,8 @@ final class EdgeRenderer {
     private static final double MIN_EDGE_GAP = 12;
     private static final float CROSSING_EDGE_ALPHA = 0.85f;
     private static final double ARROW_SIZE = 6;
+    private static final float EDGE_WIDTH = 1.4f;
+    private static final float SELECTED_EDGE_WIDTH = 1.8f;
 
     private final LineageModel model;
     private final List<Obstacle> obstacles = new ArrayList<>();
@@ -75,8 +77,7 @@ final class EdgeRenderer {
         collectObstacles(layout, columnListBounds);
         crossingEdges.clear();
 
-        Set<String> highlight = model.highlightLineage();
-        boolean dimming = !highlight.isEmpty();
+        Set<String> dimmed = model.dimmedIds();
         Direction dir = model.direction();
 
         for (LineageNode node : model.graph().nodes()) {
@@ -85,7 +86,7 @@ final class EdgeRenderer {
             for (String predId : model.graph().predecessors(node.id())) {
                 NodePosition from = layout.positions().get(predId);
                 if (from == null) continue;
-                boolean lit = !dimming || (highlight.contains(node.id()) && highlight.contains(predId));
+                boolean lit = !dimmed.contains(node.id()) && !dimmed.contains(predId);
                 drawEdge(g2, predId, node.id(), from, to, layout.nodeH(), dir, lit ? 1f : DIM_ALPHA);
             }
         }
@@ -108,18 +109,18 @@ final class EdgeRenderer {
     }
 
     static void drawArrowHead(@NotNull Graphics2D g2, double x, double y, @NotNull Direction dir) {
+        double spread = ARROW_SIZE * 2 / 3;
         Path2D.Double head = new Path2D.Double();
         if (dir == Direction.TB) {
-            head.moveTo(x, y);
-            head.lineTo(x - ARROW_SIZE / 2, y - ARROW_SIZE);
-            head.lineTo(x + ARROW_SIZE / 2, y - ARROW_SIZE);
+            head.moveTo(x - spread, y - ARROW_SIZE);
+            head.lineTo(x, y);
+            head.lineTo(x + spread, y - ARROW_SIZE);
         } else {
-            head.moveTo(x, y);
-            head.lineTo(x - ARROW_SIZE, y - ARROW_SIZE / 2);
-            head.lineTo(x - ARROW_SIZE, y + ARROW_SIZE / 2);
+            head.moveTo(x - ARROW_SIZE, y - spread);
+            head.lineTo(x, y);
+            head.lineTo(x - ARROW_SIZE, y + spread);
         }
-        head.closePath();
-        g2.fill(head);
+        g2.draw(head);
     }
 
     /**
@@ -166,8 +167,9 @@ final class EdgeRenderer {
 
         Composite old = g2.getComposite();
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-        g2.setStroke(new BasicStroke(1.4f));
-        g2.setColor(LineageTheme.edgeColor());
+        boolean selected = model.isSelectionLineageEdge(fromId, toId);
+        g2.setStroke(new BasicStroke(selected ? SELECTED_EDGE_WIDTH : EDGE_WIDTH));
+        g2.setColor(selected ? LineageTheme.accentColor() : LineageTheme.edgeColor());
         drawSolidOutsideParts(g2, path, blockers, alpha);
         drawArrowHead(g2, x2, y2, dir);
         g2.setComposite(old);

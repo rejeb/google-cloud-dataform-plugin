@@ -19,6 +19,7 @@ package io.github.rejeb.dataform.language.gcp.workspace;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
 
 import java.util.List;
+import java.util.function.Predicate;
 
 public class DataformProjectFilesResolverTest extends BasePlatformTestCase {
 
@@ -105,5 +106,43 @@ public class DataformProjectFilesResolverTest extends BasePlatformTestCase {
 
         assertFalse(paths.contains("notes.md"));
         assertTrue(paths.contains("definitions/notes.md"));
+    }
+    public void testNodeModulesIsNeverAWorkspaceChange() {
+        Predicate<String> ignored = DataformProjectFilesResolver.gitIgnored(getProject());
+
+        assertTrue(ignored.test("node_modules/@dataform/core/package.json"));
+        assertTrue(ignored.test("node_modules/.package-lock.json"));
+        assertTrue(ignored.test(".dataform/compiled.json"));
+        assertFalse(ignored.test("definitions/table_a.sqlx"));
+        assertFalse(ignored.test("package.json"));
+    }
+
+    public void testTheProjectGitignoreHidesWorkspaceChanges() {
+        myFixture.addFileToProject(".gitignore", "*.log\nbuild/\n!definitions/keep.log\n");
+
+        Predicate<String> ignored = DataformProjectFilesResolver.gitIgnored(getProject());
+
+        assertTrue(ignored.test("logs/run.log"));
+        assertTrue(ignored.test("build/out/a.js"));
+        assertFalse(ignored.test("definitions/keep.log"));
+        assertFalse(ignored.test("definitions/table_a.sqlx"));
+        assertFalse(ignored.test(".gitignore"));
+    }
+
+    public void testAnIgnoredDirectoryHidesEverythingBelowIt() {
+        myFixture.addFileToProject(".gitignore", "/vendor\n");
+
+        Predicate<String> ignored = DataformProjectFilesResolver.gitIgnored(getProject());
+
+        assertTrue(ignored.test("vendor/lib/a.js"));
+        assertFalse(ignored.test("definitions/vendor.sqlx"));
+    }
+
+    public void testTheGcloudignoreDoesNotHideWorkspaceChanges() {
+        myFixture.addFileToProject(".gcloudignore", "README.md\n");
+
+        Predicate<String> ignored = DataformProjectFilesResolver.gitIgnored(getProject());
+
+        assertFalse(ignored.test("README.md"));
     }
 }

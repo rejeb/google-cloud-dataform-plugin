@@ -130,4 +130,20 @@ class DagLayoutTest {
             assertTrue(p.y() + r.nodeH() <= r.bounds().y + r.bounds().height + 0.001);
         }
     }
+    @Test
+    void comfortableNodesHaveThePrototypeHeightAndGap() {
+        LayoutResult r = DagLayout.compute(chain(), Set.of(LineageNode.idOf("p.s.a"), LineageNode.idOf("p.s.d")),
+                Direction.LR, Density.COMFORTABLE, 170);
+        assertEquals(52, r.nodeH());
+        double ya = r.positions().get(LineageNode.idOf("p.s.a")).y();
+        double yd = r.positions().get(LineageNode.idOf("p.s.d")).y();
+        assertEquals(52 + 26, Math.abs(yd - ya), 0.001);
+    }
+
+    @Test
+    void compactNodesStayOneLineHigh() {
+        LayoutResult r = DagLayout.compute(chain(), Set.of(LineageNode.idOf("p.s.a"), LineageNode.idOf("p.s.d")),
+                Direction.LR, Density.COMPACT, 170);
+        assertEquals(30, r.nodeH());
+    }
 }

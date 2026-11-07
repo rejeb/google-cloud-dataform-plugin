@@ -33,29 +33,48 @@ public record BigQueryJobDetails(
         @Nullable Instant startTime,
         @Nullable Instant endTime,
         @Nullable Integer statementsProcessed,
-        @NotNull List<BigQueryChildJob> childJobs
+        @NotNull List<BigQueryChildJob> childJobs,
+        @Nullable String reservationId,
+        @Nullable Long slotMillis
 ) {
+
+    /**
+     * Details of a job whose slot time is unknown.
+     */
+    public BigQueryJobDetails(@NotNull String jobId, @NotNull String project, @NotNull String location,
+                              @NotNull String status, @Nullable String errorMessage, @Nullable Long bytesProcessed,
+                              @Nullable Long bytesBilled, @Nullable Instant startTime, @Nullable Instant endTime,
+                              @Nullable Integer statementsProcessed, @NotNull List<BigQueryChildJob> childJobs,
+                              @Nullable String reservationId) {
+        this(jobId, project, location, status, errorMessage, bytesProcessed, bytesBilled, startTime, endTime,
+                statementsProcessed, childJobs, reservationId, null);
+    }
+
+    /**
+     * A statement of a script job.
+     *
+     * @param statementType the BigQuery statement type, such as {@code CREATE_SCHEMA} or {@code MERGE}
+     * @param target        the table the statement creates or changes, as {@code project.dataset.table}
+     * @param errorMessage  why the statement failed
+     */
     public record BigQueryChildJob(
             @NotNull String jobId,
             @NotNull String status,
             @Nullable Instant startTime,
             @Nullable Instant endTime,
             @Nullable String query,
-            @Nullable Long bytesProcessed
+            @Nullable Long bytesProcessed,
+            @Nullable String statementType,
+            @Nullable String target,
+            @Nullable String errorMessage
     ) {
 
-        public BigQueryChildJob withQuery(@NotNull String query) {
-            return new BigQueryChildJob(
-                    jobId, status, startTime, endTime, query, bytesProcessed
-            );
+        /**
+         * A child job whose statement type, target and error are unknown.
+         */
+        public BigQueryChildJob(@NotNull String jobId, @NotNull String status, @Nullable Instant startTime,
+                                @Nullable Instant endTime, @Nullable String query, @Nullable Long bytesProcessed) {
+            this(jobId, status, startTime, endTime, query, bytesProcessed, null, null, null);
         }
-    }
-
-    public BigQueryJobDetails withChildJobs(@NotNull List<BigQueryChildJob> childJobs) {
-        return new BigQueryJobDetails(
-                jobId, project, location, status, errorMessage,
-                bytesProcessed, bytesBilled, startTime, endTime,
-                statementsProcessed, childJobs
-        );
     }
 }

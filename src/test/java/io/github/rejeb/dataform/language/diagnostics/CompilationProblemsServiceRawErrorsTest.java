@@ -100,6 +100,7 @@ public class CompilationProblemsServiceRawErrorsTest extends BasePlatformTestCas
         long before = service.getModificationCount();
         DataformCompilationService.State restored = new DataformCompilationService.State();
         restored.compiledGraphJson = "{}";
+        restored.compiledGraphFormat = DataformCompilationService.State.RAW_CLI_OUTPUT;
         try {
             compilation.loadState(restored);
 

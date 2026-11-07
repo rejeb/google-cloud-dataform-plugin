@@ -24,7 +24,8 @@
 
 
     <description><![CDATA[
-            A comprehensive IntelliJ IDEA plugin that brings full language support for Google Cloud Dataform projects, letting you write, navigate, run and debug SQLX pipelines without leaving the IDE.
+            Google Cloud Dataform for IntelliJ IDEA: full language support for your projects, letting you write, navigate, run and debug SQLX pipelines without leaving the IDE.
+            <p>Read the <a href="https://rejeb.is-a.dev/dataform-plugin/docs">documentation</a> and the <a href="https://rejeb.is-a.dev/dataform-plugin/features">feature guides</a>.</p>
 
             <h2>SQLX Language Support</h2>
             <ul>
@@ -54,19 +55,28 @@
                 <li>Background project compilation on save and while editing.</li>
                 <li>Dataform compilation errors and BigQuery dry-run errors placed on the exact tokens of the SQLX file, with inline error chips.</li>
                 <li>Editor banner listing the errors that cannot be placed in the file.</li>
+                <li>Build tool window listing the compilation errors, with their code frame, and the failing BigQuery dry runs, grouped per file.</li>
             </ul>
 
             <h2>SQLX Preview Editor</h2>
             <ul>
                 <li>Split editor next to each SQLX file with the action's lineage graph, compiled query and resolved table schema.</li>
+                <li>One block per action, with its assertions in their own tabs, resizable SQL blocks and a Copy button.</li>
                 <li>Test preview for unit test files.</li>
+            </ul>
+
+            <h2>BigQuery Cost</h2>
+            <ul>
+                <li>Bytes and estimated on-demand cost of each query in the compiled preview, with a total for the file.</li>
+                <li>Bytes billed and cost of executed queries and workflow runs, per action and per run.</li>
+                <li>Prices from Google Cloud Billing for each query location or a fixed price per TiB; capacity projects show bytes only.</li>
             </ul>
 
             <h2>Navigation &amp; Code Intelligence</h2>
             <ul>
                 <li>Jump between references, includes and declarations with <code>Ctrl+Click</code> / <code>Ctrl+B</code>.</li>
-                <li>Column-level navigation: <code>Ctrl+Click</code> a column in a SQLX query to jump straight to its declaration in the source table.</li>
-                <li>Show Column Usages (<code>Ctrl+Alt+Shift+U</code>, also available from the editor context menu): list every downstream place where a given column is read across the project &mdash; the reverse direction of Go to Declaration.</li>
+                <li>Column window: <code>Ctrl+Click</code> a column in a SQLX query to see where it is declared and every place that reads it across the project, and jump to any of them.</li>
+                <li>Show Column Usages (<code>Alt+Shift+U</code>, also available from the editor context menu) opens the same window.</li>
                 <li>Quick Documentation (<code>Ctrl+Q</code>) for table references, resolved schemas, column metadata, and the built-in BigQuery function catalog (signatures, descriptions, examples).</li>
                 <li>Clickable links to workflow configuration properties.</li>
                 <li>Find Usages on the fields of <code>STRUCT</code> columns.</li>
@@ -74,19 +84,23 @@
 
             <h2>Refactoring</h2>
             <ul>
-                <li>In-place column rename (<code>Shift+F6</code>) with its own dedicated engine: it walks the plugin's column lineage graph to propagate the new name across every file where the column flows, including through <code>SELECT *</code> resolution, incremental actions, and unrelated join chains, then refreshes the resolved schema.</li>
+                <li>In-place column rename (<code>Shift+F6</code>) with its own dedicated engine: it walks the plugin's column lineage graph to propagate the new name across every file where the column flows, through CTEs, subqueries and <code>SELECT *</code>, with the <code>config</code> keys and unit tests that name it, then refreshes the resolved schema.</li>
+                <li>Impact analysis on save: when a saved change renames, removes or retypes a column read downstream, the affected actions and their BigQuery errors are listed per file in the Build tool window.</li>
+                <li>Rename downstream usages: after renaming a column in its action, a quick fix renames every downstream read of the old name through the rename preview.</li>
             </ul>
 
             <h2>Data Lineage</h2>
             <ul>
-                <li>Built-in lineage graph view (Open Lineage View action) that visualizes upstream/downstream dependencies between Dataform actions.</li>
+                <li>Built-in lineage graph view (Open Dataform Lineage action) that visualizes upstream/downstream dependencies between Dataform actions.</li>
                 <li>Column-level lineage tracing, so you can trace exactly where a given column's data originates across your pipeline, including through renamed/aliased columns.</li>
             </ul>
 
             <h2>Run &amp; Execute</h2>
             <ul>
                 <li>Native run configurations for Dataform workflows, launched straight from IntelliJ's Run/Debug toolbar.</li>
-                <li>One-click gutter icons in the SQLX editor to execute the current action's workflow without leaving the file.</li>
+                <li>Gutter icons in the SQLX editor to run the current action, or the actions sharing one of its tags; the first run from a file opens a dialog to review its options.</li>
+                <li>Run console with a status header, the action tree with durations and a Show Failed Only filter, and per action a Summary, the Executed SQL and a timeline of its BigQuery jobs and statements, with the failing line marked.</li>
+                <li>Links from the invocation and each job to the Google Cloud console.</li>
             </ul>
 
             <h2>Unit Tests</h2>
@@ -101,8 +115,10 @@
             <h2>Google Cloud Integration</h2>
             <ul>
                 <li>Dataform Tools tool window: manage repositories, browse and create workspaces, and push or pull files between the local project and a GCP Dataform workspace.</li>
+                <li>Files tab with the status of the workspace files, and a Changes tab to commit and push the workspace.</li>
+                <li>Fetch to Local, Compare with Local and Open in Google Cloud Console on workspace files.</li>
                 <li>Compare File with Remote to diff a local file with its version in the workspace.</li>
-                <li>BigQuery query execution in the Services view, with paged results in a data grid.</li>
+                <li>BigQuery query execution in the Services view, with paged results in a data grid, the job details and their cost.</li>
                 <li>Google Cloud authentication status and sign-in prompts in the editor.</li>
             </ul>
             <p>Signing in to Google Cloud is optional. See the <a href="https://rejeb.is-a.dev/dataform-plugin/privacy-policy">Privacy Policy</a> for how the plugin handles your data.</p>
@@ -110,14 +126,14 @@
             <h2>Formatting</h2>
             <ul>
                 <li>Built-in formatter aware of injected SQL, JavaScript and config blocks inside SQLX files.</li>
-                <li>Optional integration with Sqlfluff for external, configurable SQL formatting.</li>
+                <li>Optional integration with SQLFluff for external, configurable SQL formatting.</li>
             </ul>
 
             <h2>Project Tooling</h2>
             <ul>
                 <li>New Project wizard to scaffold Dataform projects with the correct structure.</li>
-                <li>New SQLX File action with ready-made templates for every Dataform action type: Table, View, Incremental table, Assertion, Operations, Declaration, and Test.</li>
-                <li>Automatic Dataform CLI detection, installation and setup.</li>
+                <li>New SQLX File action with ready-made templates for every Dataform action type: Table, View, Incremental table, Assertion, Operations, Declaration, and Unit test.</li>
+                <li>Dataform CLI and Core detection, with one-click installation from the plugin settings.</li>
                 <li>Suggests moving <code>dataformCoreVersion</code> from <code>workflow_settings.yaml</code> to the <code>@dataform/core</code> dependency of <code>package.json</code>.</li>
                 <li>Disabled actions (<code>disabled: true</code>) are greyed out in the Project view.</li>
                 <li>Fast project indexing of Dataform core definitions and JavaScript symbols for responsive completion and search.</li>
@@ -132,12 +148,15 @@
     <depends>com.intellij.modules.json</depends>
     <depends>org.jetbrains.plugins.yaml</depends>
     <depends>org.jetbrains.plugins.terminal</depends>
+    <depends>com.intellij.modules.vcs</depends>
+    <depends optional="true" config-file="dataform-git.xml">Git4Idea</depends>
 
     <extensions defaultExtensionNs="JavaScript.JsonSchema">
         <ProviderFactory
                 implementation="io.github.rejeb.dataform.language.completion.DataformJsonSchemaProviderFactory"/>
     </extensions>
     <extensions defaultExtensionNs="com.intellij">
+        <errorHandler implementation="com.intellij.diagnostic.JetBrainsMarketplaceErrorReportSubmitter"/>
         <projectService serviceInterface="io.github.rejeb.dataform.language.setup.DataformInterpreterManager"
                         serviceImplementation="io.github.rejeb.dataform.language.setup.DataformInterpreterManagerImpl"
                         testServiceImplementation="io.github.rejeb.dataform.language.setup.DataformInterpreterManagerTestImpl"
@@ -168,6 +187,9 @@
         />
         <projectService serviceInterface="io.github.rejeb.dataform.language.schema.sql.BigQueryDryRunSchemaExtractor"
                         serviceImplementation="io.github.rejeb.dataform.language.schema.sql.BigQueryDryRunSchemaExtractorImpl"
+        />
+        <projectService serviceInterface="io.github.rejeb.dataform.language.fileEditor.cost.QueryCostEstimator"
+                        serviceImplementation="io.github.rejeb.dataform.language.fileEditor.cost.QueryCostEstimatorImpl"
         />
         <projectService serviceInterface="io.github.rejeb.dataform.language.schema.sql.DryRunErrorRegistry"
                         serviceImplementation="io.github.rejeb.dataform.language.schema.sql.DryRunErrorRegistryImpl"
@@ -233,6 +255,9 @@
         <applicationService
                 serviceInterface="io.github.rejeb.dataform.language.settings.DataformToolsSettings"
                 serviceImplementation="io.github.rejeb.dataform.language.settings.DataformToolsSettingsImpl"/>
+        <applicationService
+                serviceInterface="io.github.rejeb.dataform.language.gcp.pricing.BigQueryPricingService"
+                serviceImplementation="io.github.rejeb.dataform.language.gcp.pricing.BigQueryPricingServiceImpl"/>
 
         <applicationService
                 serviceInterface="io.github.rejeb.dataform.language.documentation.bigquery.BigQueryFunctionDocService"
@@ -251,11 +276,14 @@
 
         <serviceViewContributor
                 implementation="io.github.rejeb.dataform.language.gcp.execution.bigquery.serviceview.DataformQueryContributor"/>
+        <projectService
+                serviceInterface="io.github.rejeb.dataform.language.gcp.execution.bigquery.serviceview.QueryResultPanels"
+                serviceImplementation="io.github.rejeb.dataform.language.gcp.execution.bigquery.serviceview.QueryResultPanelsImpl"/>
         <toolWindow
                 id="Dataform Tools"
                 anchor="right"
                 factoryClass="io.github.rejeb.dataform.language.gcp.toolwindow.DataformGcpToolWindowFactory"
-                icon="/icons/dataform-panel.png"/>
+                icon="/icons/toolWindowDataform.svg"/>
         <sql.resolveExtension
                 implementation="io.github.rejeb.dataform.language.schema.sql.DataformSqlResolveExtension"/>
         <sql.resolveExtension
@@ -326,9 +354,14 @@
         <directoryProjectGenerator
                 implementation="io.github.rejeb.dataform.language.projectWizard.DataformDirectoryProjectGenerator"/>
         <moduleBuilder builderClass="io.github.rejeb.dataform.language.projectWizard.DataformModuleBuilder"/>
+        <applicationService serviceInterface="io.github.rejeb.dataform.language.gcp.clone.PendingRepositoryLinks"
+                            serviceImplementation="io.github.rejeb.dataform.language.gcp.clone.PendingRepositoryLinksImpl"/>
         <postStartupActivity
                 order="first"
                 implementation="io.github.rejeb.dataform.language.setup.DataformInstaller"/>
+        <postStartupActivity
+                order="first"
+                implementation="io.github.rejeb.dataform.language.gcp.clone.DataformRepositoryLinkActivity"/>
         <postStartupActivity
                 implementation="io.github.rejeb.dataform.language.startup.DataformProjectStartup"/>
         <postStartupActivity
@@ -338,6 +371,7 @@
         <fileEditorProvider implementation="io.github.rejeb.dataform.language.fileEditor.SqlxSplitEditorProvider"/>
         <fileEditorProvider implementation="io.github.rejeb.dataform.language.lineage.view.LineageFileEditorProvider"/>
         <fileIconProvider implementation="io.github.rejeb.dataform.language.lineage.view.LineageFileIconProvider"/>
+        <fileIconProvider implementation="io.github.rejeb.dataform.language.unittest.TestFileIconProvider"/>
 
         <projectViewNodeDecorator
                 implementation="io.github.rejeb.dataform.language.projectView.DisabledActionNodeDecorator"/>
@@ -571,20 +605,22 @@
     <actions>
         <action id="GotoDeclaration"
                 class="io.github.rejeb.dataform.language.columns.usages.SqlxColumnNavigationAction"
-                overrides="true"/>
+                text="Go to Declaration or Usages"
+                description="Navigate to the declaration of the symbol at caret or show its usages"
+                overrides="true">
+            <override-text place="MainMenu" text="_Declaration or Usages"/>
+        </action>
         <action id="Dataform.ShowColumnUsages"
                 class="io.github.rejeb.dataform.language.schema.sql.ShowDataformColumnUsagesAction"
                 text="Show Column Usages"
                 description="Show where the Dataform column under the caret is declared and read">
             <add-to-group group-id="EditorPopupMenu" anchor="first"/>
-            <keyboard-shortcut keymap="$default" first-keystroke="control alt shift U"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="alt shift U"/>
         </action>
         <action id="Dataform.DiagnoseColumnResolution"
                 class="io.github.rejeb.dataform.language.schema.sql.diagnostics.DiagnoseColumnResolutionAction"
                 text="Diagnose Dataform Column Resolution"
-                description="Report step by step how the Dataform column under the caret is resolved">
-            <add-to-group group-id="EditorPopupMenu" anchor="after" relative-to-action="Dataform.ShowColumnUsages"/>
-        </action>
+                description="Report step by step how the Dataform column under the caret is resolved"/>
         <action id="Dataform.CompareFileWithRemote"
                 class="io.github.rejeb.dataform.language.gcp.action.CompareFileWithRemoteAction"
                 text="Compare File with Remote"
@@ -600,7 +636,8 @@
         <action id="Dataform.CreateTest"
                 class="io.github.rejeb.dataform.language.unittest.creation.CreateDataformTestAction"
                 text="Create Dataform Test"
-                description="Create a unit test for a Dataform table or view">
+                description="Create a unit test for a Dataform table or view"
+                icon="io.github.rejeb.dataform.language.DataformIcons.TEST_FILE">
             <add-to-group group-id="ProjectViewPopupMenu"
                           anchor="after"
                           relative-to-action="Dataform.CompareFileWithRemote"/>

@@ -17,18 +17,16 @@
 package io.github.rejeb.dataform.language.gcp.toolwindow;
 
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.wm.ToolWindow;
 import com.intellij.openapi.wm.ToolWindowFactory;
+import com.intellij.openapi.wm.ex.ToolWindowEx;
 import com.intellij.ui.content.Content;
 import com.intellij.ui.content.ContentFactory;
-import io.github.rejeb.dataform.language.gcp.toolwindow.action.CreateWorkspaceAction;
-import io.github.rejeb.dataform.language.gcp.toolwindow.action.GcpAuthAction;
-import io.github.rejeb.dataform.language.gcp.toolwindow.action.ManageRepositoriesAction;
-import io.github.rejeb.dataform.language.gcp.toolwindow.action.RefreshAction;
+import com.intellij.ui.content.ContentManager;
 import io.github.rejeb.dataform.language.util.Utils;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.List;
 
 public class DataformGcpToolWindowFactory implements ToolWindowFactory {
 
@@ -43,17 +41,18 @@ public class DataformGcpToolWindowFactory implements ToolWindowFactory {
     @Override
     public void createToolWindowContent(@NotNull Project project, @NotNull ToolWindow toolWindow) {
         DataformGcpPanel panel = new DataformGcpPanel(project);
+        Disposer.register(toolWindow.getDisposable(), panel);
 
-        Content content = ContentFactory.getInstance()
-                .createContent(panel, "", false);
-        toolWindow.getContentManager().addContent(content);
+        ContentFactory factory = ContentFactory.getInstance();
+        ContentManager contents = toolWindow.getContentManager();
+        contents.addContent(factory.createContent(panel.filesPanel(), "Files", false));
+        Content changes = factory.createContent(panel.changesPanel(), ChangesTabTitle.of(0), false);
+        contents.addContent(changes);
+        panel.setChangesCountListener(count -> changes.setDisplayName(ChangesTabTitle.of(count)));
 
-        toolWindow.setTitleActions(List.of(
-                new RefreshAction(panel.getDispatcher()),
-                new CreateWorkspaceAction(panel.getDispatcher()),
-                new ManageRepositoriesAction(project, panel::refresh),
-                new GcpAuthAction(project)
-        ));
+        toolWindow.setTitleActions(panel.titleActions());
+        if (toolWindow instanceof ToolWindowEx window) {
+            window.setAdditionalGearActions(panel.gearActions());
+        }
     }
 }
-

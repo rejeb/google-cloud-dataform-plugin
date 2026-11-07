@@ -21,6 +21,9 @@ import com.intellij.openapi.editor.Editor;
 import com.intellij.psi.PsiFile;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
 
+import io.github.rejeb.dataform.language.evaluation.DataformExpressionEvaluationService;
+import io.github.rejeb.dataform.language.evaluation.DataformExpressionEvaluationServiceImpl;
+
 import java.util.List;
 
 public class SqlxTemplateExpressionCompletionTest extends BasePlatformTestCase {
@@ -137,6 +140,67 @@ public class SqlxTemplateExpressionCompletionTest extends BasePlatformTestCase {
 
         assertFalse("template expressions must not be proposed outside a query template, got " + lookups,
                 lookups != null && lookups.contains("${ctx.ref(\"\")}"));
+    }
+
+    private void chooseTemplate(String template) {
+        myFixture.completeBasic();
+        myFixture.getLookup().setCurrentItem(
+                myFixture.getLookupElements()[indexOf(myFixture.getLookupElementStrings(), template)]);
+        myFixture.finishLookup('\n');
+    }
+
+    private Editor hostEditor() {
+        return myFixture.getEditor() instanceof EditorWindow window ? window.getDelegate() : myFixture.getEditor();
+    }
+
+    public void testCaretBetweenQuotesAfterEvaluatedExpressionsOfAnotherLength() {
+        PsiFile file = myFixture.addFileToProject("definitions/mart.sqlx",
+                "config { type: \"table\" }\n\nSELECT ${constants.A} AS a, ${constants.B} AS b FROM $\n");
+        DataformExpressionEvaluationServiceImpl evaluation = (DataformExpressionEvaluationServiceImpl)
+                DataformExpressionEvaluationService.getInstance(getProject());
+        evaluation.putCachedValue(file.getVirtualFile(), "constants.A", "500");
+        evaluation.putCachedValue(file.getVirtualFile(), "constants.B", "500");
+        myFixture.configureFromExistingVirtualFile(file.getVirtualFile());
+        hostEditor().getCaretModel().moveToOffset(file.getText().indexOf("$\n") + 1);
+
+        chooseTemplate("${ref(\"\")}");
+
+        String text = hostEditor().getDocument().getText();
+        assertEquals(text, text.indexOf("FROM ${ref(\"\")}") + "FROM ${ref(\"".length(),
+                hostEditor().getCaretModel().getOffset());
+    }
+
+    public void testCaretBetweenQuotesAfterAnEarlierExpression() {
+        configureDefinition("mart.sqlx",
+                "config { type: \"table\" }\n\nSELECT * FROM ${ref(\"a\")}\nJOIN $<caret>\nON TRUE\n");
+
+        chooseTemplate("${ref(\"\")}");
+
+        String text = hostEditor().getDocument().getText();
+        assertEquals(text.indexOf("JOIN ${ref(\"\")}") + "JOIN ${ref(\"".length(),
+                hostEditor().getCaretModel().getOffset());
+    }
+
+    public void testSelfCaretStaysOnTheLineAfterAnEarlierExpression() {
+        configureDefinition("mart.sqlx",
+                "config { type: \"table\" }\n\nSELECT * FROM ${ref(\"a\")}\nJOIN $<caret>\nON TRUE\n");
+
+        chooseTemplate("${self()}");
+
+        String text = hostEditor().getDocument().getText();
+        assertEquals(text.indexOf("JOIN ${self()}") + "JOIN ${self()}".length(),
+                hostEditor().getCaretModel().getOffset());
+    }
+
+    public void testCaretBetweenQuotesAfterAnEarlierExpressionInAnotherBlock() {
+        configureDefinition("mart.sqlx",
+                "config { type: \"table\" }\n\npre_operations {\n  DECLARE x DEFAULT ${when(true, \"1\", \"2\")};\n}\n\nSELECT * FROM $<caret>\n");
+
+        chooseTemplate("${ref(\"\")}");
+
+        String text = hostEditor().getDocument().getText();
+        assertEquals(text.indexOf("FROM ${ref(\"\")}") + "FROM ${ref(\"".length(),
+                hostEditor().getCaretModel().getOffset());
     }
 
     private static int indexOf(List<String> values, String value) {

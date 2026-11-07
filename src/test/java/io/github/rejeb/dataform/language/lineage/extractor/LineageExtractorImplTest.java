@@ -167,4 +167,23 @@ class LineageExtractorImplTest {
         assertFalse(lg.node(LineageNode.idOf("proj.ds.src")).disabled(),
                 "an enabled action must not be flagged");
     }
+
+    @Test
+    void theTypeOfATableIsInLowerCaseWhateverTheCompilerWrites() {
+        CompiledTable table = new CompiledTable();
+        set(table, "target", target("ds", "tbl", "proj"));
+        set(table, "enumType", "INCREMENTAL");
+        set(table, "tags", List.of());
+        set(table, "fileName", "definitions/tbl.sqlx");
+        set(table, "dependencyTargets", List.of());
+        CompiledGraph graph = new CompiledGraph();
+        set(graph, "declarations", List.of());
+        set(graph, "tables", List.of(table));
+        set(graph, "operations", List.of());
+        set(graph, "assertions", List.of());
+
+        LineageGraph lineage = new LineageExtractorImpl().extract(graph);
+
+        assertEquals("incremental", lineage.node(LineageNode.idOf("proj.ds.tbl")).dataformType());
+    }
 }

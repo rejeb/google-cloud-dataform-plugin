@@ -42,6 +42,10 @@ public interface ColumnOriginService {
         return project.getService(ColumnOriginService.class);
     }
 
+    /** The file of the action building the column's table, or null when no such file can be opened. */
+    @Nullable
+    PsiFile buildingFile(@NotNull ColumnRef column);
+
     /** The column this element declares, when it is an item of the main select list. */
     @Nullable
     ColumnRef declaredColumn(@NotNull PsiFile file, @NotNull PsiElement element);

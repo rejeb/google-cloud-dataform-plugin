@@ -17,10 +17,6 @@
 package io.github.rejeb.dataform.language.gcp.common;
 
 import com.google.auth.oauth2.GoogleCredentials;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import com.intellij.openapi.diagnostic.Logger;
 import io.github.rejeb.dataform.language.gcp.auth.DataformCredentialsService;
 import io.github.rejeb.dataform.language.gcp.auth.SslConfig;
@@ -33,20 +29,30 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 
 /**
- * Lists the service accounts of a GCP project through the IAM REST API.
+ * Lists the service accounts usable in a GCP project.
+ *
+ * <p>Two sources are merged: the accounts owned by the project, from the IAM API, then the service
+ * accounts granted a role in the project IAM policy, from the Cloud Resource Manager API. The policy
+ * is the only place listing the Google-provided service agents, such as the Dataform one, since they
+ * belong to Google-owned projects. Both APIs must be enabled in the project of the plugin's OAuth
+ * client.
  *
  * <p>Uses the credential owned by the plugin without ever triggering an interactive sign-in. When
- * the caller lacks the {@code iam.serviceAccounts.list} permission the result is flagged as
- * {@link Result#permissionDenied()} so callers can degrade gracefully.
+ * the caller may read neither source the result is flagged as {@link Result#permissionDenied()} so
+ * callers can degrade gracefully.
  */
 public final class ServiceAccountLister {
 
     private static final Logger LOG = Logger.getInstance(ServiceAccountLister.class);
     private static final String IAM_BASE = "https://iam.googleapis.com/v1/projects/";
+    private static final String RESOURCE_MANAGER_BASE = "https://cloudresourcemanager.googleapis.com/v1/projects/";
+    private static final String GET_IAM_POLICY_BODY = "{\"options\":{\"requestedPolicyVersion\":3}}";
     private static final int PAGE_SIZE = 100;
+    private static final int MAX_LOGGED_BODY = 2000;
     private static final Duration HTTP_TIMEOUT = Duration.ofSeconds(5);
     private static final int HTTP_OK = 200;
     private static final int HTTP_UNAUTHORIZED = 401;
@@ -70,13 +76,21 @@ public final class ServiceAccountLister {
         static Result unavailable() {
             return new Result(List.of(), false);
         }
+
+        static Result merge(@NotNull Result owned, @NotNull Result granted) {
+            LinkedHashSet<String> emails = new LinkedHashSet<>(owned.emails());
+            emails.addAll(granted.emails());
+            return new Result(List.copyOf(emails), owned.permissionDenied() && granted.permissionDenied());
+        }
     }
 
     /**
-     * Lists the service accounts of {@code projectId}.
+     * Lists the service accounts of {@code projectId}, those owned by the project first, then the
+     * other ones granted a role in it, Google-provided service agents included.
      *
-     * <p>Never throws: any failure other than a permission error yields an empty, non-denied result
-     * so the caller can behave as a plain text field.
+     * <p>Never throws: when one source fails the other one is still listed, and any failure other
+     * than a permission error on both yields a non-denied result so the caller can behave as a plain
+     * text field.
      *
      * @param projectId the GCP project id, must not be blank
      * @return the listing result
@@ -86,30 +100,15 @@ public final class ServiceAccountLister {
         if (projectId == null || projectId.isBlank()) {
             return Result.unavailable();
         }
+        String project = projectId.trim();
         try {
-            String token = accessToken(projectId);
+            String token = accessToken(project);
             if (token == null) {
                 return Result.unavailable();
             }
-            List<String> emails = new ArrayList<>();
-            String pageToken = null;
-            do {
-                Page page = fetchPage(projectId, token, pageToken);
-                if (page == null) {
-                    return emails.isEmpty() ? Result.unavailable() : new Result(emails, false);
-                }
-                if (page.denied()) {
-                    return Result.denied();
-                }
-                emails.addAll(page.emails);
-                pageToken = page.nextPageToken;
-            } while (pageToken != null && !pageToken.isBlank());
-            return new Result(List.copyOf(emails), false);
+            return Result.merge(projectAccounts(project, token), grantedAccounts(project, token));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            return Result.unavailable();
-        } catch (Exception e) {
-            LOG.info("Failed to list service accounts for project " + projectId, e);
             return Result.unavailable();
         }
     }
@@ -119,7 +118,7 @@ public final class ServiceAccountLister {
         try {
             GoogleCredentials credentials = DataformCredentialsService.getInstance()
                     .get()
-                    .createWithQuotaProject(projectId.trim());
+                    .createWithQuotaProject(projectId);
             credentials.refreshIfExpired();
             return credentials.getAccessToken() != null
                     ? credentials.getAccessToken().getTokenValue()
@@ -130,51 +129,78 @@ public final class ServiceAccountLister {
         }
     }
 
-    @Nullable
-    private static Page fetchPage(@NotNull String projectId,
-                                  @NotNull String token,
-                                  @Nullable String pageToken) throws IOException, InterruptedException {
-        StringBuilder spec = new StringBuilder(IAM_BASE)
-                .append(URLEncoder.encode(projectId, StandardCharsets.UTF_8))
-                .append("/serviceAccounts?pageSize=").append(PAGE_SIZE);
-        if (pageToken != null && !pageToken.isBlank()) {
-            spec.append("&pageToken=").append(URLEncoder.encode(pageToken, StandardCharsets.UTF_8));
+    @NotNull
+    private static Result projectAccounts(@NotNull String projectId,
+                                          @NotNull String token) throws InterruptedException {
+        List<String> emails = new ArrayList<>();
+        String pageToken = null;
+        try {
+            do {
+                HttpResponse<String> response = SslConfig.getWithBearer(accountsUrl(projectId, pageToken), token,
+                        HTTP_TIMEOUT);
+                if (isDenied(response)) {
+                    logRefusal("IAM API refused the service accounts of " + projectId, response);
+                    return Result.denied();
+                }
+                if (response.statusCode() != HTTP_OK) {
+                    logRefusal("IAM API failed to list the service accounts of " + projectId, response);
+                    break;
+                }
+                ServiceAccountResponseParser.AccountsPage page =
+                        ServiceAccountResponseParser.accountsPage(response.body());
+                emails.addAll(page.emails());
+                pageToken = page.nextPageToken();
+            } while (pageToken != null && !pageToken.isBlank());
+        } catch (IOException | RuntimeException e) {
+            LOG.info("Failed to list the service accounts of project " + projectId, e);
         }
-        HttpResponse<String> response = SslConfig.getWithBearer(spec.toString(), token, HTTP_TIMEOUT);
-        int status = response.statusCode();
-        if (status == HTTP_FORBIDDEN || status == HTTP_UNAUTHORIZED) {
-            return Page.deniedPage();
-        }
-        if (status != HTTP_OK) {
-            return null;
-        }
-        return parse(response.body());
+        return new Result(List.copyOf(emails), false);
     }
 
     @NotNull
-    private static Page parse(@NotNull String json) {
-        List<String> emails = new ArrayList<>();
-        JsonObject root = JsonParser.parseString(json).getAsJsonObject();
-        JsonArray accounts = root.has("accounts") ? root.getAsJsonArray("accounts") : null;
-        if (accounts != null) {
-            for (JsonElement element : accounts) {
-                JsonObject account = element.getAsJsonObject();
-                if (account.has("email")) {
-                    String email = account.get("email").getAsString();
-                    if (email != null && !email.isBlank()) {
-                        emails.add(email);
-                    }
-                }
+    private static Result grantedAccounts(@NotNull String projectId,
+                                          @NotNull String token) throws InterruptedException {
+        try {
+            HttpResponse<String> response = SslConfig.postJsonWithBearer(policyUrl(projectId), token,
+                    GET_IAM_POLICY_BODY, HTTP_TIMEOUT);
+            if (isDenied(response)) {
+                logRefusal("Cloud Resource Manager API refused the IAM policy of " + projectId, response);
+                return Result.denied();
             }
+            if (response.statusCode() != HTTP_OK) {
+                logRefusal("Cloud Resource Manager API failed to read the IAM policy of " + projectId, response);
+                return Result.unavailable();
+            }
+            return new Result(ServiceAccountResponseParser.policyServiceAccounts(response.body()), false);
+        } catch (IOException | RuntimeException e) {
+            LOG.info("Failed to read the IAM policy of project " + projectId, e);
+            return Result.unavailable();
         }
-        String next = root.has("nextPageToken") ? root.get("nextPageToken").getAsString() : null;
-        return new Page(emails, next, false);
     }
 
-    private record Page(@NotNull List<String> emails, @Nullable String nextPageToken, boolean denied) {
-
-        static Page deniedPage() {
-            return new Page(List.of(), null, true);
+    @NotNull
+    private static String accountsUrl(@NotNull String projectId, @Nullable String pageToken) {
+        StringBuilder url = new StringBuilder(IAM_BASE)
+                .append(URLEncoder.encode(projectId, StandardCharsets.UTF_8))
+                .append("/serviceAccounts?pageSize=").append(PAGE_SIZE);
+        if (pageToken != null && !pageToken.isBlank()) {
+            url.append("&pageToken=").append(URLEncoder.encode(pageToken, StandardCharsets.UTF_8));
         }
+        return url.toString();
+    }
+
+    @NotNull
+    private static String policyUrl(@NotNull String projectId) {
+        return RESOURCE_MANAGER_BASE + URLEncoder.encode(projectId, StandardCharsets.UTF_8) + ":getIamPolicy";
+    }
+
+    private static boolean isDenied(@NotNull HttpResponse<String> response) {
+        return response.statusCode() == HTTP_FORBIDDEN || response.statusCode() == HTTP_UNAUTHORIZED;
+    }
+
+    private static void logRefusal(@NotNull String message, @NotNull HttpResponse<String> response) {
+        String body = response.body() == null ? "" : response.body();
+        LOG.info(message + ": HTTP " + response.statusCode() + " "
+                + (body.length() > MAX_LOGGED_BODY ? body.substring(0, MAX_LOGGED_BODY) : body));
     }
 }

@@ -45,6 +45,14 @@ public class InvocationSummaryTest {
     }
 
     @Test
+    public void theConsoleUrlIsBuiltFromTheInvocationNameAlone() {
+        assertEquals("https://console.cloud.google.com/bigquery/dataform/locations/eu/repositories/r"
+                        + "/workflows/inv-1?project=p",
+                InvocationSummary.workflowConsoleUrl(INVOCATION));
+        assertNull(InvocationSummary.workflowConsoleUrl("bad/name"));
+    }
+
+    @Test
     public void consoleUrlFallsBackToTheConsoleRootForAMalformedName() {
         assertEquals("https://console.cloud.google.com/", summary("bad/name", "cr", null).gcpConsoleUrl());
     }

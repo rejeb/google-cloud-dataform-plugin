@@ -24,6 +24,7 @@ import com.intellij.util.concurrency.AppExecutorUtil;
 import com.intellij.util.xmlb.annotations.Tag;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.concurrent.CompletableFuture;
 
@@ -66,14 +67,35 @@ public interface DataformCompilationService extends Disposable, PersistentStateC
     }
 
     /**
+     * What the last run of the Dataform CLI did, or {@code null} when it never ran. Read after
+     * {@link #compile(boolean)} to tell a CLI failure from a compilation with errors.
+     */
+    default @Nullable CliRun lastCliRun() {
+        return null;
+    }
+
+    /**
+     * When the Dataform CLI started the run that produced the current graph, in epoch milliseconds,
+     * or {@code -1} when no graph was compiled.
+     */
+    default long lastCompiledAt() {
+        return -1;
+    }
+
+    /**
      * Moves each time the compiled graph is replaced or its errors change, whoever compiled.
      */
     @Override
     long getModificationCount();
 
     class State {
+        public static final int RAW_CLI_OUTPUT = 1;
+
         @Tag("compiledGraphJson")
         public String compiledGraphJson = null;
+
+        @Tag("compiledGraphFormat")
+        public int compiledGraphFormat = 0;
 
         @Tag("lastCompileTimestamp")
         public long lastCompileTimestamp = -1;

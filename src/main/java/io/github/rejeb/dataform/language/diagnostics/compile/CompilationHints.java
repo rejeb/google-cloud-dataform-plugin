@@ -17,6 +17,7 @@
 package io.github.rejeb.dataform.language.diagnostics.compile;
 
 import com.intellij.openapi.util.TextRange;
+import com.intellij.psi.PsiFile;
 import io.github.rejeb.dataform.language.diagnostics.sql.hint.NameSuggester;
 import io.github.rejeb.dataform.language.diagnostics.sql.hint.SqlFix;
 import io.github.rejeb.dataform.language.diagnostics.sql.hint.SqlHint;
@@ -41,6 +42,20 @@ final class CompilationHints {
     private static final int MAX_SUGGESTIONS = 3;
 
     private CompilationHints() {
+    }
+
+    static @NotNull SqlHint hintAt(@NotNull PsiFile file, @NotNull String path, @NotNull ParsedCompilationError error,
+                                   @NotNull TextRange range) {
+        StackFrame origin = raisedElsewhere(error, path);
+        return origin != null
+                ? new SqlHint("Fix it in " + origin.path() + " line " + origin.line() + ".", List.of())
+                : hintFor(error, range, file.getText(), PsiCompilationScope.at(file, range.getStartOffset()));
+    }
+
+    static @Nullable StackFrame raisedElsewhere(@NotNull ParsedCompilationError error, @NotNull String path) {
+        if (error.indexOfFrameIn(path) <= 0) return null;
+        StackFrame top = error.frames().getFirst();
+        return top.path().startsWith("definitions/") || top.path().startsWith("includes/") ? top : null;
     }
 
     static @NotNull SqlHint hintFor(@NotNull ParsedCompilationError error, @NotNull TextRange range,

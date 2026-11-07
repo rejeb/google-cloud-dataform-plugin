@@ -18,6 +18,7 @@ package io.github.rejeb.dataform.language.gcp.workspace.repository;
 
 import io.github.rejeb.dataform.language.gcp.common.CommitAuthorConfig;
 import io.github.rejeb.dataform.language.gcp.common.GcpApiException;
+import io.github.rejeb.dataform.language.gcp.workspace.DataformRepository;
 import io.github.rejeb.dataform.language.gcp.workspace.UncommittedChange;
 import io.github.rejeb.dataform.language.gcp.workspace.Workspace;
 import org.jetbrains.annotations.NotNull;
@@ -28,6 +29,27 @@ import java.util.Map;
 import java.util.Set;
 
 public interface WorkspaceRepository {
+
+    /**
+     * Reads one Dataform repository.
+     *
+     * @throws GcpApiException on network or API error, or when the repository does not exist
+     */
+    @NotNull DataformRepository findRepository(
+            @NotNull String projectId,
+            @NotNull String location,
+            @NotNull String repositoryId
+    );
+
+    /**
+     * Lists the Dataform repositories of a GCP project in one location, sorted by name.
+     *
+     * @throws GcpApiException on network or API error
+     */
+    @NotNull List<DataformRepository> findRepositories(
+            @NotNull String projectId,
+            @NotNull String location
+    );
 
     /**
      * Fetches all workspaces for the given GCP Dataform repository.
@@ -43,6 +65,8 @@ public interface WorkspaceRepository {
     /**
      * Commits and pushes local workspace changes to the remote repository.
      *
+     * @param remoteBranch the branch of the Git remote receiving the commits, {@code null} for the
+     *                     default branch of the repository
      * @throws GcpApiException on network or API error
      */
     void pushGitCommits(
@@ -50,6 +74,7 @@ public interface WorkspaceRepository {
             @NotNull String location,
             @NotNull String repositoryId,
             @NotNull String workspaceId,
+            @Nullable String remoteBranch,
             @NotNull CommitAuthorConfig author
     );
 

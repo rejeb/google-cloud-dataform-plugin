@@ -69,7 +69,7 @@ public class DataformModuleBuilder extends ModuleBuilder {
     @Nullable
     @Override
     public ModuleWizardStep getCustomOptionsStep(WizardContext context, Disposable parentDisposable) {
-        return new DataformModuleWizardStep(this);
+        return new DataformModuleWizardStep(this, context.getProject());
     }
 
     public DataformProjectSettings getSettings() {

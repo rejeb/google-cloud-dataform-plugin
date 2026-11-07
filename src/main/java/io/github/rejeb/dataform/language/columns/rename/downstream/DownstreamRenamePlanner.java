@@ -35,6 +35,7 @@ import io.github.rejeb.dataform.language.columns.rename.usage.ColumnRenameEdit;
 import io.github.rejeb.dataform.language.columns.rename.usage.ConfigRenameEditCollector;
 import io.github.rejeb.dataform.language.columns.rename.usage.EditFactory;
 import io.github.rejeb.dataform.language.columns.rename.usage.HostRanges;
+import io.github.rejeb.dataform.language.columns.rename.usage.TestRenameEditCollector;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.compilation.model.Target;
@@ -64,7 +65,8 @@ import static io.github.rejeb.dataform.language.util.Utils.DATAFORM_SCHEMA_PREFI
  * read. A read in the main select list publishes the column under the new name once rewritten, and
  * the rename of that column goes on downstream through the refactoring, which still resolves it. A
  * read in a common table expression or a subquery keeps the inner name with an alias, so the rest of
- * the query is left alone.</p>
+ * the query is left alone. The unit tests mocking a renamed action as an input, or testing one,
+ * write their rows under the new name.</p>
  *
  * <p>Reads the PSI and searches the project, so it runs in a read action away from the event
  * thread.</p>
@@ -95,6 +97,7 @@ public final class DownstreamRenamePlanner {
 
         List<ColumnRenameEdit> edits = new ArrayList<>(
                 ConfigRenameEditCollector.collect(renamedFile, rename.oldName(), rename.newName()));
+        edits.addAll(TestRenameEditCollector.collect(project, oldColumnsOf(rename), rename.newName()));
         List<String> warnings = new ArrayList<>();
         Set<ColumnRef> columns = new LinkedHashSet<>(Set.of(column));
         Map<String, PsiFile> readers = readersOf(project, graph, rename.renamedTables());
@@ -103,8 +106,21 @@ public final class DownstreamRenamePlanner {
         for (ColumnRef carried : published) {
             renameDownstream(project, origins, carried, rename.newName(), edits, warnings, columns);
         }
-        return new ColumnRenamePlan(subject, rename.newName(), Set.copyOf(columns), edits, List.of(),
+        return new ColumnRenamePlan(subject, rename.newName(), Set.copyOf(columns), distinct(edits), List.of(),
                 List.copyOf(warnings), null);
+    }
+
+    private static @NotNull Set<ColumnRef> oldColumnsOf(@NotNull DownstreamRename rename) {
+        Set<ColumnRef> columns = new LinkedHashSet<>();
+        columns.add(new ColumnRef(rename.tableFullName(), rename.oldName()));
+        rename.renamedTables().forEach(table -> columns.add(new ColumnRef(table, rename.oldName())));
+        return columns;
+    }
+
+    private static @NotNull List<ColumnRenameEdit> distinct(@NotNull List<ColumnRenameEdit> edits) {
+        Map<String, ColumnRenameEdit> byPlace = new LinkedHashMap<>();
+        edits.forEach(edit -> byPlace.putIfAbsent(edit.key(), edit));
+        return List.copyOf(byPlace.values());
     }
 
     private static @Nullable PsiFile fileOf(@NotNull Project project, @NotNull CompiledGraph graph,

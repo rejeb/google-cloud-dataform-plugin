@@ -28,6 +28,7 @@ import javax.swing.tree.DefaultTreeModel;
 public class DataformRepoTreeModel extends DefaultTreeModel {
 
     private Map<String, UncommittedChange.ChangeState> gitStatuses = Map.of();
+    private List<String> files = List.of();
 
     public DataformRepoTreeModel(@NotNull String repositoryId) {
         super(new DefaultMutableTreeNode(
@@ -36,7 +37,8 @@ public class DataformRepoTreeModel extends DefaultTreeModel {
     }
 
     /**
-     * Replaces the Git states of the files and repaints the tree. Must be called on the EDT.
+     * Replaces the Git states of the files and rebuilds the tree, listing the files deleted in the
+     * workspace with the others. Must be called on the EDT.
      */
     public void setGitStatuses(@NotNull List<UncommittedChange> changes) {
         Map<String, UncommittedChange.ChangeState> map = new HashMap<>();
@@ -44,7 +46,15 @@ public class DataformRepoTreeModel extends DefaultTreeModel {
             map.put(c.path(), c.state());
         }
         this.gitStatuses = Collections.unmodifiableMap(map);
-        reload(); // force le re-rendu de tous les nœuds
+        rebuild();
+    }
+
+    /**
+     * Whether a file under the directory, at any depth, changed in the workspace.
+     */
+    public boolean hasChangesUnder(@NotNull String directoryPath) {
+        String prefix = directoryPath + "/";
+        return gitStatuses.keySet().stream().anyMatch(path -> path.startsWith(prefix));
     }
 
     /**
@@ -74,11 +84,25 @@ public class DataformRepoTreeModel extends DefaultTreeModel {
         reload();
     }
 
+    /**
+     * Replaces the files of the repository and rebuilds the tree. Must be called on the EDT.
+     */
     public void setFiles(@NotNull List<String> files) {
+        this.files = List.copyOf(files);
+        rebuild();
+    }
+
+    private void rebuild() {
         DefaultMutableTreeNode root = (DefaultMutableTreeNode) getRoot();
         root.removeAllChildren();
         Map<String, DefaultMutableTreeNode> dirNodes = new HashMap<>();
-        for (String path : new TreeSet<>(files)) {
+        Set<String> paths = new TreeSet<>(files);
+        gitStatuses.forEach((path, state) -> {
+            if (state == UncommittedChange.ChangeState.DELETED) {
+                paths.add(path);
+            }
+        });
+        for (String path : paths) {
             int slash = path.lastIndexOf('/');
             dirNode(root, dirNodes, slash < 0 ? "" : path.substring(0, slash))
                     .add(new DefaultMutableTreeNode(new FileEntry(path, path.substring(slash + 1))));

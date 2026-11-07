@@ -18,13 +18,11 @@ package io.github.rejeb.dataform.language.gcp.toolwindow;
 
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.ui.ComboBox;
 import io.github.rejeb.dataform.language.gcp.common.ServiceAccountLister;
+import io.github.rejeb.dataform.language.ui.FilteringComboBox;
 import org.jetbrains.annotations.NotNull;
 
-import javax.swing.DefaultComboBoxModel;
 import javax.swing.SwingUtilities;
-import javax.swing.text.JTextComponent;
 import java.awt.Component;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
@@ -32,14 +30,15 @@ import java.util.List;
 import java.util.function.Supplier;
 
 /**
- * Editable combo box that suggests the service accounts of the current GCP project.
+ * Editable combo box that suggests the service accounts of the current GCP project, keeping those
+ * matching the typed text.
  *
  * <p>When the field gains focus the service accounts of the project returned by the supplier are
  * fetched in the background and, if any are available, the drop-down is opened. When the caller
  * lacks the permission to list service accounts the drop-down stays closed and the component behaves
  * as a plain text field. The remote listing for a given project id is performed at most once.
  */
-public class ServiceAccountComboBox extends ComboBox<String> {
+public class ServiceAccountComboBox extends FilteringComboBox {
 
     private final Project project;
     private final Supplier<String> projectIdSupplier;
@@ -49,9 +48,9 @@ public class ServiceAccountComboBox extends ComboBox<String> {
     private long generation;
 
     public ServiceAccountComboBox(@NotNull Project project, @NotNull Supplier<String> projectIdSupplier) {
+        super(List.of());
         this.project = project;
         this.projectIdSupplier = projectIdSupplier;
-        setEditable(true);
 
         Component editorComponent = getEditor().getEditorComponent();
         editorComponent.addFocusListener(new FocusAdapter() {
@@ -60,22 +59,6 @@ public class ServiceAccountComboBox extends ComboBox<String> {
                 onFocusGained();
             }
         });
-    }
-
-    /**
-     * @return the current text of the editor, never {@code null}
-     */
-    @NotNull
-    public String getText() {
-        Object item = getEditor().getItem();
-        return item != null ? item.toString().trim() : "";
-    }
-
-    /**
-     * Sets the editor text without triggering a remote listing.
-     */
-    public void setText(@NotNull String text) {
-        setSelectedItem(text);
     }
 
     private void onFocusGained() {
@@ -111,20 +94,9 @@ public class ServiceAccountComboBox extends ComboBox<String> {
         if (result.permissionDenied() || result.emails().isEmpty()) {
             return;
         }
-        String current = getText();
-        List<String> emails = result.emails();
-        setModel(new DefaultComboBoxModel<>(emails.toArray(new String[0])));
-        restoreEditorText(current);
+        setItems(result.emails());
         if (isFocusOwnerWithinEditor()) {
             showPopup();
-        }
-    }
-
-    private void restoreEditorText(@NotNull String text) {
-        setSelectedItem(text);
-        Component editorComponent = getEditor().getEditorComponent();
-        if (editorComponent instanceof JTextComponent textComponent) {
-            textComponent.setText(text);
         }
     }
 

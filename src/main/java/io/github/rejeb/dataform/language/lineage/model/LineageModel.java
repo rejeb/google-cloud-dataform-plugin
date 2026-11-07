@@ -39,7 +39,8 @@ import java.util.function.Consumer;
  * Central observable state for the lineage view: graph data, filter state, selection,
  * and view preferences. Views subscribe via {@link #addListener} and re-render on any
  * mutation. All derived queries ({@link #visibleIds()}, {@link #ancestors},
- * {@link #descendants}, {@link #highlightLineage()}) are pure functions over the current state.
+ * {@link #descendants}, {@link #searchMatches()}, {@link #dimmedIds()}, {@link #highlightedIds()}) are pure functions over the
+ * current state; the highlight sets are cached until the next mutation.
  *
  * <p>Mutators fire listeners synchronously on the calling thread; callers are responsible
  * for invoking mutators on the EDT when a UI refresh must follow.</p>
@@ -65,6 +66,7 @@ public final class LineageModel {
     private @Nullable String selectedId;
     private @Nullable String focusId;
     private @Nullable String hoverId;
+    private @Nullable Highlight highlight;
 
     private @NotNull Direction direction = Direction.LR;
     private @NotNull Density density = Density.COMFORTABLE;
@@ -80,6 +82,7 @@ public final class LineageModel {
     }
 
     private void fire() {
+        highlight = null;
         for (Consumer<LineageModel> listener : listeners) {
             listener.accept(this);
         }
@@ -155,7 +158,25 @@ public final class LineageModel {
     }
 
     public void setSearchQuery(@NotNull String query) {
+        if (searchQuery.equals(query)) return;
         this.searchQuery = query;
+        fire();
+    }
+
+    /**
+     * Shows every action again: every type and schema checked, no tag filter, no focus and no
+     * search.
+     */
+    public void resetFilters() {
+        enabledTypes.clear();
+        enabledSchemas.clear();
+        for (LineageNode node : graph.nodes()) {
+            enabledTypes.add(node.dataformType());
+            enabledSchemas.add(node.schema());
+        }
+        enabledTags.clear();
+        focusId = null;
+        searchQuery = "";
         fire();
     }
 
@@ -327,12 +348,11 @@ public final class LineageModel {
         return List.copyOf(sorted);
     }
 
-    /** Ids of all nodes passing the active filters (types AND tags AND schemas AND search, then scope, then focus). */
+    /** Ids of all nodes passing the active filters (types AND tags AND schemas, then scope, then focus). */
     public @NotNull Set<String> visibleIds() {
-        String needle = searchQuery.trim().toLowerCase(Locale.ROOT);
         Set<String> visible = new LinkedHashSet<>();
         for (LineageNode node : graph.nodes()) {
-            if (matches(node, needle)) visible.add(node.id());
+            if (passesFilters(node)) visible.add(node.id());
         }
         if (scopeIds != null) visible.retainAll(scopeIds);
         if (focusId != null && graph.node(focusId) != null) {
@@ -367,16 +387,96 @@ public final class LineageModel {
         return tables.isEmpty() ? null : tables;
     }
 
-    private boolean matches(@NotNull LineageNode node, @NotNull String needle) {
+    private boolean passesFilters(@NotNull LineageNode node) {
         if (!enabledTypes.contains(node.dataformType())) return false;
         if (!enabledTags.isEmpty() && node.tags().stream().noneMatch(enabledTags::contains)) return false;
-        if (!enabledSchemas.contains(node.schema())) return false;
-        if (!needle.isEmpty()) {
-            String haystack = (node.name() + " " + node.schema() + " " + String.join(",", node.tags()))
-                    .toLowerCase(Locale.ROOT);
-            return haystack.contains(needle);
+        return enabledSchemas.contains(node.schema());
+    }
+
+    /**
+     * Ids of the shown nodes whose name, schema or tags contain the search text; empty while the
+     * search is empty.
+     */
+    public @NotNull Set<String> searchMatches() {
+        String needle = searchQuery.trim().toLowerCase(Locale.ROOT);
+        if (needle.isEmpty()) return Set.of();
+        Set<String> matches = new LinkedHashSet<>();
+        for (String id : visibleIds()) {
+            LineageNode node = graph.node(id);
+            if (node != null && matchesSearch(node, needle)) matches.add(id);
         }
-        return true;
+        return matches;
+    }
+
+    /**
+     * Ids of the shown nodes drawn faded: those outside the upstream and downstream of the
+     * selected node, otherwise those the search leaves out. Empty with no selection and no search.
+     */
+    public @NotNull Set<String> dimmedIds() {
+        return highlight().dimmed();
+    }
+
+    /**
+     * Ids of the shown nodes drawn with the search outline: the upstream and downstream nodes of
+     * the selection while it leaves other nodes out, otherwise the search matches.
+     */
+    public @NotNull Set<String> highlightedIds() {
+        return highlight().outlined();
+    }
+
+    /**
+     * Whether the edge lies on an upstream or downstream path of the selected node, drawn in the
+     * accent colour.
+     */
+    public boolean isSelectionLineageEdge(@NotNull String fromId, @NotNull String toId) {
+        Highlight current = highlight();
+        return current.upstream().contains(fromId) && current.upstream().contains(toId)
+                || current.downstream().contains(fromId) && current.downstream().contains(toId);
+    }
+
+    private @NotNull Highlight highlight() {
+        Highlight current = highlight;
+        if (current == null) {
+            current = computeHighlight();
+            highlight = current;
+        }
+        return current;
+    }
+
+    private @NotNull Highlight computeHighlight() {
+        Set<String> visible = visibleIds();
+        if (selectedId != null && visible.contains(selectedId)) {
+            Set<String> upstream = new LinkedHashSet<>(ancestors(selectedId));
+            upstream.add(selectedId);
+            Set<String> downstream = new LinkedHashSet<>(descendants(selectedId));
+            downstream.add(selectedId);
+            Set<String> dimmed = new LinkedHashSet<>(visible);
+            dimmed.removeAll(upstream);
+            dimmed.removeAll(downstream);
+            Set<String> outlined = new LinkedHashSet<>();
+            if (!dimmed.isEmpty()) {
+                for (String id : visible) {
+                    if (!dimmed.contains(id) && !id.equals(selectedId)) outlined.add(id);
+                }
+            }
+            return new Highlight(Set.copyOf(dimmed), Set.copyOf(outlined), Set.copyOf(upstream), Set.copyOf(downstream));
+        }
+        if (searchQuery.isBlank()) return Highlight.NONE;
+        Set<String> matches = searchMatches();
+        Set<String> dimmed = new LinkedHashSet<>(visible);
+        dimmed.removeAll(matches);
+        return new Highlight(Set.copyOf(dimmed), Set.copyOf(matches), Set.of(), Set.of());
+    }
+
+    private record Highlight(@NotNull Set<String> dimmed, @NotNull Set<String> outlined,
+                             @NotNull Set<String> upstream, @NotNull Set<String> downstream) {
+        static final Highlight NONE = new Highlight(Set.of(), Set.of(), Set.of(), Set.of());
+    }
+
+    private static boolean matchesSearch(@NotNull LineageNode node, @NotNull String needle) {
+        String haystack = (node.name() + " " + node.schema() + " " + String.join(",", node.tags()))
+                .toLowerCase(Locale.ROOT);
+        return haystack.contains(needle);
     }
 
     public @NotNull Set<String> ancestors(@NotNull String id) {
@@ -385,20 +485,6 @@ public final class LineageModel {
 
     public @NotNull Set<String> descendants(@NotNull String id) {
         return graph.descendants(id);
-    }
-
-    /**
-     * Ids to highlight: the hovered node if any, otherwise the selected node, together with
-     * its full upstream and downstream lineage. Empty when nothing is hovered or selected.
-     */
-    public @NotNull Set<String> highlightLineage() {
-        String target = hoverId != null ? hoverId : selectedId;
-        if (target == null || graph.node(target) == null) return Set.of();
-        Set<String> result = new LinkedHashSet<>();
-        result.add(target);
-        result.addAll(ancestors(target));
-        result.addAll(descendants(target));
-        return result;
     }
 
     private void restoreViewState() {

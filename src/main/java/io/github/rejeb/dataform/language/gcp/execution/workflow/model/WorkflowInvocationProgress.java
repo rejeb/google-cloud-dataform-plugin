@@ -42,4 +42,42 @@ public record WorkflowInvocationProgress(
     public boolean isTerminal() {
         return state != WorkflowInvocationState.RUNNING;
     }
+
+    /**
+     * Whether an action of this snapshot has yet to reach its final state.
+     */
+    public boolean hasUnendedActions() {
+        return actions.stream().anyMatch(WorkflowInvocationProgress::isUnended);
+    }
+
+    /**
+     * This snapshot, with the run still running.
+     */
+    @NotNull
+    public WorkflowInvocationProgress asStillRunning() {
+        return new WorkflowInvocationProgress(invocationName, WorkflowInvocationState.RUNNING, actions, summary,
+                errorMessage);
+    }
+
+    /**
+     * This snapshot, with the actions that have yet to reach their final state marked unknown.
+     */
+    @NotNull
+    public WorkflowInvocationProgress withUnendedActionsUnknown() {
+        List<InvocationActionResult> ended = actions.stream()
+                .map(action -> isUnended(action) ? unknown(action) : action)
+                .toList();
+        return new WorkflowInvocationProgress(invocationName, state, ended, summary, errorMessage);
+    }
+
+    private static boolean isUnended(@NotNull InvocationActionResult action) {
+        return action.state() == InvocationActionState.PENDING || action.state() == InvocationActionState.RUNNING;
+    }
+
+    @NotNull
+    private static InvocationActionResult unknown(@NotNull InvocationActionResult action) {
+        return new InvocationActionResult(action.target(), InvocationActionState.UNKNOWN, action.failureReason(),
+                action.startTime(), action.endTime(), action.jobId(), action.jobProject(), action.jobLocation(),
+                action.jobDataset(), action.sqlScript());
+    }
 }

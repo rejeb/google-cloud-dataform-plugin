@@ -16,435 +16,258 @@
  */
 package io.github.rejeb.dataform.language.lineage.view;
 
-import com.intellij.ui.ColorUtil;
+import com.intellij.ui.components.ActionLink;
 import com.intellij.ui.components.JBCheckBox;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBScrollPane;
 import com.intellij.ui.components.panels.VerticalLayout;
 import com.intellij.ui.scale.JBUIScale;
+import com.intellij.util.ui.JBFont;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
-import com.intellij.util.ui.WrapLayout;
 import io.github.rejeb.dataform.language.lineage.graph.LineageNode;
 import io.github.rejeb.dataform.language.lineage.model.LineageModel;
+import io.github.rejeb.dataform.language.ui.CollapsibleSection;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import javax.swing.Icon;
+import javax.swing.JPanel;
+import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
-import java.awt.Color;
-import java.awt.Cursor;
 import java.awt.Dimension;
-import java.awt.FlowLayout;
-import java.awt.Font;
-import java.awt.FontMetrics;
-import java.awt.Graphics2D;
-import java.awt.Graphics;
-import java.awt.RenderingHints;
+import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import javax.swing.BorderFactory;
-import javax.swing.JComponent;
-import javax.swing.JPanel;
-import javax.swing.SwingUtilities;
-
-import static io.github.rejeb.dataform.language.lineage.view.FilterWidgets.dim;
-import static io.github.rejeb.dataform.language.lineage.view.FilterWidgets.glyphLabel;
-import static io.github.rejeb.dataform.language.lineage.view.FilterWidgets.link;
-import static io.github.rejeb.dataform.language.lineage.view.FilterWidgets.monospace;
+import java.util.TreeMap;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
- * Left sidebar with collapsible filter sections bound to the {@link LineageModel},
- * rendered to match the design reference: action-type rows (checkbox + glyph + label +
- * count), wrapping tag pill chips, schema rows (inverse-default), a focus card, a
- * fit-to-view button, and a type legend. Non-resizable; its width is sized to the longest
- * element that cannot wrap. Rebuilt only when a relevant signature changes.
+ * The left sidebar of the project lineage, as in the UI prototype: one collapsible section per
+ * filter (action types, tags, schemas) whose header sums up the filter, each a list of rows with a
+ * check box, the name and the node count, and one link resetting every filter. The checks mirror
+ * the {@link LineageModel} filters and checking a row toggles its filter. A checked type or schema
+ * is shown; checked tags narrow the view to the actions having any of them.
  */
 public final class FiltersPanel extends JPanel {
 
-    private static final List<String> CANONICAL_TYPES = List.of(
-            "declaration", "view", "incremental", "table", "operation");
-    private static final int MIN_WIDTH = 210;
-    private static final int MAX_WIDTH = 360;
+    private static final int WIDTH = 240;
+    private static final int ROW_HEIGHT = 26;
+    private static final int ROW_GAP = 8;
 
     private final LineageModel model;
-    private final Runnable onFit;
-    private final JPanel content = new JPanel(new VerticalLayout(0));
-    private final Map<String, Boolean> sectionOpen = new HashMap<>();
-    private String lastSignature;
-    private int contentWidth = JBUIScale.scale(240);
+    private final Filter types;
+    private final Filter tags;
+    private final Filter schemas;
+    private String structure;
+    private boolean updating;
 
-    public FiltersPanel(@NotNull LineageModel model, @NotNull Runnable onFit) {
+    /**
+     * Creates the sidebar bound to the given model.
+     */
+    public FiltersPanel(@NotNull LineageModel model) {
         super(new BorderLayout());
         this.model = model;
-        this.onFit = onFit;
-        content.setBackground(UIUtil.getPanelBackground());
-        content.setBorder(JBUI.Borders.emptyTop(4));
+        types = new Filter("Action types", true, model::toggleType, model::enabledTypes, TypeGlyphIcon::small);
+        tags = new Filter("Tags", true, model::toggleTag, model::enabledTags, item -> null);
+        schemas = new Filter("Schemas", false, model::toggleSchema, model::enabledSchemas, item -> null);
 
-        sectionOpen.put("Action types", true);
-        sectionOpen.put("Tags", true);
-        sectionOpen.put("Schemas", false);
-        sectionOpen.put("Focus", false);
+        JPanel content = new JPanel(new VerticalLayout(0));
+        content.setBackground(UIUtil.getPanelBackground());
+        content.setBorder(JBUI.Borders.empty(6, 10, 10, 10));
+        content.add(types.section);
+        content.add(tags.section);
+        content.add(schemas.section);
+        JPanel reset = new JPanel(new BorderLayout());
+        reset.setOpaque(false);
+        reset.setBorder(JBUI.Borders.empty(4, 20, 0, 0));
+        reset.add(new ActionLink("Reset all filters", (ActionListener) e -> model.resetFilters()), BorderLayout.WEST);
+        content.add(reset);
 
         JBScrollPane scroll = new JBScrollPane(content,
                 JBScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JBScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         scroll.setBorder(JBUI.Borders.empty());
         add(scroll, BorderLayout.CENTER);
+        setBorder(JBUI.Borders.customLine(UIUtil.getBoundsColor(), 0, 0, 0, 1));
+        Dimension size = new Dimension(JBUIScale.scale(WIDTH), 0);
+        setPreferredSize(size);
+        setMinimumSize(size);
 
-        rebuild();
-        model.addListener(m -> onModelChanged());
+        refresh();
+        model.addListener(m -> SwingUtilities.invokeLater(this::refresh));
     }
 
-    private void onModelChanged() {
-        String signature = model.typeCounts().keySet() + "|" + model.tagCounts().keySet() + "|"
-                + model.schemas() + "|" + model.enabledTypes() + "|" + model.enabledTags() + "|"
-                + model.enabledSchemas() + "|" + model.focusId();
-        if (signature.equals(lastSignature)) return;
-        lastSignature = signature;
-        SwingUtilities.invokeLater(this::rebuild);
+    List<Row> typeRows() {
+        return types.rows;
     }
 
-    private void rebuild() {
-        contentWidth = computeWidth();
-        setPreferredSize(new Dimension(contentWidth, 0));
-        setMinimumSize(new Dimension(contentWidth, 0));
-        setMaximumSize(new Dimension(contentWidth, Integer.MAX_VALUE));
-
-        content.removeAll();
-        content.add(typesSection());
-        content.add(tagsSection());
-        content.add(schemasSection());
-        content.add(focusSection());
-        content.add(legend());
-        content.revalidate();
-        content.repaint();
-        revalidate();
+    List<Row> tagRows() {
+        return tags.rows;
     }
 
-    private @NotNull List<String> displayTypes() {
-        Set<String> present = model.typeCounts().keySet();
-        Set<String> ordered = new LinkedHashSet<>();
-        for (String type : CANONICAL_TYPES) {
-            if (present.contains(type)) ordered.add(type);
-        }
-        ordered.addAll(present);
-        return new ArrayList<>(ordered);
+    List<Row> schemaRows() {
+        return schemas.rows;
     }
 
-    private JComponent typesSection() {
-        int enabled = model.enabledTypes().size();
-        int total = model.typeCounts().size();
-        Runnable clear = enabled != total ? this::enableAllTypes : null;
-        Section section = new Section("Action types", enabled + "/" + total, clear);
-        for (String type : displayTypes()) {
-            int count = model.typeCounts().getOrDefault(type, 0);
-            section.body.add(checkRow(LineageTheme.glyphFor(type), LineageTheme.typeColor(type),
-                    type, count, model.enabledTypes().contains(type), () -> model.toggleType(type), false));
-        }
-        return section;
+    /**
+     * The summaries of the section headers: types, tags, then schemas.
+     */
+    List<String> summaries() {
+        return List.of(types.summary.getText(), tags.summary.getText(), schemas.summary.getText());
     }
 
-    private JComponent tagsSection() {
-        int selected = model.enabledTags().size();
-        Runnable clear = selected > 0 ? this::clearTags : null;
-        Section section = new Section("Tags", selected > 0 ? String.valueOf(selected)
-                : String.valueOf(model.tagCounts().size()), clear);
-        JPanel chips = new JPanel(new WrapLayout(FlowLayout.LEFT, JBUIScale.scale(4), JBUIScale.scale(4)));
-        chips.setOpaque(false);
-        model.tagCounts().entrySet().stream()
-                .sorted((a, b) -> b.getValue() - a.getValue())
-                .forEach(e -> chips.add(new Chip(e.getKey(), e.getValue(),
-                        model.enabledTags().contains(e.getKey()), () -> model.toggleTag(e.getKey()))));
-        if (model.tagCounts().isEmpty()) {
-            section.body.add(hint("No tags."));
-        } else {
-            section.body.add(chips);
-            section.body.add(hint(selected == 0 ? "No tag filter — all shown"
-                    : "Match ANY selected (" + selected + ")"));
-        }
-        return section;
-    }
-
-    private JComponent schemasSection() {
-        int enabled = model.enabledSchemas().size();
-        int total = model.schemas().size();
-        Runnable clear = enabled != total ? this::enableAllSchemas : null;
-        Section section = new Section("Schemas", enabled + "/" + total, clear);
-        Map<String, Integer> counts = schemaCounts();
-        for (String schema : model.schemas()) {
-            boolean shown = model.enabledSchemas().contains(schema);
-            section.body.add(checkRow(null, null, schema, counts.getOrDefault(schema, 0),
-                    shown, () -> model.toggleSchema(schema), true));
-        }
-        if (model.schemas().isEmpty()) section.body.add(hint("No schemas."));
-        return section;
-    }
-
-    private JComponent focusSection() {
-        Section section = new Section("Focus", null, null);
-        String focusId = model.focusId();
-        if (focusId != null) {
-            LineageNode node = model.graph().node(focusId);
-            JPanel card = new JPanel(new VerticalLayout(JBUIScale.scale(4)));
-            card.setBorder(BorderFactory.createCompoundBorder(
-                    JBUI.Borders.customLine(UIUtil.getBoundsColor()), JBUI.Borders.empty(8)));
-            card.setOpaque(false);
-            JPanel row = new JPanel(new BorderLayout());
-            row.setOpaque(false);
-            row.add(dim("FOCUSED ON"), BorderLayout.WEST);
-            row.add(link("exit", model::exitFocus), BorderLayout.EAST);
-            card.add(row);
-            card.add(new JBLabel(LineageTheme.glyphFor(node != null ? node.dataformType() : "")
-                    + "  " + (node != null ? node.name() : focusId)));
-            card.add(hint("Showing only upstream + downstream of this node."));
-            section.body.add(card);
-        } else {
-            section.body.add(hint("Right-click a node → Focus on lineage to isolate its dependencies."));
-        }
-        section.body.add(fitButton());
-        return section;
-    }
-
-    private JComponent legend() {
-        JPanel panel = new JPanel(new VerticalLayout(JBUIScale.scale(2)));
-        panel.setOpaque(false);
-        panel.setBorder(BorderFactory.createCompoundBorder(
-                JBUI.Borders.empty(12, 12, 0, 12),
-                BorderFactory.createCompoundBorder(
-                        BorderFactory.createDashedBorder(UIUtil.getBoundsColor()),
-                        JBUI.Borders.empty(8))));
-        panel.add(dim("LEGEND"));
-        for (String type : displayTypes()) {
-            JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, JBUIScale.scale(8), 0));
-            row.setOpaque(false);
-            row.add(glyphLabel(LineageTheme.glyphFor(type), LineageTheme.typeColor(type)));
-            row.add(new JBLabel(type));
-            panel.add(row);
-        }
-        return panel;
-    }
-
-    private JComponent checkRow(@Nullable String glyph, @Nullable Color glyphColor, @NotNull String label,
-                                int count, boolean checked, @NotNull Runnable onToggle, boolean mono) {
-        JPanel row = new JPanel(new BorderLayout(JBUIScale.scale(8), 0));
-        row.setOpaque(false);
-        row.setBorder(JBUI.Borders.empty(2, 4));
-
-        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, JBUIScale.scale(6), 0));
-        left.setOpaque(false);
-        JBCheckBox box = new JBCheckBox(null, checked);
-        box.setOpaque(false);
-        box.addActionListener(e -> onToggle.run());
-        left.add(box);
-        if (glyph != null && glyphColor != null) left.add(glyphLabel(glyph, glyphColor));
-        JBLabel name = new JBLabel(label);
-        if (mono) name.setFont(monospace(name.getFont()));
-        left.add(name);
-        row.add(left, BorderLayout.WEST);
-
-        JBLabel countLabel = new JBLabel(String.valueOf(count));
-        countLabel.setFont(monospace(countLabel.getFont()));
-        countLabel.setForeground(UIUtil.getLabelDisabledForeground());
-        row.add(countLabel, BorderLayout.EAST);
-
-        row.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        row.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                box.doClick();
+    private void refresh() {
+        Map<String, Integer> typeCounts = orderedTypeCounts();
+        Map<String, Integer> tagCounts = new TreeMap<>(model.tagCounts());
+        Map<String, Integer> schemaCounts = orderedSchemaCounts();
+        String signature = typeCounts + "|" + tagCounts + "|" + schemaCounts;
+        updating = true;
+        try {
+            if (!signature.equals(structure)) {
+                structure = signature;
+                types.setItems(typeCounts);
+                tags.setItems(tagCounts);
+                schemas.setItems(schemaCounts);
             }
-        });
-        return row;
+            types.updateChecks();
+            tags.updateChecks();
+            schemas.updateChecks();
+        } finally {
+            updating = false;
+        }
+        types.summary.setText(shownOf(typeCounts.keySet(), model.enabledTypes()));
+        int selectedTags = model.enabledTags().size();
+        tags.summary.setText(selectedTags == 0 ? "any" : selectedTags + " selected");
+        schemas.summary.setText(shownOf(schemaCounts.keySet(), model.enabledSchemas()));
     }
 
-    private JComponent fitButton() {
-        JPanel button = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
-        button.setBorder(BorderFactory.createCompoundBorder(
-                JBUI.Borders.customLine(UIUtil.getBoundsColor()), JBUI.Borders.empty(5, 8)));
-        button.add(new JBLabel("Fit graph to view"));
-        button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        button.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                onFit.run();
-            }
-        });
-        return button;
+    private static @NotNull String shownOf(@NotNull Set<String> items, @NotNull Set<String> enabled) {
+        long shown = items.stream().filter(enabled::contains).count();
+        return shown + " of " + items.size();
     }
 
-    private JBLabel hint(@NotNull String text) {
-        int wrap = Math.max(JBUIScale.scale(120), contentWidth - JBUIScale.scale(44));
-        JBLabel label = new JBLabel("<html><div width='" + wrap + "'>" + text + "</div></html>");
-        label.setForeground(UIUtil.getLabelDisabledForeground());
-        label.setBorder(JBUI.Borders.emptyTop(4));
-        return label;
+    private @NotNull Map<String, Integer> orderedTypeCounts() {
+        Map<String, Integer> counts = model.typeCounts();
+        Map<String, Integer> ordered = new LinkedHashMap<>();
+        for (String type : LineageLegend.orderedTypes(counts.keySet())) ordered.put(type, counts.get(type));
+        return ordered;
     }
 
-    private void enableAllTypes() {
-        for (String type : model.typeCounts().keySet()) {
-            if (!model.enabledTypes().contains(type)) model.toggleType(type);
-        }
+    private @NotNull Map<String, Integer> orderedSchemaCounts() {
+        Map<String, Integer> ordered = new LinkedHashMap<>();
+        for (String schema : model.schemas()) ordered.put(schema, 0);
+        for (LineageNode node : model.graph().nodes()) ordered.merge(node.schema(), 1, Integer::sum);
+        return ordered;
     }
 
-    private void clearTags() {
-        for (String tag : model.enabledTags()) model.toggleTag(tag);
-    }
+    /**
+     * One filter row: its check box, its name and its node count.
+     */
+    final class Row extends JPanel {
 
-    private void enableAllSchemas() {
-        for (String schema : model.schemas()) {
-            if (!model.enabledSchemas().contains(schema)) model.toggleSchema(schema);
-        }
-    }
+        private final String item;
+        private final JBCheckBox checkBox = new JBCheckBox();
+        private final JBLabel label;
+        private final JBLabel count;
 
-    private Map<String, Integer> schemaCounts() {
-        Map<String, Integer> counts = new HashMap<>();
-        for (LineageNode node : model.graph().nodes()) counts.merge(node.schema(), 1, Integer::sum);
-        return counts;
-    }
-
-    private int computeWidth() {
-        Font base = getFont() != null ? getFont() : UIUtil.getLabelFont();
-        FontMetrics fm = getFontMetrics(base);
-        FontMetrics mono = getFontMetrics(monospace(base));
-        int text = 0;
-
-        int rowChrome = JBUIScale.scale(20 + 16 + 6 + 14);
-        for (String type : displayTypes()) {
-            text = Math.max(text, rowChrome + fm.stringWidth(type));
-        }
-        for (String schema : model.schemas()) {
-            text = Math.max(text, JBUIScale.scale(20 + 14) + mono.stringWidth(schema));
-        }
-        for (Map.Entry<String, Integer> e : model.tagCounts().entrySet()) {
-            text = Math.max(text, mono.stringWidth(e.getKey() + "  " + e.getValue()) + JBUIScale.scale(26));
-        }
-        for (String title : new String[]{"Action types", "Tags", "Schemas", "Focus"}) {
-            text = Math.max(text, fm.stringWidth("▾  " + title) + JBUIScale.scale(60));
-        }
-        for (String type : displayTypes()) {
-            text = Math.max(text, JBUIScale.scale(24) + fm.stringWidth(type));
-        }
-        String focusId = model.focusId();
-        if (focusId != null) {
-            LineageNode node = model.graph().node(focusId);
-            text = Math.max(text, JBUIScale.scale(24) + fm.stringWidth(node != null ? node.name() : focusId));
-        }
-
-        int total = text + JBUIScale.scale(12 + 12 + 12);
-        return Math.max(JBUIScale.scale(MIN_WIDTH), Math.min(JBUIScale.scale(MAX_WIDTH), total));
-    }
-
-    private final class Section extends JPanel {
-        private final JPanel body = new JPanel(new VerticalLayout(JBUIScale.scale(2)));
-
-        Section(@NotNull String title, @Nullable String count, @Nullable Runnable onClear) {
-            super(new BorderLayout());
+        private Row(@NotNull String item, int nodes, @Nullable Icon icon, @NotNull Consumer<Row> onToggle) {
+            super(new BorderLayout(JBUIScale.scale(ROW_GAP), 0));
+            this.item = item;
             setOpaque(false);
-            setBorder(JBUI.Borders.customLine(UIUtil.getBoundsColor(), 0, 0, 1, 0));
-            body.setOpaque(false);
-            body.setBorder(JBUI.Borders.empty(2, 12, 10, 12));
-
-            boolean open = sectionOpen.getOrDefault(title, true);
-            body.setVisible(open);
-
-            JPanel head = new JPanel(new BorderLayout(JBUIScale.scale(6), 0));
-            head.setOpaque(false);
-            head.setBorder(JBUI.Borders.empty(8, 12));
-            head.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-
-            JBLabel titleLabel = new JBLabel((open ? "▾  " : "▸  ") + title);
-            head.add(titleLabel, BorderLayout.WEST);
-
-            JPanel east = new JPanel(new FlowLayout(FlowLayout.RIGHT, JBUIScale.scale(6), 0));
-            east.setOpaque(false);
-            if (count != null) {
-                JBLabel countLabel = new JBLabel(count);
-                countLabel.setFont(monospace(countLabel.getFont()).deriveFont(JBUIScale.scale(10f)));
-                countLabel.setForeground(UIUtil.getLabelDisabledForeground());
-                east.add(countLabel);
-            }
-            if (onClear != null) east.add(link("clear", onClear));
-            head.add(east, BorderLayout.EAST);
-
-            head.addMouseListener(new MouseAdapter() {
+            label = new JBLabel(item, icon, SwingConstants.LEADING);
+            label.setIconTextGap(JBUIScale.scale(ROW_GAP));
+            count = new JBLabel(String.valueOf(nodes));
+            count.setFont(JBFont.medium());
+            count.setForeground(UIUtil.getContextHelpForeground());
+            checkBox.setOpaque(false);
+            checkBox.getAccessibleContext().setAccessibleName(item);
+            checkBox.addActionListener(e -> onToggle.accept(this));
+            label.addMouseListener(new MouseAdapter() {
                 @Override
                 public void mouseClicked(MouseEvent e) {
-                    boolean next = !body.isVisible();
-                    body.setVisible(next);
-                    sectionOpen.put(title, next);
-                    titleLabel.setText((next ? "▾  " : "▸  ") + title);
-                    revalidate();
-                    repaint();
+                    checkBox.doClick();
                 }
             });
-
-            add(head, BorderLayout.NORTH);
-            add(body, BorderLayout.CENTER);
+            add(checkBox, BorderLayout.WEST);
+            add(label, BorderLayout.CENTER);
+            add(count, BorderLayout.EAST);
         }
-    }
 
-    private static final class Chip extends JComponent {
-        private final String text;
-        private boolean active;
-        private final Runnable onClick;
+        @NotNull String item() {
+            return item;
+        }
 
-        Chip(@NotNull String tag, int count, boolean active, @NotNull Runnable onClick) {
-            this.text = tag + "  " + count;
-            this.active = active;
-            this.onClick = onClick;
-            setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-            setFont(new Font(Font.MONOSPACED, Font.PLAIN, JBUIScale.scaleFontSize(10.5f)));
-            addMouseListener(new MouseAdapter() {
-                @Override
-                public void mouseClicked(MouseEvent e) {
-                    Chip.this.active = !Chip.this.active;
-                    repaint();
-                    onClick.run();
-                }
-            });
+        @NotNull JBCheckBox checkBox() {
+            return checkBox;
+        }
+
+        @NotNull JBLabel label() {
+            return label;
+        }
+
+        @NotNull JBLabel count() {
+            return count;
         }
 
         @Override
         public Dimension getPreferredSize() {
-            int textW = getFontMetrics(getFont()).stringWidth(text);
-            return new Dimension(textW + JBUIScale.scale(26), JBUIScale.scale(20));
+            return new Dimension(super.getPreferredSize().width, JBUIScale.scale(ROW_HEIGHT));
+        }
+    }
+
+    private final class Filter {
+
+        private final CollapsibleSection section;
+        private final JPanel list = new JPanel(new VerticalLayout(0));
+        private final JBLabel summary = new JBLabel();
+        private final Consumer<String> toggle;
+        private final Supplier<Set<String>> enabled;
+        private final Function<String, Icon> icon;
+        private final List<Row> rows = new ArrayList<>();
+
+        Filter(@NotNull String title, boolean expanded, @NotNull Consumer<String> toggle,
+               @NotNull Supplier<Set<String>> enabled, @NotNull Function<String, Icon> icon) {
+            this.toggle = toggle;
+            this.enabled = enabled;
+            this.icon = icon;
+            list.setOpaque(false);
+            list.setBorder(JBUI.Borders.emptyBottom(4));
+            summary.setFont(JBFont.medium());
+            summary.setForeground(UIUtil.getContextHelpForeground());
+            section = new CollapsibleSection(title, list);
+            section.setBorder(JBUI.Borders.empty());
+            section.setTrailing(summary);
+            section.setExpanded(expanded);
         }
 
-        @Override
-        public Dimension getMaximumSize() {
-            return getPreferredSize();
-        }
-
-        @Override
-        protected void paintComponent(Graphics g) {
-            Graphics2D g2 = (Graphics2D) g.create();
-            try {
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                int w = getWidth(), h = getHeight();
-                g2.setColor(active ? ColorUtil.withAlpha(LineageTheme.accentColor(), 0.18) : UIUtil.getPanelBackground());
-                g2.fillRoundRect(0, 0, w - 1, h - 1, h, h);
-                g2.setColor(active ? LineageTheme.accentColor() : UIUtil.getBoundsColor());
-                g2.drawRoundRect(0, 0, w - 1, h - 1, h, h);
-
-                int dot = JBUIScale.scale(6);
-                int dy = (h - dot) / 2;
-                g2.setColor(active ? LineageTheme.accentColor() : UIUtil.getLabelDisabledForeground());
-                g2.fillOval(JBUIScale.scale(8), dy, dot, dot);
-
-                g2.setColor(active ? UIUtil.getLabelForeground() : UIUtil.getLabelDisabledForeground());
-                g2.setFont(getFont());
-                FontMetrics fm = g2.getFontMetrics();
-                g2.drawString(text, JBUIScale.scale(8) + dot + JBUIScale.scale(5),
-                        (h + fm.getAscent() - fm.getDescent()) / 2);
-            } finally {
-                g2.dispose();
+        void setItems(@NotNull Map<String, Integer> counts) {
+            rows.clear();
+            list.removeAll();
+            for (Map.Entry<String, Integer> e : counts.entrySet()) {
+                Row row = new Row(e.getKey(), e.getValue(), icon.apply(e.getKey()), this::onToggled);
+                rows.add(row);
+                list.add(row);
             }
+            list.revalidate();
+            list.repaint();
         }
 
+        void updateChecks() {
+            Set<String> on = enabled.get();
+            for (Row row : rows) row.checkBox.setSelected(on.contains(row.item));
+        }
+
+        private void onToggled(@NotNull Row row) {
+            if (updating) return;
+            if (enabled.get().contains(row.item) != row.checkBox.isSelected()) toggle.accept(row.item);
+        }
     }
 }

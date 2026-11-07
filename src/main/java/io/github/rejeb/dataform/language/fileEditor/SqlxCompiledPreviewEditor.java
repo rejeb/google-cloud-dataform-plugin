@@ -17,9 +17,6 @@
 package io.github.rejeb.dataform.language.fileEditor;
 
 import io.github.rejeb.dataform.language.unittest.preview.TestQueries;
-import com.intellij.execution.services.ServiceEventListener;
-import com.intellij.execution.services.ServiceViewManager;
-import com.intellij.icons.AllIcons;
 import com.intellij.notification.NotificationType;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.application.ApplicationManager;
@@ -47,24 +44,30 @@ import com.intellij.sql.SqlFileType;
 import com.intellij.util.ExceptionUtil;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
-import icons.DatabaseIcons;
+import io.github.rejeb.dataform.language.DataformIcons;
+import io.github.rejeb.dataform.language.compilation.CliRun;
 import io.github.rejeb.dataform.language.compilation.CompilationFailures;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationEvent;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.compilation.model.CompiledQuery;
 import io.github.rejeb.dataform.language.compilation.model.CompiledTest;
+import io.github.rejeb.dataform.language.compilation.model.ProjectConfig;
+import io.github.rejeb.dataform.language.fileEditor.cost.CostEstimate;
+import io.github.rejeb.dataform.language.fileEditor.cost.QueryCostEstimator;
+import io.github.rejeb.dataform.language.gcp.auth.DataformCredentialsService;
 import io.github.rejeb.dataform.language.gcp.execution.bigquery.BigQueryExecutionService;
 import io.github.rejeb.dataform.language.gcp.execution.bigquery.BigQueryJobResult;
 import io.github.rejeb.dataform.language.gcp.execution.bigquery.QueryResultsRegistry;
-import io.github.rejeb.dataform.language.gcp.execution.bigquery.serviceview.DataformQueryContributor;
-import io.github.rejeb.dataform.language.gcp.execution.bigquery.serviceview.QueryResultNode;
+import io.github.rejeb.dataform.language.gcp.execution.bigquery.QueryRun;
+import io.github.rejeb.dataform.language.gcp.execution.bigquery.serviceview.QueryResultsView;
 import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
 import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
 import io.github.rejeb.dataform.language.lineage.extractor.LineageExtractorImpl;
 import io.github.rejeb.dataform.language.lineage.graph.LineageGraph;
 import io.github.rejeb.dataform.language.lineage.view.LineageFilePanel;
 import io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService;
+import io.github.rejeb.dataform.language.settings.DataformToolsSettings;
 import io.github.rejeb.dataform.language.unittest.SqlxUnitTests;
 import io.github.rejeb.dataform.language.util.DataformNotifications;
 import io.github.rejeb.dataform.language.util.PreOperationsFilter;
@@ -74,7 +77,9 @@ import org.jetbrains.annotations.Nullable;
 
 import java.awt.*;
 import java.beans.PropertyChangeListener;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.swing.*;
 
@@ -96,6 +101,14 @@ public class SqlxCompiledPreviewEditor extends UserDataHolderBase implements Fil
     private final VirtualFile file;
     private long myLastCompiledStamp = -1;
     private volatile List<CompiledQuery> rawQueries = List.of();
+    private volatile Map<String, String> actionTypes = Map.of();
+    private volatile Map<String, String> assertionParents = Map.of();
+    private volatile String costBillingProject;
+    private volatile String costDefaultLocation;
+    private volatile boolean costSignedIn;
+    private volatile long compiledAt = -1;
+    private volatile boolean lastCompileFailed;
+    private volatile boolean disposed;
     private boolean queryViewStale = false;
     private final TestPreviewPanel testPanel;
     private volatile SqlxPreviewMode mode = SqlxPreviewMode.ACTION;
@@ -108,17 +121,17 @@ public class SqlxCompiledPreviewEditor extends UserDataHolderBase implements Fil
     public SqlxCompiledPreviewEditor(@NotNull Project project, VirtualFile file) {
         this.project = project;
         this.file = file;
-        schemaPanel = new SchemaPanel(project);
+        schemaPanel = new SchemaPanel(project, this::updateCompiledSql);
         lineagePanel = new LineageFilePanel(project, file);
-        queryPanel = new QueryPanel(project, resolveFileType(file));
+        queryPanel = new QueryPanel(project, resolveFileType(file), query -> runQueries(List.of(query)));
         testPanel = new TestPreviewPanel(project);
 
         mainPanel.setOpaque(true);
         mainPanel.setBackground(UIUtil.getPanelBackground());
         mainPanel.add(lineagePanel, View.LINEAGE.name());
-        mainPanel.add(withHeader("Query", DatabaseIcons.Sql, queryPanel), View.QUERY.name());
-        mainPanel.add(withHeader("Schema", AllIcons.Nodes.DataTables, schemaPanel), View.SCHEMA.name());
-        mainPanel.add(withHeader("Test", AllIcons.Nodes.Test, testPanel), View.TEST.name());
+        mainPanel.add(queryPanel, View.QUERY.name());
+        mainPanel.add(schemaPanel, View.SCHEMA.name());
+        mainPanel.add(withHeader("Test", DataformIcons.PREVIEW_TEST, testPanel), View.TEST.name());
 
         showPanel(View.LINEAGE);
         project.getMessageBus().connect(this).subscribe(DataformCompilationEvent.TOPIC,
@@ -158,6 +171,12 @@ public class SqlxCompiledPreviewEditor extends UserDataHolderBase implements Fil
             private boolean unitTestFile;
             private CompiledTest foundTest;
             private String foundErrors;
+            private String billingProject;
+            private String defaultLocation;
+            private boolean signedIn;
+            private long graphCompiledAt = -1;
+            private boolean compileFailed;
+            private Map<String, String> parents = Map.of();
 
             @Override
             public void run(@NotNull ProgressIndicator indicator) {
@@ -169,6 +188,9 @@ public class SqlxCompiledPreviewEditor extends UserDataHolderBase implements Fil
                 }).executeSynchronously();
                 DataformCompilationService svc = DataformCompilationService.getInstance(project);
                 CompiledGraph graph = svc.getCompiledGraph();
+                graphCompiledAt = svc.lastCompiledAt();
+                CliRun cliRun = svc.lastCliRun();
+                compileFailed = cliRun != null && cliRun.stdoutBlank();
                 if (graph != null) {
                     String path = file.getCanonicalPath();
                     if (unitTestFile) {
@@ -176,6 +198,14 @@ public class SqlxCompiledPreviewEditor extends UserDataHolderBase implements Fil
                         foundErrors = PreviewQueries.errorsOf(graph, path);
                     } else {
                         compiledQueries = graph.findCompiledQueryByFileName(path);
+                        parents = PreviewQueries.assertionParents(graph, path);
+                        ProjectConfig config = graph.getProjectConfig();
+                        if (config != null) {
+                            billingProject = config.getDefaultDatabase();
+                            defaultLocation = config.getDefaultLocation();
+                        }
+                        signedIn = DataformToolsSettings.getInstance().isShowEstimatedCost()
+                                && DataformCredentialsService.getInstance().isSignedIn();
                         graphTargets = GraphTarget.targetsOf(graph, path);
                         fileLineage = new LineageExtractorImpl().extract(graph);
                     }
@@ -198,7 +228,15 @@ public class SqlxCompiledPreviewEditor extends UserDataHolderBase implements Fil
                     testCompilationErrors = foundErrors;
                     testViewStale = true;
                     schemaPanel.setContent(graphTargets != null ? graphTargets : List.of());
+                    schemaPanel.showCompilation(graphCompiledAt);
                     rawQueries = compiledQueries != null ? compiledQueries : List.of();
+                    actionTypes = typesOf(graphTargets);
+                    assertionParents = parents;
+                    costBillingProject = billingProject;
+                    costDefaultLocation = defaultLocation;
+                    costSignedIn = signedIn;
+                    compiledAt = graphCompiledAt;
+                    lastCompileFailed = compileFailed;
                     queryViewStale = true;
                     if (!mode.shows(activeView)) {
                         showPanel(mode.defaultView());
@@ -277,6 +315,7 @@ public class SqlxCompiledPreviewEditor extends UserDataHolderBase implements Fil
 
     @Override
     public void dispose() {
+        disposed = true;
         queryPanel.dispose();
         testPanel.dispose();
     }
@@ -409,20 +448,15 @@ public class SqlxCompiledPreviewEditor extends UserDataHolderBase implements Fil
                                     ? Utils.withPreOperations(
                                             PreOperationsFilter.keepReadOnly(List.of(q.preOps())), q.query())
                                     : q.query();
+                            QueryRun run = QueryRun.running(q.tableName(), sql, file, System.currentTimeMillis(),
+                                    indicator::cancel);
+                            registry.start(run);
+                            QueryResultsView.show(project, run);
                             BigQueryJobResult result = svc.execute(sql, projectId, q.tableName(), indicator);
-                            registry.put(result);
-                            ServiceEventListener.ServiceEvent resetEvent =
-                                    ServiceEventListener.ServiceEvent.createResetEvent(
-                                            DataformQueryContributor.class);
-                            project.getMessageBus()
-                                    .syncPublisher(ServiceEventListener.TOPIC)
-                                    .handle(resetEvent);
-
-                            ServiceViewManager.getInstance(project)
-                                    .select(new QueryResultNode(result),
-                                            DataformQueryContributor.class,
-                                            true,
-                                            true);
+                            QueryRun finished = registry.finish(run, result, indicator.isCanceled());
+                            if (finished != null) {
+                                QueryResultsView.show(project, finished);
+                            }
                         }
                     }
                 }
@@ -446,7 +480,55 @@ public class SqlxCompiledPreviewEditor extends UserDataHolderBase implements Fil
     private void refreshQueryView() {
         if (!queryViewStale) return;
         queryViewStale = false;
-        queryPanel.setContent(rawQueries.stream().map(q -> PreviewQueries.format(q, sql -> Utils.formatSql(project, sql))).toList());
+        Map<String, String> types = actionTypes;
+        queryPanel.setContent(PreviewQueries.groupAssertions(rawQueries.stream()
+                .map(q -> PreviewQueries.format(q, types.get(q.tableName()), sql -> Utils.formatSql(project, sql)))
+                .toList(), assertionParents), costBillingProject);
+        queryPanel.showCompilation(compiledAt, lastCompileFailed);
+        estimateCosts();
+    }
+
+    @NotNull
+    private static Map<String, String> typesOf(@Nullable List<GraphTarget> targets) {
+        Map<String, String> types = new HashMap<>();
+        if (targets != null) {
+            targets.stream()
+                    .filter(target -> target.fullName() != null && target.type() != null)
+                    .forEach(target -> types.putIfAbsent(target.fullName(), target.type()));
+        }
+        return types;
+    }
+
+    private void estimateCosts() {
+        if (!DataformToolsSettings.getInstance().isShowEstimatedCost()) return;
+        String billingProject = costBillingProject;
+        if (billingProject == null || billingProject.isBlank()) return;
+        if (!costSignedIn && !DataformCredentialsService.getInstance().isSignedInCached()) {
+            queryPanel.markSignedOut();
+            return;
+        }
+        long generation = refreshGeneration.get();
+        String defaultLocation = costDefaultLocation;
+        QueryCostEstimator estimator = QueryCostEstimator.getInstance(project);
+        for (CompiledQuery query : rawQueries) {
+            String sql = PreviewQueries.costDryRunSql(query);
+            if (sql == null) continue;
+            String tableName = query.tableName();
+            queryPanel.markEstimating(tableName);
+            estimator.estimate(billingProject, defaultLocation, sql).thenAccept(estimate ->
+                    ApplicationManager.getApplication().invokeLater(() -> {
+                        if (disposed || generation != refreshGeneration.get()) return;
+                        queryPanel.showEstimate(tableName, withLocation(estimate, defaultLocation));
+                    }, ModalityState.any()));
+        }
+    }
+
+    @NotNull
+    private static CostEstimate withLocation(@NotNull CostEstimate estimate, @Nullable String defaultLocation) {
+        if (estimate.failed() || estimate.location() != null || estimate.bytesProcessed() == null) {
+            return estimate;
+        }
+        return CostEstimate.success(estimate.bytesProcessed(), defaultLocation, estimate.minimumBilledBytes());
     }
 
     private void refreshTestView() {

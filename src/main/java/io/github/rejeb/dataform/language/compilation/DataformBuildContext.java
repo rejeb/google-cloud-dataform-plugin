@@ -19,6 +19,7 @@ package io.github.rejeb.dataform.language.compilation;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Key;
 import com.intellij.openapi.util.UserDataHolderEx;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Semaphore;
@@ -41,6 +42,15 @@ public final class DataformBuildContext {
         this.started = System.currentTimeMillis();
         this.finished = started;
         this.buildSemaphore = ((UserDataHolderEx) project).putUserDataIfAbsent(BUILD_SEMAPHORE_KEY, new Semaphore(1));
+    }
+
+    /**
+     * Whether a Dataform build of the project holds the build semaphore, from
+     * {@link #waitAndStart()} until {@link #finished(boolean, String)}.
+     */
+    public static boolean isBuildRunning(@NotNull Project project) {
+        Semaphore semaphore = project.getUserData(BUILD_SEMAPHORE_KEY);
+        return semaphore != null && semaphore.availablePermits() == 0;
     }
 
     public long getDuration() {

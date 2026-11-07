@@ -37,6 +37,7 @@ import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowCr
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowInvocationProgress;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowProgressSession;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowInvocationState;
+import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowRunSettling;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.ui.WorkflowExecutionConsole;
 import io.github.rejeb.dataform.language.gcp.service.DataformGcpService;
 import org.jetbrains.annotations.NotNull;
@@ -55,11 +56,13 @@ public class DataformWorkflowRunProfileState
 
     private static final Logger LOG = Logger.getInstance(DataformWorkflowRunProfileState.class);
     private static final int POLL_INTERVAL_MS = 500;
+    private static final int MAX_POLLS_AWAITING_ACTIONS = 10;
     private static final String TEMPORARY_WORKSPACE_PREFIX = "intellij-run-";
 
     private final ExecutionEnvironment environment;
     private final DataformWorkflowRunConfiguration configuration;
     private final String workspaceId = newTemporaryWorkspaceId();
+    private final WorkflowRunSettling settling = new WorkflowRunSettling(MAX_POLLS_AWAITING_ACTIONS);
     private volatile WorkflowInvocationProgress lastProgress;
 
     public DataformWorkflowRunProfileState(
@@ -79,12 +82,11 @@ public class DataformWorkflowRunProfileState
         DataformProcessHandler processHandler = new DataformProcessHandler();
         processHandler.startNotify();
 
-        WorkflowExecutionConsole console =
-                new WorkflowExecutionConsole("Instantiating Dataform Workflow", project);
+        WorkflowExecutionConsole console = new WorkflowExecutionConsole(configuration.getName(), project);
 
         ProgressManager.getInstance().run(buildTask(project, processHandler, console));
 
-        return new DefaultExecutionResult(console, processHandler);
+        return new DefaultExecutionResult(console, processHandler, console.toolbarActions());
     }
 
     @NotNull
@@ -192,7 +194,7 @@ public class DataformWorkflowRunProfileState
             return;
         }
         try {
-            WorkflowInvocationProgress progress = session.poll();
+            WorkflowInvocationProgress progress = settling.settle(session.poll());
             publishAndDisplay(project, console, progress);
             updateIndicatorText(indicator, progress, workflowRun.invocationName());
             if (progress.isTerminal()) latch.countDown();
@@ -267,7 +269,6 @@ public class DataformWorkflowRunProfileState
 
     @NotNull
     private WorkflowInvocationProgress runningProgress(@NotNull String label) {
-        return new WorkflowInvocationProgress(label + " " + workspaceId,
-                WorkflowInvocationState.RUNNING, List.of(), null);
+        return new WorkflowInvocationProgress(label, WorkflowInvocationState.RUNNING, List.of(), null);
     }
 }

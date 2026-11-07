@@ -32,8 +32,11 @@ final class CanvasViewport {
 
     private static final double MIN_ZOOM = 0.25;
     private static final double MAX_ZOOM = 2.5;
-    private static final int FIT_PAD = 60;
-    private static final double FIT_MAX_ZOOM = 1.4;
+    private static final int FIT_PAD_X = 30;
+    private static final int FIT_PAD_Y = 35;
+    private static final double FIT_MIN_ZOOM = 0.3;
+    private static final double FIT_MAX_ZOOM = 1.15;
+    private static final int FIT_DOWN_PAD = 24;
 
     private final Runnable onChanged;
 
@@ -102,21 +105,25 @@ final class CanvasViewport {
     /** Centres {@code bounds} in a viewport of the given size, scaling it down to fit. */
     void fit(@NotNull Rectangle2D.Double bounds, int viewWidth, int viewHeight) {
         if (bounds.width <= 0 || bounds.height <= 0 || viewWidth <= 0 || viewHeight <= 0) return;
-        double availW = viewWidth - 2.0 * FIT_PAD;
-        double availH = viewHeight - 2.0 * FIT_PAD;
+        double availW = viewWidth - 2.0 * FIT_PAD_X;
+        double availH = viewHeight - 2.0 * FIT_PAD_Y;
         double scale = Math.min(availW / bounds.width, availH / bounds.height);
-        zoom = clamp(scale, MIN_ZOOM, FIT_MAX_ZOOM);
+        zoom = clamp(scale, FIT_MIN_ZOOM, FIT_MAX_ZOOM);
         offsetX = (viewWidth - bounds.width * zoom) / 2.0 - bounds.x * zoom;
         offsetY = (viewHeight - bounds.height * zoom) / 2.0 - bounds.y * zoom;
         notifyZoom();
         onChanged.run();
     }
 
-    /** Centres {@code bounds} in a viewport of the given size, never changing the zoom level. */
-    void centerKeepingZoom(@NotNull Rectangle2D.Double bounds, int viewWidth, int viewHeight) {
+    /** Centres {@code bounds} in a viewport of the given size, scaling it down to fit but never up. */
+    void fitDown(@NotNull Rectangle2D.Double bounds, int viewWidth, int viewHeight) {
         if (bounds.width <= 0 || bounds.height <= 0 || viewWidth <= 0 || viewHeight <= 0) return;
+        double availW = viewWidth - 2.0 * FIT_DOWN_PAD;
+        double availH = viewHeight - 2.0 * FIT_DOWN_PAD;
+        zoom = clamp(Math.min(availW / bounds.width, availH / bounds.height), MIN_ZOOM, 1.0);
         offsetX = (viewWidth - bounds.width * zoom) / 2.0 - bounds.x * zoom;
         offsetY = (viewHeight - bounds.height * zoom) / 2.0 - bounds.y * zoom;
+        notifyZoom();
         onChanged.run();
     }
 

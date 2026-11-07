@@ -97,9 +97,9 @@ public final class DagLayout {
                                                 @NotNull Density density,
                                                 @NotNull ToIntFunction<String> nodeWidth,
                                                 @NotNull ToIntFunction<String> extraVerticalHeight) {
-        int nodeH = density == Density.COMPACT ? 30 : 44;
+        int nodeH = density == Density.COMPACT ? 30 : 52;
         int layerGap = direction == Direction.TB ? 60 : 90;
-        int rowGap = density == Density.COMPACT ? 14 : 22;
+        int rowGap = density == Density.COMPACT ? 14 : 26;
 
         List<String> ids = new ArrayList<>(visibleIds);
 

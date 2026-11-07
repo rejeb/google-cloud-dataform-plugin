@@ -17,6 +17,7 @@
 package io.github.rejeb.dataform.language.compilation.model;
 
 import io.github.rejeb.dataform.language.util.DataformPaths;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Collections;
 import java.util.List;
@@ -28,6 +29,7 @@ public class CompiledAssertion implements ExecutableAction {
     private String fileName;
     private List<String> tags;
     private List<Target> dependencyTargets;
+    private Target parentAction;
 
     @Override
     public Target getTarget() {
@@ -56,5 +58,13 @@ public class CompiledAssertion implements ExecutableAction {
     @Override
     public List<Target> getDependencyTargets() {
         return dependencyTargets != null ? dependencyTargets : Collections.emptyList();
+    }
+
+    /**
+     * The table whose config declared this assertion, or {@code null} for an assertion written in
+     * its own file.
+     */
+    public @Nullable Target getParentAction() {
+        return parentAction;
     }
 }

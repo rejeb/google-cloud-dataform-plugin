@@ -23,4 +23,8 @@ public final class DataformToolsSettingsState {
     public String sqlfluffExtraArgs = "";
     public boolean foldTemplateExpressions = true;
     public boolean showInlineCompilationErrors = true;
+    public boolean showEstimatedCost = true;
+    public String priceMode = "LIST_PRICE";
+    public String fixedPricePerTib = "6.25";
+    public String currency = "USD";
 }

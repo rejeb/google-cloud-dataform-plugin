@@ -27,6 +27,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Builds a table-level {@link LineageGraph} from a {@link CompiledGraph}.
@@ -82,7 +83,7 @@ public final class LineageExtractorImpl implements LineageExtractor {
 
     private static @NotNull String tableType(@NotNull CompiledTable table) {
         String enumType = table.getEnumType();
-        if (enumType != null && !enumType.isBlank()) return enumType;
+        if (enumType != null && !enumType.isBlank()) return enumType.toLowerCase(Locale.ROOT);
         return table.isMaterialized() ? "materialized_view" : "table";
     }
 

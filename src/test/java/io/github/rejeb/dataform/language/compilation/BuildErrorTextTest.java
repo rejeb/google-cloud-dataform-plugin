@@ -20,6 +20,8 @@ import com.google.gson.Gson;
 import io.github.rejeb.dataform.language.compilation.model.CompilationError;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 class BuildErrorTextTest {
@@ -31,10 +33,56 @@ class BuildErrorTextTest {
     }
 
     @Test
-    void titleCarriesTheActionAndTheMessage() {
+    void testTitleHasNoActionPrefix() {
         CompilationError error = error("{\"actionName\":\"bronze.customers\",\"message\":\"boom\"}");
 
-        assertEquals("[bronze.customers] boom", BuildErrorText.title(error));
+        assertEquals("boom", BuildErrorText.title(error));
+    }
+
+    private static final String PLACED_ERROR = "{\"actionName\":\"p.d.alpha\",\"fileName\":\"definitions/alpha.sqlx\","
+            + "\"message\":\"undefinedFn is not defined\","
+            + "\"stack\":\"ReferenceError: undefinedFn is not defined\\n    at definitions/alpha.sqlx:2:8\"}";
+    private static final String HINT = "Define 'undefinedFn' in a js { } block, or export it from a file of includes/.";
+
+    @Test
+    void testPlacedDetailsOrder() {
+        PlacedError placed = new PlacedError("definitions/alpha.sqlx", 1, 9, 11,
+                "a\nSELECT ${undefinedFn()}\nb", HINT, null);
+
+        String details = BuildErrorText.placedDetails(error(PLACED_ERROR), placed);
+
+        List<String> expectedOrder = List.of("undefinedFn is not defined", HINT, "definitions/alpha.sqlx:2:10",
+                "> 2 | SELECT ${undefinedFn()}", "Action   p.d.alpha", "Dataform undefinedFn is not defined",
+                "at definitions/alpha.sqlx:2:8");
+        int from = 0;
+        for (String part : expectedOrder) {
+            int at = details.indexOf(part, from);
+            assertTrue(at >= from, "'" + part + "' missing or out of order in:\n" + details);
+            from = at + part.length();
+        }
+        assertTrue(details.startsWith("undefinedFn is not defined\n"), details);
+        assertTrue(details.contains("\n\ndefinitions/alpha.sqlx:2:10\n"), details);
+        assertTrue(details.contains("\n\nAction   p.d.alpha\n"), details);
+    }
+
+    @Test
+    void testUnplacedErrorHasNoCodeFrame() {
+        String details = BuildErrorText.placedDetails(error(PLACED_ERROR), null);
+
+        assertFalse(details.contains(" | "), details);
+        assertTrue(details.contains("undefinedFn is not defined"), details);
+        assertTrue(details.contains("at definitions/alpha.sqlx:2:8"), details);
+    }
+
+    @Test
+    void testAnErrorThrownInAnIncludeSaysWhere() {
+        PlacedError placed = new PlacedError("definitions/alpha.sqlx", 0, 4, 3,
+                "  x.foo();", null, "includes/util.js");
+
+        String details = BuildErrorText.placedDetails(error(PLACED_ERROR), placed);
+
+        assertTrue(details.contains("Not placed in alpha.sqlx: the error is thrown in an include.\n"
+                + "Thrown in includes/util.js:1:5\n> 1 |   x.foo();"), details);
     }
 
     @Test

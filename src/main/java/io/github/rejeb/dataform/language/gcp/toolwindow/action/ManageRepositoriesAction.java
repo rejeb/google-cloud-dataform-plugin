@@ -24,13 +24,25 @@ import com.intellij.openapi.project.Project;
 import io.github.rejeb.dataform.language.gcp.toolwindow.ManageRepositoriesDialog;
 import org.jetbrains.annotations.NotNull;
 
+import javax.swing.Icon;
+
 public class ManageRepositoriesAction extends AnAction implements ActionUpdateThreadAware.Recursive {
 
     private final Project project;
     private final Runnable onRepositoryChanged;
 
+    /**
+     * The action of the repository picker, shown with the settings gear.
+     */
     public ManageRepositoriesAction(@NotNull Project project, @NotNull Runnable onRepositoryChanged) {
-        super("Manage Repositories", "Add, edit or remove Dataform GCP repositories", AllIcons.General.Settings);
+        this(project, onRepositoryChanged, AllIcons.General.Settings);
+    }
+
+    /**
+     * The action shown with {@code icon}, which runs {@code onRepositoryChanged} once the dialog is closed.
+     */
+    public ManageRepositoriesAction(@NotNull Project project, @NotNull Runnable onRepositoryChanged, @NotNull Icon icon) {
+        super("Manage Repositories…", "Add, edit or remove Dataform GCP repositories", icon);
         this.project = project;
         this.onRepositoryChanged = onRepositoryChanged;
     }

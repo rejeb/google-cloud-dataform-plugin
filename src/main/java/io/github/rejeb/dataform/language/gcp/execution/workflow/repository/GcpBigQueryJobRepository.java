@@ -104,9 +104,11 @@ public final class GcpBigQueryJobRepository implements BigQueryJobRepository {
 
         Long bytesProcessed = null;
         Long bytesBilled = null;
+        Long slotMillis = null;
         if (stats instanceof JobStatistics.QueryStatistics qs) {
             bytesProcessed = qs.getTotalBytesProcessed();
             bytesBilled = qs.getTotalBytesBilled();
+            slotMillis = qs.getTotalSlotMs();
         }
 
         String realProject = job.getJobId().getProject() != null
@@ -126,7 +128,9 @@ public final class GcpBigQueryJobRepository implements BigQueryJobRepository {
                 bytesProcessed, bytesBilled,
                 startTime, endTime,
                 statementsProcessed,
-                childJobs
+                childJobs,
+                JobReservationReader.read(realProject, realLocation, job.getJobId().getJob()),
+                slotMillis
         );
     }
 
@@ -156,21 +160,30 @@ public final class GcpBigQueryJobRepository implements BigQueryJobRepository {
                     ? Instant.ofEpochMilli(cStats.getEndTime()) : null;
 
             Long cBytes = null;
+            String statementType = null;
+            TableId ddlTarget = null;
             if (cStats instanceof JobStatistics.QueryStatistics cqs) {
                 cBytes = cqs.getTotalBytesProcessed();
+                statementType = cqs.getStatementType() != null ? cqs.getStatementType().name() : null;
+                ddlTarget = cqs.getDdlTargetTable();
             }
 
             String cQuery = null;
+            TableId destination = null;
             if (child.getConfiguration() instanceof QueryJobConfiguration qc) {
                 cQuery = qc.getQuery();
+                destination = qc.getDestinationTable();
             }
+
+            String errorMessage = cs.getError() != null ? cs.getError().getMessage() : null;
 
             childJobs.add(new BigQueryChildJob(
                     child.getJobId().getJob(),
-                    cStatus, cStart, cEnd, cQuery, cBytes
+                    cStatus, cStart, cEnd, cQuery, cBytes,
+                    statementType, StatementFacts.target(statementType, ddlTarget, destination), errorMessage
             ));
         }
-        return childJobs;
+        return StatementFacts.inRunOrder(childJobs);
     }
 
     private static <T> T joined(@NotNull CompletableFuture<T> future) {

@@ -28,7 +28,7 @@ import java.io.File;
 public class DataformBuildErrorEventTest extends BasePlatformTestCase {
 
     public void testAnErrorWithAFileIsGroupedUnderThatFile() {
-        FilePosition position = new FilePosition(new File("/p/definitions/gold.sqlx"), 27, 35);
+        FilePosition position = new FilePosition(new File("/p/definitions/gold.sqlx").toPath(), 27, 35);
 
         MessageEvent event = DataformBuildManager.errorEvent(new Object(), "BigQuery: Name email not found inside c",
                 "details", position);

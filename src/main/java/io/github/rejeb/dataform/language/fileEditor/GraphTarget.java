@@ -17,11 +17,24 @@
 package io.github.rejeb.dataform.language.fileEditor;
 
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
+import io.github.rejeb.dataform.language.compilation.model.GraphAction;
 import io.github.rejeb.dataform.language.compilation.model.Target;
 
 import java.util.List;
 
-public record GraphTarget(String name, String fullName, String type) {
+/**
+ * An action of a file as the schema preview lists it.
+ *
+ * @param name     the name of its target
+ * @param fullName the full name of its target
+ * @param type     the table type for a table, otherwise {@code operation}, {@code assertion} or
+ *                 {@code declaration}
+ * @param hasTable whether the action has a BigQuery table or view, so a schema: every action but an
+ *                 operation without output
+ */
+public record GraphTarget(String name, String fullName, String type, boolean hasTable) {
+
+    private static final String OPERATION = "operation";
 
     /**
      * The actions a file compiles to, tables first, then operations, assertions and declarations.
@@ -31,10 +44,12 @@ public record GraphTarget(String name, String fullName, String type) {
      * @return one target per action of the file
      */
     public static List<GraphTarget> targetsOf(CompiledGraph graph, String fileName) {
-        return graph.actionsOfFile(fileName).stream().map(action -> of(action.target(), action.kind())).toList();
+        return graph.actionsOfFile(fileName).stream().map(GraphTarget::of).toList();
     }
 
-    private static GraphTarget of(Target target, String type) {
-        return new GraphTarget(target.getName(), target.getFullName(), type);
+    private static GraphTarget of(GraphAction action) {
+        Target target = action.target();
+        boolean hasTable = !OPERATION.equals(action.kind()) || action.buildsTable();
+        return new GraphTarget(target.getName(), target.getFullName(), action.kind(), hasTable);
     }
 }

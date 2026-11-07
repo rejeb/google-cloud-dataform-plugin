@@ -24,6 +24,8 @@ import com.intellij.psi.PsiFile;
 import com.intellij.psi.util.PsiTreeUtil;
 import io.github.rejeb.dataform.language.compilation.model.ActionReference;
 import io.github.rejeb.dataform.language.injection.InjectedFiles;
+import io.github.rejeb.dataform.language.lexer.SqlxFileLexer;
+import io.github.rejeb.dataform.language.psi.SharedTokenTypes;
 import io.github.rejeb.dataform.language.psi.SqlxConfigBlock;
 import io.github.rejeb.dataform.language.psi.SqlxFile;
 import org.jetbrains.annotations.NotNull;
@@ -63,6 +65,22 @@ public final class SqlxUnitTests {
         }
         SqlxConfigBlock config = PsiTreeUtil.findChildOfType(sqlxFile, SqlxConfigBlock.class);
         return config != null && TEST_TYPE_DECLARATION.matcher(config.getText()).find();
+    }
+
+    /**
+     * Tells whether the config block of the given SQLX text declares a unit test. Runs the SQLX lexer
+     * on the text alone, so it needs neither PSI nor a read action.
+     */
+    public static boolean isUnitTestText(@NotNull CharSequence sqlxText) {
+        SqlxFileLexer lexer = new SqlxFileLexer();
+        lexer.start(sqlxText);
+        while (lexer.getTokenType() != null) {
+            if (lexer.getTokenType() == SharedTokenTypes.CONFIG_CONTENT) {
+                return TEST_TYPE_DECLARATION.matcher(sqlxText.subSequence(lexer.getTokenStart(), lexer.getTokenEnd())).find();
+            }
+            lexer.advance();
+        }
+        return false;
     }
 
     /**

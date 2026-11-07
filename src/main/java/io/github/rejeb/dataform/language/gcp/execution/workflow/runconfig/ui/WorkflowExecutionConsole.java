@@ -17,6 +17,7 @@
 package io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.ui;
 
 import com.intellij.execution.ui.ExecutionConsole;
+import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.project.Project;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowInvocationProgress;
 import org.jetbrains.annotations.NotNull;
@@ -27,8 +28,19 @@ public class WorkflowExecutionConsole implements ExecutionConsole {
 
     private final WorkflowExecutionPanel panel;
 
-    public WorkflowExecutionConsole(@NotNull String invocationName, @NotNull Project project) {
-        this.panel = new WorkflowExecutionPanel(invocationName, project);
+    /**
+     * @param title the name of the run configuration, shown at the root of the run tree
+     */
+    public WorkflowExecutionConsole(@NotNull String title, @NotNull Project project) {
+        this.panel = new WorkflowExecutionPanel(title, project);
+    }
+
+    /**
+     * The actions the Run tool window shows in its toolbar for this console.
+     */
+    @NotNull
+    public AnAction[] toolbarActions() {
+        return panel.toolbarActions();
     }
 
     public void updateProgress(@NotNull WorkflowInvocationProgress progress) {

@@ -122,10 +122,14 @@ public final class BigQueryExecutionServiceImpl implements BigQueryExecutionServ
         long end = stats != null && stats.getEndTime() != null ? stats.getEndTime() : 0L;
         long bytes = queryStats != null && queryStats.getTotalBytesProcessed() != null
                 ? queryStats.getTotalBytesProcessed() : 0L;
+        long billed = queryStats != null && queryStats.getTotalBytesBilled() != null
+                ? queryStats.getTotalBytesBilled() : 0L;
         boolean cacheHit = queryStats != null && Boolean.TRUE.equals(queryStats.getCacheHit());
         String stmtType = queryStats != null && queryStats.getStatementType() != null
                 ? queryStats.getStatementType().name() : null;
-        return new BigQueryJobStats(jobId, projectId, location, creation, start, end, bytes, cacheHit, stmtType, totalRows);
+        long slotMillis = stats != null && stats.getTotalSlotMs() != null ? stats.getTotalSlotMs() : 0L;
+        return new BigQueryJobStats(jobId, projectId, location, creation, start, end, bytes, billed, cacheHit,
+                stmtType, totalRows, slotMillis);
     }
 
     private BigQueryJobResult failure(@NotNull String tableName, @NotNull String message) {

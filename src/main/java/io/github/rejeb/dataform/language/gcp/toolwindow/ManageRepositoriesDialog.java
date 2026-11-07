@@ -31,6 +31,7 @@ import com.intellij.ui.components.JBList;
 import com.intellij.ui.components.JBScrollPane;
 import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
 import io.github.rejeb.dataform.language.gcp.settings.GcpRepositorySettings;
+import io.github.rejeb.dataform.language.ui.EmptyStates;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jspecify.annotations.NonNull;
@@ -51,6 +52,9 @@ public class ManageRepositoriesDialog extends DialogWrapper {
     private int editedIndex = -1;
     private boolean suppressListener = false;
 
+    private static final float LIST_PROPORTION = 0.35f;
+    private static final int DIALOG_WIDTH = 980;
+    private static final int DIALOG_HEIGHT = 480;
     private static final String CARD_EMPTY = "empty";
     private static final String CARD_EDIT = "edit";
     private final CardLayout rightCardLayout = new CardLayout();
@@ -70,18 +74,8 @@ public class ManageRepositoriesDialog extends DialogWrapper {
 
         GcpRepositorySettings.getInstance(project).getAllConfigs().forEach(listModel::addElement);
 
-        repoList.setCellRenderer(new DefaultListCellRenderer() {
-            @Override
-            public Component getListCellRendererComponent(
-                    JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
-                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-                if (value instanceof DataformRepositoryConfig c) {
-                    setText(c.displayName());
-                    setIcon(AllIcons.Nodes.DataSchema);
-                }
-                return this;
-            }
-        });
+        repoList.setCellRenderer(new RepositoryListCellRenderer());
+        EmptyStates.show(repoList.getEmptyText(), "No repositories", "Add repository", this::addRepository);
 
         repoList.addListSelectionListener(e -> {
             if (e.getValueIsAdjusting() || suppressListener) return;
@@ -128,11 +122,18 @@ public class ManageRepositoriesDialog extends DialogWrapper {
                 .disableUpDownActions()
                 .createPanel();
 
-        JBSplitter splitter = new JBSplitter(false, 0.35f);
+        JBSplitter splitter = new JBSplitter(false, LIST_PROPORTION);
         splitter.setFirstComponent(listPanel);
         splitter.setSecondComponent(rightPanel);
-        splitter.setPreferredSize(new Dimension(700, 400));
+        splitter.setPreferredSize(new Dimension(DIALOG_WIDTH, DIALOG_HEIGHT));
         return splitter;
+    }
+
+    /**
+     * The width the dialog gives the form of a repository when it opens.
+     */
+    static int formWidth() {
+        return Math.round(DIALOG_WIDTH * (1 - LIST_PROPORTION));
     }
 
     private @NonNull AnActionButton createCopyButton() {

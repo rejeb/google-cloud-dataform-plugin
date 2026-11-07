@@ -28,6 +28,10 @@ import io.github.rejeb.dataform.language.gcp.common.CommitAuthorConfig;
 import io.github.rejeb.dataform.language.gcp.common.GcpApiException;
 import io.github.rejeb.dataform.language.gcp.common.GcpConfigProvider.RepositoryCoordinates;
 import io.github.rejeb.dataform.language.gcp.common.GcpConfigProvider;
+import io.github.rejeb.dataform.language.gcp.gitremote.GitRemoteBranch;
+import io.github.rejeb.dataform.language.gcp.gitremote.GitConfigLocalClones;
+import io.github.rejeb.dataform.language.gcp.gitremote.GitRemoteBranches;
+import io.github.rejeb.dataform.language.gcp.gitremote.LocalClones;
 import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
 import io.github.rejeb.dataform.language.gcp.workspace.repository.WorkspaceRepository;
 import io.github.rejeb.dataform.language.util.DataformPaths;
@@ -39,6 +43,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 public class WorkspaceOperationsHandler implements WorkspaceOperations {
 
@@ -48,13 +53,22 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
     private final GcpConfigProvider configProvider;
     private final Function<Project, List<String>> filesResolver;
     private final Project project;
+    private final @Nullable GitRemoteBranches gitRemoteBranches;
+    private final LocalClones localClones;
+    private volatile @Nullable KnownRepository knownRepository;
+
+    private record KnownRepository(@NotNull RepositoryCoordinates coordinates,
+                                   @NotNull DataformRepository repository,
+                                   @NotNull MainBranchSource source) {
+    }
 
     public WorkspaceOperationsHandler(
             @NotNull WorkspaceRepository workspaceRepository,
             @NotNull GcpConfigProvider configProvider,
             @NotNull Project project
     ) {
-        this(workspaceRepository, configProvider, project, DataformProjectFilesResolver::resolve);
+        this(workspaceRepository, configProvider, project, DataformProjectFilesResolver::resolve,
+                project.getService(GitRemoteBranches.class));
     }
 
     WorkspaceOperationsHandler(
@@ -63,10 +77,118 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
             @NotNull Project project,
             @NotNull Function<Project, List<String>> filesResolver
     ) {
+        this(workspaceRepository, configProvider, project, filesResolver, project.getService(GitRemoteBranches.class));
+    }
+
+    WorkspaceOperationsHandler(
+            @NotNull WorkspaceRepository workspaceRepository,
+            @NotNull GcpConfigProvider configProvider,
+            @NotNull Project project,
+            @NotNull Function<Project, List<String>> filesResolver,
+            @Nullable GitRemoteBranches gitRemoteBranches
+    ) {
+        this(workspaceRepository, configProvider, project, filesResolver, gitRemoteBranches, new GitConfigLocalClones(project));
+    }
+
+    WorkspaceOperationsHandler(
+            @NotNull WorkspaceRepository workspaceRepository,
+            @NotNull GcpConfigProvider configProvider,
+            @NotNull Project project,
+            @NotNull Function<Project, List<String>> filesResolver,
+            @Nullable GitRemoteBranches gitRemoteBranches,
+            @NotNull LocalClones localClones
+    ) {
+        this.localClones = localClones;
+        this.gitRemoteBranches = gitRemoteBranches;
         this.workspaceRepository = workspaceRepository;
         this.configProvider = configProvider;
         this.project = project;
         this.filesResolver = filesResolver;
+    }
+
+    @Override
+    public @NotNull MainBranchSource refreshMainBranchSource() {
+        RepositoryCoordinates config = readConfig();
+        return config == null ? MainBranchSource.DATAFORM : sourceIn(lookUpRepository(config));
+    }
+
+    @Override
+    public @NotNull MainBranchSource mainBranchSource() {
+        RepositoryCoordinates config = readConfig();
+        return config == null ? MainBranchSource.DATAFORM : sourceIn(knownRepository(config));
+    }
+
+    @Override
+    public @Nullable CommitRoute commitRoute() {
+        RepositoryCoordinates config = readConfig();
+        KnownRepository known = config == null ? null : knownRepository(config);
+        return known == null ? null : new CommitRoute(known.repository(), localCloneOf(known.repository()));
+    }
+
+    private @NotNull CommitRoute.LocalClone localCloneOf(@NotNull DataformRepository repository) {
+        if (!localClones.isCloneOf(repository)) {
+            return CommitRoute.LocalClone.NONE;
+        }
+        return gitRemoteBranches == null ? CommitRoute.LocalClone.WITHOUT_GIT_PLUGIN : CommitRoute.LocalClone.WITH_GIT_PLUGIN;
+    }
+
+    @Override
+    public void fetchMainBranch() {
+        if (mainBranchSource() instanceof MainBranchSource.GitRemote gitRemote) {
+            gitRemote.branch().fetch();
+        }
+    }
+
+    private static @NotNull MainBranchSource sourceIn(@Nullable KnownRepository known) {
+        return known == null ? MainBranchSource.DATAFORM : known.source();
+    }
+
+    private @Nullable KnownRepository knownRepository(@NotNull RepositoryCoordinates config) {
+        KnownRepository known = knownRepository;
+        return known != null && known.coordinates().equals(config) ? known : lookUpRepository(config);
+    }
+
+    private @Nullable KnownRepository lookUpRepository(@NotNull RepositoryCoordinates config) {
+        knownRepository = null;
+        DataformRepository repository;
+        try {
+            repository = workspaceRepository.findRepository(config.projectId(), config.location(), config.repositoryId());
+        } catch (GcpApiException e) {
+            LOG.warn("Failed to read Dataform repository " + config.repositoryId(), e);
+            return null;
+        }
+        KnownRepository known = new KnownRepository(config, repository, sourceOf(repository));
+        knownRepository = known;
+        return known;
+    }
+
+    private @NotNull MainBranchSource sourceOf(@NotNull DataformRepository repository) {
+        if (!repository.hasGitRemote()) {
+            return MainBranchSource.DATAFORM;
+        }
+        GitRemoteBranch branch = gitRemoteBranches == null ? null : gitRemoteBranches.find(repository);
+        return branch == null ? MainBranchSource.UNAVAILABLE : new MainBranchSource.GitRemote(branch);
+    }
+
+    private <T> T read(@NotNull RepositoryCoordinates config, @Nullable String workspaceId,
+                       @NotNull Supplier<T> fromDataform, @NotNull Function<GitRemoteBranch, T> fromGitRemote,
+                       @NotNull T nothing) {
+        if (workspaceId != null) {
+            return fromDataform.get();
+        }
+        return switch (sourceIn(knownRepository(config))) {
+            case MainBranchSource.Dataform dataform -> fromDataform.get();
+            case MainBranchSource.GitRemote gitRemote -> fromGitRemote.apply(gitRemote.branch());
+            case MainBranchSource.Unavailable unavailable -> nothing;
+        };
+    }
+
+    private static @NotNull Map<String, String> readAll(@NotNull GitRemoteBranch branch) {
+        Map<String, String> files = new LinkedHashMap<>();
+        for (String path : branch.listFiles()) {
+            files.put(path, branch.readFile(path));
+        }
+        return files;
     }
 
     @Override
@@ -78,12 +200,12 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
     }
 
     @Override
-    public void pushGitCommits(@NotNull String workspaceId) {
+    public void pushGitCommits(@NotNull String workspaceId, @Nullable String remoteBranch) {
         RepositoryCoordinates config = readConfig();
         if (config == null) return;
         CommitAuthorConfig author = configProvider.getCommitAuthor();
         workspaceRepository.pushGitCommits(config.projectId(), config.location(), config.repositoryId(),
-                workspaceId, author);
+                workspaceId, remoteBranch, author);
     }
 
     @Override
@@ -91,16 +213,15 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
     public Map<String, String> fetchCode(@Nullable String workspaceId) {
         RepositoryCoordinates config = readConfig();
         if (config == null) return Map.of();
-        return workspaceRepository.readAllFiles(
-                config.projectId(), config.location(), config.repositoryId(), workspaceId);
+        return read(config, workspaceId,
+                () -> workspaceRepository.readAllFiles(
+                        config.projectId(), config.location(), config.repositoryId(), workspaceId),
+                WorkspaceOperationsHandler::readAll, Map.of());
     }
 
     @Override
     public void pullCode(@Nullable String workspaceId) {
-        RepositoryCoordinates config = readConfig();
-        if (config == null) return;
-        Map<String, String> files = workspaceRepository.readAllFiles(
-                config.projectId(), config.location(), config.repositoryId(), workspaceId);
+        Map<String, String> files = fetchCode(workspaceId);
         if (!files.isEmpty()) {
             writeFilesToVfs(files);
         }
@@ -219,8 +340,12 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
     public List<UncommittedChange> fetchGitStatuses(@NotNull String workspaceId) {
         RepositoryCoordinates config = readConfig();
         if (config == null) return List.of();
+        Predicate<String> ignored = DataformProjectFilesResolver.gitIgnored(project);
         return workspaceRepository.fetchFileGitStatuses(
-                config.projectId(), config.location(), config.repositoryId(), workspaceId);
+                        config.projectId(), config.location(), config.repositoryId(), workspaceId)
+                .stream()
+                .filter(change -> !ignored.test(change.path()))
+                .toList();
     }
 
     @Override
@@ -240,15 +365,25 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
     @Override
     public List<String> listAllPaths(@Nullable String workspaceId) {
         RepositoryCoordinates config = readConfig();
-        return config == null ? List.of() : workspaceRepository.listAllPaths(
-                config.projectId(), config.location(), config.repositoryId(), workspaceId);
+        if (config == null) {
+            return List.of();
+        }
+        return read(config, workspaceId,
+                () -> workspaceRepository.listAllPaths(
+                        config.projectId(), config.location(), config.repositoryId(), workspaceId),
+                GitRemoteBranch::listFiles, List.of());
     }
 
     @Override
     public @NotNull String getFileContent(@Nullable String workspaceId, @NotNull String filePath) {
         RepositoryCoordinates config = readConfig();
-        return config == null ? "" : workspaceRepository.getFileContent(
-                config.projectId(), config.location(), config.repositoryId(), workspaceId, filePath);
+        if (config == null) {
+            return "";
+        }
+        return read(config, workspaceId,
+                () -> workspaceRepository.getFileContent(
+                        config.projectId(), config.location(), config.repositoryId(), workspaceId, filePath),
+                branch -> branch.readFile(filePath), "");
     }
 
     @Nullable

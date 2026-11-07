@@ -67,7 +67,7 @@ public final class DataformCoreVersionMigrationActivity implements ProjectActivi
     private static void suggestMigration(@NotNull Project project,
                                          @NotNull VirtualFile workflowSettings,
                                          @NotNull String version) {
-        DataformNotifications.create("Dataform core version in workflow_settings.yaml",
+        DataformNotifications.create("Core version in workflow_settings.yaml",
                         "This project pins <code>@dataform/core</code> "
                                 + StringUtil.escapeXmlEntities(version)
                                 + " with <code>dataformCoreVersion</code>. Declare it in <code>package.json</code>"

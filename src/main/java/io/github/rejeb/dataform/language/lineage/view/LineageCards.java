@@ -26,8 +26,8 @@ import javax.swing.JComponent;
 import javax.swing.JPanel;
 
 /**
- * The body of a lineage view, with the warning banner and the toolbar above the graph, and the
- * message shown in its place while there is no graph to show.
+ * The body of a lineage view, with the warning banner and the toolbar above the graph area, and
+ * the message shown in its place while there is no graph to show.
  */
 final class LineageCards extends JPanel {
 

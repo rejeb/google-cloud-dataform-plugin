@@ -14,17 +14,17 @@ You have deep knowledge of IntelliJ UI components (Swing, Compose for IDE).
 
 ## 1. Project Overview
 
-A full IntelliJ plugin (current version: `0.2.11`) providing advanced language support for Google Cloud Dataform projects, enabling developers to work efficiently with SQLX files and Dataform workflows.
+A full IntelliJ plugin (current version: `1.0.0`) providing advanced language support for Google Cloud Dataform projects, enabling developers to work efficiently with SQLX files and Dataform workflows.
 
 ## 2. Tech Stack
 
 - Primary language: Java 21.
-- Platform: IntelliJ Platform SDK `2026.1` (sinceBuild `261`).
+- Platform: IntelliJ Platform SDK `2026.2` (sinceBuild `262`).
 - Syntax analysis: Custom Lexer and Parser (no JFlex). Generated sources are in `src/main/gen/`.
-- Build tool: Gradle (Kotlin DSL `build.gradle.kts`), Gradle IntelliJ Platform plugin `2.12.0`.
+- Build tool: Gradle (Kotlin DSL `build.gradle.kts`), Gradle IntelliJ Platform plugin `2.19.0`.
 - Kotlin: Gradle plugin applied for the Kotlin DSL only; there are no Kotlin sources.
 - UI: Swing (IntelliJ UI components). Compose for IDE is not used.
-- GCP dependencies: `com.google.cloud:google-cloud-dataform`, `com.google.cloud:google-cloud-bigquery` (via BOM `26.79.0`).
+- GCP dependencies: `com.google.cloud:google-cloud-dataform`, `com.google.cloud:google-cloud-bigquery` (via BOM `26.91.0`).
 - IntelliJ Plugin dependencies (bundled):
   - `com.intellij.java`
   - `JavaScript`
@@ -33,7 +33,8 @@ A full IntelliJ plugin (current version: `0.2.11`) providing advanced language s
   - `com.intellij.modules.json`
   - `org.jetbrains.plugins.yaml`
   - `org.jetbrains.plugins.terminal`
-- Tests: JUnit 5 (`junit-jupiter:5.10.1`), JUnit Vintage (`5.10.0`), Mockito 5 (`5.11.0`), IntelliJ Platform Test Framework (`BasePlatformTestCase`, `LightJavaCodeInsightFixtureTestCase`).
+  - `Git4Idea` (optional; without it the Dataform tab of Get from Version Control is not registered)
+- Tests: JUnit 5 (`junit-jupiter:5.10.1`), JUnit Vintage (`5.10.0`), Mockito 5 (`5.23.0`), IntelliJ Platform Test Framework (`BasePlatformTestCase`, `LightJavaCodeInsightFixtureTestCase`).
 
 ## 3. Main Features
 
@@ -99,6 +100,8 @@ All Google Cloud Platform integration.
 |---|---|
 | `gcp/action/` | IntelliJ actions for GCP operations (`CompareFileWithRemoteAction`) |
 | `gcp/common/` | Shared GCP components (auth, client factory) |
+| `gcp/clone/` | Open a project from an existing Dataform repository: Get from Version Control tab (`DataformCloneDialogExtension`, `DataformCloneDialogComponent`), Git clone (`GitRemoteCheckout`, which touches `git4idea`) or workspace download (`WorkspaceDownload`), link to the opened project (`RepositoryLinker`, `DataformRepositoryLinkActivity`). Registered through the optional `META-INF/dataform-git.xml` |
+| `gcp/gitremote/` | The branch of the Git remote a repository is linked to, read from the local clone (`GitRemoteBranches`, `GitRemoteBranch`): Dataform does not serve such a repository without a workspace. `GitRemoteBranchesImpl` is the only other class touching `git4idea`, registered through `META-INF/dataform-git.xml`. Whether the project is a local clone (`LocalClones`, `GitConfigLocalClones`) is read from the Git config, so it needs neither the Git plugin nor a Git executable |
 | `gcp/execution/bigquery/` | BigQuery execution: `BigQueryExecutionService`, job operations, paged results, grid UI, service view contributor |
 | `gcp/execution/workflow/` | Dataform workflow execution via GCP API: `WorkflowOperations`, run configuration (`DataformWorkflowConfigurationType`, `DataformWorkflowProgramRunner`, `SqlxEditorGutterProvider`) |
 | `gcp/service/` | GCP services as IntelliJ services: `DataformGcpService`, `DataformGcpFileCache` |
@@ -147,7 +150,7 @@ All Google Cloud Platform integration.
 
 ## 7. IntelliJ Compatibility & APIs
 
-- Target: IntelliJ Platform SDK `2026.1` (sinceBuild `261`).
+- Target: IntelliJ Platform SDK `2026.2` (sinceBuild `262`).
 - Avoid deprecated APIs: if a "classic" API is deprecated, propose the modern alternative and explain why.
 - Critical attention points:
   - PSI trees and thread-safety (read/write actions).

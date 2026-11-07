@@ -25,6 +25,7 @@ import com.intellij.util.concurrency.AppExecutorUtil;
 import io.github.rejeb.dataform.language.gcp.common.CommitAuthorConfig;
 import io.github.rejeb.dataform.language.gcp.common.DataformApi;
 import io.github.rejeb.dataform.language.gcp.common.GcpApiException;
+import io.github.rejeb.dataform.language.gcp.workspace.DataformRepository;
 import io.github.rejeb.dataform.language.gcp.workspace.UncommittedChange;
 import io.github.rejeb.dataform.language.gcp.workspace.Workspace;
 import org.jetbrains.annotations.NotNull;
@@ -57,6 +58,31 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
 
     @Override
     @NotNull
+    public DataformRepository findRepository(
+            @NotNull String projectId,
+            @NotNull String location,
+            @NotNull String repositoryId
+    ) {
+        return DataformApi.call(projectId,
+                e -> "Error reading GCP Dataform repository \"" + repositoryId + "\": " + e.getMessage(),
+                client -> DataformRepositoryMapper.toDataformRepository(
+                        client.getRepository(RepositoryName.of(projectId, location, repositoryId))));
+    }
+
+    @Override
+    @NotNull
+    public List<DataformRepository> findRepositories(@NotNull String projectId, @NotNull String location) {
+        return DataformApi.call(projectId,
+                e -> "Error listing Dataform repositories: " + e.getMessage(), client -> {
+            ListRepositoriesRequest request = ListRepositoriesRequest.newBuilder()
+                    .setParent(LocationName.of(projectId, location).toString())
+                    .build();
+            return DataformRepositoryMapper.toDataformRepositories(client.listRepositories(request).iterateAll());
+        });
+    }
+
+    @Override
+    @NotNull
     public List<Workspace> findAll(
             @NotNull String projectId,
             @NotNull String location,
@@ -82,15 +108,19 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
             @NotNull String location,
             @NotNull String repositoryId,
             @NotNull String workspaceId,
+            @Nullable String remoteBranch,
             @NotNull CommitAuthorConfig author
     ) {
-        DataformApi.run(projectId, "Error pushing commits to GCP Dataform workspace.", client -> {
-            String wsName = workspaceName(projectId, location, repositoryId, workspaceId);
-            PushGitCommitsRequest pushRequest = PushGitCommitsRequest.newBuilder()
-                    .setName(wsName)
-                    .build();
-            client.pushGitCommits(pushRequest);
-        });
+        DataformApi.run(projectId, "Error pushing commits to GCP Dataform workspace.", client ->
+                client.pushGitCommits(pushRequest(workspaceName(projectId, location, repositoryId, workspaceId), remoteBranch)));
+    }
+
+    static @NotNull PushGitCommitsRequest pushRequest(@NotNull String workspaceName, @Nullable String remoteBranch) {
+        PushGitCommitsRequest.Builder request = PushGitCommitsRequest.newBuilder().setName(workspaceName);
+        if (remoteBranch != null) {
+            request.setRemoteBranch(remoteBranch);
+        }
+        return request.build();
     }
 
     @Override

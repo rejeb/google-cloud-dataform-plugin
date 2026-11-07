@@ -18,30 +18,45 @@ package io.github.rejeb.dataform.language.gcp.execution.bigquery.serviceview;
 
 import com.intellij.execution.services.ServiceViewDescriptor;
 import com.intellij.openapi.project.Project;
-import io.github.rejeb.dataform.language.gcp.execution.bigquery.BigQueryJobResult;
+import io.github.rejeb.dataform.language.gcp.execution.bigquery.QueryRun;
 import org.jetbrains.annotations.NotNull;
 
+/**
+ * A query run in the Services view, the same node from the start of the run to its result.
+ */
 public final class QueryResultNode {
 
-    private final BigQueryJobResult result;
+    private final Project project;
+    private final QueryRun run;
 
-    public QueryResultNode(@NotNull BigQueryJobResult result) {
-        this.result = result;
+    public QueryResultNode(@NotNull Project project, @NotNull QueryRun run) {
+        this.project = project;
+        this.run = run;
     }
 
-    public @NotNull ServiceViewDescriptor getViewDescriptor(@NotNull Project project) {
-        return new DataformServiceViewDescriptor(project, result);
+    /**
+     * The row of the run in the tree and its detail panel.
+     */
+    public @NotNull ServiceViewDescriptor getViewDescriptor() {
+        return new DataformServiceViewDescriptor(project, run);
+    }
+
+    /**
+     * The Dataform Queries node the run is listed under.
+     */
+    public @NotNull QueryGroup group() {
+        return new QueryGroup(project);
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (!(o instanceof QueryResultNode other)) return false;
-        return result.tableName().equals(other.result.tableName());
+        return run.tableName().equals(other.run.tableName());
     }
 
     @Override
     public int hashCode() {
-        return result.tableName().hashCode();
+        return run.tableName().hashCode();
     }
 }
