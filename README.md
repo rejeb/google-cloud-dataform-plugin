@@ -16,43 +16,43 @@ A comprehensive IntelliJ IDEA plugin that provides advanced language support for
 <table>
   <tr>
     <td width="33%" align="center">
-      <img src="doc/screenshots/sqlx-quickdoc.webp" alt="Quick Documentation of the email column of silver_customers" width="100%"><br>
+      <img src="doc/screenshots/sqlx-quickdoc.jpg" alt="Quick Documentation of the email column of silver_customers" width="100%"><br>
       <sub><b>SQLX editing</b></sub>
     </td>
     <td width="33%" align="center">
-      <img src="doc/screenshots/column-usages.webp" alt="Declaration and usages of full_name, from silver_customers.sqlx" width="100%"><br>
+      <img src="doc/screenshots/column-usages.jpg" alt="Declaration and usages of full_name, from silver_customers.sqlx" width="100%"><br>
       <sub><b>Column usages</b></sub>
     </td>
     <td width="33%" align="center">
-      <img src="doc/screenshots/errors-inline.webp" alt="A dry-run error on c.emailx, in the editor and the compiled preview" width="100%"><br>
+      <img src="doc/screenshots/errors-inline.jpg" alt="A dry-run error on c.emailx, in the editor and the compiled preview" width="100%"><br>
       <sub><b>Errors in the editor</b></sub>
     </td>
   </tr>
   <tr>
     <td width="33%" align="center">
-      <img src="doc/screenshots/preview-schema.webp" alt="Output schema of gold_customer_ltv, with its assertions listed below it" width="100%"><br>
+      <img src="doc/screenshots/preview-schema.jpg" alt="Output schema of gold_customer_ltv, with its assertions listed below it" width="100%"><br>
       <sub><b>Compiled preview</b></sub>
     </td>
     <td width="33%" align="center">
-      <img src="doc/screenshots/lineage-selection.webp" alt="silver_customers selected: its whole lineage in blue, the rest dimmed" width="100%"><br>
+      <img src="doc/screenshots/lineage-selection.jpg" alt="silver_customers selected: its whole lineage in blue, the rest dimmed" width="100%"><br>
       <sub><b>Project lineage</b></sub>
     </td>
     <td width="33%" align="center">
-      <img src="doc/screenshots/unit-test-diff.webp" alt="Expected and actual rows of a failing unit test" width="100%"><br>
+      <img src="doc/screenshots/unit-test-diff.jpg" alt="Expected and actual rows of a failing unit test" width="100%"><br>
       <sub><b>Unit tests</b></sub>
     </td>
   </tr>
   <tr>
     <td width="33%" align="center">
-      <img src="doc/screenshots/run-jobs.webp" alt="The Jobs timeline of gold_customer_ltv: CREATE SCHEMA, SELECT and CREATE TABLE AS SELECT" width="100%"><br>
+      <img src="doc/screenshots/run-jobs.jpg" alt="The Jobs timeline of gold_customer_ltv: CREATE SCHEMA, SELECT and CREATE TABLE AS SELECT" width="100%"><br>
       <sub><b>Workflow runs</b></sub>
     </td>
     <td width="33%" align="center">
-      <img src="doc/screenshots/query-results.webp" alt="Results of gold_customer_ltv in the Services tool window" width="100%"><br>
+      <img src="doc/screenshots/query-results.jpg" alt="Results of gold_customer_ltv in the Services tool window" width="100%"><br>
       <sub><b>Query results</b></sub>
     </td>
     <td width="33%" align="center">
-      <img src="doc/screenshots/panel-workspaces.webp" alt="The user_purchase repository with the demo workspace selected" width="100%"><br>
+      <img src="doc/screenshots/panel-workspaces.jpg" alt="The user_purchase repository with the demo workspace selected" width="100%"><br>
       <sub><b>Dataform panel</b></sub>
     </td>
   </tr>
