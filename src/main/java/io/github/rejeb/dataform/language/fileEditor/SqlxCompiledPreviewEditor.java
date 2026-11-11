@@ -55,9 +55,12 @@ import io.github.rejeb.dataform.language.compilation.model.CompiledTest;
 import io.github.rejeb.dataform.language.compilation.model.ProjectConfig;
 import io.github.rejeb.dataform.language.fileEditor.cost.CostEstimate;
 import io.github.rejeb.dataform.language.fileEditor.cost.QueryCostEstimator;
+import io.github.rejeb.dataform.language.fileEditor.cost.QueryRunCosts;
+import io.github.rejeb.dataform.language.fileEditor.cost.RunCost;
 import io.github.rejeb.dataform.language.gcp.auth.DataformCredentialsService;
 import io.github.rejeb.dataform.language.gcp.execution.bigquery.BigQueryExecutionService;
 import io.github.rejeb.dataform.language.gcp.execution.bigquery.BigQueryJobResult;
+import io.github.rejeb.dataform.language.gcp.execution.bigquery.BigQueryJobStats;
 import io.github.rejeb.dataform.language.gcp.execution.bigquery.QueryResultsRegistry;
 import io.github.rejeb.dataform.language.gcp.execution.bigquery.QueryRun;
 import io.github.rejeb.dataform.language.gcp.execution.bigquery.serviceview.QueryResultsView;
@@ -434,6 +437,7 @@ public class SqlxCompiledPreviewEditor extends UserDataHolderBase implements Fil
 
         String projectId = config.projectId();
         QueryResultsRegistry registry = QueryResultsRegistry.getInstance(project);
+        Map<String, String> measuredSql = sqlToMeasure(toExecute);
 
         ProgressManager.getInstance().run(
                 new Task.Backgroundable(project, "Dataform: executing queries", true) {
@@ -452,15 +456,57 @@ public class SqlxCompiledPreviewEditor extends UserDataHolderBase implements Fil
                                     indicator::cancel);
                             registry.start(run);
                             QueryResultsView.show(project, run);
-                            BigQueryJobResult result = svc.execute(sql, projectId, q.tableName(), indicator);
+                            String measured = measuredSql.get(q.tableName());
+                            if (measured != null) {
+                                onPreview(() -> queryPanel.markMeasuring(q.tableName()));
+                            }
+                            BigQueryJobResult result = svc.execute(sql, projectId, q.tableName(), indicator,
+                                    measured == null);
                             QueryRun finished = registry.finish(run, result, indicator.isCanceled());
                             if (finished != null) {
                                 QueryResultsView.show(project, finished);
+                            }
+                            if (measured != null) {
+                                recordRunCost(q.tableName(), measured, result, indicator.isCanceled());
                             }
                         }
                     }
                 }
         );
+    }
+
+    /**
+     * The compiled SQL of the actions to execute whose cost BigQuery cannot estimate and no run
+     * measured yet, by action: their run measures it.
+     */
+    @NotNull
+    private Map<String, String> sqlToMeasure(@NotNull List<FormattedCompiledQuery> toExecute) {
+        Map<String, String> measured = new HashMap<>();
+        for (FormattedCompiledQuery q : toExecute) {
+            if (!queryPanel.needsRun(q.tableName())) continue;
+            rawQueries.stream()
+                    .filter(raw -> q.tableName().equals(raw.tableName()))
+                    .findFirst()
+                    .map(PreviewQueries::costDryRunSql)
+                    .ifPresent(sql -> measured.put(q.tableName(), sql));
+        }
+        return measured;
+    }
+
+    private void recordRunCost(@NotNull String tableName, @NotNull String sql, @NotNull BigQueryJobResult result,
+                               boolean cancelled) {
+        BigQueryJobStats stats = result.stats();
+        if (result.isSuccess() && stats != null && !cancelled) {
+            QueryRunCosts.getInstance(project).record(tableName,
+                    new RunCost(sql, stats.bytesProcessed(), stats.bytesBilled(), stats.location()));
+        }
+        onPreview(() -> queryPanel.showRunCost(tableName));
+    }
+
+    private void onPreview(@NotNull Runnable update) {
+        ApplicationManager.getApplication().invokeLater(() -> {
+            if (!disposed) update.run();
+        }, ModalityState.any());
     }
 
     private View activeView = View.LINEAGE;
@@ -514,7 +560,7 @@ public class SqlxCompiledPreviewEditor extends UserDataHolderBase implements Fil
             String sql = PreviewQueries.costDryRunSql(query);
             if (sql == null) continue;
             String tableName = query.tableName();
-            queryPanel.markEstimating(tableName);
+            queryPanel.markEstimating(tableName, sql);
             estimator.estimate(billingProject, defaultLocation, sql).thenAccept(estimate ->
                     ApplicationManager.getApplication().invokeLater(() -> {
                         if (disposed || generation != refreshGeneration.get()) return;

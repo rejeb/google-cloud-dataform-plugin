@@ -18,6 +18,8 @@ package io.github.rejeb.dataform.language.evaluation;
 
 import com.intellij.openapi.application.ApplicationActivationListener;
 import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.editor.Document;
+import com.intellij.openapi.fileEditor.FileDocumentManagerListener;
 import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.fileEditor.FileEditorManagerEvent;
 import com.intellij.openapi.fileEditor.FileEditorManagerListener;
@@ -31,15 +33,18 @@ import io.github.rejeb.dataform.language.util.DataformProjects;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Asks for the template values of a file when it is opened, when its tab is selected, and when
- * the IDE comes back to the front; lets them go when the file is closed.
+ * Asks for the template values of a file when it is opened, when its tab is selected, when the
+ * IDE comes back to the front, and when an open file is reloaded from disk; lets them go when the
+ * file is closed.
  *
  * <p>These are the only moments a pass is asked for. Editing the file asks for nothing, so the
  * values a person expanded to reach their code stay out of the way while they type; what they
- * changed is evaluated the next time the file comes into focus.</p>
+ * changed is evaluated the next time the file comes into focus. A reload is no one typing: a
+ * checkout or a pull replaced the text, and the fold regions the platform builds for it are new
+ * ones, which it leaves expanded.</p>
  */
 public final class DataformEvaluationFocusListener
-        implements FileEditorManagerListener, ApplicationActivationListener {
+        implements FileEditorManagerListener, ApplicationActivationListener, FileDocumentManagerListener {
 
     @Override
     public void fileOpened(@NotNull FileEditorManager source, @NotNull VirtualFile file) {
@@ -57,6 +62,14 @@ public final class DataformEvaluationFocusListener
     public void selectionChanged(@NotNull FileEditorManagerEvent event) {
         VirtualFile file = event.getNewFile();
         if (file != null) request(event.getManager().getProject(), file);
+    }
+
+    @Override
+    public void fileContentReloaded(@NotNull VirtualFile file, @NotNull Document document) {
+        if (!hasTemplateExpressions(file)) return;
+        DataformProjects.forEachOwning(file, project -> {
+            if (FileEditorManager.getInstance(project).isFileOpen(file)) request(project, file);
+        });
     }
 
     @Override

@@ -36,10 +36,32 @@ public interface BigQueryExecutionService {
      * @param indicator progress of the caller, honoured while the job runs
      * @return execution result, never null
      */
-    @NotNull BigQueryJobResult execute(
+    default @NotNull BigQueryJobResult execute(
             @NotNull String sql,
             @NotNull String projectId,
             @NotNull String tableName,
             @NotNull ProgressIndicator indicator
+    ) {
+        return execute(sql, projectId, tableName, indicator, true);
+    }
+
+    /**
+     * Executes a SQL query against BigQuery synchronously, cancelling the BigQuery job when the
+     * indicator is cancelled. Must be called off the EDT.
+     *
+     * @param sql           compiled SQL to execute
+     * @param projectId     GCP project ID
+     * @param tableName     Dataform table name (for display)
+     * @param indicator     progress of the caller, honoured while the job runs
+     * @param useQueryCache false to make BigQuery run the query even when its result is cached, so the
+     *                      job reports the bytes the query really processes
+     * @return execution result, never null
+     */
+    @NotNull BigQueryJobResult execute(
+            @NotNull String sql,
+            @NotNull String projectId,
+            @NotNull String tableName,
+            @NotNull ProgressIndicator indicator,
+            boolean useQueryCache
     );
 }

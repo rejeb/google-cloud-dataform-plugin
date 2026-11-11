@@ -24,6 +24,8 @@ import com.intellij.openapi.fileTypes.FileType;
 import com.intellij.openapi.project.Project;
 import com.intellij.util.messages.MessageBusConnection;
 import io.github.rejeb.dataform.language.fileEditor.cost.CostEstimate;
+import io.github.rejeb.dataform.language.fileEditor.cost.QueryRunCosts;
+import io.github.rejeb.dataform.language.fileEditor.cost.RunCost;
 import io.github.rejeb.dataform.language.gcp.auth.DataformCredentialsService;
 import io.github.rejeb.dataform.language.gcp.pricing.BigQueryPricingService;
 import io.github.rejeb.dataform.language.gcp.pricing.CostFormat;
@@ -68,6 +70,7 @@ public class QueryPanel extends SectionsPreviewPanel {
     private final QueryPreviewHeader header;
     private final Set<String> estimatedActions = new LinkedHashSet<>();
     private final Map<String, CostEstimate> estimates = new HashMap<>();
+    private final Map<String, String> estimatedSql = new HashMap<>();
     private long compiledAt = -1;
     private boolean lastCompileFailed;
 
@@ -145,6 +148,7 @@ public class QueryPanel extends SectionsPreviewPanel {
         sections.clear();
         estimatedActions.clear();
         estimates.clear();
+        estimatedSql.clear();
         costTotalBar.hideTotal();
         sectionsPanel.removeAll();
         for (FormattedCompiledQuery q : queries != null ? queries : List.<FormattedCompiledQuery>of()) {
@@ -175,29 +179,89 @@ public class QueryPanel extends SectionsPreviewPanel {
      * Shows that the cost of an action is being estimated; an action not displayed is ignored.
      */
     public void markEstimating(@NotNull String tableName) {
+        markEstimating(tableName, null);
+    }
+
+    /**
+     * Shows that the cost of an action is being estimated; an action not displayed is ignored.
+     *
+     * @param sql the compiled SQL being estimated, which a run of the action is compared with to tell
+     *            whether the cost it measured is out of date; null when unknown
+     */
+    public void markEstimating(@NotNull String tableName, @Nullable String sql) {
         CostLabel label = costLabelOf(tableName);
         if (label == null) return;
         estimatedActions.add(tableName);
         estimates.remove(tableName);
+        if (sql != null) {
+            estimatedSql.put(tableName, sql);
+        } else {
+            estimatedSql.remove(tableName);
+        }
         label.showEstimating();
         refreshCostTotal();
     }
 
     /**
      * Shows the estimated cost of an action, priced for the location of its dry-run; an action not
-     * displayed is ignored.
+     * displayed is ignored. An action BigQuery cannot estimate shows the cost its last run measured,
+     * or asks to run it.
      */
     public void showEstimate(@NotNull String tableName, @NotNull CostEstimate estimate) {
         CostLabel label = costLabelOf(tableName);
         if (label == null) return;
         estimatedActions.add(tableName);
         estimates.put(tableName, estimate);
-        if (estimate.failed() || estimate.bytesProcessed() == null) {
+        if (estimate.unevaluated()) {
+            showRunCost(label, tableName);
+        } else if (estimate.failed() || estimate.bytesProcessed() == null) {
             label.showFailure(estimate.error() != null ? estimate.error() : "No bytes reported");
         } else {
             label.showCost(Utils.formatBytes(estimate.bytesProcessed()), costOf(estimate));
         }
         refreshCostTotal();
+    }
+
+    /**
+     * Tells whether BigQuery cannot estimate the displayed action and no run measured the query it
+     * compiles to now, so running it measures its cost.
+     */
+    public boolean needsRun(@NotNull String tableName) {
+        CostEstimate estimate = estimates.get(tableName);
+        if (estimate == null || !estimate.unevaluated()) return false;
+        RunCost cost = QueryRunCosts.getInstance(project).of(tableName);
+        return cost == null || cost.outdatedFor(estimatedSql.get(tableName));
+    }
+
+    /**
+     * Shows that a run is measuring the cost of an action BigQuery cannot estimate; any other action
+     * is ignored.
+     */
+    public void markMeasuring(@NotNull String tableName) {
+        CostLabel label = costLabelOf(tableName);
+        if (label != null && needsRun(tableName)) label.showMeasuring();
+    }
+
+    /**
+     * Shows what the last run of an action BigQuery cannot estimate measured, once a run ended; any
+     * other action is ignored.
+     */
+    public void showRunCost(@NotNull String tableName) {
+        CostLabel label = costLabelOf(tableName);
+        CostEstimate estimate = estimates.get(tableName);
+        if (label != null && estimate != null && estimate.unevaluated()) showRunCost(label, tableName);
+    }
+
+    private void showRunCost(@NotNull CostLabel label, @NotNull String tableName) {
+        RunCost cost = QueryRunCosts.getInstance(project).of(tableName);
+        if (cost == null) {
+            label.showRunRequired();
+            return;
+        }
+        boolean outdated = cost.outdatedFor(estimatedSql.get(tableName));
+        PriceQuote quote = BigQueryPricingService.getInstance().quote(cost.location());
+        label.showMeasured(Utils.formatBytes(cost.bytesProcessed()),
+                CostText.measured(cost.bytesBilled(), quote, outdated), outdated);
     }
 
     /**

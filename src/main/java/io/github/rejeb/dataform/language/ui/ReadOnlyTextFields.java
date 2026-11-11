@@ -20,6 +20,7 @@ import com.intellij.ui.components.JBTextArea;
 import com.intellij.ui.components.JBTextField;
 import com.intellij.util.ui.AbstractTableCellEditor;
 import com.intellij.util.ui.JBUI;
+import com.intellij.util.ui.SwingTextTrimmer;
 import com.intellij.util.ui.UIUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -58,6 +59,15 @@ public final class ReadOnlyTextFields {
     public static @NotNull JBTextField singleLine(@Nullable String text, @NotNull Color background) {
         JBTextField field = new JBTextField(text != null ? text : "");
         return configure(field, background);
+    }
+
+    /**
+     * Creates a single-line read-only text on the panel background that, given less width than
+     * its text needs, shows it shortened by the trimmer and whole in its tooltip. Selecting and
+     * copying still act on the whole text.
+     */
+    public static @NotNull JBTextField singleLineTrimmed(@Nullable String text, @NotNull SwingTextTrimmer trimmer) {
+        return configure(new TrimmedTextField(text != null ? text : "", trimmer), UIUtil.getPanelBackground());
     }
 
     /**

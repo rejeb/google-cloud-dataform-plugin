@@ -16,25 +16,34 @@
  */
 package io.github.rejeb.dataform.language.ui;
 
+import com.intellij.ui.ClientProperty;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.panels.HorizontalLayout;
 import com.intellij.util.ui.JBFont;
 import com.intellij.util.ui.JBUI;
+import com.intellij.util.ui.SwingTextTrimmer;
 import com.intellij.util.ui.UIUtil;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import javax.swing.JComponent;
 import javax.swing.JPanel;
 import javax.swing.SwingConstants;
-import java.awt.BorderLayout;
+import javax.swing.ToolTipManager;
+import java.awt.Component;
 import java.awt.Dimension;
+import java.awt.event.MouseEvent;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 
 /**
  * The row above the content of a preview tab: a grayed summary at the left, such as where its
  * content comes from and when, an optional trailing component at the right, over a separator line.
+ * A header narrower than its content keeps the whole trailing component and shortens the summary
+ * at its end, the whole summary then showing in its tooltip, then the components added after it,
+ * so nothing overlaps.
  */
 public class PreviewHeader extends JPanel {
 
@@ -43,14 +52,15 @@ public class PreviewHeader extends JPanel {
     private static final int GAP = 8;
     private static final DateTimeFormatter CLOCK = DateTimeFormatter.ofPattern("HH:mm");
 
-    private final JBLabel summary = new JBLabel();
-    private final JPanel leading = new JPanel(new HorizontalLayout(GAP, SwingConstants.CENTER));
+    private final JBLabel summary = new SummaryLabel();
+    private final JPanel extras = new ExtrasPanel();
+    private final HeaderRowLayout layout;
+    private @Nullable JComponent trailing;
 
     /**
      * Creates a header with an empty summary.
      */
     public PreviewHeader() {
-        super(new BorderLayout(JBUI.scale(PADDING), 0));
         setOpaque(false);
         setBorder(JBUI.Borders.compound(
                 JBUI.Borders.customLineBottom(JBUI.CurrentTheme.Separator.color()),
@@ -58,9 +68,15 @@ public class PreviewHeader extends JPanel {
 
         summary.setFont(JBFont.medium());
         summary.setForeground(UIUtil.getContextHelpForeground());
-        leading.setOpaque(false);
-        leading.add(summary);
-        add(leading, BorderLayout.WEST);
+        ClientProperty.put(summary, SwingTextTrimmer.KEY, SwingTextTrimmer.ELLIPSIS_AT_RIGHT);
+        JPanel filler = new JPanel();
+        filler.setOpaque(false);
+
+        layout = new HeaderRowLayout(List.of(), summary, extras, filler, GAP, PADDING);
+        setLayout(layout);
+        add(summary);
+        add(extras);
+        add(filler);
     }
 
     /**
@@ -84,14 +100,22 @@ public class PreviewHeader extends JPanel {
      * Adds a component after the summary, such as a link.
      */
     public void addLeading(@NotNull JComponent component) {
-        leading.add(component);
+        extras.add(component);
+        revalidate();
+        repaint();
     }
 
     /**
-     * Puts a component at the right end of the header, such as a toolbar.
+     * Puts a component at the right end of the header, such as a toolbar, in place of the previous
+     * one.
      */
     public void setTrailing(@NotNull JComponent component) {
-        add(component, BorderLayout.EAST);
+        if (trailing != null) {
+            remove(trailing);
+        }
+        trailing = component;
+        add(component);
+        layout.setTrailing(component);
         revalidate();
         repaint();
     }
@@ -116,5 +140,33 @@ public class PreviewHeader extends JPanel {
     @NotNull
     public JBLabel summaryLabel() {
         return summary;
+    }
+
+    private static final class ExtrasPanel extends JPanel {
+
+        private ExtrasPanel() {
+            super(new HorizontalLayout(GAP, SwingConstants.CENTER));
+            setOpaque(false);
+        }
+
+        @Override
+        public void doLayout() {
+            super.doLayout();
+            for (Component child : getComponents()) {
+                child.setSize(Math.max(0, Math.min(child.getWidth(), getWidth() - child.getX())), child.getHeight());
+            }
+        }
+    }
+
+    private static final class SummaryLabel extends JBLabel {
+
+        private SummaryLabel() {
+            ToolTipManager.sharedInstance().registerComponent(this);
+        }
+
+        @Override
+        public @Nullable String getToolTipText(@NotNull MouseEvent event) {
+            return getWidth() < getPreferredSize().width ? getText() : null;
+        }
     }
 }

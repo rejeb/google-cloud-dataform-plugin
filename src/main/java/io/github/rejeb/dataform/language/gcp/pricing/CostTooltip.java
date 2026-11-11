@@ -26,10 +26,13 @@ public final class CostTooltip {
 
     private static final String ESTIMATE = "Dry-run estimate of the query shown.";
     private static final String ESTIMATE_AT_MINIMUM =
-            "Dry-run estimate of the query shown, at BigQuery's 10 MB minimum. A query reading several tables can be billed 10 MB per table.";
+            "Dry-run estimate of the query shown, at BigQuery's 10 MB minimum for each table it reads.";
     private static final String TOTAL = "Dry-run estimate of the queries of this file.";
     private static final String TOTAL_AT_MINIMUM =
-            "Dry-run estimate of the queries of this file, with BigQuery's 10 MB minimum for the smaller ones. A query reading several tables can be billed 10 MB per table.";
+            "Dry-run estimate of the queries of this file, with BigQuery's 10 MB minimum for each table read by the smaller ones.";
+    private static final String MEASURED = "Measured by the last run of this query.";
+    private static final String MEASURED_OUTDATED =
+            "Measured by a run of an earlier version of this query. Run the query again to update it.";
     private static final String JOB = "Cost of the bytes billed by this job.";
     private static final String RUN = "Total cost of the bytes billed by the actions of this run.";
     private static final String DISCOUNTS = "Excludes the monthly free TiB and contract discounts.";
@@ -67,6 +70,23 @@ public final class CostTooltip {
     @NotNull
     public static String totalAtMinimum(@NotNull String priceNote) {
         return of(TOTAL_AT_MINIMUM, priceNote);
+    }
+
+    /**
+     * The tooltip of a cost measured by running the query; empty when there is no price note.
+     */
+    @NotNull
+    public static String measured(@NotNull String priceNote) {
+        return of(MEASURED, priceNote);
+    }
+
+    /**
+     * The tooltip of a cost measured by running an earlier version of the query. Without a price
+     * note it still asks to run the query again.
+     */
+    @NotNull
+    public static String measuredOutdated(@NotNull String priceNote) {
+        return priceNote.isBlank() ? MEASURED_OUTDATED : of(MEASURED_OUTDATED, priceNote);
     }
 
     /**

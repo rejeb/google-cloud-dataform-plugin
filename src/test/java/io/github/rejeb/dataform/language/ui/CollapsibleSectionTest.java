@@ -29,9 +29,11 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 import javax.swing.border.CompoundBorder;
+import javax.swing.text.JTextComponent;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Rectangle;
+import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -196,5 +198,61 @@ public class CollapsibleSectionTest extends BasePlatformTestCase {
 
         assertEquals("Tags", section.title());
         assertEquals("Unknown table", new CollapsibleSection(null, new javax.swing.JPanel()).title());
+    }
+
+    private static final String LONG_TITLE = "test-dataform-489602.gold.gold_customer_purchase_summary";
+
+    private static CollapsibleSection narrowSection(int width, JComponent... trailing) {
+        CollapsibleSection section = new CollapsibleSection(LONG_TITLE, new JPanel());
+        section.setSubtitle("incremental");
+        section.setTrailing(trailing);
+        section.setSize(width, 200);
+        layOut(section);
+        return section;
+    }
+
+    private static TrimmedTextField titleField(CollapsibleSection section) {
+        return (TrimmedTextField) all(header(section), JTextComponent.class).getFirst();
+    }
+
+    public void testANarrowHeaderShrinksTheTitleAndSubtitleBeforeTheTrailingComponents() {
+        JLabel cost = new JLabel("1.2 GB \u2248 \u20ac0.0100");
+        CollapsibleSection section = narrowSection(320, cost);
+
+        Rectangle title = boundsInHeader(section, titleField(section));
+        Rectangle subtitle = boundsInHeader(section, labelWithText(header(section), "incremental"));
+        Rectangle costBounds = boundsInHeader(section, cost);
+        assertEquals(cost.getPreferredSize().width, costBounds.width);
+        assertTrue("the cost must stay in the header", costBounds.x + costBounds.width <= header(section).getWidth());
+        assertTrue("the title must end before the subtitle", title.x + title.width <= subtitle.x);
+        assertTrue("the line's margins must stay between the subtitle and the cost",
+                subtitle.x + subtitle.width + JBUI.scale(24) <= costBounds.x);
+    }
+
+    public void testAShrunkTitleShowsTheEndOfTheNameAndKeepsItsWholeText() {
+        CollapsibleSection section = narrowSection(320, new JLabel("1.2 GB"));
+        TrimmedTextField title = titleField(section);
+
+        assertEquals(LONG_TITLE, title.getText());
+        assertTrue(title.shownText(), title.shownText().startsWith("\u2026"));
+        assertTrue(title.shownText(), title.shownText().endsWith("summary"));
+        assertEquals(LONG_TITLE, title.getToolTipText(new MouseEvent(title, MouseEvent.MOUSE_MOVED, 0, 0, 1, 1, 0, false)));
+    }
+
+    public void testATitleThatFitsIsShownWholeWithoutATooltip() {
+        CollapsibleSection section = narrowSection(1200, new JLabel("1.2 GB"));
+        TrimmedTextField title = titleField(section);
+
+        assertEquals(LONG_TITLE, title.shownText());
+        assertNull(title.getToolTipText(new MouseEvent(title, MouseEvent.MOUSE_MOVED, 0, 0, 1, 1, 0, false)));
+    }
+
+    public void testTheSubtitleShrinksOnceTheTitleIsAtItsMinimum() {
+        JLabel trailing = new JLabel("x".repeat(40));
+        CollapsibleSection section = narrowSection(trailing.getPreferredSize().width + JBUI.scale(150), trailing);
+
+        JLabel subtitle = labelWithText(header(section), "incremental");
+        assertTrue(subtitle.getWidth() < subtitle.getPreferredSize().width);
+        assertTrue(titleField(section).getWidth() > 0);
     }
 }

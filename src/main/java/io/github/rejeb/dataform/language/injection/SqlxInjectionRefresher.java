@@ -17,7 +17,6 @@
 package io.github.rejeb.dataform.language.injection;
 
 import com.intellij.codeInsight.daemon.DaemonCodeAnalyzer;
-import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiFile;
@@ -30,8 +29,12 @@ import org.jetbrains.annotations.NotNull;
  * <p>The platform keeps an injection, and the folding, for as long as the host file and the PSI
  * modification count stand still, and a value computed after the fact moves neither. Dropping the
  * PSI caches moves the count, which is what makes the next pass inject the SQL and fold the holes
- * again, this time with the values; the injection's own file caches are dropped alongside so no
- * window over the old text is handed out meanwhile.</p>
+ * again, this time with the values. An injection whose text changed, such as SQL with a new value
+ * in a hole, is replaced by a new injected file; the others keep theirs.</p>
+ *
+ * <p>The injected files themselves are kept: completion reuses a copy of the file whose injected
+ * files point at the ones of the original, and fails in an injected fragment whose original was
+ * replaced under it.</p>
  *
  * <p>Runs on the event thread, from {@code DataformFoldingRefresher}, which computes the folding
  * only once this is done.</p>
@@ -44,16 +47,15 @@ public final class SqlxInjectionRefresher {
     }
 
     /**
-     * Drops the injections and PSI caches of a file and asks for it to be highlighted again. Runs
-     * on the event thread, in a write-safe context, where the caches may be dropped and the daemon
-     * restarted.
+     * Drops the PSI caches, so that the injections of the file are computed again, and asks for it
+     * to be highlighted again. Runs on the event thread, in a write-safe context, where the caches
+     * may be dropped and the daemon restarted.
      */
     public static void refresh(@NotNull Project project, @NotNull VirtualFile file) {
         if (project.isDisposed() || !file.isValid()) return;
         PsiManager psiManager = PsiManager.getInstance(project);
         PsiFile psiFile = psiManager.findFile(file);
         if (psiFile == null) return;
-        InjectedLanguageManager.getInstance(project).dropFileCaches(psiFile);
         psiManager.dropPsiCaches();
         DaemonCodeAnalyzer.getInstance(project).restart(psiFile, RESTART_REASON);
     }

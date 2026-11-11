@@ -22,11 +22,13 @@ import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
 
 import javax.swing.JPanel;
+import javax.swing.ScrollPaneConstants;
 import java.awt.BorderLayout;
 
 /**
  * A preview tab showing sections stacked vertically at their own height in a scroll pane, on the
- * panel background.
+ * panel background. The sections take the width of the pane: one wider than the pane, such as a
+ * banner with a long message, wraps or scrolls inside itself instead of widening the others.
  * Subclasses fill {@link #sectionsPanel} and may add components around the scroll pane.
  */
 abstract class SectionsPreviewPanel extends JPanel {
@@ -44,6 +46,7 @@ abstract class SectionsPreviewPanel extends JPanel {
 
         JBScrollPane scroll = new JBScrollPane(sectionsPanel);
         scroll.setBorder(JBUI.Borders.empty());
+        scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
         add(scroll, BorderLayout.CENTER);
     }
 }

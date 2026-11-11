@@ -37,12 +37,14 @@ public final class BigQueryExecutionServiceImpl implements BigQueryExecutionServ
             @NotNull String sql,
             @NotNull String projectId,
             @NotNull String tableName,
-            @NotNull ProgressIndicator indicator
+            @NotNull ProgressIndicator indicator,
+            boolean useQueryCache
     ) {
         Job submitted = null;
         try {
             QueryJobConfiguration config = QueryJobConfiguration.newBuilder(sql)
                     .setUseLegacySql(false)
+                    .setUseQueryCache(useQueryCache)
                     .build();
             submitted = GcpCalls.execute(AuthTrigger.USER_ACTION,
                     () -> GcpClientsUtils.bigQuery(projectId).create(JobInfo.of(config)));

@@ -217,6 +217,15 @@ public class GcpPanelActionDispatcherImplTest extends BasePlatformTestCase {
         verify(service, never()).pushGitCommits(any(), any());
     }
 
+    public void testUploadingFilesRefreshesTheFilesAndTheirChanges() {
+        new GcpPanelActionDispatcherImpl(getProject()).push("dev");
+        waitForEvents(3);
+
+        verify(service).listAllPaths("dev");
+        verify(service).fetchGitStatuses("dev");
+        assertContainsElements(events, "files", "statuses", "INFORMATION: Local files uploaded to workspace 'dev'.");
+    }
+
     public void testAFailedPushIsReported() {
         doThrow(new RuntimeException("denied")).when(service).pushGitCommits("dev", "main");
 

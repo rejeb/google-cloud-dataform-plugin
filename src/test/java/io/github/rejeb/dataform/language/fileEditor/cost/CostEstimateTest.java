@@ -19,6 +19,9 @@ package io.github.rejeb.dataform.language.fileEditor.cost;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CostEstimateTest {
 
@@ -47,5 +50,23 @@ class CostEstimateTest {
     @Test
     void theBytesProcessedStayWhatTheDryRunReported() {
         assertEquals(593L, CostEstimate.success(593, "EU", CostEstimate.MINIMUM_BILLED_BYTES).bytesProcessed());
+    }
+
+    @Test
+    void anUnevaluatedEstimateHasNoBytesAndDidNotFail() {
+        CostEstimate estimate = CostEstimate.unevaluated("EU");
+
+        assertTrue(estimate.unevaluated());
+        assertFalse(estimate.failed());
+        assertNull(estimate.bytesProcessed());
+        assertEquals("EU", estimate.location());
+        assertEquals(0, estimate.billedBytes());
+        assertFalse(estimate.minimumApplies());
+    }
+
+    @Test
+    void anEstimateWithBytesOrAnErrorIsEvaluated() {
+        assertFalse(CostEstimate.success(593, "EU").unevaluated());
+        assertFalse(CostEstimate.failure("boom").unevaluated());
     }
 }

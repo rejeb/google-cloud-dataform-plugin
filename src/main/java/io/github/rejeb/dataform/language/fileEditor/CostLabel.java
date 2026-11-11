@@ -31,7 +31,8 @@ import javax.swing.Icon;
 import java.awt.Color;
 
 /**
- * The estimated cost of an action, at the right of its section header in the compiled query preview.
+ * The estimated cost of an action, at the right of its section header in the compiled query preview,
+ * or the cost its last run measured when BigQuery cannot estimate it.
  */
 final class CostLabel extends JBLabel {
 
@@ -41,6 +42,11 @@ final class CostLabel extends JBLabel {
     private static final String SIGNED_OUT_TOOLTIP = "Sign in with the banner at the top of the editor.";
     private static final String FAILED = "Can't estimate";
     private static final String NOT_COMPILED = "Not compiled";
+    private static final String RUN_REQUIRED = "Run to estimate";
+    private static final String RUN_REQUIRED_TOOLTIP = "<html>BigQuery cannot estimate the bytes of a script: "
+            + "a query behind pre-operations, or several statements.<br>"
+            + "Use Run Query to measure them. The query then runs without the cache and is billed.</html>";
+    private static final String MEASURING = "Measuring…";
 
     CostLabel() {
         super("");
@@ -73,6 +79,26 @@ final class CostLabel extends JBLabel {
                 cost.reliable() ? null : AllIcons.General.Warning,
                 cost.tooltip(),
                 cost.reliable() ? UIUtil.getLabelForeground() : WARNING_FOREGROUND);
+    }
+
+    void showRunRequired() {
+        show(RUN_REQUIRED, AllIcons.General.Warning, RUN_REQUIRED_TOOLTIP, WARNING_FOREGROUND);
+    }
+
+    void showMeasuring() {
+        show(MEASURING, AnimatedIcon.Default.INSTANCE, null, UIUtil.getContextHelpForeground());
+    }
+
+    /**
+     * Shows the bytes and the cost a run of the query measured, as a warning when the query changed
+     * since that run.
+     */
+    void showMeasured(@NotNull String bytes, @NotNull CostText cost, boolean outdated) {
+        boolean warning = outdated || !cost.reliable();
+        show(UiText.dot(bytes, cost.value()),
+                warning ? AllIcons.General.Warning : null,
+                cost.tooltip().isEmpty() ? null : cost.tooltip(),
+                warning ? WARNING_FOREGROUND : UIUtil.getLabelForeground());
     }
 
     void clear() {

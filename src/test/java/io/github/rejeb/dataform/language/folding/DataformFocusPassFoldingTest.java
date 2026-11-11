@@ -18,7 +18,9 @@ package io.github.rejeb.dataform.language.folding;
 
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.command.WriteCommandAction;
+import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.FoldRegion;
+import com.intellij.openapi.editor.ex.DocumentEx;
 import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiFile;
 import com.intellij.util.ui.UIUtil;
@@ -121,6 +123,43 @@ public class DataformFocusPassFoldingTest extends DataformFoldingTestCase {
 
         passInBackground(file);
         assertEquals("the value is shown again on the next pass",
+                List.of("value of ref(\"users\")"), collapsedPlaceholders());
+    }
+
+    /**
+     * A value expanded to edit the code behind it, then reverted on disk by a checkout: the reload
+     * puts the hole back as it was, but nothing folds it until a pass runs, which the reload asks
+     * for.
+     */
+    public void testAHoleRevertedOnDiskFoldsToItsValueAgainAfterThePass() throws Exception {
+        PsiFile file = configureDefinition("mart.sqlx",
+                "config { type: \"table\" }\n\nSELECT * FROM ${ref(\"users\")}\n");
+        service().setEvaluator((psi, sources) -> {
+            List<DataformEvaluationResult> results = new ArrayList<>();
+            for (String source : sources) {
+                results.add(DataformEvaluationResult.resolved(source, "value of " + source));
+            }
+            return results;
+        });
+        passInBackground(file);
+        Document document = myFixture.getEditor().getDocument();
+        String onDisk = document.getText();
+
+        FoldRegion region = dataformRegions().getFirst();
+        myFixture.getEditor().getFoldingModel().runBatchFoldingOperation(() -> region.setExpanded(true));
+        int hole = onDisk.indexOf("users");
+        WriteCommandAction.runWriteCommandAction(getProject(), () -> document.insertString(hole, "new_"));
+        PsiDocumentManager.getInstance(getProject()).commitAllDocuments();
+        myFixture.doHighlighting();
+
+        WriteCommandAction.runWriteCommandAction(getProject(),
+                () -> ((DocumentEx) document).replaceText(onDisk, document.getModificationStamp() + 1));
+        PsiDocumentManager.getInstance(getProject()).commitAllDocuments();
+        myFixture.doHighlighting();
+        assertEquals("nothing folds the reverted hole by itself", List.of(), collapsedPlaceholders());
+
+        passInBackground(file);
+        assertEquals("the pass the reload asks for folds it again",
                 List.of("value of ref(\"users\")"), collapsedPlaceholders());
     }
 }

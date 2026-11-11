@@ -18,7 +18,10 @@ package io.github.rejeb.dataform.language.fileEditor;
 
 import com.intellij.openapi.fileTypes.PlainTextFileType;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
+import com.intellij.icons.AllIcons;
 import io.github.rejeb.dataform.language.fileEditor.cost.CostEstimate;
+import io.github.rejeb.dataform.language.fileEditor.cost.QueryRunCosts;
+import io.github.rejeb.dataform.language.fileEditor.cost.RunCost;
 
 import java.util.List;
 
@@ -222,6 +225,118 @@ public class QueryPanelCostTest extends BasePlatformTestCase {
         assertTrue(panel.costLabelOf(uniqueKey.tableName()).getText().contains("≈ $"));
         assertEquals("Estimated (1 of 2)", panel.costTotalBar().titleText());
         assertEquals("2 actions", panel.header().summaryText());
+    }
+
+    public void testAScriptAsksToRunTheQueryInsteadOfShowingBytes() {
+        panel.setContent(List.of(query("script.unmeasured")));
+        panel.markEstimating("script.unmeasured", "declare v int64;\nselect 1;");
+
+        panel.showEstimate("script.unmeasured", CostEstimate.unevaluated("EU"));
+
+        CostLabel label = panel.costLabelOf("script.unmeasured");
+        assertEquals("Run to estimate", label.getText());
+        assertSame(AllIcons.General.Warning, label.getIcon());
+        assertTrue(label.getToolTipText(), label.getToolTipText().contains("cannot estimate"));
+        assertTrue(label.getToolTipText(), label.getToolTipText().contains("Run Query"));
+        assertTrue(panel.needsRun("script.unmeasured"));
+    }
+
+    public void testAScriptIsLeftOutOfTheEstimatedTotal() {
+        panel.setContent(List.of(query("a"), query("script.total")));
+        panel.markEstimating("a", "select 1");
+        panel.markEstimating("script.total", "declare v int64;\nselect 1;");
+
+        panel.showEstimate("a", CostEstimate.success(GIB, "EU"));
+        panel.showEstimate("script.total", CostEstimate.unevaluated("EU"));
+
+        assertEquals("Estimated (1 of 2)", panel.costTotalBar().titleText());
+        assertTrue(panel.costTotalBar().valueText(), panel.costTotalBar().valueText().startsWith("1"));
+    }
+
+    public void testAFileOfScriptsOnlyHasNoEstimatedTotal() {
+        panel.setContent(List.of(query("script.alone")));
+        panel.markEstimating("script.alone", "declare v int64;\nselect 1;");
+
+        panel.showEstimate("script.alone", CostEstimate.unevaluated("EU"));
+
+        assertFalse(panel.costTotalBar().isVisible());
+    }
+
+    public void testAScriptShowsTheBytesAndCostOfItsLastRun() {
+        String sql = "declare v int64;\nselect 1;";
+        QueryRunCosts.getInstance(getProject()).record("script.measured", new RunCost(sql, 42 * GIB, 42 * GIB, "EU"));
+        panel.setContent(List.of(query("script.measured")));
+        panel.markEstimating("script.measured", sql);
+
+        panel.showEstimate("script.measured", CostEstimate.unevaluated("EU"));
+
+        CostLabel label = panel.costLabelOf("script.measured");
+        assertTrue(label.getText(), label.getText().matches("42[.,]00 GB · \\$.*"));
+        assertTrue(label.getToolTipText(),
+                label.getToolTipText().startsWith("<html>Measured by the last run of this query.<br>EU · "));
+        assertFalse(panel.needsRun("script.measured"));
+    }
+
+    public void testTheCostOfARunIsOutdatedOnceTheQueryChanged() {
+        QueryRunCosts.getInstance(getProject())
+                .record("script.outdated", new RunCost("declare v int64;\nselect 1;", 42 * GIB, 42 * GIB, "EU"));
+        panel.setContent(List.of(query("script.outdated")));
+        panel.markEstimating("script.outdated", "declare v int64;\nselect 2;");
+
+        panel.showEstimate("script.outdated", CostEstimate.unevaluated("EU"));
+
+        CostLabel label = panel.costLabelOf("script.outdated");
+        assertTrue(label.getText(), label.getText().matches("42[.,]00 GB · \\$.*"));
+        assertSame(AllIcons.General.Warning, label.getIcon());
+        assertTrue(label.getToolTipText(), label.getToolTipText().contains("Run the query again to update it."));
+        assertTrue(panel.needsRun("script.outdated"));
+    }
+
+    public void testTheCostShowsOnceTheRunOfAScriptEnds() {
+        String sql = "declare v int64;\nselect 1;";
+        panel.setContent(List.of(query("script.run")));
+        panel.markEstimating("script.run", sql);
+        panel.showEstimate("script.run", CostEstimate.unevaluated("EU"));
+
+        panel.markMeasuring("script.run");
+        assertEquals("Measuring…", panel.costLabelOf("script.run").getText());
+
+        QueryRunCosts.getInstance(getProject()).record("script.run", new RunCost(sql, 42 * GIB, 42 * GIB, "EU"));
+        panel.showRunCost("script.run");
+
+        assertTrue(panel.costLabelOf("script.run").getText(),
+                panel.costLabelOf("script.run").getText().matches("42[.,]00 GB · \\$.*"));
+    }
+
+    public void testAFailedRunOfAScriptAsksToRunAgain() {
+        panel.setContent(List.of(query("script.failed")));
+        panel.markEstimating("script.failed", "declare v int64;\nselect 1;");
+        panel.showEstimate("script.failed", CostEstimate.unevaluated("EU"));
+        panel.markMeasuring("script.failed");
+
+        panel.showRunCost("script.failed");
+
+        assertEquals("Run to estimate", panel.costLabelOf("script.failed").getText());
+    }
+
+    public void testAnEstimatedQueryKeepsItsEstimateAfterARun() {
+        QueryRunCosts.getInstance(getProject()).record("plain.run", new RunCost("select 1", 42 * GIB, 42 * GIB, "EU"));
+        panel.setContent(List.of(query("plain.run")));
+        panel.markEstimating("plain.run", "select 1");
+        panel.showEstimate("plain.run", CostEstimate.success(GIB, "EU"));
+
+        panel.markMeasuring("plain.run");
+        panel.showRunCost("plain.run");
+
+        assertTrue(panel.costLabelOf("plain.run").getText(), panel.costLabelOf("plain.run").getText().contains("≈ $"));
+        assertFalse(panel.needsRun("plain.run"));
+    }
+
+    public void testAnActionNotEstimatedYetNeedsNoRun() {
+        panel.setContent(List.of(query("pending")));
+
+        assertFalse(panel.needsRun("pending"));
+        assertFalse(panel.needsRun("gone"));
     }
 
     public void testSectionsKeepTheirHeightWhenThePreviewIsTaller() {

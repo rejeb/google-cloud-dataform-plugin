@@ -17,6 +17,7 @@
 package io.github.rejeb.dataform.language.ui;
 
 import com.intellij.icons.AllIcons;
+import com.intellij.ui.ClientProperty;
 import com.intellij.ui.SeparatorComponent;
 import com.intellij.ui.SeparatorOrientation;
 import com.intellij.ui.components.JBLabel;
@@ -25,6 +26,7 @@ import com.intellij.ui.components.panels.HorizontalLayout;
 import com.intellij.ui.components.panels.VerticalLayout;
 import com.intellij.util.ui.JBFont;
 import com.intellij.util.ui.JBUI;
+import com.intellij.util.ui.SwingTextTrimmer;
 import com.intellij.util.ui.UIUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -42,12 +44,15 @@ import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.util.List;
 
 /**
  * A titled group whose content collapses on a click of its header, as the sections of the
  * compiled query preview. The header shows a chevron, an optional icon, the title as selectable
- * text, a grayed subtitle, then a line up to the trailing components. A click anywhere in the
- * header but on the title toggles the group. Colours come from the theme.
+ * text, a grayed subtitle, then a line up to the trailing components. A header narrower than all
+ * of it keeps the trailing components whole and shortens the title, at its start so that the end
+ * of a table name stays visible, then the subtitle. A click anywhere in the header but on the
+ * title toggles the group. Colours come from the theme.
  */
 public class CollapsibleSection extends JPanel {
 
@@ -58,7 +63,7 @@ public class CollapsibleSection extends JPanel {
     private static final int CONTENT_GAP = 8;
     private static final int SECTION_GAP = 10;
 
-    private final JPanel header = new JPanel(new BorderLayout()) {
+    private final JPanel header = new JPanel() {
         @Override
         public Dimension getPreferredSize() {
             Dimension size = super.getPreferredSize();
@@ -70,6 +75,8 @@ public class CollapsibleSection extends JPanel {
     private final JLabel toggleIcon = new JLabel(AllIcons.General.ChevronDown);
     private final JLabel typeIcon = new JLabel();
     private final JBLabel subtitle = new JBLabel();
+    private final HeaderRowLayout headerLayout;
+    private @Nullable JComponent trailingRow;
     private boolean expanded = true;
 
     /**
@@ -88,7 +95,7 @@ public class CollapsibleSection extends JPanel {
         header.setOpaque(false);
         header.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
 
-        JBTextField titleField = ReadOnlyTextFields.singleLine(this.title);
+        JBTextField titleField = ReadOnlyTextFields.singleLineTrimmed(this.title, SwingTextTrimmer.ELLIPSIS_AT_LEFT);
         titleField.setOpaque(false);
         titleField.setFont(JBUI.Fonts.label().asBold());
         titleField.setBorder(JBUI.Borders.empty());
@@ -97,15 +104,17 @@ public class CollapsibleSection extends JPanel {
         subtitle.setForeground(UIUtil.getContextHelpForeground());
         subtitle.setFont(JBFont.medium());
         subtitle.setVisible(false);
+        ClientProperty.put(subtitle, SwingTextTrimmer.KEY, SwingTextTrimmer.ELLIPSIS_AT_RIGHT);
 
-        JPanel titlePanel = new JPanel(new HorizontalLayout(GAP, SwingConstants.CENTER));
-        titlePanel.setOpaque(false);
-        titlePanel.add(toggleIcon);
-        titlePanel.add(typeIcon);
-        titlePanel.add(titleField);
-        titlePanel.add(subtitle);
-        header.add(titlePanel, BorderLayout.WEST);
-        header.add(line(), BorderLayout.CENTER);
+        JComponent line = line();
+        headerLayout = new HeaderRowLayout(List.of(toggleIcon, typeIcon), titleField, subtitle, line, GAP,
+                2 * LINE_MARGIN);
+        header.setLayout(headerLayout);
+        header.add(toggleIcon);
+        header.add(typeIcon);
+        header.add(titleField);
+        header.add(subtitle);
+        header.add(line);
 
         content.setOpaque(false);
         content.setBorder(JBUI.Borders.emptyLeft(CONTENT_INDENT));
@@ -116,7 +125,6 @@ public class CollapsibleSection extends JPanel {
         toggleIcon.addMouseListener(toggleOnClick());
         typeIcon.addMouseListener(toggleOnClick());
         subtitle.addMouseListener(toggleOnClick());
-        titlePanel.addMouseListener(toggleOnClick());
     }
 
     /**
@@ -158,7 +166,12 @@ public class CollapsibleSection extends JPanel {
             component.addMouseListener(toggleOnClick());
         }
         row.addMouseListener(toggleOnClick());
-        header.add(row, BorderLayout.EAST);
+        if (trailingRow != null) {
+            header.remove(trailingRow);
+        }
+        trailingRow = row;
+        header.add(row);
+        headerLayout.setTrailing(row);
     }
 
     /**

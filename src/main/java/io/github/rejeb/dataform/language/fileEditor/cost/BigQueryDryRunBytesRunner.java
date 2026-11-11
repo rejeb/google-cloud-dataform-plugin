@@ -21,6 +21,7 @@ import com.google.cloud.bigquery.Job;
 import com.google.cloud.bigquery.JobId;
 import com.google.cloud.bigquery.JobInfo;
 import com.google.cloud.bigquery.JobStatistics;
+import com.google.cloud.bigquery.JobStatistics.QueryStatistics.StatementType;
 import com.google.cloud.bigquery.QueryJobConfiguration;
 import com.google.cloud.bigquery.TableId;
 import com.intellij.openapi.diagnostic.Logger;
@@ -34,7 +35,7 @@ import java.util.List;
 
 /**
  * Dry-runs the raw compiled query of an action, unlike the schema dry-run which replaces its
- * dependencies with stubs.
+ * dependencies with stubs. A script is reported as not evaluated.
  */
 public final class BigQueryDryRunBytesRunner implements DryRunBytesRunner {
 
@@ -64,15 +65,32 @@ public final class BigQueryDryRunBytesRunner implements DryRunBytesRunner {
         Job job = bigQuery.create(JobInfo.newBuilder(config).setJobId(jobId).build());
         JobStatistics.QueryStatistics queryStats =
                 job.getStatistics() instanceof JobStatistics.QueryStatistics stats ? stats : null;
-        Long bytes = queryStats != null ? queryStats.getTotalBytesProcessed() : null;
         String jobLocation = job.getJobId() != null ? job.getJobId().getLocation() : null;
-        return CostEstimate.success(bytes == null ? 0L : bytes,
-                jobLocation != null && !jobLocation.isBlank() ? jobLocation : location,
-                queryStats != null ? minimumBilledBytes(queryStats.getReferencedTables()) : 0);
+        return estimateOf(queryStats != null ? queryStats.getTotalBytesProcessed() : null,
+                queryStats != null ? queryStats.getStatementType() : null,
+                queryStats != null ? queryStats.getReferencedTables() : null,
+                jobLocation != null && !jobLocation.isBlank() ? jobLocation : location);
     }
 
+    /**
+     * The estimate a dry-run gives: its bytes, with the minimum BigQuery bills for the tables read.
+     * The bytes of a script are no estimate, since a dry-run runs none of its statements.
+     */
+    @NotNull
+    static CostEstimate estimateOf(@Nullable Long bytesProcessed, @Nullable StatementType statementType,
+                                   @Nullable List<TableId> referencedTables, @Nullable String location) {
+        if (StatementType.SCRIPT.equals(statementType)) {
+            return CostEstimate.unevaluated(location);
+        }
+        return CostEstimate.success(bytesProcessed == null ? 0L : bytesProcessed, location,
+                minimumBilledBytes(referencedTables));
+    }
+
+    /**
+     * The least BigQuery bills for a query: its 10 MB minimum for each table the query reads.
+     */
     static long minimumBilledBytes(@Nullable List<TableId> referencedTables) {
-        return referencedTables == null || referencedTables.isEmpty() ? 0 : CostEstimate.MINIMUM_BILLED_BYTES;
+        return referencedTables == null ? 0 : referencedTables.size() * CostEstimate.MINIMUM_BILLED_BYTES;
     }
 
     @NotNull

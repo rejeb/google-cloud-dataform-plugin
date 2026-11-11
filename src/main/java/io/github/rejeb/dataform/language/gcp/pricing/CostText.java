@@ -67,6 +67,18 @@ public record CostText(@NotNull String value, @NotNull String note, boolean reli
         return of(bytesBilled, quote, true, "");
     }
 
+    /**
+     * The cost of the bytes billed by the run that measured a query BigQuery cannot estimate.
+     *
+     * @param outdated whether the query changed since that run
+     */
+    @NotNull
+    public static CostText measured(long bytesBilled, @NotNull PriceQuote quote, boolean outdated) {
+        CostText cost = actual(bytesBilled, quote);
+        String tooltip = outdated ? CostTooltip.measuredOutdated(cost.note()) : CostTooltip.measured(cost.note());
+        return new CostText(cost.value(), cost.note(), cost.reliable(), tooltip);
+    }
+
     @NotNull
     private static CostText of(long bytes, @NotNull PriceQuote quote, boolean billed, @NotNull String prefix) {
         BigDecimal price = quote.pricePerTib();

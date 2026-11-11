@@ -100,6 +100,7 @@ public class GcpPanelActionDispatcherImpl implements GcpPanelActionDispatcher {
                     publish().onNotification("Local files uploaded to workspace '" + workspaceId + "'.",
                             NotificationType.INFORMATION);
                     fetchFiles(workspaceId);
+                    fetchGitStatusesInternal(workspaceId);
                 },
                 failure("Push failed: "));
     }

@@ -22,16 +22,19 @@ import org.jetbrains.annotations.Nullable;
 /**
  * The result of a cost dry-run of one query.
  *
- * @param bytesProcessed     bytes the query would process, null when the dry-run failed
+ * @param bytesProcessed     bytes the query would process, null when the dry-run failed or could not
+ *                           evaluate them
  * @param location           location the dry-run job ran in, null when unknown
  * @param error              BigQuery's message when the dry-run failed, null otherwise
- * @param minimumBilledBytes the least BigQuery bills for the query, 0 when it reads no table
+ * @param minimumBilledBytes the least BigQuery bills for the query, 10 MiB for each table it reads and 0
+ *                           when it reads none
+ * @param unevaluated        whether the query is a script, whose bytes a dry-run cannot evaluate
  */
 public record CostEstimate(@Nullable Long bytesProcessed, @Nullable String location, @Nullable String error,
-                           long minimumBilledBytes) {
+                           long minimumBilledBytes, boolean unevaluated) {
 
     /**
-     * The 10 MiB BigQuery bills at least for a query reading a table.
+     * The 10 MiB BigQuery bills at least for each table a query reads.
      */
     public static final long MINIMUM_BILLED_BYTES = 10L * 1024 * 1024;
 
@@ -48,7 +51,7 @@ public record CostEstimate(@Nullable Long bytesProcessed, @Nullable String locat
      */
     @NotNull
     public static CostEstimate success(long bytesProcessed, @Nullable String location, long minimumBilledBytes) {
-        return new CostEstimate(bytesProcessed, location, null, minimumBilledBytes);
+        return new CostEstimate(bytesProcessed, location, null, minimumBilledBytes, false);
     }
 
     /**
@@ -56,7 +59,16 @@ public record CostEstimate(@Nullable Long bytesProcessed, @Nullable String locat
      */
     @NotNull
     public static CostEstimate failure(@NotNull String message) {
-        return new CostEstimate(null, null, message, 0);
+        return new CostEstimate(null, null, message, 0, false);
+    }
+
+    /**
+     * A dry-run of a script. BigQuery runs none of its statements, so a variable assigned from a
+     * query stays NULL and the bytes it reports say nothing of what the script will process.
+     */
+    @NotNull
+    public static CostEstimate unevaluated(@Nullable String location) {
+        return new CostEstimate(null, location, null, 0, true);
     }
 
     /**

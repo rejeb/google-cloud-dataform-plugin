@@ -191,6 +191,9 @@
         <projectService serviceInterface="io.github.rejeb.dataform.language.fileEditor.cost.QueryCostEstimator"
                         serviceImplementation="io.github.rejeb.dataform.language.fileEditor.cost.QueryCostEstimatorImpl"
         />
+        <projectService serviceInterface="io.github.rejeb.dataform.language.fileEditor.cost.QueryRunCosts"
+                        serviceImplementation="io.github.rejeb.dataform.language.fileEditor.cost.QueryRunCostsImpl"
+        />
         <projectService serviceInterface="io.github.rejeb.dataform.language.schema.sql.DryRunErrorRegistry"
                         serviceImplementation="io.github.rejeb.dataform.language.schema.sql.DryRunErrorRegistryImpl"
         />
@@ -596,6 +599,8 @@
     <applicationListeners>
         <listener class="io.github.rejeb.dataform.language.evaluation.DataformEvaluationFocusListener"
                   topic="com.intellij.openapi.application.ApplicationActivationListener"/>
+        <listener class="io.github.rejeb.dataform.language.evaluation.DataformEvaluationFocusListener"
+                  topic="com.intellij.openapi.fileEditor.FileDocumentManagerListener"/>
         <listener class="io.github.rejeb.dataform.language.compilation.DataformCompileOnSaveListener"
                   topic="com.intellij.openapi.fileEditor.FileDocumentManagerListener"/>
         <listener class="io.github.rejeb.dataform.language.lineage.view.LineageTabCloseListener"

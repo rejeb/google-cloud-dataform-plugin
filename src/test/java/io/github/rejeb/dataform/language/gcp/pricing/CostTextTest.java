@@ -88,4 +88,31 @@ class CostTextTest {
     void nothingBilledCostsNothing() {
         assertEquals("$0.00", CostText.actual(0, LIVE).value());
     }
+
+    @Test
+    void aMeasuredCostIsExactAndSaysItComesFromARun() {
+        CostText cost = CostText.measured(GIB, LIVE, false);
+
+        assertEquals(CostText.actual(GIB, LIVE).value(), cost.value());
+        assertTrue(cost.tooltip().startsWith("<html>Measured by the last run of this query.<br>"), cost.tooltip());
+    }
+
+    @Test
+    void anOutdatedMeasuredCostAsksToRunTheQueryAgain() {
+        CostText cost = CostText.measured(GIB, LIVE, true);
+
+        assertEquals(CostText.actual(GIB, LIVE).value(), cost.value());
+        assertTrue(cost.tooltip().startsWith(
+                "<html>Measured by a run of an earlier version of this query. Run the query again to update it.<br>"),
+                cost.tooltip());
+    }
+
+    @Test
+    void anOutdatedMeasuredCostWithoutPriceStillAsksToRunTheQueryAgain() {
+        PriceQuote capacity = new PriceQuote("EU", PriceSource.CAPACITY, null, "USD", null, false);
+        CostText cost = CostText.measured(GIB, capacity, true);
+
+        assertEquals("Measured by a run of an earlier version of this query. Run the query again to update it.",
+                cost.tooltip());
+    }
 }
