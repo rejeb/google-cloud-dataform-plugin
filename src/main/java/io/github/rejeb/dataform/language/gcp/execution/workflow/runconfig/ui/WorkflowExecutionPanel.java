@@ -23,7 +23,6 @@ import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.ToggleAction;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ModalityState;
-import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.project.DumbAwareAction;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Disposer;
@@ -45,6 +44,7 @@ import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowIn
 import io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.RunSqlxHelper;
 import io.github.rejeb.dataform.language.gcp.pricing.BigQueryPricingService;
 import io.github.rejeb.dataform.language.util.DataformPaths;
+import io.github.rejeb.dataform.language.util.FileEditors;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -280,7 +280,7 @@ public class WorkflowExecutionPanel extends JPanel {
         if (fileName == null) return;
         VirtualFile file = DataformPaths.findInProject(project, fileName);
         if (file == null) return;
-        FileEditorManager.getInstance(project).openFile(file, true);
+        FileEditors.open(project, file);
     }
 
     private void expandAll() {

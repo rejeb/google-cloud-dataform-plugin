@@ -31,7 +31,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.JComponent;
-import java.io.File;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -92,11 +91,6 @@ public class DataformAuthEditorNotificationProviderTest extends BasePlatformTest
         @Override
         public void open(@NotNull String url) {
             openedUrls.add(url);
-        }
-
-        @Override
-        public void browse(@NotNull File file) {
-            openedUrls.add(file.getPath());
         }
 
         @Override

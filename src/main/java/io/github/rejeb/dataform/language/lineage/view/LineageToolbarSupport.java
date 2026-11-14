@@ -32,9 +32,11 @@ import com.intellij.ui.JBColor;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
+import io.github.rejeb.dataform.language.lineage.dataplex.TimeRange;
 import io.github.rejeb.dataform.language.lineage.model.Density;
 import io.github.rejeb.dataform.language.lineage.model.Direction;
 import io.github.rejeb.dataform.language.lineage.model.LineageModel;
+import io.github.rejeb.dataform.language.lineage.model.LineageSource;
 import io.github.rejeb.dataform.language.ui.RoundedBox;
 import io.github.rejeb.dataform.language.ui.Toolbars;
 import org.jetbrains.annotations.NotNull;
@@ -138,14 +140,14 @@ final class LineageToolbarSupport {
 
     /**
      * A "Legend" text button with a drop-down arrow that shows the legend of the given action
-     * types in a popup under it.
+     * types and lineage source in a popup under it.
      */
-    static AnAction legendAction(@NotNull Supplier<List<String>> types) {
+    static AnAction legendAction(@NotNull Supplier<List<String>> types, @NotNull Supplier<LineageSource> source) {
         DefaultActionGroup legend = new DefaultActionGroup("Legend", true) {
             @Override
             public void actionPerformed(@NotNull AnActionEvent e) {
                 JBPopup popup = JBPopupFactory.getInstance()
-                        .createComponentPopupBuilder(LineageLegend.panel(types.get()), null)
+                        .createComponentPopupBuilder(LineageLegend.panel(types.get(), source.get()), null)
                         .setRequestFocus(false)
                         .createPopup();
                 InputEvent input = e.getInputEvent();
@@ -172,6 +174,77 @@ final class LineageToolbarSupport {
         presentation.setPerformGroup(true);
         presentation.putClientProperty(ActionUtil.SHOW_TEXT_IN_TOOLBAR, true);
         return legend;
+    }
+
+    /**
+     * A text button reading the range of the recorded lineage, with a drop-down arrow that lists
+     * the ranges to choose from.
+     */
+    static AnAction timeRangeAction(@NotNull LineageModel model) {
+        DefaultActionGroup ranges = new DefaultActionGroup("Time range", true) {
+            @Override
+            public void update(@NotNull AnActionEvent e) {
+                e.getPresentation().setText(model.timeRange().label());
+            }
+
+            @Override
+            public @NotNull ActionUpdateThread getActionUpdateThread() {
+                return ActionUpdateThread.EDT;
+            }
+        };
+        for (TimeRange range : TimeRange.values()) {
+            ranges.add(new ToggleAction(range.label()) {
+                @Override
+                public boolean isSelected(@NotNull AnActionEvent e) {
+                    return model.timeRange() == range;
+                }
+
+                @Override
+                public void setSelected(@NotNull AnActionEvent e, boolean state) {
+                    if (state) model.setTimeRange(range);
+                }
+
+                @Override
+                public @NotNull ActionUpdateThread getActionUpdateThread() {
+                    return ActionUpdateThread.EDT;
+                }
+            });
+        }
+        Presentation presentation = ranges.getTemplatePresentation();
+        presentation.setDescription("How far back the recorded lineage goes");
+        presentation.setIcon(null);
+        presentation.putClientProperty(ActionUtil.SHOW_TEXT_IN_TOOLBAR, true);
+        return ranges;
+    }
+
+    /**
+     * A text toggle that draws what differs between the repository and the recorded lineage.
+     */
+    static ToggleAction differencesToggle(@NotNull LineageModel model) {
+        ToggleAction toggle = new ToggleAction("Differences", "Compare with the lineage declared in Dataform", null) {
+            @Override
+            public boolean isSelected(@NotNull AnActionEvent e) {
+                return model.differencesShown();
+            }
+
+            @Override
+            public void setSelected(@NotNull AnActionEvent e, boolean state) {
+                model.setDifferencesShown(state);
+            }
+
+            @Override
+            public void update(@NotNull AnActionEvent e) {
+                super.update(e);
+                int count = model.differences().size();
+                e.getPresentation().setText(count == 0 ? "Differences" : "Differences (" + count + ")");
+            }
+
+            @Override
+            public @NotNull ActionUpdateThread getActionUpdateThread() {
+                return ActionUpdateThread.EDT;
+            }
+        };
+        return Toolbars.withText(toggle);
     }
 
     /**

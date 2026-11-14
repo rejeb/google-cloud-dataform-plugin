@@ -16,7 +16,9 @@
  */
 package io.github.rejeb.dataform.language.lineage.view;
 
+import io.github.rejeb.dataform.language.lineage.dataplex.DataplexLineageClient;
 import io.github.rejeb.dataform.language.lineage.layout.NodePosition;
+import io.github.rejeb.dataform.language.lineage.model.LinkRef;
 import org.junit.jupiter.api.Test;
 
 import java.util.LinkedHashMap;
@@ -43,5 +45,61 @@ class CanvasHitTestNodeTest {
     @Test
     void pointInEmptySpaceReturnsNull() {
         assertNull(CanvasHitTest.nodeAt(positions(), 44, 250, 250));
+    }
+
+    @Test
+    void theInfoIconIsHitInTheTopRightCornerOfTheHeader() {
+        assertEquals("a", CanvasHitTest.infoAt(positions(), 169, 10));
+        assertEquals("b", CanvasHitTest.infoAt(positions(), 469, 110));
+        assertNull(CanvasHitTest.infoAt(positions(), 100, 10));
+        assertNull(CanvasHitTest.infoAt(positions(), 169, 30));
+    }
+
+    private static int hidden(String nodeId, DataplexLineageClient.Direction direction) {
+        if (nodeId.equals("a")) return direction == DataplexLineageClient.Direction.UPSTREAM ? 3 : -1;
+        return 0;
+    }
+
+    @Test
+    void theUpstreamExpanderStraddlesTheTopLeftCornerAndTheDownstreamOneTheBottomRightOfTheCard() {
+        assertEquals(new CanvasHitTest.ExpanderHit("a", DataplexLineageClient.Direction.UPSTREAM),
+                CanvasHitTest.expanderAt(positions(), id -> 92, CanvasHitTestNodeTest::hidden, -5, -3));
+        assertEquals(new CanvasHitTest.ExpanderHit("a", DataplexLineageClient.Direction.UPSTREAM),
+                CanvasHitTest.expanderAt(positions(), id -> 92, CanvasHitTestNodeTest::hidden, 8, 6));
+        assertEquals(new CanvasHitTest.ExpanderHit("a", DataplexLineageClient.Direction.DOWNSTREAM),
+                CanvasHitTest.expanderAt(positions(), id -> 92, CanvasHitTestNodeTest::hidden, 185, 95));
+        assertNull(CanvasHitTest.expanderAt(positions(), id -> 92, CanvasHitTestNodeTest::hidden, 185, 47));
+        assertNull(CanvasHitTest.expanderAt(positions(), id -> 92, CanvasHitTestNodeTest::hidden, 90, 40));
+    }
+
+    @Test
+    void aNodeWithNothingHiddenHasNoExpander() {
+        assertNull(CanvasHitTest.expanderAt(positions(), id -> 44, CanvasHitTestNodeTest::hidden, 295, 98));
+        assertNull(CanvasHitTest.expanderAt(positions(), id -> 44, CanvasHitTestNodeTest::hidden, 485, 146));
+    }
+
+    @Test
+    void theExpanderReadsPlusNAndAPlainPlusWhenTheCountIsUnknown() {
+        assertEquals("+3", NodeCardMetrics.expanderLabel(3));
+        assertEquals("+", NodeCardMetrics.expanderLabel(-1));
+        assertEquals(26, NodeCardMetrics.expanderBounds(positions().get("a"), 44,
+                DataplexLineageClient.Direction.UPSTREAM, "+").width);
+        assertEquals(new java.awt.Rectangle(-12, -9, 26, 18), NodeCardMetrics.expanderBounds(positions().get("a"), 44,
+                DataplexLineageClient.Direction.UPSTREAM, "+3"));
+        assertEquals(new java.awt.Rectangle(180 + 12 - 40, 92 + 9 - 18, 40, 18), NodeCardMetrics.expanderBounds(
+                positions().get("a"), 92, DataplexLineageClient.Direction.DOWNSTREAM, "+120"));
+    }
+
+    @Test
+    void aPointWithinSixPixelsOfAnEdgeHitsIt() {
+        java.awt.geom.Path2D.Double path = new java.awt.geom.Path2D.Double();
+        path.moveTo(180, 22);
+        path.lineTo(300, 22);
+        Map<LinkRef, java.awt.Shape> edges = Map.of(new LinkRef("a", "b"), path);
+
+        assertEquals(new LinkRef("a", "b"), CanvasHitTest.edgeAt(edges, 240, 27));
+        assertEquals(new LinkRef("a", "b"), CanvasHitTest.edgeAt(edges, 240, 17));
+        assertNull(CanvasHitTest.edgeAt(edges, 240, 30));
+        assertNull(CanvasHitTest.edgeAt(edges, 320, 22));
     }
 }

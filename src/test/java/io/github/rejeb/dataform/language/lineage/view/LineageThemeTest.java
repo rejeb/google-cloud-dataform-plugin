@@ -72,4 +72,32 @@ public class LineageThemeTest extends BasePlatformTestCase {
         assertEquals("M", LineageTheme.glyphFor("materialized_view"));
         assertEquals("U", LineageTheme.glyphFor("test"));
     }
+
+    public void testSelectionColoursComeFromAPaletteOfSixThatRepeats() {
+        java.util.Set<Integer> colours = new java.util.HashSet<>();
+        for (int i = 0; i < 6; i++) colours.add(LineageTheme.selectionColor(i).getRGB());
+        assertEquals(6, colours.size());
+        assertEquals(LineageTheme.selectionColor(0).getRGB(), LineageTheme.selectionColor(6).getRGB());
+        assertEquals(LineageTheme.selectionColor(1).getRGB(), LineageTheme.selectionColor(7).getRGB());
+    }
+
+    public void testTheFirstSelectionColourIsTheAccent() {
+        assertEquals(LineageTheme.accentColor().getRGB(), LineageTheme.selectionColor(0).getRGB());
+    }
+
+    public void testTheToggleBandIsTranslucent() {
+        assertTrue(LineageTheme.toggleBand().getAlpha() < 128);
+    }
+
+    public void testOutsideNodesHaveTheirBorderAndGlyph() {
+        assertThemeKey("Dataform.Lineage.OutsideBorder", LineageTheme::outsideBorder, 0x9DA0A8);
+        assertEquals("↗", LineageTheme.glyphFor("outside"));
+        assertEquals("↗", LineageTheme.glyphFor("asset"));
+        assertEquals(LineageTheme.glyphBackground("declaration"), LineageTheme.glyphBackground("outside"));
+    }
+
+    public void testTheInfoIconIsTwelvePixels() {
+        assertEquals(12, LineageTheme.infoIcon(false).getIconWidth());
+        assertEquals(12, LineageTheme.infoIcon(true).getIconHeight());
+    }
 }

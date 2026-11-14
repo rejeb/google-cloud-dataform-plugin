@@ -16,28 +16,29 @@
  */
 package io.github.rejeb.dataform.language.lineage.view;
 
+import com.intellij.icons.AllIcons;
 import com.intellij.openapi.util.IconLoader;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.Icon;
 
 /**
- * The icons of the lineage views, drawn from the stroke glyphs of the UI prototype in its light
- * and dark colours.
+ * The icons of the lineage views: the bundled platform icon where the platform has one for the
+ * same action, otherwise a stroke glyph of the UI prototype in its light and dark colours.
  */
 final class LineageIcons {
 
-    static final Icon FILTERS = load("lineageFilter");
+    static final Icon FILTERS = AllIcons.General.Filter;
     static final Icon DIRECTION_LR = load("lineageLayoutLR");
     static final Icon DIRECTION_TB = load("lineageLayoutTB");
     static final Icon DENSITY = load("lineageDensity");
-    static final Icon MINIMAP = load("lineageMinimap");
-    static final Icon DETAILS = load("lineageDetails");
-    static final Icon FIT = load("lineageFit");
-    static final Icon ZOOM_IN = load("lineageZoomIn");
-    static final Icon ZOOM_OUT = load("lineageZoomOut");
+    static final Icon MINIMAP = AllIcons.Actions.Minimap;
+    static final Icon DETAILS = AllIcons.Actions.PreviewDetails;
+    static final Icon FIT = AllIcons.General.FitContent;
+    static final Icon ZOOM_IN = AllIcons.Graph.ZoomIn;
+    static final Icon ZOOM_OUT = AllIcons.Graph.ZoomOut;
     static final Icon FOCUS = load("lineageFocus");
-    static final Icon MINUS = load("lineageMinus");
+    static final Icon MINUS = AllIcons.General.HideToolWindow;
 
     private LineageIcons() {
     }

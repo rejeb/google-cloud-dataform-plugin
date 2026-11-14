@@ -16,6 +16,7 @@
  */
 package io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.ui;
 
+import com.intellij.ui.AnimatedIcon;
 import com.intellij.ui.SimpleColoredComponent;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
 import io.github.rejeb.dataform.language.DataformIcons;
@@ -90,7 +91,7 @@ public class ChildJobsTimelineTest extends BasePlatformTestCase {
 
         assertSame(DataformIcons.STATUS_FAILED, row.getIcon());
         assertSame(DataformIcons.STATUS_SUCCEEDED, ActionStateIcons.ofJob("DONE"));
-        assertSame(DataformIcons.SPINNER, ActionStateIcons.ofJob("RUNNING"));
+        assertSame(AnimatedIcon.Default.INSTANCE, ActionStateIcons.ofJob("RUNNING"));
         assertSame(DataformIcons.STATUS_PENDING, ActionStateIcons.ofJob("PENDING"));
     }
 

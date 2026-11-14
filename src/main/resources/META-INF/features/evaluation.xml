@@ -1,0 +1,49 @@
+<!--
+        * Licensed to the Apache Software Foundation (ASF) under one or more
+        * contributor license agreements.  See the NOTICE file distributed with
+        * this work for additional information regarding copyright ownership.
+        * The ASF licenses this file to You under the Apache License, Version 2.0
+        * (the "License"); you may not use this file except in compliance with
+        * the License.  You may obtain a copy of the License at
+        *
+        *    http://www.apache.org/licenses/LICENSE-2.0
+        *
+        * Unless required by applicable law or agreed to in writing, software
+        * distributed under the License is distributed on an "AS IS" BASIS,
+        * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+        * See the License for the specific language governing permissions and
+        * limitations under the License.
+        */
+        -->
+<idea-plugin>
+    <extensions defaultExtensionNs="com.intellij">
+        <projectService
+                serviceInterface="io.github.rejeb.dataform.language.evaluation.DataformExpressionEvaluationService"
+                serviceImplementation="io.github.rejeb.dataform.language.evaluation.DataformExpressionEvaluationServiceImpl"
+        />
+
+        <lang.foldingBuilder
+                language="SQLX"
+                implementationClass="io.github.rejeb.dataform.language.folding.SqlxTemplateFoldingBuilder"/>
+        <lang.foldingBuilder
+                language="JavaScript"
+                implementationClass="io.github.rejeb.dataform.language.folding.DataformJsFoldingBuilder"/>
+        <editorFactoryListener
+                implementation="io.github.rejeb.dataform.language.folding.DataformValueFoldClickListener"/>
+
+        <vfs.asyncListener
+                implementation="io.github.rejeb.dataform.language.evaluation.DataformEvaluationInvalidator"/>
+    </extensions>
+
+    <projectListeners>
+        <listener class="io.github.rejeb.dataform.language.evaluation.DataformEvaluationFocusListener"
+                  topic="com.intellij.openapi.fileEditor.FileEditorManagerListener"/>
+    </projectListeners>
+
+    <applicationListeners>
+        <listener class="io.github.rejeb.dataform.language.evaluation.DataformEvaluationFocusListener"
+                  topic="com.intellij.openapi.application.ApplicationActivationListener"/>
+        <listener class="io.github.rejeb.dataform.language.evaluation.DataformEvaluationFocusListener"
+                  topic="com.intellij.openapi.fileEditor.FileDocumentManagerListener"/>
+    </applicationListeners>
+</idea-plugin>

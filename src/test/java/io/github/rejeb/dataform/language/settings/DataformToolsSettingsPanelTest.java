@@ -54,6 +54,33 @@ public class DataformToolsSettingsPanelTest extends BasePlatformTestCase {
         assertTrue(labels.stream().anyMatch(label -> label.getText().contains("Node.js")));
     }
 
+    public void testLongPathsDoNotWidenThePage() {
+        DataformToolsSettingsPanel panel = new DataformToolsSettingsPanel();
+        int width = panel.getPanel().getPreferredSize().width;
+
+        panel.setCoreInstallPath(LONG_PATH + "/core");
+        panel.setSqlfluffExecutablePath(LONG_PATH + "/bin/sqlfluff");
+        panel.setSqlfluffConfigPath(LONG_PATH + "/.sqlfluff");
+
+        assertEquals(width, panel.getPanel().getPreferredSize().width);
+    }
+
+    public void testALongInstallStatusDoesNotWidenThePage() {
+        DataformToolsSettingsPanel panel = new DataformToolsSettingsPanel();
+        StatusLabel installStatus = all(panel.getPanel(), StatusLabel.class).stream()
+                .filter(label -> label.getText().contains("Node.js"))
+                .findFirst()
+                .orElseThrow();
+        installStatus.info("short");
+        int width = panel.getPanel().getPreferredSize().width;
+
+        installStatus.info("Packages will be installed globally into the current Node.js installation: " + LONG_PATH);
+
+        assertEquals(width, panel.getPanel().getPreferredSize().width);
+    }
+
+    private static final String LONG_PATH = "/home/user/.local/share/JetBrains/sandbox/" + "node_modules/".repeat(20) + "node";
+
     static <T extends Component> List<T> all(Container root, Class<T> type) {
         List<T> found = new ArrayList<>();
         for (Component child : root.getComponents()) {

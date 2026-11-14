@@ -28,6 +28,7 @@ import com.intellij.openapi.fileEditor.OpenFileDescriptor;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.testFramework.TestActionEvent;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
+import com.intellij.ui.AnimatedIcon;
 import com.intellij.ui.SimpleTextAttributes;
 import com.intellij.ui.components.JBPanelWithEmptyText;
 import io.github.rejeb.dataform.language.DataformIcons;
@@ -70,7 +71,7 @@ public class QueryServiceViewTest extends BasePlatformTestCase {
     }
 
     public void testAQueryRowShowsTheStatusOfItsRunWithThePrototypeIcons() {
-        assertSame(DataformIcons.SPINNER, presentation(running()).getIcon(false));
+        assertSame(AnimatedIcon.Default.INSTANCE, presentation(running()).getIcon(false));
         assertSame(DataformIcons.STATUS_SUCCEEDED,
                 presentation(running().finished(new BigQueryJobResult(TABLE, null, null, null), false)).getIcon(false));
         assertSame(DataformIcons.STATUS_FAILED,

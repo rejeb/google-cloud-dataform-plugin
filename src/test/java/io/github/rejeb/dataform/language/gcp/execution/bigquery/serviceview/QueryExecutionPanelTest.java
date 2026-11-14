@@ -37,6 +37,7 @@ import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.testFramework.TestActionEvent;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
+import com.intellij.ui.AnimatedIcon;
 import com.intellij.ui.EditorTextField;
 import com.intellij.ui.SimpleColoredComponent;
 import com.intellij.ui.SimpleTextAttributes;
@@ -103,7 +104,7 @@ public class QueryExecutionPanelTest extends BasePlatformTestCase {
                 QueryRun.running(TABLE, SQL, null, 0, () -> cancelled.set(true)));
 
         assertEquals("Running orders…", text(panel.summary()));
-        assertSame(DataformIcons.SPINNER, panel.summary().getIcon());
+        assertSame(AnimatedIcon.Default.INSTANCE, panel.summary().getIcon());
         AnAction cancel = panel.cancelAction();
         assertNotNull(cancel);
         assertEquals("Cancel", cancel.getTemplatePresentation().getText());
@@ -112,7 +113,7 @@ public class QueryExecutionPanelTest extends BasePlatformTestCase {
         assertTrue(cancelled.get());
         JBLabel waiting = assertInstanceOf(panel.results(), JBLabel.class);
         assertEquals("Waiting for BigQuery…", waiting.getText());
-        assertSame(DataformIcons.SPINNER, waiting.getIcon());
+        assertSame(AnimatedIcon.Default.INSTANCE, waiting.getIcon());
     }
 
     public void testAFinishedQueryCannotBeCancelled() {

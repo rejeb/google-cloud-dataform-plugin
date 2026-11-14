@@ -105,6 +105,56 @@ class LineageModelTest {
     }
 
     @Test
+    void marksAreOutlinedWithoutDimming() {
+        LineageModel m = new LineageModel(null);
+        m.setGraph(sampleGraph());
+
+        m.setMarkedIds(Set.of(id("p.a.alpha"), id("p.b.beta")));
+
+        assertEquals(Set.of(id("p.a.alpha"), id("p.b.beta")), m.markedIds());
+        assertEquals(Set.of(id("p.a.alpha"), id("p.b.beta")), m.highlightedIds());
+        assertTrue(m.dimmedIds().isEmpty());
+    }
+
+    @Test
+    void aSelectionClearsTheMarks() {
+        LineageModel m = new LineageModel(null);
+        m.setGraph(sampleGraph());
+        m.setMarkedIds(Set.of(id("p.a.alpha"), id("p.b.beta")));
+
+        m.select(id("p.a.gamma"));
+
+        assertTrue(m.markedIds().isEmpty());
+        m.select(null);
+        assertTrue(m.highlightedIds().isEmpty());
+    }
+
+    @Test
+    void aSearchClearsTheMarks() {
+        LineageModel m = new LineageModel(null);
+        m.setGraph(sampleGraph());
+        m.setMarkedIds(Set.of(id("p.a.alpha")));
+
+        m.setSearchQuery("bet");
+
+        assertTrue(m.markedIds().isEmpty());
+        assertEquals(Set.of(id("p.b.beta")), m.highlightedIds());
+        m.setSearchQuery("");
+        assertTrue(m.highlightedIds().isEmpty());
+    }
+
+    @Test
+    void marksNotOnTheGraphAreIgnored() {
+        LineageModel m = new LineageModel(null);
+        m.setGraph(sampleGraph());
+
+        m.setMarkedIds(Set.of(id("x.y.z"), id("p.a.alpha")));
+
+        assertEquals(Set.of(id("p.a.alpha")), m.highlightedIds());
+        assertTrue(m.dimmedIds().isEmpty());
+    }
+
+    @Test
     void withoutSearchOrSelectionNothingIsDimmedNorMatched() {
         LineageModel m = new LineageModel(null);
         m.setGraph(sampleGraph());
@@ -229,5 +279,174 @@ class LineageModelTest {
         assertEquals(2, m.typeCounts().get("table"));
         assertEquals(1, m.typeCounts().get("view"));
         assertFalse(m.typeCounts().containsKey("assertion"));
+    }
+
+    @Test
+    void selectingALinkClearsTheNodeSelectionAndBack() {
+        LineageModel model = new LineageModel(null);
+        model.setGraph(sampleGraph());
+        LinkRef link = new LinkRef(id("p.a.alpha"), id("p.b.beta"));
+        model.select(id("p.a.alpha"));
+
+        model.selectLink(link);
+        assertEquals(link, model.selectedLink());
+        assertEquals(null, model.selectedId());
+
+        model.select(id("p.b.beta"));
+        assertEquals(null, model.selectedLink());
+        assertEquals(id("p.b.beta"), model.selectedId());
+    }
+
+    @Test
+    void aLinkThatIsNotAnEdgeOfTheGraphIsNotSelected() {
+        LineageModel model = new LineageModel(null);
+        model.setGraph(sampleGraph());
+
+        model.selectLink(new LinkRef(id("p.b.beta"), id("p.a.alpha")));
+
+        assertEquals(null, model.selectedLink());
+    }
+
+    @Test
+    void aNewGraphWithoutTheLinkDropsIt() {
+        LineageModel model = new LineageModel(null);
+        model.setGraph(sampleGraph());
+        model.selectLink(new LinkRef(id("p.a.alpha"), id("p.b.beta")));
+
+        model.setGraph(LineageGraph.builder().addNode(node("p.a.alpha", "a", "table", List.of())).build());
+
+        assertEquals(null, model.selectedLink());
+    }
+
+    @Test
+    void switchingTheSourceClearsTheSelectedLink() {
+        LineageModel model = new LineageModel(null);
+        model.setGraph(sampleGraph());
+        model.selectLink(new LinkRef(id("p.a.alpha"), id("p.b.beta")));
+
+        model.setSource(LineageSource.DATAPLEX);
+
+        assertEquals(null, model.selectedLink());
+    }
+
+    @Test
+    void deselectingAllKeepsNoLink() {
+        LineageModel model = new LineageModel(null);
+        model.setGraph(sampleGraph());
+        model.selectLink(new LinkRef(id("p.a.alpha"), id("p.b.beta")));
+
+        model.select(null);
+
+        assertEquals(null, model.selectedLink());
+    }
+
+    @Test
+    void aRemovedListenerIsNoLongerCalled() {
+        LineageModel model = new LineageModel(null);
+        model.setGraph(sampleGraph());
+        AtomicInteger calls = new AtomicInteger();
+        java.util.function.Consumer<LineageModel> listener = m -> calls.incrementAndGet();
+        model.addListener(listener);
+        model.select(id("p.a.alpha"));
+
+        model.removeListener(listener);
+        model.select(id("p.b.beta"));
+
+        assertEquals(1, calls.get());
+    }
+
+    @Test
+    void aRequestedNodeOfTheGraphIsSelectedWithoutAnOwner() {
+        LineageModel model = new LineageModel(null);
+        model.setGraph(sampleGraph());
+
+        model.requestNode(id("p.b.beta"));
+
+        assertEquals(id("p.b.beta"), model.selectedId());
+    }
+
+    @Test
+    void aRequestedNodeOfTheGraphIsHandedToTheOwnerThatCentresIt() {
+        LineageModel model = new LineageModel(null);
+        model.setGraph(sampleGraph());
+        java.util.List<String> asked = new java.util.ArrayList<>();
+        model.setNodeRequestHandler(asked::add);
+
+        model.requestNode(id("p.b.beta"));
+
+        assertEquals(List.of(id("p.b.beta")), asked);
+        assertEquals(null, model.selectedId());
+    }
+
+    @Test
+    void aRequestedNodeThatIsNotOnTheGraphIsAskedFromTheOwner() {
+        LineageModel model = new LineageModel(null);
+        model.setGraph(sampleGraph());
+        java.util.List<String> asked = new java.util.ArrayList<>();
+        model.setNodeRequestHandler(asked::add);
+        model.select(id("p.a.alpha"));
+
+        model.requestNode(id("x.y.z"));
+
+        assertEquals(List.of(id("x.y.z")), asked);
+        assertEquals(id("p.a.alpha"), model.selectedId());
+    }
+
+    @Test
+    void aRequestedNodeWithoutAnOwnerIsIgnored() {
+        LineageModel model = new LineageModel(null);
+        model.setGraph(sampleGraph());
+
+        model.requestNode(id("x.y.z"));
+
+        assertEquals(null, model.selectedId());
+    }
+
+    @Test
+    void theKindOfADifferenceIsKnownOnlyWhileDifferencesAreShown() {
+        LineageModel model = new LineageModel(null);
+        model.setGraph(sampleGraph());
+        model.setSource(LineageSource.DATAPLEX);
+        io.github.rejeb.dataform.language.lineage.dataplex.Difference difference =
+                new io.github.rejeb.dataform.language.lineage.dataplex.Difference(
+                        io.github.rejeb.dataform.language.lineage.dataplex.Difference.Kind.RECORDED_NOT_DECLARED,
+                        id("p.a.alpha"), id("p.b.beta"));
+        model.setDifferences(List.of(difference));
+        assertEquals(List.of(difference), model.differences());
+        assertEquals(null, model.differenceKind(id("p.a.alpha"), id("p.b.beta")));
+
+        model.setDifferencesShown(true);
+
+        assertEquals(io.github.rejeb.dataform.language.lineage.dataplex.Difference.Kind.RECORDED_NOT_DECLARED,
+                model.differenceKind(id("p.a.alpha"), id("p.b.beta")));
+        assertEquals(null, model.differenceKind(id("p.b.beta"), id("p.a.alpha")));
+    }
+
+    @Test
+    void leavingKnowledgeCatalogForgetsTheDifferences() {
+        LineageModel model = new LineageModel(null);
+        model.setGraph(sampleGraph());
+        model.setSource(LineageSource.DATAPLEX);
+        model.setDifferences(List.of(new io.github.rejeb.dataform.language.lineage.dataplex.Difference(
+                io.github.rejeb.dataform.language.lineage.dataplex.Difference.Kind.DECLARED_NOT_RECORDED,
+                id("p.a.alpha"), id("p.b.beta"))));
+        model.setDifferencesShown(true);
+
+        model.setSource(LineageSource.DATAFORM);
+
+        assertFalse(model.differencesShown());
+        assertTrue(model.differences().isEmpty());
+    }
+
+    @Test
+    void settingTheSameDifferencesTellsNoListener() {
+        LineageModel model = new LineageModel(null);
+        AtomicInteger calls = new AtomicInteger();
+        model.addListener(m -> calls.incrementAndGet());
+
+        model.setDifferences(List.of());
+        model.setDifferencesShown(false);
+
+        assertEquals(0, calls.get());
     }
 }

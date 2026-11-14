@@ -1,0 +1,133 @@
+<!--
+        * Licensed to the Apache Software Foundation (ASF) under one or more
+        * contributor license agreements.  See the NOTICE file distributed with
+        * this work for additional information regarding copyright ownership.
+        * The ASF licenses this file to You under the Apache License, Version 2.0
+        * (the "License"); you may not use this file except in compliance with
+        * the License.  You may obtain a copy of the License at
+        *
+        *    http://www.apache.org/licenses/LICENSE-2.0
+        *
+        * Unless required by applicable law or agreed to in writing, software
+        * distributed under the License is distributed on an "AS IS" BASIS,
+        * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+        * See the License for the specific language governing permissions and
+        * limitations under the License.
+        */
+        -->
+Google Cloud Dataform for IntelliJ IDEA: full language support for your projects, letting you write, navigate, run and debug SQLX pipelines without leaving the IDE.
+<p>Read the <a href="https://rejeb.is-a.dev/dataform-plugin/docs">documentation</a> and the <a href="https://rejeb.is-a.dev/dataform-plugin/features">feature guides</a>.</p>
+
+<h2>SQLX Language Support</h2>
+<ul>
+    <li>Full syntax highlighting for SQLX files, covering embedded SQL, JavaScript and config blocks.</li>
+    <li>Smart code completion for built-in Dataform functions (<code>ref()</code>, <code>declare()</code>, <code>publish()</code>, etc.), JavaScript/TypeScript symbols, and Dataform template expressions (<code>${...}</code>), with automatic completion popup on <code>$</code>.</li>
+    <li>Native BigQuery SQL dialect support, including syntax validation and real-time error highlighting.</li>
+    <li>JSON Schema-powered validation and autocompletion for <code>workflow_settings.yaml</code>, generated dynamically from your project's Dataform configuration.</li>
+</ul>
+
+<h2>Config Block Assistance</h2>
+<ul>
+    <li>Property completion in <code>config { }</code> blocks, scoped to the declared action type and generated from the <code>@dataform/core</code> version installed in the project; inserts a value skeleton matching the property type, or moves the caret to the existing value.</li>
+    <li>Value completion for enumerated properties, tags already used in the project, and the action's own columns in <code>columns</code>, <code>clusterBy</code>, <code>uniqueKey</code> and <code>assertions</code>.</li>
+    <li><code>partitionBy</code> completion with the BigQuery partitioning expressions matching the column types, plus an inspection and quick fix for <code>partitionBy</code> written as an object.</li>
+    <li>Validation of unknown config keys and invalid enumerated values, including legacy shorthand forms (<code>uniqueKey: "id"</code>, dependency targets as objects).</li>
+    <li>Quick Documentation (<code>Ctrl+Q</code>) on config keys, describing what each key expects.</li>
+</ul>
+
+<h2>Template Expression Evaluation</h2>
+<ul>
+    <li><code>${...}</code> expressions and workflow settings references are folded to their evaluated value, computed with the project Node.js interpreter; click the value to show the source again.</li>
+    <li>Quick Documentation on an expression shows its evaluated value.</li>
+</ul>
+
+<h2>Compilation &amp; Diagnostics</h2>
+<ul>
+    <li>Background project compilation on save and while editing.</li>
+    <li>Dataform compilation errors and BigQuery dry-run errors placed on the exact tokens of the SQLX file, with inline error chips.</li>
+    <li>Editor banner listing the errors that cannot be placed in the file.</li>
+    <li>Build tool window listing the compilation errors, with their code frame, and the failing BigQuery dry runs, grouped per file.</li>
+</ul>
+
+<h2>SQLX Preview Editor</h2>
+<ul>
+    <li>Split editor next to each SQLX file with the action's lineage graph, compiled query and resolved table schema.</li>
+    <li>One block per action, with its assertions in their own tabs, resizable SQL blocks and a Copy button.</li>
+    <li>Test preview for unit test files.</li>
+</ul>
+
+<h2>BigQuery Cost</h2>
+<ul>
+    <li>Bytes and estimated on-demand cost of each query in the compiled preview, with a total for the file.</li>
+    <li>Scripts, which BigQuery cannot estimate, show Run to estimate: Run Query measures their bytes and cost.</li>
+    <li>Bytes billed and cost of executed queries and workflow runs, per action and per run.</li>
+    <li>Prices from Google Cloud Billing for each query location or a fixed price per TiB; capacity projects show bytes only.</li>
+</ul>
+
+<h2>Navigation &amp; Code Intelligence</h2>
+<ul>
+    <li>Jump between references, includes and declarations with <code>Ctrl+Click</code> / <code>Ctrl+B</code>.</li>
+    <li>Column window: <code>Ctrl+Click</code> a column in a SQLX query to see where it is declared and every place that reads it across the project, and jump to any of them.</li>
+    <li>Show Column Usages (<code>Alt+Shift+U</code>, also available from the editor context menu) opens the same window.</li>
+    <li>Quick Documentation (<code>Ctrl+Q</code>) for table references, resolved schemas, column metadata, and the built-in BigQuery function catalog (signatures, descriptions, examples).</li>
+    <li>Clickable links to workflow configuration properties.</li>
+    <li>Find Usages on the fields of <code>STRUCT</code> columns.</li>
+</ul>
+
+<h2>Refactoring</h2>
+<ul>
+    <li>In-place column rename (<code>Shift+F6</code>) with its own dedicated engine: it walks the plugin's column lineage graph to propagate the new name across every file where the column flows, through CTEs, subqueries and <code>SELECT *</code>, with the <code>config</code> keys and unit tests that name it, then refreshes the resolved schema.</li>
+    <li>Impact analysis on save: when a saved change renames, removes or retypes a column read downstream, the affected actions and their BigQuery errors are listed per file in the Build tool window.</li>
+    <li>Rename downstream usages: after renaming a column in its action, a quick fix renames every downstream read of the old name through the rename preview.</li>
+</ul>
+
+<h2>Data Lineage</h2>
+<ul>
+    <li>Built-in lineage graph view (Open Dataform Lineage action) that visualizes upstream/downstream dependencies between Dataform actions, each drawn as a card listing its columns and their types.</li>
+    <li>Column-level lineage tracing, so you can trace exactly where a given column's data originates across your pipeline, including through renamed/aliased columns, and search the lineage by column name.</li>
+    <li>Knowledge Catalog lineage: switch the graph to the lineage BigQuery recorded when the jobs ran, for the whole repository and cached in the IDE, with tables outside the repository, when each table was last written, the runs behind each link, a trace up to 5 levels, and the differences between what the code declares and what ran.</li>
+</ul>
+
+<h2>Run &amp; Execute</h2>
+<ul>
+    <li>Native run configurations for Dataform workflows, launched straight from IntelliJ's Run/Debug toolbar.</li>
+    <li>Gutter icons in the SQLX editor to run the current action, or the actions sharing one of its tags; the first run from a file opens a dialog to review its options.</li>
+    <li>Run console with a status header, the action tree with durations and a Show Failed Only filter, and per action a Summary, the Executed SQL and a timeline of its BigQuery jobs and statements, with the failing line marked.</li>
+    <li>Links from the invocation and each job to the Google Cloud console.</li>
+</ul>
+
+<h2>Unit Tests</h2>
+<ul>
+    <li>Create Dataform Test from the Project view or editor context menu of a table or view: generates <code>definitions/tests/test_&lt;action&gt;.sqlx</code> with one input per dependency and the expected output, pre-filled from the resolved schemas.</li>
+    <li>Column completion after <code>AS</code> in <code>input</code> blocks and in the expected output, including the fields of <code>STRUCT</code> and arrays of structs.</li>
+    <li>Generate SELECT from schema intention (<code>Alt+Enter</code>) filling an input or the expected output with a typed placeholder row.</li>
+    <li>Completion and navigation for the tested dataset and the input names of a test.</li>
+    <li>Run tests from the gutter or a dedicated run configuration; results appear in the IDE test runner, with an expected/actual diff for failing tests.</li>
+</ul>
+
+<h2>Google Cloud Integration</h2>
+<ul>
+    <li>Dataform Tools tool window: manage repositories, browse and create workspaces, and push or pull files between the local project and a GCP Dataform workspace.</li>
+    <li>Files tab with the status of the workspace files, and a Changes tab to commit and push the workspace.</li>
+    <li>Fetch to Local, Compare with Local and Open in Google Cloud Console on workspace files.</li>
+    <li>Compare File with Remote to diff a local file with its version in the workspace.</li>
+    <li>BigQuery query execution in the Services view, with paged results in a data grid, the job details and their cost.</li>
+    <li>Google Cloud authentication status and sign-in prompts in the editor.</li>
+</ul>
+<p>Signing in to Google Cloud is optional. See the <a href="https://rejeb.is-a.dev/dataform-plugin/privacy-policy">Privacy Policy</a> for how the plugin handles your data.</p>
+
+<h2>Formatting</h2>
+<ul>
+    <li>Built-in formatter aware of injected SQL, JavaScript and config blocks inside SQLX files.</li>
+    <li>Optional integration with SQLFluff for external, configurable SQL formatting.</li>
+</ul>
+
+<h2>Project Tooling</h2>
+<ul>
+    <li>New Project wizard to scaffold Dataform projects with the correct structure.</li>
+    <li>New SQLX File action with ready-made templates for every Dataform action type: Table, View, Incremental table, Assertion, Operations, Declaration, and Unit test.</li>
+    <li>Dataform CLI and Core detection, with one-click installation from the plugin settings.</li>
+    <li>Suggests moving <code>dataformCoreVersion</code> from <code>workflow_settings.yaml</code> to the <code>@dataform/core</code> dependency of <code>package.json</code>.</li>
+    <li>Disabled actions (<code>disabled: true</code>) are greyed out in the Project view.</li>
+    <li>Fast project indexing of Dataform core definitions and JavaScript symbols for responsive completion and search.</li>
+</ul>

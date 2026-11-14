@@ -1,0 +1,58 @@
+<!--
+        * Licensed to the Apache Software Foundation (ASF) under one or more
+        * contributor license agreements.  See the NOTICE file distributed with
+        * this work for additional information regarding copyright ownership.
+        * The ASF licenses this file to You under the Apache License, Version 2.0
+        * (the "License"); you may not use this file except in compliance with
+        * the License.  You may obtain a copy of the License at
+        *
+        *    http://www.apache.org/licenses/LICENSE-2.0
+        *
+        * Unless required by applicable law or agreed to in writing, software
+        * distributed under the License is distributed on an "AS IS" BASIS,
+        * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+        * See the License for the specific language governing permissions and
+        * limitations under the License.
+        */
+        -->
+<idea-plugin>
+    <extensions defaultExtensionNs="com.intellij">
+        <projectService serviceInterface="io.github.rejeb.dataform.language.unittest.schema.TestSchemaResolver"
+                        serviceImplementation="io.github.rejeb.dataform.language.unittest.schema.TestSchemaResolverImpl"
+        />
+        <projectService serviceInterface="io.github.rejeb.dataform.language.unittest.columns.TestColumnAliases"
+                        serviceImplementation="io.github.rejeb.dataform.language.unittest.columns.TestColumnAliasesImpl"
+        />
+
+        <intentionAction>
+            <className>io.github.rejeb.dataform.language.unittest.generation.GenerateTestSelectIntention</className>
+            <category>Dataform</category>
+        </intentionAction>
+        <fileIconProvider implementation="io.github.rejeb.dataform.language.unittest.TestFileIconProvider"/>
+
+        <configurationType
+                implementation="io.github.rejeb.dataform.language.unittest.execution.runconfig.DataformTestConfigurationType"/>
+        <programRunner
+                implementation="io.github.rejeb.dataform.language.unittest.execution.runconfig.DataformTestProgramRunner"/>
+        <runConfigurationProducer
+                implementation="io.github.rejeb.dataform.language.unittest.execution.runconfig.DataformTestRunConfigurationProducer"/>
+        <runLineMarkerContributor
+                language="SQLX"
+                implementationClass="io.github.rejeb.dataform.language.unittest.execution.runconfig.DataformTestRunLineMarkerContributor"/>
+    </extensions>
+
+    <actions>
+        <action id="Dataform.CreateTest"
+                class="io.github.rejeb.dataform.language.unittest.creation.CreateDataformTestAction"
+                text="Create Dataform Test"
+                description="Create a unit test for a Dataform table or view"
+                icon="io.github.rejeb.dataform.language.DataformIcons.TEST_FILE">
+            <add-to-group group-id="ProjectViewPopupMenu"
+                          anchor="after"
+                          relative-to-action="Dataform.CompareFileWithRemote"/>
+            <add-to-group group-id="EditorPopupMenu"
+                          anchor="after"
+                          relative-to-action="Dataform.CompareFileWithRemote"/>
+        </action>
+    </actions>
+</idea-plugin>

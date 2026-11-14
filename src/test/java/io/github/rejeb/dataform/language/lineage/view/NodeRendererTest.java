@@ -140,4 +140,120 @@ public class NodeRendererTest extends BasePlatformTestCase {
         g2.dispose();
         return image;
     }
+
+    public void testACardIsAsTallAsItsHeaderPlusItsRows() {
+        BufferedImage image = new BufferedImage(W + 2 * X, H + 2 * Y + 100, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g2 = image.createGraphics();
+        g2.setColor(Color.MAGENTA);
+        g2.fillRect(0, 0, image.getWidth(), image.getHeight());
+        renderer.paint(g2, SHORT, new NodePosition(SHORT.id(), X, Y, 0, W), H, 72, false);
+        g2.dispose();
+        assertEquals(LineageTheme.nodeBackground().getRGB(), image.getRGB(X + W / 2, Y + H + 60));
+        assertEquals(Color.MAGENTA.getRGB(), image.getRGB(X + W / 2, Y + H + 72 + 6));
+    }
+
+    public void testTheToggleBandUnderThePointerIsDarkenedAndTheRestOfTheHeaderIsNot() {
+        renderer.setHoverToggle(SHORT.id());
+        BufferedImage image = paint(false);
+        int background = LineageTheme.nodeBackground().getRGB();
+        assertTrue("the band is not tinted", image.getRGB(X + W / 2, Y + H - 9) != background);
+        assertEquals(background, image.getRGB(X + W / 2, Y + 6));
+    }
+
+    public void testTheBandIsNotTintedWithoutThePointer() {
+        BufferedImage image = paint(false);
+        assertEquals(LineageTheme.nodeBackground().getRGB(), image.getRGB(X + W / 2, Y + H - 9));
+    }
+
+    private static final LineageNode OUTSIDE = LineageViewFixtures.node("other.landing.raw", "other.landing", "outside", List.of(), null);
+
+    private BufferedImage paintNode(LineageNode node) {
+        model.setGraph(LineageGraph.builder().addNode(SHORT).addNode(node).build());
+        BufferedImage image = new BufferedImage(W + 2 * X, H + 2 * Y, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g2 = image.createGraphics();
+        g2.setColor(Color.MAGENTA);
+        g2.fillRect(0, 0, image.getWidth(), image.getHeight());
+        renderer.paint(g2, node, new NodePosition(node.id(), X, Y, 0, W), H, false);
+        g2.dispose();
+        return image;
+    }
+
+    public void testAnOutsideNodeHasADashedBorderOnTheGraphBackground() {
+        BufferedImage image = paintNode(OUTSIDE);
+
+        assertEquals(LineageTheme.graphBackground().getRGB(), image.getRGB(X + W - 30, Y + H / 2));
+        java.util.Set<Integer> top = new java.util.HashSet<>();
+        for (int x = X + 20; x < X + W - 20; x++) top.add(image.getRGB(x, Y));
+        assertTrue("no border on the top edge", top.contains(LineageTheme.outsideBorder().getRGB()));
+        assertTrue("the border is not dashed", top.size() > 1);
+    }
+
+    public void testARepositoryNodeKeepsItsSolidBorder() {
+        BufferedImage image = paintNode(SHORT);
+
+        for (int x = X + 20; x < X + W - 20; x++) {
+            assertEquals(LineageTheme.nodeBorder().getRGB(), image.getRGB(x, Y));
+        }
+    }
+
+    private boolean infoPainted(BufferedImage image, int background) {
+        for (int x = X + W - 17; x < X + W - 5; x++) {
+            for (int y = Y + 4; y < Y + 16; y++) {
+                if (image.getRGB(x, y) != background) return true;
+            }
+        }
+        return false;
+    }
+
+    public void testTheInfoIconIsPaintedOnlyWithKnowledgeCatalog() {
+        int background = LineageTheme.nodeBackground().getRGB();
+        assertFalse(infoPainted(paint(false), background));
+
+        model.setSource(io.github.rejeb.dataform.language.lineage.model.LineageSource.DATAPLEX);
+
+        assertTrue(infoPainted(paint(false), background));
+    }
+
+    public void testTheInfoIconWidensTheNode() {
+        int declared = renderer.measureWidth(LONG.id());
+
+        model.setSource(io.github.rejeb.dataform.language.lineage.model.LineageSource.DATAPLEX);
+
+        assertEquals(declared + 14, renderer.measureWidth(LONG.id()));
+    }
+
+    public void testAnExpanderIsAPillOnThePanelBackgroundStraddlingTheCorner() {
+        BufferedImage image = new BufferedImage(W + 60, H + 60, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g2 = image.createGraphics();
+        g2.setColor(Color.MAGENTA);
+        g2.fillRect(0, 0, image.getWidth(), image.getHeight());
+        NodePosition pos = new NodePosition(SHORT.id(), 30, 30, 0, W);
+        renderer.paintExpanders(g2, pos, H, 3, 0);
+        g2.dispose();
+
+        assertEquals(com.intellij.util.ui.UIUtil.getPanelBackground().getRGB(), image.getRGB(30 - 12 + 3, 30));
+        assertEquals(Color.MAGENTA.getRGB(), image.getRGB(30 + W + 5, 30 + H + 3));
+    }
+
+    public void testACardIsWideEnoughForItsNote() {
+        LineageNode source = LineageViewFixtures.node("p.s.src", "s", "table", List.of(), null);
+        LineageNode outside = LineageViewFixtures.node("other.raw.orders", "raw",
+                io.github.rejeb.dataform.language.lineage.dataplex.DataplexGraphBuilder.TYPE_OUTSIDE, List.of(), null);
+        model.setGraph(LineageGraph.builder().addNode(source).addNode(outside).addEdge(outside.id(), source.id()).build());
+        io.github.rejeb.dataform.language.columns.model.ColumnRef amount =
+                new io.github.rejeb.dataform.language.columns.model.ColumnRef("p.s.src", "amount");
+        model.setColumnGraph(io.github.rejeb.dataform.language.columns.analysis.ColumnLineageGraph.builder()
+                .addColumn(amount).build());
+        model.setSource(io.github.rejeb.dataform.language.lineage.model.LineageSource.DATAPLEX);
+        model.setOutsideColumns(new io.github.rejeb.dataform.language.lineage.dataplex.OutsideTableColumns.Result(
+                java.util.Map.of(), java.util.Map.of(), java.util.Set.of(outside.fullName())));
+
+        model.setSearchScope(io.github.rejeb.dataform.language.lineage.model.SearchScope.COLUMNS);
+        model.setSearchQuery("amount");
+
+        String note = model.cardNote(outside.id());
+        assertNotNull(note);
+        int noteWidth = new JPanel().getFontMetrics(LineageTheme.columnTypeFont()).stringWidth(note);
+        assertTrue(renderer.measureWidth(outside.id()) >= noteWidth + 20);
+    }
 }

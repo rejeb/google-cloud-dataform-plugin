@@ -55,7 +55,7 @@ class LineageModelColumnTest {
     }
 
     @Test
-    void selectingColumnShowsItsLineageTablesEvenWhenFilteredOut() {
+    void selectingColumnKeepsTheOtherTablesAndShowsItsLineageTablesEvenWhenFilteredOut() {
         LineageNode src = node("p.d.src");
         LineageNode mid = node("p.d.mid");
         LineageNode other = node("p.d.other");
@@ -73,17 +73,15 @@ class LineageModelColumnTest {
         model.setGraph(tableGraph);
         model.setColumnGraph(columnGraph);
 
-        assertEquals(Set.of(src.id(), mid.id(), other.id()), model.visibleIds());
-
         model.selectColumn(b.id());
-        assertEquals(Set.of(src.id(), mid.id()), model.visibleIds());
+        assertEquals(Set.of(src.id(), mid.id(), other.id()), model.visibleIds());
+        assertEquals(Set.of(other.id()), model.dimmedIds());
 
-        model.toggleType("table");
         model.toggleType("table");
         assertEquals(Set.of(src.id(), mid.id()), model.visibleIds());
 
         model.clearColumnSelection();
-        assertEquals(Set.of(src.id(), mid.id(), other.id()), model.visibleIds());
+        assertTrue(model.visibleIds().isEmpty());
     }
 
     private LineageNode node(String fullName) {

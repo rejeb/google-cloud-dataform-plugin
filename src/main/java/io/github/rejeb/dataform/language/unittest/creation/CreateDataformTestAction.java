@@ -27,7 +27,6 @@ import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
-import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.project.DumbAware;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VfsUtil;
@@ -43,6 +42,7 @@ import io.github.rejeb.dataform.language.unittest.schema.TestSchemaResolver;
 import io.github.rejeb.dataform.language.util.DataformNotifications;
 import io.github.rejeb.dataform.language.util.DataformPaths;
 import io.github.rejeb.dataform.language.util.DataformProjectLayout;
+import io.github.rejeb.dataform.language.util.FileEditors;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -212,7 +212,7 @@ public final class CreateDataformTestAction extends AnAction implements DumbAwar
                 notify(project, "Could not create the test: " + exception.getMessage(), NotificationType.ERROR);
             }
         });
-        created.forEach(file -> FileEditorManager.getInstance(project).openFile(file, true));
+        created.forEach(file -> FileEditors.open(project, file));
         if (!created.isEmpty()) {
             DataformAutoCompileService.getInstance(project).scheduleCompile();
         }

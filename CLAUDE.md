@@ -119,7 +119,10 @@ All Google Cloud Platform integration.
 
 ### 4.4 Key configuration files
 
-- `src/main/resources/META-INF/plugin.xml`: Extensions, actions, listeners, services, extension points — **always check if relevant**.
+- `src/main/resources/META-INF/plugin.xml`: plugin identity, dependencies and the `xi:include` list of the feature descriptors — **always check if relevant**.
+- `src/main/resources/META-INF/features/*.xml`: extensions, actions, listeners and services, one file per feature (`language`, `setup`, `gcp`, `schema`, `evaluation`, `diagnostics`, `compilation`, `completion`, `navigation`, `documentation`, `columns`, `preview`, `lineage`, `query-execution`, `workflow-run`, `unittest`). Where to register and in which order: **§7.1, mandatory**.
+- `src/main/resources/META-INF/dataform-git.xml`, `dataform-buildview.xml`: registrations loaded only when the optional dependency (Git4Idea, Build View) is present.
+- `src/main/descriptor/description.html`, `src/main/descriptor/change-notes.html`: plugin description and change notes, written into `plugin.xml` by `patchPluginXml` (the leading license comment is dropped).
 - `build.gradle.kts`: Dependencies, Gradle/IntelliJ configuration, versions.
 - `src/main/gen/`: Auto-generated sources (lexer/parser) — **do not edit manually**.
 
@@ -161,6 +164,48 @@ All Google Cloud Platform integration.
   - UI is Swing based; reuse IntelliJ UI components (`JBUI`, `JBPanel`, `DialogWrapper`).
   - `src/main/gen/`: auto-generated sources, do not modify.
 
+### 7.1 Plugin descriptor rules (apply to every new feature or component)
+
+The `xi:include` content is inlined in place, so the registration order is the include order, then the order inside each file. The platform sorts the extensions by `order`, but entries with the same `order` keep an order that depends on their registration order. Moving or adding an entry can therefore change behaviour, not just layout.
+
+1. **Where to register.** A new component goes into the feature file it belongs to (`META-INF/features/<feature>.xml`). `plugin.xml` holds only the identity, the `<depends>`, the two plugin-wide entries (`errorHandler`, `notificationGroup`) and the `xi:include` list. Never register a component there.
+2. **Order-sensitive extension points stay in one file, whatever the feature of the component:**
+   - `completion.contributor` and `completion.confidence` go in `completion.xml`.
+   - `psi.referenceContributor` and `gotoDeclarationHandler` go in `navigation.xml`.
+   - `platform.backend.documentation.targetProvider` and `psiTargetProvider` go in `documentation.xml`.
+   - `multiHostInjector` goes in `language.xml`.
+   - `sql.resolveExtension` goes in `schema.xml`.
+
+   Inside the file, place the new entry deliberately. When its order relative to another entry matters, state it with `order="first|last|before <id>|after <id>"` and give the entries an `id`; do not rely on the position alone.
+3. **Some extension points are spread over several files.** Their order comes from the include order, which must stay:
+
+   | Extension points | Order of the files |
+   |---|---|
+   | `editorFactoryListener`, `vfs.asyncListener`, `FileDocumentManagerListener` listeners | `evaluation` → `diagnostics` → `compilation` |
+   | `editorNotificationProvider` | `gcp` → `diagnostics` |
+   | `postStartupActivity` | `setup` → `gcp` |
+   | `configurationType`, `programRunner`, `runConfigurationProducer` | `workflow-run` → `unittest` |
+   | `fileEditorProvider` | `preview` → `lineage` |
+   | `fileIconProvider` | `lineage` → `unittest` |
+   | `toolWindow` | `gcp` → `lineage` |
+
+   When adding to one of these, check where the new entry lands among the existing ones. Never reorder the `xi:include` list without checking this table.
+4. **New feature file.** Create one only when no existing feature fits.
+   - Give it the Apache header and an `<idea-plugin>` root.
+   - Include it with `<xi:include href="/META-INF/features/<name>.xml" xpointer="xpointer(/idea-plugin/*)"/>`: an absolute `href` and exactly this `xpointer`, which both 262 and 263 accept.
+   - Never use `includeIf`/`includeUnless`: they are deprecated in 262 and ignored in 263.
+   - Place the include according to rule 3, and add the file to the list in §4.4.
+5. **Optional dependencies.** A class that uses an optional plugin or module (Git4Idea, Build View) is registered only in its `<depends optional="true" config-file=...>` descriptor (`dataform-git.xml`, `dataform-buildview.xml`), never in a feature file. A new optional dependency gets its own config file.
+6. **Actions placed relative to another action** (`relative-to-action`) must be registered after it. For example, `Dataform.CreateTest` in `unittest.xml` is placed after `Dataform.CompareFileWithRemote` in `gcp.xml`.
+7. **Description and change notes.**
+   - Edit `src/main/descriptor/description.html` and `change-notes.html`.
+   - Never add `<description>` or `<change-notes>` to `plugin.xml`: `patchPluginXml` replaces them.
+   - Keep the licence comment as the first thing in the file, because the build strips only a leading comment.
+   - Write plain HTML: `$` is written as is, with no Kotlin escaping.
+8. **Checks after any descriptor change.**
+   - Run `./gradlew buildPlugin`, the plugin verifier on 2026.2 and 2026.3, and the full test suite.
+   - When an entry is moved or an order-sensitive one is added, compare the registrations before and after. Use a throwaway `BasePlatformTestCase` that dumps `ExtensionPointImpl.getSortedAdapters()` for the plugin's adapters, plus its services, listeners, actions and menu positions. Diff the two dumps, then delete the test.
+
 ## 8. Mandatory Response Method
 
 1. Briefly restate the objective.
@@ -181,7 +226,7 @@ All Google Cloud Platform integration.
 - Verifications
 - Potential risks
 
-Additional rule: If your solution requires modifications to `plugin.xml` (extensions/services/actions) or dependencies (`build.gradle.kts`), you must explicitly provide these changes in the patch and explain why.
+Additional rule: If your solution requires modifications to `plugin.xml` or `META-INF/features/*.xml` (extensions/services/actions) or dependencies (`build.gradle.kts`), you must explicitly provide these changes in the patch and explain why.
 
 ## 10. Important Constraints
 

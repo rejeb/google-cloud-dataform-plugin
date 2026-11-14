@@ -48,9 +48,10 @@ public class MarketplaceErrorReportingTest extends BasePlatformTestCase {
     }
 
     public void testFreezesOfThePluginGoToTheMarketplaceSubmitter() throws ReflectiveOperationException {
-        Constructor<?> freeze = Class.forName("com.intellij.diagnostic.Freeze").getDeclaredConstructor(List.class);
+        Constructor<?> freeze = Class.forName("com.intellij.diagnostic.Freeze")
+                .getDeclaredConstructor(PluginId.class, String.class, List.class);
         freeze.setAccessible(true);
-        Throwable throwable = (Throwable) freeze.newInstance(List.of());
+        Throwable throwable = (Throwable) freeze.newInstance(PluginId.getId(PLUGIN_ID), null, List.of());
 
         assertSame(JetBrainsMarketplaceErrorReportSubmitter.class, submitterOf(throwable).getClass());
     }

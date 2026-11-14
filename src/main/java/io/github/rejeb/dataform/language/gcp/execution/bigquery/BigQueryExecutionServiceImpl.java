@@ -88,13 +88,14 @@ public final class BigQueryExecutionServiceImpl implements BigQueryExecutionServ
 
     /**
      * Waits for the job to finish, checking the indicator between two polls so a cancelled
-     * execution stops waiting at once and cancels the job on BigQuery.
+     * execution stops waiting at once and cancels the job on BigQuery. The state is read from
+     * the snapshot itself, so the job returned carries the statistics of the finished job.
      */
     @Nullable
-    private static Job waitFor(@NotNull Job job, @NotNull ProgressIndicator indicator)
+    static Job waitFor(@NotNull Job job, @NotNull ProgressIndicator indicator)
             throws InterruptedException {
         Job current = job;
-        while (!current.isDone()) {
+        while (!hasFinished(current)) {
             indicator.checkCanceled();
             Thread.sleep(POLL_INTERVAL_MS);
             current = current.reload();
@@ -103,6 +104,11 @@ public final class BigQueryExecutionServiceImpl implements BigQueryExecutionServ
             }
         }
         return current;
+    }
+
+    private static boolean hasFinished(@NotNull Job job) {
+        JobStatus status = job.getStatus();
+        return status != null && status.getState() == JobStatus.State.DONE;
     }
 
     private static void cancelQuietly(@Nullable Job job) {

@@ -25,21 +25,21 @@ import java.awt.Container;
 import java.util.ArrayList;
 import java.util.List;
 
-final class LineageViewFixtures {
+public final class LineageViewFixtures {
 
-    static final LineageNode ALPHA = node("p.a.alpha", "a", "table", List.of("x"), "definitions/alpha.sqlx");
-    static final LineageNode BETA = node("p.b.beta", "b", "view", List.of("y", "x"), "definitions/beta.sqlx");
-    static final LineageNode GAMMA = node("p.a.gamma", "a", "table", List.of(), null);
+    public static final LineageNode ALPHA = node("p.a.alpha", "a", "table", List.of("x"), "definitions/alpha.sqlx");
+    public static final LineageNode BETA = node("p.b.beta", "b", "view", List.of("y", "x"), "definitions/beta.sqlx");
+    public static final LineageNode GAMMA = node("p.a.gamma", "a", "table", List.of(), null);
 
     private LineageViewFixtures() {
     }
 
-    static LineageNode node(String fullName, String schema, String type, List<String> tags, String file) {
+    public static LineageNode node(String fullName, String schema, String type, List<String> tags, String file) {
         String name = fullName.substring(fullName.lastIndexOf('.') + 1);
         return new LineageNode(LineageNode.idOf(fullName), name, fullName, schema, type, tags, file);
     }
 
-    static LineageModel model() {
+    public static LineageModel model() {
         LineageModel model = new LineageModel(null);
         model.setGraph(LineageGraph.builder()
                 .addNode(ALPHA).addNode(BETA).addNode(GAMMA)
@@ -48,7 +48,7 @@ final class LineageViewFixtures {
         return model;
     }
 
-    static <T extends Component> List<T> all(Container root, Class<T> type) {
+    public static <T extends Component> List<T> all(Container root, Class<T> type) {
         List<T> found = new ArrayList<>();
         for (Component child : root.getComponents()) {
             if (type.isInstance(child)) {

@@ -18,19 +18,23 @@ package io.github.rejeb.dataform.language.lineage.view;
 
 import com.intellij.ui.scale.JBUIScale;
 import com.intellij.util.ui.JBFont;
+import io.github.rejeb.dataform.language.lineage.dataplex.DataplexGraphBuilder;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.Icon;
+import java.awt.BasicStroke;
 import java.awt.Component;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
+import java.awt.geom.Path2D;
 
 /**
  * The type glyph of an action, as in the UI prototype: its letter in the colour of the type, on a
- * rounded square of the matching background. Used on the canvas nodes, in the filters, the details
+ * rounded square of the matching background; a table outside the repository shows an arrow leaving
+ * instead of a letter. Used on the canvas nodes, in the filters, the details
  * and the legend.
  */
 final class TypeGlyphIcon implements Icon {
@@ -80,6 +84,10 @@ final class TypeGlyphIcon implements Icon {
             int arc = JBUIScale.scale(ARC);
             g2.setColor(LineageTheme.glyphBackground(type));
             g2.fillRoundRect(x, y, side, side, arc, arc);
+            if (DataplexGraphBuilder.TYPE_OUTSIDE.equals(type) || DataplexGraphBuilder.TYPE_ASSET.equals(type)) {
+                paintLeavingArrow(g2, x, y, side);
+                return;
+            }
             Font font = small ? JBFont.small().lessOn(1f).asBold() : JBFont.small().asBold();
             g2.setFont(font);
             g2.setColor(LineageTheme.glyphForeground(type));
@@ -90,6 +98,20 @@ final class TypeGlyphIcon implements Icon {
         } finally {
             g2.dispose();
         }
+    }
+
+    private static void paintLeavingArrow(@NotNull Graphics2D g2, int x, int y, int side) {
+        g2.setColor(LineageTheme.glyphForeground(null));
+        g2.setStroke(new BasicStroke(side / 12f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        double near = side * 0.32;
+        double far = side * 0.68;
+        Path2D.Double arrow = new Path2D.Double();
+        arrow.moveTo(x + near, y + far);
+        arrow.lineTo(x + far, y + near);
+        arrow.moveTo(x + side * 0.42, y + near);
+        arrow.lineTo(x + far, y + near);
+        arrow.lineTo(x + far, y + side * 0.58);
+        g2.draw(arrow);
     }
 
     @Override

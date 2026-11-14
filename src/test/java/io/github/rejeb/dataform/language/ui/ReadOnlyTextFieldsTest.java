@@ -20,11 +20,14 @@ import com.intellij.testFramework.fixtures.BasePlatformTestCase;
 import com.intellij.ui.components.JBTextArea;
 import com.intellij.ui.components.JBTextField;
 import com.intellij.ui.table.JBTable;
+import com.intellij.util.ui.JBFont;
 import com.intellij.util.ui.JBUI;
 
 import javax.swing.JMenuItem;
 import javax.swing.JPopupMenu;
 import javax.swing.JTable;
+import javax.swing.UIManager;
+import javax.swing.plaf.FontUIResource;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableCellEditor;
@@ -66,6 +69,19 @@ public class ReadOnlyTextFieldsTest extends BasePlatformTestCase {
         assertTrue(area.getLineWrap());
         assertTrue(area.getWrapStyleWord());
         assertEquals(List.of("Copy", "Select All"), menuItems(area));
+    }
+
+    public void testAMultiLineTextUsesTheLabelFontEvenWhenTheThemeGivesTextAreasAMonospacedOne() {
+        Object themed = UIManager.get("TextArea.font");
+        UIManager.put("TextArea.font", new FontUIResource(Font.MONOSPACED, Font.PLAIN, 13));
+        try {
+            Font font = ReadOnlyTextFields.multiLine("Knowledge Catalog keeps lineage for 30 days.").getFont();
+
+            assertEquals(JBFont.label().getFamily(), font.getFamily());
+            assertEquals(JBFont.label().getSize(), font.getSize());
+        } finally {
+            UIManager.put("TextArea.font", themed);
+        }
     }
 
     public void testUpdatingTheTextNeedsNoWriteAction() {

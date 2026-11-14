@@ -22,7 +22,6 @@ import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.editor.Editor;
-import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.fileTypes.PlainTextFileType;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.Task;
@@ -30,6 +29,7 @@ import com.intellij.openapi.project.DumbAware;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiFile;
 import com.intellij.testFramework.LightVirtualFile;
+import io.github.rejeb.dataform.language.util.FileEditors;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -71,7 +71,7 @@ public class DiagnoseColumnResolutionAction extends AnAction implements DumbAwar
                 if (report == null || project.isDisposed()) return;
                 LightVirtualFile reportFile = new LightVirtualFile(
                         "dataform-column-resolution.txt", PlainTextFileType.INSTANCE, report);
-                FileEditorManager.getInstance(project).openFile(reportFile, true);
+                FileEditors.open(project, reportFile);
             }
         }.queue();
     }

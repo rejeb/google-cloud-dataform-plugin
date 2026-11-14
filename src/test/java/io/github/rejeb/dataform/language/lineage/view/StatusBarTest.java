@@ -79,4 +79,66 @@ public class StatusBarTest extends BasePlatformTestCase {
         }
         assertEquals(JBUI.scale(24), bar.getPreferredSize().height);
     }
+
+    private static LineageModel dataplexModel(boolean truncated) {
+        LineageModel model = LineageViewFixtures.model();
+        io.github.rejeb.dataform.language.lineage.dataplex.DataplexView view = DataplexViewFixtures.view(model.graph(),
+                truncated, "p.a.alpha", "other.landing.raw", "p.a.alpha", "p.a.alpha", "p.b.beta");
+        model.setSource(io.github.rejeb.dataform.language.lineage.model.LineageSource.DATAPLEX);
+        model.setDataplexView(view);
+        model.setGraph(view.graph());
+        return model;
+    }
+
+    public void testDataplexStatusCountsTheNodesOutsideTheRepository() {
+        LineageModel model = dataplexModel(false);
+        StatusBar bar = new StatusBar(model);
+        assertEquals("3 nodes · 1 outside this repository", texts(bar).getFirst());
+
+        model.select(LineageViewFixtures.ALPHA.id());
+        assertEquals("3 nodes · 1 outside this repository · 1 selected", texts(bar).getFirst());
+    }
+
+    private static java.time.Clock at(java.time.Instant now) {
+        return java.time.Clock.fixed(now, java.time.ZoneOffset.UTC);
+    }
+
+    public void testDataplexStatusNamesProjectLocationRangeAndLoadTime() {
+        StatusBar bar = new StatusBar(dataplexModel(false), at(DataplexViewFixtures.LOADED_AT.plusSeconds(3_600)));
+        bar.setZoom(80);
+        assertEquals("Knowledge Catalog · p · EU · last 30 days · loaded 10:00 · 80%", texts(bar).getLast());
+    }
+
+    public void testLoadedShowsTheDayWhenNotToday() {
+        StatusBar bar = new StatusBar(dataplexModel(false), at(DataplexViewFixtures.LOADED_AT.plusSeconds(2 * 86_400)));
+        assertEquals("Knowledge Catalog · p · EU · last 30 days · loaded 12 Nov 10:00 · 100%", texts(bar).getLast());
+    }
+
+    public void testRecordedStatusSaysCheckingAndUpdating() {
+        LineageModel model = dataplexModel(false);
+        StatusBar bar = new StatusBar(model, at(DataplexViewFixtures.LOADED_AT));
+
+        model.setRecordedActivity(io.github.rejeb.dataform.language.lineage.model.RecordedActivity.CHECKING);
+        assertEquals("Knowledge Catalog · p · EU · last 30 days · loaded 10:00 · checking… · 100%", texts(bar).getLast());
+
+        model.setRecordedActivity(io.github.rejeb.dataform.language.lineage.model.RecordedActivity.UPDATING);
+        assertEquals("Knowledge Catalog · p · EU · last 30 days · loaded 10:00 · updating… · 100%", texts(bar).getLast());
+
+        model.setRecordedActivity(io.github.rejeb.dataform.language.lineage.model.RecordedActivity.NONE);
+        assertEquals("Knowledge Catalog · p · EU · last 30 days · loaded 10:00 · 100%", texts(bar).getLast());
+    }
+
+    public void testATruncatedGraphSaysStoppedAt200Nodes() {
+        StatusBar bar = new StatusBar(dataplexModel(true));
+        assertEquals("3 nodes · 1 outside this repository · stopped at 200 nodes", texts(bar).getFirst());
+    }
+
+    public void testDataplexStatusWithoutALoadedGraphNamesTheSourceOnly() {
+        LineageModel model = LineageViewFixtures.model();
+        model.setSource(io.github.rejeb.dataform.language.lineage.model.LineageSource.DATAPLEX);
+        model.setGraph(null);
+        StatusBar bar = new StatusBar(model);
+        assertEquals("0 nodes", texts(bar).getFirst());
+        assertEquals("Knowledge Catalog · 100%", texts(bar).getLast());
+    }
 }

@@ -4,7 +4,7 @@ A comprehensive IntelliJ IDEA plugin that provides advanced language support for
 
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-IntelliJ-lightgrey.svg)
-![version](https://img.shields.io/badge/version-1.0.1-green.svg)
+![version](https://img.shields.io/badge/version-1.1.0-green.svg)
 [![Java](https://img.shields.io/badge/Java-21-blue)](https://www.java.com/fr/)
 [![JetBrains Marketplace](https://img.shields.io/jetbrains/plugin/v/30020?label=JetBrains%20Marketplace)](https://plugins.jetbrains.com/plugin/30020)
 [![Downloads](https://img.shields.io/jetbrains/plugin/d/30020)](https://plugins.jetbrains.com/plugin/30020)
@@ -34,8 +34,8 @@ A comprehensive IntelliJ IDEA plugin that provides advanced language support for
       <sub><b>Compiled preview</b></sub>
     </td>
     <td width="33%" align="center">
-      <img src="doc/screenshots/lineage-selection.jpg" alt="silver_customers selected: its whole lineage in blue, the rest dimmed" width="100%"><br>
-      <sub><b>Project lineage</b></sub>
+      <img src="doc/screenshots/lineage-knowledge-catalog.jpg" alt="The Knowledge Catalog lineage of the repository, with the run that wrote silver_customers" width="100%"><br>
+      <sub><b>Knowledge Catalog lineage</b></sub>
     </td>
     <td width="33%" align="center">
       <img src="doc/screenshots/unit-test-diff.jpg" alt="Expected and actual rows of a failing unit test" width="100%"><br>
@@ -180,14 +180,28 @@ and these views:
   their own tab, resizable SQL blocks, and buttons to copy, run or open the query in the BigQuery console
 - **Schema**: The output columns of each action as a tree, nested `STRUCT` fields included, with type,
   mode and description, and a button to copy a column's path
-- **Lineage**: The dependency graph around the current file
+- **Lineage**: The dependency graph around the current file, from Dataform or Knowledge Catalog
 - **Test**: For a unit test file, the compiled test query and expected output
 
 ### Lineage View
 - **File Lineage**: Upstream and downstream dependencies of the open file
 - **Project Lineage**: A full project graph (`Tools` → `Open Dataform Lineage`, or `Alt+Shift+D`)
-- **Column-Level Lineage**: Expand a node to see its columns and follow column-to-column edges,
-  derived from the compiled `SELECT` statements, with a confidence level per edge
+- **Two Sources**: A **Dataform | Knowledge Catalog** switch: the lineage the code declares, or the
+  lineage BigQuery recorded when the jobs ran
+- **Column Cards**: Each node is a card listing its columns with their BigQuery types; the bottom band
+  of a card opens its full column list
+- **Column-Level Lineage**: Click a column to colour every column it comes from and feeds, in each
+  card, derived from the compiled `SELECT` statements; the tables off its lineage fade
+- **Column Search**: A **Tables | Columns** switch in the search field; a column search shows the
+  found columns and their lineage
+- **Knowledge Catalog**: The recorded lineage of the whole repository: every table, and the tables
+  outside it up to two levels away. It is cached in the IDE, drawn at once when the view is shown,
+  then checked with one call and updated in the background when new jobs were recorded. Also when
+  each table was last written, the jobs behind each recorded link, the recorded column lineage, and
+  a **Dataform Lineage** tool window with **Runs**, **Trace** and **Differences** (links that ran but
+  no `ref()` declares, and declared dependencies no run read)
+- **Open Full Lineage**: From the Lineage view of a file, opens the project lineage on the same
+  source with the tables of the file marked
 - **Interactive Graph**: Pan, zoom, search, minimap, focus mode with its banner, legend, a resizable
   details panel, and filtering by type, tag and schema
 - **Selection**: Selecting a node highlights its whole upstream and downstream lineage and dims the rest
@@ -228,6 +242,9 @@ and these views:
 ### BigQuery Cost
 - **Estimates**: The compiled preview shows the bytes each query would process and their estimated
   on-demand cost, with a total for the file
+- **Scripts**: A query behind pre-operations, or several statements, shows `Run to estimate`, since
+  BigQuery cannot estimate its bytes; `Run Query` measures it, without the cache, and the preview then
+  shows the bytes and cost of that run
 - **Billed Cost**: Executed queries and workflow runs show the bytes billed and their cost, per action and per run
 - **Prices**: From Google Cloud Billing for the location of each query, or a fixed price per TiB, in the
   currency you choose; capacity (reservation) projects show bytes only

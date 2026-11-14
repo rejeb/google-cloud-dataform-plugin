@@ -26,6 +26,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiManager;
+import com.intellij.util.PathUtil;
 import io.github.rejeb.dataform.language.util.DataformPaths;
 import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasTable;
@@ -404,21 +405,28 @@ final class SchemaCacheStore {
         modificationTimes.clear();
     }
 
+    /**
+     * Builds a table without looking its source file up: this runs while the persisted state is
+     * loaded, on whatever thread first asks for the service, and inside the write action of a
+     * column rename. The table looks the file up when first asked for it.
+     */
     @NotNull
     private DataformDasTable buildTable(@NotNull String fqn,
                                         @NotNull String tableName,
                                         @NotNull java.util.List<ColumnInfo> columns,
                                         @Nullable String fileName) {
-        return new DataformDasTable(PsiManager.getInstance(project), fqn, tableName, columns,
-                resolveSourceFile(fileName));
+        String sourcePath = sourcePathOf(fileName);
+        return DataformDasTable.withLazySource(PsiManager.getInstance(project), fqn, tableName, columns,
+                fileName != null ? PathUtil.getFileName(DataformPaths.normalize(fileName)) : null,
+                () -> sourcePath != null ? LocalFileSystem.getInstance().findFileByPath(sourcePath) : null);
     }
 
     @Nullable
-    private VirtualFile resolveSourceFile(@Nullable String fileName) {
+    private String sourcePathOf(@Nullable String fileName) {
         if (fileName == null) return null;
         String basePath = project.getBasePath();
         if (basePath == null) return null;
-        return LocalFileSystem.getInstance().findFileByPath(basePath + "/" + DataformPaths.normalize(fileName));
+        return basePath + "/" + DataformPaths.normalize(fileName);
     }
 
     @NotNull

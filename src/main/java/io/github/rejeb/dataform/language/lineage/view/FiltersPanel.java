@@ -27,6 +27,7 @@ import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
 import io.github.rejeb.dataform.language.lineage.graph.LineageNode;
 import io.github.rejeb.dataform.language.lineage.model.LineageModel;
+import io.github.rejeb.dataform.language.lineage.model.LineageSource;
 import io.github.rejeb.dataform.language.ui.CollapsibleSection;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -52,7 +53,7 @@ import java.util.function.Supplier;
 
 /**
  * The left sidebar of the project lineage, as in the UI prototype: one collapsible section per
- * filter (action types, tags, schemas) whose header sums up the filter, each a list of rows with a
+ * filter (action types, tags, schemas, called datasets with the recorded lineage) whose header sums up the filter, each a list of rows with a
  * check box, the name and the node count, and one link resetting every filter. The checks mirror
  * the {@link LineageModel} filters and checking a row toggles its filter. A checked type or schema
  * is shown; checked tags narrow the view to the actions having any of them.
@@ -62,6 +63,8 @@ public final class FiltersPanel extends JPanel {
     private static final int WIDTH = 240;
     private static final int ROW_HEIGHT = 26;
     private static final int ROW_GAP = 8;
+    private static final String SCHEMAS = "Schemas";
+    private static final String DATASETS = "Datasets";
 
     private final LineageModel model;
     private final Filter types;
@@ -76,9 +79,10 @@ public final class FiltersPanel extends JPanel {
     public FiltersPanel(@NotNull LineageModel model) {
         super(new BorderLayout());
         this.model = model;
-        types = new Filter("Action types", true, model::toggleType, model::enabledTypes, TypeGlyphIcon::small);
-        tags = new Filter("Tags", true, model::toggleTag, model::enabledTags, item -> null);
-        schemas = new Filter("Schemas", false, model::toggleSchema, model::enabledSchemas, item -> null);
+        types = new Filter("Action types", true, model::toggleType, model::enabledTypes, TypeGlyphIcon::small,
+                LineageLegend::typeLabel);
+        tags = new Filter("Tags", true, model::toggleTag, model::enabledTags, item -> null, item -> item);
+        schemas = new Filter(SCHEMAS, false, model::toggleSchema, model::enabledSchemas, item -> null, item -> item);
 
         JPanel content = new JPanel(new VerticalLayout(0));
         content.setBackground(UIUtil.getPanelBackground());
@@ -128,6 +132,7 @@ public final class FiltersPanel extends JPanel {
         Map<String, Integer> typeCounts = orderedTypeCounts();
         Map<String, Integer> tagCounts = new TreeMap<>(model.tagCounts());
         Map<String, Integer> schemaCounts = orderedSchemaCounts();
+        schemas.section.setTitle(model.source() == LineageSource.DATAPLEX ? DATASETS : SCHEMAS);
         String signature = typeCounts + "|" + tagCounts + "|" + schemaCounts;
         updating = true;
         try {
@@ -178,17 +183,18 @@ public final class FiltersPanel extends JPanel {
         private final JBLabel label;
         private final JBLabel count;
 
-        private Row(@NotNull String item, int nodes, @Nullable Icon icon, @NotNull Consumer<Row> onToggle) {
+        private Row(@NotNull String item, @NotNull String text, int nodes, @Nullable Icon icon,
+                    @NotNull Consumer<Row> onToggle) {
             super(new BorderLayout(JBUIScale.scale(ROW_GAP), 0));
             this.item = item;
             setOpaque(false);
-            label = new JBLabel(item, icon, SwingConstants.LEADING);
+            label = new JBLabel(text, icon, SwingConstants.LEADING);
             label.setIconTextGap(JBUIScale.scale(ROW_GAP));
             count = new JBLabel(String.valueOf(nodes));
             count.setFont(JBFont.medium());
             count.setForeground(UIUtil.getContextHelpForeground());
             checkBox.setOpaque(false);
-            checkBox.getAccessibleContext().setAccessibleName(item);
+            checkBox.getAccessibleContext().setAccessibleName(text);
             checkBox.addActionListener(e -> onToggle.accept(this));
             label.addMouseListener(new MouseAdapter() {
                 @Override
@@ -231,13 +237,16 @@ public final class FiltersPanel extends JPanel {
         private final Consumer<String> toggle;
         private final Supplier<Set<String>> enabled;
         private final Function<String, Icon> icon;
+        private final Function<String, String> text;
         private final List<Row> rows = new ArrayList<>();
 
         Filter(@NotNull String title, boolean expanded, @NotNull Consumer<String> toggle,
-               @NotNull Supplier<Set<String>> enabled, @NotNull Function<String, Icon> icon) {
+               @NotNull Supplier<Set<String>> enabled, @NotNull Function<String, Icon> icon,
+               @NotNull Function<String, String> text) {
             this.toggle = toggle;
             this.enabled = enabled;
             this.icon = icon;
+            this.text = text;
             list.setOpaque(false);
             list.setBorder(JBUI.Borders.emptyBottom(4));
             summary.setFont(JBFont.medium());
@@ -252,7 +261,7 @@ public final class FiltersPanel extends JPanel {
             rows.clear();
             list.removeAll();
             for (Map.Entry<String, Integer> e : counts.entrySet()) {
-                Row row = new Row(e.getKey(), e.getValue(), icon.apply(e.getKey()), this::onToggled);
+                Row row = new Row(e.getKey(), text.apply(e.getKey()), e.getValue(), icon.apply(e.getKey()), this::onToggled);
                 rows.add(row);
                 list.add(row);
             }

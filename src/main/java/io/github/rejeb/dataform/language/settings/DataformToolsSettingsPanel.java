@@ -22,11 +22,12 @@ import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectManager;
 import com.intellij.openapi.ui.TextFieldWithBrowseButton;
-import com.intellij.openapi.ui.panel.ComponentPanelBuilder;
 import com.intellij.ui.TitledSeparator;
 import com.intellij.ui.components.JBCheckBox;
 import com.intellij.ui.components.fields.ExpandableTextField;
 import com.intellij.util.ui.FormBuilder;
+import com.intellij.util.ui.SwingTextTrimmer;
+import io.github.rejeb.dataform.language.ui.CommentLabel;
 import io.github.rejeb.dataform.language.ui.StatusLabel;
 import io.github.rejeb.dataform.language.util.InstallResult;
 import io.github.rejeb.dataform.language.util.NodeJsNpmUtils;
@@ -66,6 +67,7 @@ public final class DataformToolsSettingsPanel {
         );
 
         installButton.addActionListener(e -> onInstall());
+        installStatus.trimToGivenWidth(SwingTextTrimmer.ELLIPSIS_AT_RIGHT);
 
         sqlfluffExecutableField.addBrowseFolderListener(
                 null,
@@ -107,7 +109,7 @@ public final class DataformToolsSettingsPanel {
     }
 
     private static @NotNull JComponent comment(@NotNull String text) {
-        return ComponentPanelBuilder.createCommentComponent(text, true);
+        return new CommentLabel(text);
     }
 
     // ── Node.js state ─────────────────────────────────────────────────────

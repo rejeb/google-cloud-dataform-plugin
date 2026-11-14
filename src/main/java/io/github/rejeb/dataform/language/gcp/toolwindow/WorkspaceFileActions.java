@@ -51,6 +51,7 @@ import io.github.rejeb.dataform.language.gcp.workspace.MainBranchSource;
 import io.github.rejeb.dataform.language.gcp.workspace.UncommittedChange;
 import io.github.rejeb.dataform.language.util.DataformNotifications;
 import io.github.rejeb.dataform.language.util.DataformPaths;
+import io.github.rejeb.dataform.language.util.FileEditors;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -159,7 +160,7 @@ public final class WorkspaceFileActions {
                     .notify(project);
             return false;
         }
-        FileEditorManager.getInstance(project).openFile(file, true);
+        FileEditors.open(project, file);
         return true;
     }
 
@@ -289,7 +290,7 @@ public final class WorkspaceFileActions {
                 .forEach(editorManager::closeFile);
         LightVirtualFile virtualFile = new LightVirtualFile(fileName, fileTypeOf(path), content);
         virtualFile.setWritable(false);
-        editorManager.openFile(virtualFile, true);
+        FileEditors.open(project, virtualFile);
     }
 
     private void showDiff(@NotNull String path, @NotNull RemoteVersion remote) {

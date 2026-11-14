@@ -17,12 +17,11 @@
 package io.github.rejeb.dataform.language.lineage.view;
 
 import com.intellij.openapi.application.ApplicationManager;
-import com.intellij.openapi.fileEditor.FileEditorManager;
-import com.intellij.openapi.fileEditor.OpenFileDescriptor;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
 import io.github.rejeb.dataform.language.util.DataformPaths;
+import io.github.rejeb.dataform.language.util.FileEditors;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.RunSqlxHelper;
 import io.github.rejeb.dataform.language.lineage.graph.LineageNode;
 import org.jetbrains.annotations.NotNull;
@@ -35,14 +34,16 @@ import java.util.function.Consumer;
  * launching the Dataform run configuration. File resolution runs off the EDT; UI work is
  * marshalled back via {@code invokeLater}.
  */
-final class LineageActions {
+public final class LineageActions {
 
     private LineageActions() {
     }
 
-    static void openSource(@NotNull Project project, @Nullable LineageNode node) {
-        withFile(project, node, vf -> FileEditorManager.getInstance(project)
-                .openEditor(new OpenFileDescriptor(project, vf), true));
+    /**
+     * Opens the SQLX file of a node in an editor; does nothing for a node without a file.
+     */
+    public static void openSource(@NotNull Project project, @Nullable LineageNode node) {
+        withFile(project, node, vf -> FileEditors.open(project, vf));
     }
 
     static void runAction(@NotNull Project project, @Nullable LineageNode node) {

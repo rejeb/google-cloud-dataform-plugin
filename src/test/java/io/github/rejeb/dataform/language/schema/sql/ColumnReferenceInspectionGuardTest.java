@@ -18,7 +18,7 @@ package io.github.rejeb.dataform.language.schema.sql;
 
 import com.intellij.codeInsight.daemon.impl.HighlightInfo;
 import com.intellij.psi.PsiFile;
-import com.intellij.sql.inspections.SqlResolveInspection;
+import com.intellij.sql.inspections.resolve.SqlResolveInspection;
 
 import java.util.LinkedHashSet;
 import java.util.Set;

@@ -58,8 +58,36 @@ final class CanvasViewport {
         return zoom;
     }
 
+    double offsetX() {
+        return offsetX;
+    }
+
     double offsetY() {
         return offsetY;
+    }
+
+    /** Sets the zoom and the offsets as they were saved. */
+    void set(double zoom, double offsetX, double offsetY) {
+        this.zoom = clamp(zoom, MIN_ZOOM, MAX_ZOOM);
+        this.offsetX = offsetX;
+        this.offsetY = offsetY;
+        notifyZoom();
+        onChanged.run();
+    }
+
+    /** Puts the world point in the middle of a viewport of the given size, at the same zoom. */
+    void centerOn(double worldX, double worldY, int viewWidth, int viewHeight) {
+        offsetX = viewWidth / 2.0 - worldX * zoom;
+        offsetY = viewHeight / 2.0 - worldY * zoom;
+        onChanged.run();
+    }
+
+    double screenX(double worldX) {
+        return worldX * zoom + offsetX;
+    }
+
+    double screenY(double worldY) {
+        return worldY * zoom + offsetY;
     }
 
     double worldX(double screenX) {

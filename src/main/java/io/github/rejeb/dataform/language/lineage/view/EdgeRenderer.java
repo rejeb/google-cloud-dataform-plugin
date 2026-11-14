@@ -16,11 +16,13 @@
  */
 package io.github.rejeb.dataform.language.lineage.view;
 
+import io.github.rejeb.dataform.language.lineage.dataplex.Difference;
 import io.github.rejeb.dataform.language.lineage.graph.LineageNode;
 import io.github.rejeb.dataform.language.lineage.layout.LayoutResult;
 import io.github.rejeb.dataform.language.lineage.layout.NodePosition;
 import io.github.rejeb.dataform.language.lineage.model.Direction;
 import io.github.rejeb.dataform.language.lineage.model.LineageModel;
+import io.github.rejeb.dataform.language.lineage.model.LinkRef;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -34,9 +36,11 @@ import java.awt.geom.Path2D;
 import java.awt.geom.PathIterator;
 import java.awt.geom.Rectangle2D;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.ToIntFunction;
 
 /**
  * Paints the table-to-table edges of the lineage DAG. Edges are routed through the free
@@ -53,10 +57,13 @@ final class EdgeRenderer {
     private static final double ARROW_SIZE = 6;
     private static final float EDGE_WIDTH = 1.4f;
     private static final float SELECTED_EDGE_WIDTH = 1.8f;
+    private static final float SELECTED_LINK_WIDTH = 2.6f;
+    private static final float[] DECLARED_ONLY_DASH = {5f, 4f};
 
     private final LineageModel model;
     private final List<Obstacle> obstacles = new ArrayList<>();
     private final List<CrossingEdge> crossingEdges = new ArrayList<>();
+    private final Map<LinkRef, Path2D.Double> edgePaths = new LinkedHashMap<>();
 
     private record Obstacle(@NotNull String id, @NotNull Rectangle2D.Double rect) {
     }
@@ -73,9 +80,10 @@ final class EdgeRenderer {
      * to be painted afterwards by {@link #paintOverlappingParts(Graphics2D)}.
      */
     void paintEdges(@NotNull Graphics2D g2, @NotNull LayoutResult layout,
-                    @NotNull Map<String, Rectangle> columnListBounds) {
-        collectObstacles(layout, columnListBounds);
+                    @NotNull ToIntFunction<String> extraHeight) {
+        collectObstacles(layout, extraHeight);
         crossingEdges.clear();
+        edgePaths.clear();
 
         Set<String> dimmed = model.dimmedIds();
         Direction dir = model.direction();
@@ -87,9 +95,17 @@ final class EdgeRenderer {
                 NodePosition from = layout.positions().get(predId);
                 if (from == null) continue;
                 boolean lit = !dimmed.contains(node.id()) && !dimmed.contains(predId);
-                drawEdge(g2, predId, node.id(), from, to, layout.nodeH(), dir, lit ? 1f : DIM_ALPHA);
+                drawEdge(g2, predId, node.id(), from, to, layout.nodeH(), extraHeight.applyAsInt(predId), dir,
+                        lit ? 1f : DIM_ALPHA);
             }
         }
+    }
+
+    /**
+     * @return the curve of every edge drawn by the last {@link #paintEdges}, in world coordinates
+     */
+    @NotNull Map<LinkRef, Path2D.Double> edgePaths() {
+        return edgePaths;
     }
 
     /** Paints only the node-overlapping parts of edges, above the nodes, thin and dashed. */
@@ -124,29 +140,23 @@ final class EdgeRenderer {
     }
 
     /**
-     * Rebuilds the list of areas edges must not cross: every node box plus every currently
-     * expanded column list.
+     * Rebuilds the list of areas edges must not cross: every node card, header and column rows.
      */
-    private void collectObstacles(@NotNull LayoutResult layout,
-                                  @NotNull Map<String, Rectangle> columnListBounds) {
+    private void collectObstacles(@NotNull LayoutResult layout, @NotNull ToIntFunction<String> extraHeight) {
         obstacles.clear();
         double h = layout.nodeH();
         for (NodePosition pos : layout.positions().values()) {
-            obstacles.add(new Obstacle(pos.id(), new Rectangle2D.Double(pos.x(), pos.y(), pos.width(), h)));
-        }
-        for (Map.Entry<String, Rectangle> entry : columnListBounds.entrySet()) {
-            Rectangle r = entry.getValue();
-            obstacles.add(new Obstacle(entry.getKey(),
-                    new Rectangle2D.Double(r.x, r.y, r.width, r.height)));
+            obstacles.add(new Obstacle(pos.id(), new Rectangle2D.Double(pos.x(), pos.y(), pos.width(),
+                    h + extraHeight.applyAsInt(pos.id()))));
         }
     }
 
     private void drawEdge(@NotNull Graphics2D g2, @NotNull String fromId, @NotNull String toId,
-                          @NotNull NodePosition from, @NotNull NodePosition to, int nodeH,
+                          @NotNull NodePosition from, @NotNull NodePosition to, int nodeH, int fromExtra,
                           @NotNull Direction dir, float alpha) {
         double x1, y1, x2, y2;
         if (dir == Direction.TB) {
-            x1 = from.x() + from.width() / 2.0; y1 = from.y() + nodeH;
+            x1 = from.x() + from.width() / 2.0; y1 = from.y() + nodeH + fromExtra;
             x2 = to.x() + to.width() / 2.0;     y2 = to.y();
         } else {
             x1 = from.x() + from.width(); y1 = from.y() + nodeH / 2.0;
@@ -165,12 +175,25 @@ final class EdgeRenderer {
             }
         }
 
+        LinkRef link = new LinkRef(fromId, toId);
+        edgePaths.put(link, path);
         Composite old = g2.getComposite();
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-        boolean selected = model.isSelectionLineageEdge(fromId, toId);
-        g2.setStroke(new BasicStroke(selected ? SELECTED_EDGE_WIDTH : EDGE_WIDTH));
-        g2.setColor(selected ? LineageTheme.accentColor() : LineageTheme.edgeColor());
+        boolean linkSelected = link.equals(model.selectedLink());
+        boolean selected = linkSelected || (model.lineageRootIds().isEmpty()
+                ? model.isSelectionLineageEdge(fromId, toId)
+                : model.isColumnLineageEdge(fromId, toId));
+        Difference.Kind difference = model.differenceKind(fromId, toId);
+        float width = linkSelected ? SELECTED_LINK_WIDTH : selected ? SELECTED_EDGE_WIDTH : EDGE_WIDTH;
+        g2.setStroke(difference == Difference.Kind.DECLARED_NOT_RECORDED
+                ? new BasicStroke(width, BasicStroke.CAP_BUTT, BasicStroke.JOIN_ROUND, 1f, DECLARED_ONLY_DASH, 0f)
+                : new BasicStroke(width));
+        g2.setColor(linkSelected ? LineageTheme.accentColor()
+                : difference == Difference.Kind.RECORDED_NOT_DECLARED ? LineageTheme.differenceColor()
+                : difference == Difference.Kind.DECLARED_NOT_RECORDED ? LineageTheme.edgeColor()
+                : selected ? LineageTheme.accentColor() : LineageTheme.edgeColor());
         drawSolidOutsideParts(g2, path, blockers, alpha);
+        g2.setStroke(new BasicStroke(width));
         drawArrowHead(g2, x2, y2, dir);
         g2.setComposite(old);
     }

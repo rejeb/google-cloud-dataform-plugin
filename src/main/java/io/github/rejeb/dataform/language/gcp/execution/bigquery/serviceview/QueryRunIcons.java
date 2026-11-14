@@ -16,6 +16,7 @@
  */
 package io.github.rejeb.dataform.language.gcp.execution.bigquery.serviceview;
 
+import com.intellij.ui.AnimatedIcon;
 import io.github.rejeb.dataform.language.DataformIcons;
 import io.github.rejeb.dataform.language.gcp.execution.bigquery.QueryRunState;
 import org.jetbrains.annotations.NotNull;
@@ -24,6 +25,7 @@ import javax.swing.Icon;
 
 /**
  * The status icons of a query run, shared by its Services node and its header so both always agree.
+ * A running query turns the platform spinner, which takes the theme's {@code ProgressIcon.color}.
  */
 final class QueryRunIcons {
 
@@ -32,7 +34,7 @@ final class QueryRunIcons {
 
     static @NotNull Icon of(@NotNull QueryRunState state) {
         return switch (state) {
-            case RUNNING -> DataformIcons.SPINNER;
+            case RUNNING -> AnimatedIcon.Default.INSTANCE;
             case SUCCEEDED -> DataformIcons.STATUS_SUCCEEDED;
             case FAILED -> DataformIcons.STATUS_FAILED;
             case CANCELLED -> DataformIcons.STATUS_CANCELLED;

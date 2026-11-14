@@ -18,7 +18,7 @@ package io.github.rejeb.dataform.language.highlight;
 
 import com.intellij.codeInsight.daemon.impl.HighlightInfo;
 import com.intellij.psi.PsiFile;
-import com.intellij.sql.inspections.SqlResolveInspection;
+import com.intellij.sql.inspections.resolve.SqlResolveInspection;
 import com.intellij.testFramework.ServiceContainerUtil;
 import io.github.rejeb.dataform.language.diagnostics.sql.bigquery.BigQueryFailures;
 import io.github.rejeb.dataform.language.schema.sql.DataformProjectFixture;

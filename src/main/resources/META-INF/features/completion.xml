@@ -1,0 +1,94 @@
+<!--
+        * Licensed to the Apache Software Foundation (ASF) under one or more
+        * contributor license agreements.  See the NOTICE file distributed with
+        * this work for additional information regarding copyright ownership.
+        * The ASF licenses this file to You under the Apache License, Version 2.0
+        * (the "License"); you may not use this file except in compliance with
+        * the License.  You may obtain a copy of the License at
+        *
+        *    http://www.apache.org/licenses/LICENSE-2.0
+        *
+        * Unless required by applicable law or agreed to in writing, software
+        * distributed under the License is distributed on an "AS IS" BASIS,
+        * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+        * See the License for the specific language governing permissions and
+        * limitations under the License.
+        */
+        -->
+<idea-plugin>
+    <extensions defaultExtensionNs="com.intellij">
+        <completion.contributor
+                language="SQL"
+                implementationClass="io.github.rejeb.dataform.language.completion.DataformColumnInsertContributor"
+                order="first"/>
+        <completion.contributor
+                language="SQL"
+                implementationClass="io.github.rejeb.dataform.language.completion.SqlxMissingCommaCompletionContributor"
+                order="last"/>
+        <completion.contributor
+                language="SQL"
+                implementationClass="io.github.rejeb.dataform.language.unittest.completion.SqlxTestColumnCompletionContributor"/>
+
+        <completion.contributor
+                language="JavaScript" order="first"
+                id="dataformConfigTagCompletion"
+                implementationClass="io.github.rejeb.dataform.language.config.completion.DataformConfigTagCompletionContributor"/>
+
+        <completion.contributor
+                language="JavaScript" order="first"
+                id="dataformConfigValueCompletion"
+                implementationClass="io.github.rejeb.dataform.language.config.completion.DataformConfigValueCompletionContributor"/>
+
+        <completion.confidence
+                language="JavaScript" order="first"
+                implementationClass="io.github.rejeb.dataform.language.config.ConfigColumnCompletionConfidence"/>
+
+        <completion.contributor
+                language="JavaScript" order="first"
+                id="dataformConfigColumnCompletion"
+                implementationClass="io.github.rejeb.dataform.language.config.completion.DataformConfigColumnCompletionContributor"/>
+
+        <completion.contributor
+                language="JavaScript" order="first"
+                id="dataformConfigPropertyCompletion"
+                implementationClass="io.github.rejeb.dataform.language.config.completion.DataformConfigPropertyCompletionContributor"/>
+
+        <completion.contributor
+                language="JavaScript" order="first"
+                id="dataformRefCompletion"
+                implementationClass="io.github.rejeb.dataform.language.completion.DataformRefCompletionContributor"/>
+
+        <completion.contributor
+                language="JavaScript" order="first, before dataformConfigValueCompletion"
+                id="dataformTestDatasetCompletion"
+                implementationClass="io.github.rejeb.dataform.language.unittest.DataformTestDatasetCompletionContributor"/>
+
+        <completion.contributor
+                language="JavaScript" order="first"
+                id="dataformJsSymbolCompletion"
+                implementationClass="io.github.rejeb.dataform.language.completion.DataformJsSymbolCompletionContributor"/>
+
+        <completion.contributor
+                language="JavaScript"
+                implementationClass="io.github.rejeb.dataform.language.completion.DataformWorkflowSettingsCompletionContributor"/>
+
+        <completion.contributor
+                language="SQL"
+                implementationClass="io.github.rejeb.dataform.language.completion.SqlxKeywordCompletionContributor"/>
+
+        <completion.contributor
+                language="SQLX"
+                implementationClass="io.github.rejeb.dataform.language.unittest.SqlxInputNameCompletionContributor"/>
+
+        <completion.contributor
+                language="SQL"
+                implementationClass="io.github.rejeb.dataform.language.completion.SqlxTemplateExpressionCompletionContributor"/>
+
+        <completion.contributor
+                language="JavaScript"
+                implementationClass="io.github.rejeb.dataform.language.completion.SqlxTemplateExpressionCompletionContributor"/>
+
+        <typedHandler
+                implementation="io.github.rejeb.dataform.language.completion.SqlxDollarTypedHandler"/>
+    </extensions>
+</idea-plugin>

@@ -29,6 +29,7 @@ import com.intellij.notification.*;
 import com.intellij.openapi.application.Application;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.progress.ProcessCanceledException;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.SystemInfo;
 import org.jetbrains.annotations.NotNull;
@@ -105,6 +106,8 @@ public class NodeJsNpmUtils {
             NpmManager npmManager = NpmManager.getInstance(project);
             Optional<NodePackage> npmPackage = Optional.ofNullable(npmManager.getPackage());
             return npmPackage.map(NodePackage::getSystemDependentPath).filter(path -> !path.isEmpty()).map(Path::of);
+        } catch (ProcessCanceledException e) {
+            throw e;
         } catch (Exception e) {
             LOGGER.error("Error retrieving npm path", e);
             return Optional.empty();

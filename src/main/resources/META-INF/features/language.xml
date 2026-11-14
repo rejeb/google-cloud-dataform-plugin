@@ -1,0 +1,93 @@
+<!--
+        * Licensed to the Apache Software Foundation (ASF) under one or more
+        * contributor license agreements.  See the NOTICE file distributed with
+        * this work for additional information regarding copyright ownership.
+        * The ASF licenses this file to You under the Apache License, Version 2.0
+        * (the "License"); you may not use this file except in compliance with
+        * the License.  You may obtain a copy of the License at
+        *
+        *    http://www.apache.org/licenses/LICENSE-2.0
+        *
+        * Unless required by applicable law or agreed to in writing, software
+        * distributed under the License is distributed on an "AS IS" BASIS,
+        * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+        * See the License for the specific language governing permissions and
+        * limitations under the License.
+        */
+        -->
+<idea-plugin>
+    <extensions defaultExtensionNs="com.intellij">
+        <fileType name="SQLX"
+                  implementationClass="io.github.rejeb.dataform.language.SqlxFileType"
+                  fieldName="INSTANCE"
+                  language="SQLX"
+                  extensions="sqlx"/>
+
+        <fileType.fileViewProviderFactory
+                filetype="SQLX"
+                implementationClass="io.github.rejeb.dataform.language.SqlxFileViewProviderFactory"/>
+
+        <lang.parserDefinition
+                language="SQLX"
+                implementationClass="io.github.rejeb.dataform.language.parser.SqlxParserDefinition"/>
+
+        <lang.elementManipulator
+                forClass="io.github.rejeb.dataform.language.psi.SqlxSqlBlock"
+                implementationClass="io.github.rejeb.dataform.language.psi.SqlxSqlBlockManipulator"/>
+        <lang.elementManipulator
+                forClass="io.github.rejeb.dataform.language.psi.SqlxConfigBlock"
+                implementationClass="io.github.rejeb.dataform.language.psi.SqlxConfigBlockManipulator"/>
+        <lang.elementManipulator
+                forClass="io.github.rejeb.dataform.language.psi.SqlxJsLiteralExpression"
+                implementationClass="io.github.rejeb.dataform.language.psi.SqlxJsLiteralExpressionManipulator"/>
+
+        <multiHostInjector implementation="io.github.rejeb.dataform.language.injection.SqlxSqlBlockInjector"/>
+        <multiHostInjector
+                implementation="io.github.rejeb.dataform.language.injection.SqlxJavaScriptInjector"/>
+        <multiHostInjector
+                implementation="io.github.rejeb.dataform.language.injection.SqlxTemplateInjector"/>
+        <multiHostInjector order="first" id="dataformJsQueryInjector"
+                           implementation="io.github.rejeb.dataform.language.injection.SqlxJsQueryInjector"/>
+
+        <highlightErrorFilter
+                implementation="io.github.rejeb.dataform.language.highlight.SqlxSyntaxErrorFilter"/>
+        <lang.inspectionSuppressor
+                language="SQL"
+                implementationClass="io.github.rejeb.dataform.language.highlight.SqlxSqlResolveSuppressor"/>
+        <implicitUsageProvider
+                implementation="io.github.rejeb.dataform.language.highlight.SqlxJsImplicitUsageProvider"/>
+        <annotator
+                language="SQL"
+                implementationClass="io.github.rejeb.dataform.language.highlight.SqlxSqlProblemAnnotator"/>
+
+        <lang.formatter
+                language="SQLX"
+                implementationClass="io.github.rejeb.dataform.language.formatting.SqlxFormattingModelBuilder"/>
+        <formattingService implementation="io.github.rejeb.dataform.language.formatting.SqlxFormattingService"/>
+
+        <projectService serviceInterface="io.github.rejeb.dataform.language.service.DataformCoreIndexService"
+                        serviceImplementation="io.github.rejeb.dataform.language.service.DataformCoreIndexServiceImpl"
+        />
+        <projectService serviceInterface="io.github.rejeb.dataform.language.service.WorkflowSettingsService"
+                        serviceImplementation="io.github.rejeb.dataform.language.service.WorkflowSettingsServiceImpl"
+        />
+
+        <internalFileTemplate name="Dataform SQLX Table"/>
+        <internalFileTemplate name="Dataform SQLX View"/>
+        <internalFileTemplate name="Dataform SQLX Incremental Table"/>
+        <internalFileTemplate name="Dataform SQLX Assertion"/>
+        <internalFileTemplate name="Dataform SQLX Operations"/>
+        <internalFileTemplate name="Dataform SQLX Declaration"/>
+        <internalFileTemplate name="Dataform SQLX Test"/>
+    </extensions>
+
+    <actions>
+        <action id="Dataform.NewSqlxFile"
+                class="io.github.rejeb.dataform.language.action.CreateSqlxFileAction"
+                text="SQLX File"
+                description="Create a new Dataform SQLX file"
+                icon="io.github.rejeb.dataform.language.DataformIcons.FILE">
+            <add-to-group group-id="NewGroup" anchor="first"/>
+        </action>
+    </actions>
+</idea-plugin>

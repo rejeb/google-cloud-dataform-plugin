@@ -319,12 +319,16 @@ public class SqlxCompiledPreviewEditor extends UserDataHolderBase implements Fil
     @Override
     public void dispose() {
         disposed = true;
+        selected = false;
+        syncLineageShown();
         queryPanel.dispose();
         testPanel.dispose();
     }
 
     @Override
     public void selectNotify() {
+        selected = true;
+        syncLineageShown();
         long stamp = file.getTimeStamp();
         if (stamp > myLastCompiledStamp) {
             myLastCompiledStamp = stamp;
@@ -334,6 +338,29 @@ public class SqlxCompiledPreviewEditor extends UserDataHolderBase implements Fil
             graphStale = false;
             refreshPreview(false);
         }
+    }
+
+    @Override
+    public void deselectNotify() {
+        selected = false;
+        syncLineageShown();
+    }
+
+    /**
+     * Tells the preview whether its pane is open next to or instead of the text editor.
+     */
+    public void setPaneShown(boolean shown) {
+        paneShown = shown;
+        syncLineageShown();
+    }
+
+    boolean isLineageShown() {
+        return lineageShown;
+    }
+
+    private void syncLineageShown() {
+        lineageShown = selected && paneShown && activeView == View.LINEAGE;
+        lineagePanel.setShown(lineageShown);
     }
 
     public boolean hasQuery() {
@@ -510,9 +537,13 @@ public class SqlxCompiledPreviewEditor extends UserDataHolderBase implements Fil
     }
 
     private View activeView = View.LINEAGE;
+    private boolean selected;
+    private boolean paneShown;
+    private boolean lineageShown;
 
     public void showPanel(@NotNull View view) {
         this.activeView = view;
+        syncLineageShown();
         if (view == View.QUERY) {
             refreshQueryView();
         }

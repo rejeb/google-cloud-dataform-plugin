@@ -21,7 +21,6 @@ import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.ValidationInfo;
-import com.intellij.openapi.ui.panel.ComponentPanelBuilder;
 import com.intellij.ui.TitledSeparator;
 import com.intellij.ui.components.ActionLink;
 import com.intellij.ui.components.JBTextField;
@@ -32,6 +31,7 @@ import io.github.rejeb.dataform.language.gcp.common.GcpApiErrors;
 import io.github.rejeb.dataform.language.gcp.common.GcpApiException;
 import io.github.rejeb.dataform.language.gcp.service.DataformGcpService;
 import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
+import io.github.rejeb.dataform.language.ui.CommentLabel;
 import io.github.rejeb.dataform.language.ui.FilteringComboBox;
 import io.github.rejeb.dataform.language.ui.StatusLabel;
 import org.jetbrains.annotations.NotNull;
@@ -98,7 +98,7 @@ public class RepositoryEditPanel extends JPanel {
     }
 
     private static @NotNull JComponent comment(@NotNull String text) {
-        return ComponentPanelBuilder.createCommentComponent(text, true);
+        return new CommentLabel(text);
     }
 
     /**

@@ -1,0 +1,75 @@
+<!--
+        * Licensed to the Apache Software Foundation (ASF) under one or more
+        * contributor license agreements.  See the NOTICE file distributed with
+        * this work for additional information regarding copyright ownership.
+        * The ASF licenses this file to You under the Apache License, Version 2.0
+        * (the "License"); you may not use this file except in compliance with
+        * the License.  You may obtain a copy of the License at
+        *
+        *    http://www.apache.org/licenses/LICENSE-2.0
+        *
+        * Unless required by applicable law or agreed to in writing, software
+        * distributed under the License is distributed on an "AS IS" BASIS,
+        * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+        * See the License for the specific language governing permissions and
+        * limitations under the License.
+        */
+        -->
+<idea-plugin>
+    <extensions defaultExtensionNs="com.intellij">
+        <projectService serviceInterface="io.github.rejeb.dataform.language.columns.origin.ColumnOriginService"
+                        serviceImplementation="io.github.rejeb.dataform.language.columns.origin.ColumnOriginServiceImpl"
+        />
+        <projectService
+                serviceInterface="io.github.rejeb.dataform.language.columns.origin.StructColumnPathResolver"
+                serviceImplementation="io.github.rejeb.dataform.language.columns.origin.StructColumnPathResolverImpl"/>
+
+        <renameHandler
+                implementation="io.github.rejeb.dataform.language.columns.rename.DataformColumnRenameHandler"
+                order="first"/>
+        <renamePsiElementProcessor
+                implementation="io.github.rejeb.dataform.language.columns.rename.DataformColumnRenamePsiElementProcessor"
+                order="first"/>
+        <projectService
+                serviceInterface="io.github.rejeb.dataform.language.columns.rename.plan.ColumnRenamePlanner"
+                serviceImplementation="io.github.rejeb.dataform.language.columns.rename.plan.ColumnRenamePlannerImpl"/>
+        <projectService
+                serviceInterface="io.github.rejeb.dataform.language.columns.rename.ui.StarResolutionChooser"
+                serviceImplementation="io.github.rejeb.dataform.language.columns.rename.ui.StarResolutionDialog"/>
+
+        <projectService serviceInterface="io.github.rejeb.dataform.language.columns.impact.ColumnImpactService"
+                        serviceImplementation="io.github.rejeb.dataform.language.columns.impact.ColumnImpactServiceImpl"/>
+        <annotator
+                language="SQLX"
+                implementationClass="io.github.rejeb.dataform.language.columns.rename.downstream.DownstreamRenameAnnotator"/>
+
+        <findUsagesHandlerFactory
+                order="first"
+                implementation="io.github.rejeb.dataform.language.schema.sql.DataformSchemaFindUsagesHandlerFactory"/>
+        <usageTypeProvider
+                implementation="io.github.rejeb.dataform.language.schema.sql.DataformColumnUsageTypeProvider"/>
+        <usageTargetProvider
+                implementation="io.github.rejeb.dataform.language.columns.usages.StructFieldUsageTargetProvider"/>
+    </extensions>
+
+    <actions>
+        <action id="GotoDeclaration"
+                class="io.github.rejeb.dataform.language.columns.usages.SqlxColumnNavigationAction"
+                text="Go to Declaration or Usages"
+                description="Navigate to the declaration of the symbol at caret or show its usages"
+                overrides="true">
+            <override-text place="MainMenu" text="_Declaration or Usages"/>
+        </action>
+        <action id="Dataform.ShowColumnUsages"
+                class="io.github.rejeb.dataform.language.schema.sql.ShowDataformColumnUsagesAction"
+                text="Show Column Usages"
+                description="Show where the Dataform column under the caret is declared and read">
+            <add-to-group group-id="EditorPopupMenu" anchor="first"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="alt shift U"/>
+        </action>
+        <action id="Dataform.DiagnoseColumnResolution"
+                class="io.github.rejeb.dataform.language.schema.sql.diagnostics.DiagnoseColumnResolutionAction"
+                text="Diagnose Dataform Column Resolution"
+                description="Report step by step how the Dataform column under the caret is resolved"/>
+    </actions>
+</idea-plugin>

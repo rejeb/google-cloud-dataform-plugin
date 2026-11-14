@@ -22,6 +22,8 @@ import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.BigQueryOptions;
 import com.google.cloud.dataform.v1.DataformClient;
 import com.google.cloud.dataform.v1.DataformSettings;
+import com.google.cloud.datacatalog.lineage.v1.LineageClient;
+import com.google.cloud.datacatalog.lineage.v1.LineageSettings;
 import com.google.cloud.http.HttpTransportOptions;
 import io.github.rejeb.dataform.language.gcp.auth.SslConfig;
 import io.github.rejeb.dataform.language.gcp.auth.DataformCredentialsService;
@@ -57,6 +59,20 @@ public class GcpClientsUtils {
                         .build())
                 .build();
         return DataformClient.create(settings);
+    }
+
+    /**
+     * @param quotaProjectId project billed for quota of client-based API calls, may be {@code null}
+     * @return a Data Lineage client bound to the plugin credential
+     */
+    public static LineageClient lineageClient(@Nullable String quotaProjectId) throws IOException {
+        LineageSettings settings = LineageSettings.newHttpJsonBuilder()
+                .setCredentialsProvider(() -> getCredentials(quotaProjectId))
+                .setTransportChannelProvider(LineageSettings.defaultHttpJsonTransportProviderBuilder()
+                        .setHttpTransport(SslConfig.httpTransportFactory().create())
+                        .build())
+                .build();
+        return LineageClient.create(settings);
     }
 
     /**

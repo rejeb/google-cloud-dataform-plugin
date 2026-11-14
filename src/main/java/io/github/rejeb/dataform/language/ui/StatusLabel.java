@@ -19,17 +19,24 @@ package io.github.rejeb.dataform.language.ui;
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.ui.AnimatedIcon;
+import com.intellij.ui.ClientProperty;
 import com.intellij.ui.components.JBLabel;
+import com.intellij.util.ui.SwingTextTrimmer;
 import com.intellij.util.ui.UIUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.Icon;
+import javax.swing.ToolTipManager;
+import java.awt.Dimension;
+import java.awt.Insets;
+import java.awt.event.MouseEvent;
 
 /**
  * A label telling the outcome of an operation with a status icon next to default-coloured text,
  * such as a connection test or an installation. A message of several lines shows its first line and
- * keeps the whole message in the tooltip.
+ * keeps the whole message in the tooltip. Trimmed to its given width, the label never widens its
+ * layout, whatever the length of its text.
  */
 public class StatusLabel extends JBLabel {
 
@@ -39,6 +46,7 @@ public class StatusLabel extends JBLabel {
     public enum Kind { NONE, OK, ERROR, WARNING, INFO, PROGRESS }
 
     private Kind kind = Kind.NONE;
+    private @Nullable SwingTextTrimmer trimmer;
 
     public StatusLabel() {
         super("");
@@ -93,12 +101,66 @@ public class StatusLabel extends JBLabel {
         return kind;
     }
 
+    /**
+     * Makes the label take the width its layout gives it, such as the column of a form, instead of
+     * the width of its text: it asks only for the width of its icon, a text too long for the given
+     * width is shortened by the trimmer, and the tooltip then shows the whole text.
+     */
+    public void trimToGivenWidth(@NotNull SwingTextTrimmer trimmer) {
+        this.trimmer = trimmer;
+        ClientProperty.put(this, SwingTextTrimmer.KEY, trimmer);
+        ToolTipManager.sharedInstance().registerComponent(this);
+        revalidate();
+        repaint();
+    }
+
+    /**
+     * The tooltip set for a message of several lines when there is one; otherwise, once the label
+     * is trimmed to its given width, the whole text while it is shown shortened.
+     */
+    @Override
+    public @Nullable String getToolTipText(@NotNull MouseEvent event) {
+        String explicit = super.getToolTipText(event);
+        if (explicit != null || !isTrimmed()) {
+            return explicit;
+        }
+        return getText();
+    }
+
+    @Override
+    public Dimension getPreferredSize() {
+        return givenWidth(super.getPreferredSize());
+    }
+
+    @Override
+    public Dimension getMinimumSize() {
+        return givenWidth(super.getMinimumSize());
+    }
+
+    private @NotNull Dimension givenWidth(@NotNull Dimension size) {
+        if (trimmer == null || isPreferredSizeSet()) {
+            return size;
+        }
+        Insets insets = getInsets();
+        Icon icon = getIcon();
+        int iconWidth = icon != null ? icon.getIconWidth() + getIconTextGap() : 0;
+        size.width = Math.min(size.width, insets.left + iconWidth + insets.right);
+        return size;
+    }
+
+    private boolean isTrimmed() {
+        return trimmer != null && getWidth() < super.getPreferredSize().width;
+    }
+
     private void show(@NotNull Kind kind, @Nullable Icon icon, @NotNull String text) {
         this.kind = kind;
         setIcon(icon);
         String[] lines = StringUtil.splitByLines(text);
         setText(lines.length > 1 ? lines[0].strip() : text);
         setToolTipText(lines.length > 1 ? UiText.htmlTooltip(text) : null);
+        if (trimmer != null) {
+            ToolTipManager.sharedInstance().registerComponent(this);
+        }
         setForeground(UIUtil.getLabelForeground());
         revalidate();
         repaint();

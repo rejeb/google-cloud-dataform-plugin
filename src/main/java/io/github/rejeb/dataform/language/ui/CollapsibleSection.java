@@ -71,7 +71,8 @@ public class CollapsibleSection extends JPanel {
         }
     };
     private final JComponent content;
-    private final String title;
+    private String title;
+    private final JBTextField titleField;
     private final JLabel toggleIcon = new JLabel(AllIcons.General.ChevronDown);
     private final JLabel typeIcon = new JLabel();
     private final JBLabel subtitle = new JBLabel();
@@ -95,7 +96,7 @@ public class CollapsibleSection extends JPanel {
         header.setOpaque(false);
         header.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
 
-        JBTextField titleField = ReadOnlyTextFields.singleLineTrimmed(this.title, SwingTextTrimmer.ELLIPSIS_AT_LEFT);
+        titleField = ReadOnlyTextFields.singleLineTrimmed(this.title, SwingTextTrimmer.ELLIPSIS_AT_LEFT);
         titleField.setOpaque(false);
         titleField.setFont(JBUI.Fonts.label().asBold());
         titleField.setBorder(JBUI.Borders.empty());
@@ -132,6 +133,17 @@ public class CollapsibleSection extends JPanel {
      */
     public @NotNull String title() {
         return title;
+    }
+
+    /**
+     * Replaces the title shown in the header.
+     */
+    public void setTitle(@NotNull String title) {
+        if (title.equals(this.title)) return;
+        this.title = title;
+        titleField.setText(title);
+        header.revalidate();
+        header.repaint();
     }
 
     /**

@@ -19,6 +19,7 @@ package io.github.rejeb.dataform.language.ui;
 import com.intellij.ui.components.JBTextArea;
 import com.intellij.ui.components.JBTextField;
 import com.intellij.util.ui.AbstractTableCellEditor;
+import com.intellij.util.ui.JBFont;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.SwingTextTrimmer;
 import com.intellij.util.ui.UIUtil;
@@ -71,11 +72,13 @@ public final class ReadOnlyTextFields {
     }
 
     /**
-     * Creates a word-wrapped multi-line read-only text on the panel background. Put it in a scroll
-     * pane when it may be given less height than its text needs.
+     * Creates a word-wrapped multi-line read-only text on the panel background, in the label font
+     * whatever font the theme gives text areas. Put it in a scroll pane when it may be given less
+     * height than its text needs.
      */
     public static @NotNull JBTextArea multiLine(@Nullable String text) {
         JBTextArea area = new JBTextArea(text != null ? text : "");
+        area.setFont(JBFont.label());
         area.setLineWrap(true);
         area.setWrapStyleWord(true);
         return configure(area, UIUtil.getPanelBackground());

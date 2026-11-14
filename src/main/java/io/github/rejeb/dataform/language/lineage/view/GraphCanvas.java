@@ -16,6 +16,9 @@
  */
 package io.github.rejeb.dataform.language.lineage.view;
 
+import com.intellij.ide.BrowserUtil;
+import com.intellij.ide.IdeTooltip;
+import com.intellij.ide.IdeTooltipManager;
 import com.intellij.openapi.actionSystem.ActionGroup;
 import com.intellij.openapi.actionSystem.ActionManager;
 import com.intellij.openapi.actionSystem.ActionUpdateThread;
@@ -25,9 +28,18 @@ import com.intellij.openapi.actionSystem.DefaultActionGroup;
 import com.intellij.openapi.ide.CopyPasteManager;
 import com.intellij.openapi.project.DumbAwareAction;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.ui.popup.Balloon;
+import com.intellij.ui.components.JBLabel;
 import com.intellij.util.ui.StatusText;
 import io.github.rejeb.dataform.language.DataformIcons;
 import io.github.rejeb.dataform.language.ui.EmptyStates;
+import io.github.rejeb.dataform.language.ui.UiText;
+import io.github.rejeb.dataform.language.gcp.common.BigQueryConsoleUrls;
+import io.github.rejeb.dataform.language.lineage.dataplex.DataplexGraphBuilder;
+import io.github.rejeb.dataform.language.lineage.dataplex.DataplexLineageClient;
+import io.github.rejeb.dataform.language.lineage.model.LinkRef;
+import io.github.rejeb.dataform.language.lineage.dataplex.DataplexView;
+import io.github.rejeb.dataform.language.lineage.dataplex.EntityNames;
 import com.intellij.ui.scale.JBUIScale;
 import io.github.rejeb.dataform.language.lineage.graph.LineageNode;
 import io.github.rejeb.dataform.language.lineage.layout.DagLayout;
@@ -41,27 +53,33 @@ import javax.swing.Icon;
 import javax.swing.JComponent;
 import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
-import javax.swing.Timer;
 import java.awt.Cursor;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Point;
+import java.awt.geom.Point2D;
+import java.awt.geom.Rectangle2D;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.ActionEvent;
-import java.awt.event.FocusAdapter;
-import java.awt.event.FocusEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseWheelEvent;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 
+import io.github.rejeb.dataform.language.lineage.model.CardColumns;
 import io.github.rejeb.dataform.language.lineage.model.LineageModel;
+import io.github.rejeb.dataform.language.lineage.model.LineageSource;
 
 /**
  * Custom-painted canvas rendering the whole lineage DAG. It owns the layout, the pointer and
@@ -71,7 +89,6 @@ import io.github.rejeb.dataform.language.lineage.model.LineageModel;
  */
 public final class GraphCanvas extends JComponent {
 
-    private static final int COLUMN_HOVER_DELAY_MS = 1000;
     private static final int DOT_SPACING = 18;
     private static final int DOT_SIZE = 2;
 
@@ -84,19 +101,31 @@ public final class GraphCanvas extends JComponent {
     private final ColumnListRenderer columnRenderer;
     private final MinimapRenderer minimapRenderer;
 
-    private final Timer columnHoverTimer;
-    private @Nullable String hoverExpandedNodeId;
-    private @Nullable Point lastHoverPoint;
-
     private LayoutResult layout;
     private String lastStructureKey;
-    private String lastColumnKey;
+    private String lastCardKey;
+    private @NotNull Map<String, Integer> cardHeights = Map.of();
+    private @Nullable Map<String, Rectangle> rowBounds;
     private boolean needsRecenter = true;
     private @Nullable String anchorNodeId;
     private Point lastDragPoint;
     private boolean panning;
     private boolean minimapShown = true;
     private boolean fitDown;
+    private @Nullable String placeholder;
+    private @Nullable String pinnedNodeId;
+    private @Nullable ViewportState pendingViewport;
+    private @Nullable Set<String> pendingFit;
+    private @Nullable String pendingCentre;
+    private @Nullable DataplexView expandersFor;
+    private @NotNull Map<String, int[]> expanders = Map.of();
+    private @Nullable BiConsumer<String, DataplexLineageClient.Direction> expandHandler;
+    private @Nullable FreshnessTips freshnessTips;
+    private @Nullable String infoNodeId;
+    private @Nullable IdeTooltip infoTooltip;
+    private boolean linkSelection;
+    private @NotNull Consumer<String> urlOpener = BrowserUtil::browse;
+    private @Nullable String emptyStateKey;
     private @NotNull Runnable selectionHandler = () -> {};
     private final StatusText emptyText = new StatusText(this) {
         @Override
@@ -110,24 +139,12 @@ public final class GraphCanvas extends JComponent {
         this.model = model;
         this.nodeRenderer = new NodeRenderer(this, model);
         this.edgeRenderer = new EdgeRenderer(model);
-        this.columnRenderer = new ColumnListRenderer(this, model, viewport);
+        this.columnRenderer = new ColumnListRenderer(model);
         this.minimapRenderer = new MinimapRenderer(this, model, viewport);
         setOpaque(true);
         setFocusable(true);
-        columnHoverTimer = new Timer(COLUMN_HOVER_DELAY_MS, e -> {
-            hoverExpandedNodeId = resolveHoverTarget(lastHoverPoint);
-            repaint();
-        });
-        columnHoverTimer.setRepeats(false);
         installMouseHandlers();
         installKeyBindings();
-        addFocusListener(new FocusAdapter() {
-            @Override
-            public void focusLost(FocusEvent e) {
-                collapseColumnList();
-            }
-        });
-        EmptyStates.show(emptyText, "No action matches the filters", "Reset all filters", model::resetFilters);
         model.addListener(m -> onModelChanged());
         onModelChanged();
     }
@@ -143,7 +160,212 @@ public final class GraphCanvas extends JComponent {
      * Whether the graph has actions but the filters show none of them.
      */
     public boolean isEmptyStateShown() {
+        if (placeholder != null) return model.graph().isEmpty();
         return !model.graph().isEmpty() && model.visibleIds().isEmpty();
+    }
+
+    /**
+     * Shows a message with a link in place of the graph while there is none, such as what to do to
+     * load one. Without a placeholder an empty graph shows nothing.
+     */
+    void setPlaceholder(@NotNull String message, @NotNull String link, @NotNull Runnable onLink) {
+        placeholder = message;
+        emptyStateKey = "placeholder:" + message;
+        EmptyStates.show(emptyText, message, link, onLink);
+        repaint();
+    }
+
+    /**
+     * Removes the message shown in place of an empty graph.
+     */
+    void clearPlaceholder() {
+        if (placeholder == null) return;
+        placeholder = null;
+        refreshEmptyText();
+        repaint();
+    }
+
+    /**
+     * Sets what a click on an expander does. Without a handler no expander is drawn.
+     */
+    void setExpandHandler(@Nullable BiConsumer<String, DataplexLineageClient.Direction> handler) {
+        expandHandler = handler;
+        expandersFor = null;
+        expanders = Map.of();
+        refreshExpanders();
+        repaint();
+    }
+
+    /**
+     * Sets where the freshness tooltips of the nodes come from. Without it the freshness icon has
+     * no tooltip.
+     */
+    void setFreshnessTips(@Nullable FreshnessTips tips) {
+        freshnessTips = tips;
+    }
+
+    /**
+     * Lets a click on an edge select it, with the recorded lineage only.
+     */
+    void setLinkSelection(boolean enabled) {
+        linkSelection = enabled;
+    }
+
+    /**
+     * Sets what opens a page of the Google Cloud console; the browser by default.
+     */
+    void setUrlOpener(@NotNull Consumer<String> opener) {
+        urlOpener = opener;
+    }
+
+    private @Nullable LinkRef edgeAt(@NotNull Point screen) {
+        if (!linkSelection || model.source() != LineageSource.DATAPLEX || cardAt(screen) != null) return null;
+        return CanvasHitTest.edgeAt(edgeRenderer.edgePaths(), viewport.worldX(screen.x), viewport.worldY(screen.y));
+    }
+
+    /**
+     * Keeps the given node where it is on screen the next time the graph changes, instead of
+     * fitting the new graph to the view.
+     */
+    void keepInPlace(@NotNull String nodeId) {
+        pinnedNodeId = nodeId;
+    }
+
+    /**
+     * Keeps the view where it is the next time the graph changes: the selected node, else the node
+     * nearest the middle of the canvas, stays where it is on screen.
+     */
+    void keepView() {
+        if (layout == null || layout.positions().isEmpty()) return;
+        String selected = model.selectedId();
+        String kept = selected != null && layout.positions().containsKey(selected) ? selected : nodeNearestTheMiddle();
+        if (kept != null) pinnedNodeId = kept;
+    }
+
+    /**
+     * @return the zoom and scroll position of the canvas
+     */
+    @NotNull ViewportState viewportState() {
+        return new ViewportState(viewport.zoom(), viewport.offsetX(), viewport.offsetY());
+    }
+
+    /**
+     * Puts the canvas back at the given zoom and scroll position the next time a graph is laid out,
+     * instead of fitting that graph to the view.
+     */
+    void restoreViewport(@NotNull ViewportState state) {
+        pendingViewport = state;
+    }
+
+    /**
+     * Fits the given nodes to the view, or brings the whole graph back when none of them is laid out.
+     */
+    void fitTo(@NotNull Set<String> nodeIds) {
+        Rectangle2D.Double box = boxOf(nodeIds);
+        if (box == null) {
+            recenter();
+            return;
+        }
+        if (getWidth() <= 0 || getHeight() <= 0) {
+            pendingFit = Set.copyOf(nodeIds);
+            return;
+        }
+        viewport.fit(box, getWidth(), getHeight());
+    }
+
+    /**
+     * Puts the node in the middle of the canvas at the current zoom.
+     */
+    void centerOn(@NotNull String nodeId) {
+        Point2D.Double centre = worldCentreOf(nodeId);
+        if (centre == null) return;
+        if (getWidth() <= 0 || getHeight() <= 0) {
+            pendingCentre = nodeId;
+            return;
+        }
+        viewport.centerOn(centre.x, centre.y, getWidth(), getHeight());
+    }
+
+    /**
+     * @return where the middle of the node is on the canvas, or {@code null} when it is not laid out
+     */
+    @Nullable Point2D.Double screenCentreOf(@NotNull String nodeId) {
+        Point2D.Double centre = worldCentreOf(nodeId);
+        return centre == null ? null : new Point2D.Double(viewport.screenX(centre.x), viewport.screenY(centre.y));
+    }
+
+    private @Nullable Point2D.Double worldCentreOf(@NotNull String nodeId) {
+        NodePosition position = layout == null ? null : layout.positions().get(nodeId);
+        if (position == null) return null;
+        return new Point2D.Double(position.x() + position.width() / 2.0,
+                position.y() + (layout.nodeH() + extraHeight(nodeId)) / 2.0);
+    }
+
+    private @Nullable Rectangle2D.Double boxOf(@NotNull Set<String> nodeIds) {
+        if (layout == null) return null;
+        Rectangle2D.Double box = null;
+        for (String id : nodeIds) {
+            NodePosition position = layout.positions().get(id);
+            if (position == null) continue;
+            Rectangle2D.Double node = new Rectangle2D.Double(position.x(), position.y(), position.width(),
+                    layout.nodeH() + extraHeight(id));
+            if (box == null) {
+                box = node;
+            } else {
+                box.add(node);
+            }
+        }
+        return box;
+    }
+
+    private @Nullable String nodeNearestTheMiddle() {
+        double middleX = viewport.worldX(getWidth() / 2.0);
+        double middleY = viewport.worldY(getHeight() / 2.0);
+        String nearest = null;
+        double best = Double.MAX_VALUE;
+        for (String id : layout.positions().keySet()) {
+            Point2D.Double centre = worldCentreOf(id);
+            if (centre == null) continue;
+            double distance = centre.distanceSq(middleX, middleY);
+            if (distance < best) {
+                best = distance;
+                nearest = id;
+            }
+        }
+        return nearest;
+    }
+
+    private void refreshExpanders() {
+        DataplexView view = expandHandler == null ? null : model.dataplexView();
+        if (view == expandersFor) return;
+        expandersFor = view;
+        if (view == null) {
+            expanders = Map.of();
+            return;
+        }
+        Map<String, int[]> counts = new HashMap<>();
+        for (String fqn : view.snapshot().entities()) {
+            int upstream = view.snapshot().hiddenUpstream(fqn);
+            int downstream = view.snapshot().hiddenDownstream(fqn);
+            if (upstream != 0 || downstream != 0) counts.put(EntityNames.nodeIdOf(fqn), new int[]{upstream, downstream});
+        }
+        expanders = counts;
+    }
+
+    private int hidden(@NotNull String nodeId, @NotNull DataplexLineageClient.Direction direction) {
+        int[] counts = expanders.get(nodeId);
+        if (counts == null) return 0;
+        return counts[direction == DataplexLineageClient.Direction.UPSTREAM ? 0 : 1];
+    }
+
+    private void refreshEmptyText() {
+        if (placeholder != null) return;
+        String key = model.source().name();
+        if (key.equals(emptyStateKey)) return;
+        emptyStateKey = key;
+        EmptyStates.show(emptyText,
+                model.source() == LineageSource.DATAPLEX ? "No node matches the filters" : "No action matches the filters",
+                "Reset all filters", model::resetFilters);
     }
 
     /**
@@ -205,22 +427,36 @@ public final class GraphCanvas extends JComponent {
     }
 
     private void onModelChanged() {
+        refreshEmptyText();
+        refreshExpanders();
         Set<String> visible = model.visibleIds();
         String structureKey = structureKey(visible);
-        String columnKey = columnKey();
+        cardHeights = cardHeights(visible);
+        rowBounds = null;
+        String cardKey = cardHeights.toString();
         boolean firstLayout = layout == null;
         boolean structureChanged = !structureKey.equals(lastStructureKey);
-        boolean columnChanged = !columnKey.equals(lastColumnKey);
+        boolean cardChanged = !cardKey.equals(lastCardKey);
         lastStructureKey = structureKey;
-        lastColumnKey = columnKey;
-        boolean recenter = firstLayout || (structureChanged && !columnChanged);
-        if (firstLayout || structureChanged || columnChanged) {
-            String anchorId = recenter ? null : anchorNodeId();
+        lastCardKey = cardKey;
+        String pinned = structureChanged && !firstLayout && pinnedNodeId != null
+                && layout.positions().containsKey(pinnedNodeId) ? pinnedNodeId : null;
+        if (structureChanged) pinnedNodeId = null;
+        boolean recenter = firstLayout || (structureChanged && !cardChanged && pinned == null);
+        if (firstLayout || structureChanged || cardChanged) {
+            String anchorId = recenter ? null : pinned != null ? pinned : anchorNodeId();
             NodePosition before = anchorId == null ? null : layout.positions().get(anchorId);
             relayout(visible);
             if (before != null) holdAnchorInPlace(before, layout.positions().get(anchorId));
         }
         anchorNodeId = null;
+        if (pendingViewport != null && structureChanged && !layout.positions().isEmpty()) {
+            ViewportState restored = pendingViewport;
+            pendingViewport = null;
+            recenter = false;
+            needsRecenter = false;
+            viewport.set(restored.zoom(), restored.offsetX(), restored.offsetY());
+        }
         if (recenter) {
             needsRecenter = true;
             maybeRecenter();
@@ -233,19 +469,35 @@ public final class GraphCanvas extends JComponent {
                 + "|" + model.direction() + "|" + model.density() + "|" + new TreeSet<>(visible);
     }
 
-    private @NotNull String columnKey() {
-        return System.identityHashCode(model.columnGraph()) + "|"
-                + new TreeSet<>(model.selectedColumnIds());
+    private @NotNull Map<String, Integer> cardHeights(@NotNull Set<String> visible) {
+        Map<String, Integer> heights = new TreeMap<>();
+        for (String id : visible) {
+            int extra = columnRenderer.extraHeight(id);
+            if (extra > 0) heights.put(id, extra);
+        }
+        return heights;
+    }
+
+    private int extraHeight(@NotNull String nodeId) {
+        return cardHeights.getOrDefault(nodeId, 0);
+    }
+
+    private @NotNull Map<String, Rectangle> rowBounds() {
+        Map<String, Rectangle> current = rowBounds;
+        if (current == null) {
+            current = layout == null ? Map.of() : NodeCardMetrics.rowBounds(layout.positions(), layout.nodeH(),
+                    id -> cardHeights.containsKey(id) ? model.cardColumns(id) : CardColumns.NONE);
+            rowBounds = current;
+        }
+        return current;
     }
 
     /**
-     * Node to keep pinned under the pointer when a column selection re-flows the layout: the node
-     * whose column list was clicked, else the expanded one, else the selected node.
+     * Node to keep pinned under the pointer when cards grow or shrink and re-flow the layout: the
+     * node whose band or column was clicked, else the selected node.
      */
     private @Nullable String anchorNodeId() {
-        if (anchorNodeId != null) return anchorNodeId;
-        if (hoverExpandedNodeId != null) return hoverExpandedNodeId;
-        return model.selectedId();
+        return anchorNodeId != null ? anchorNodeId : model.selectedId();
     }
 
     private void holdAnchorInPlace(@NotNull NodePosition before, @Nullable NodePosition after) {
@@ -255,12 +507,29 @@ public final class GraphCanvas extends JComponent {
 
     private void relayout(@NotNull Set<String> visible) {
         this.layout = DagLayout.compute(model.graph(), visible, model.direction(), model.density(),
-                nodeRenderer::measureWidth, columnRenderer::reservedHeightFor);
+                nodeRenderer::measureWidth, this::extraHeight);
     }
 
     private void maybeRecenter() {
-        if (needsRecenter && getWidth() > 0 && getHeight() > 0 && layout != null
-                && !layout.positions().isEmpty()) {
+        if (getWidth() <= 0 || getHeight() <= 0 || layout == null || layout.positions().isEmpty()) return;
+        if (pendingFit != null) {
+            Set<String> ids = pendingFit;
+            pendingFit = null;
+            needsRecenter = false;
+            fitTo(ids);
+            return;
+        }
+        if (pendingCentre != null) {
+            String id = pendingCentre;
+            pendingCentre = null;
+            if (needsRecenter) {
+                needsRecenter = false;
+                recenter();
+            }
+            centerOn(id);
+            return;
+        }
+        if (needsRecenter) {
             needsRecenter = false;
             recenter();
         }
@@ -309,77 +578,69 @@ public final class GraphCanvas extends JComponent {
                 viewport.worldX(screen.x), viewport.worldY(screen.y));
     }
 
+    private @Nullable String cardAt(@NotNull Point screen) {
+        if (layout == null) return null;
+        return CanvasHitTest.cardAt(layout.positions(), layout.nodeH(), this::extraHeight,
+                viewport.worldX(screen.x), viewport.worldY(screen.y));
+    }
+
+    private @Nullable String toggleAt(@NotNull Point screen) {
+        if (layout == null) return null;
+        return CanvasHitTest.columnToggleAt(layout.positions(), layout.nodeH(), model::hasColumns,
+                viewport.worldX(screen.x), viewport.worldY(screen.y));
+    }
+
     private @Nullable String columnAt(@NotNull Point screen) {
-        return columnRenderer.columnAt(viewport.worldX(screen.x), viewport.worldY(screen.y));
+        return CanvasHitTest.columnAt(rowBounds(), viewport.worldX(screen.x), viewport.worldY(screen.y));
     }
 
-    private @Nullable String columnListNodeAt(@NotNull Point screen) {
-        return columnRenderer.listNodeAt(viewport.worldX(screen.x), viewport.worldY(screen.y));
+    private @Nullable CanvasHitTest.ExpanderHit expanderAt(@NotNull Point screen) {
+        if (layout == null || expanders.isEmpty()) return null;
+        int nodeH = layout.nodeH();
+        return CanvasHitTest.expanderAt(layout.positions(), id -> nodeH + extraHeight(id), this::hidden,
+                viewport.worldX(screen.x), viewport.worldY(screen.y));
     }
 
-    /**
-     * Arms the delay timer that reveals (or, after leaving, hides) the hovered node's columns.
-     * While the pointer stays over the node or its already-open column list the timer is
-     * cancelled so the list stays open.
-     */
-    private void updateColumnHover(@NotNull Point screen) {
-        lastHoverPoint = screen;
-        if (model.selectedColumnId() != null) {
-            columnHoverTimer.stop();
-            if (hoverExpandedNodeId != null) {
-                hoverExpandedNodeId = null;
-                repaint();
-            }
-            return;
-        }
-        if (isOverExpandedRegion(screen)) {
-            columnHoverTimer.stop();
-            return;
-        }
-        columnHoverTimer.restart();
+    private @Nullable String infoAt(@NotNull Point screen) {
+        if (layout == null || model.source() != LineageSource.DATAPLEX) return null;
+        return CanvasHitTest.infoAt(layout.positions(), viewport.worldX(screen.x), viewport.worldY(screen.y));
     }
 
-    private void resetColumnHover() {
-        lastHoverPoint = null;
-        columnHoverTimer.restart();
-    }
-
-    /** Immediately hides the hover/click-opened column list. */
-    private void collapseColumnList() {
-        columnHoverTimer.stop();
-        if (hoverExpandedNodeId != null) {
-            hoverExpandedNodeId = null;
-            repaint();
-        }
-    }
-
-    private @Nullable String resolveHoverTarget(@Nullable Point screen) {
-        if (screen == null) return null;
-        if (isOverExpandedRegion(screen)) return hoverExpandedNodeId;
-        return nodeAt(screen);
-    }
-
-    /**
-     * Whether the pointer is over the currently expanded node's box or the contiguous
-     * bounding rectangle of its column list (so inter-row gaps do not collapse it).
-     */
-    private boolean isOverExpandedRegion(@NotNull Point screen) {
-        if (hoverExpandedNodeId == null || layout == null) return false;
-        NodePosition pos = layout.positions().get(hoverExpandedNodeId);
-        if (pos == null) return false;
-        Rectangle nodeRect = new Rectangle((int) Math.round(pos.x()), (int) Math.round(pos.y()),
-                pos.width(), layout.nodeH());
-        int count = columnRenderer.columnCountFor(hoverExpandedNodeId);
-        Rectangle region = nodeRect.union(columnRenderer.listWorldBounds(pos, count, layout.nodeH()));
-        return region.contains(viewport.worldX(screen.x), viewport.worldY(screen.y));
-    }
-
-    private void setHoverColumn(@Nullable String columnId) {
-        if (!columnRenderer.setHoverColumn(columnId)) return;
-        setCursor(columnId != null
+    private void setPointerTargets(@Nullable String toggleNodeId, @Nullable String columnId,
+                                   @Nullable CanvasHitTest.ExpanderHit expander, @Nullable String infoId,
+                                   boolean overEdge) {
+        boolean toggleChanged = nodeRenderer.setHoverToggle(toggleNodeId);
+        boolean columnChanged = columnRenderer.setHoverColumn(columnId);
+        boolean expanderChanged = nodeRenderer.setHoverExpander(expander);
+        boolean infoChanged = nodeRenderer.setHoverInfo(infoId);
+        setCursor(toggleNodeId != null || columnId != null || expander != null || overEdge
                 ? Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
                 : Cursor.getDefaultCursor());
-        repaint();
+        if (toggleChanged || columnChanged || expanderChanged || infoChanged) repaint();
+        if (!Objects.equals(infoId, infoNodeId)) {
+            infoNodeId = infoId;
+            showInfoTooltip();
+        }
+    }
+
+    private void showInfoTooltip() {
+        if (infoTooltip != null) {
+            IdeTooltipManager.getInstance().hide(infoTooltip);
+            infoTooltip = null;
+        }
+        String nodeId = infoNodeId;
+        if (nodeId == null || freshnessTips == null || layout == null) return;
+        String text = freshnessTips.text(nodeId, () -> {
+            if (nodeId.equals(infoNodeId)) showInfoTooltip();
+        });
+        NodePosition pos = layout.positions().get(nodeId);
+        if (text == null || pos == null || !isShowing()) return;
+        Rectangle icon = NodeCardMetrics.infoBounds(pos);
+        Point anchor = new Point((int) Math.round(viewport.screenX(icon.getCenterX())),
+                (int) Math.round(viewport.screenY(icon.getMaxY())));
+        infoTooltip = new IdeTooltip(this, anchor, new JBLabel(UiText.htmlTooltip(text)), nodeId, text)
+                .setPreferredPosition(Balloon.Position.below);
+        IdeTooltipManager.getInstance().show(infoTooltip, true);
     }
 
     private void installMouseHandlers() {
@@ -391,7 +652,7 @@ public final class GraphCanvas extends JComponent {
                     showContextMenu(e);
                     return;
                 }
-                if (nodeAt(e.getPoint()) == null) {
+                if (cardAt(e.getPoint()) == null) {
                     panning = true;
                     lastDragPoint = e.getPoint();
                     setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));
@@ -416,16 +677,19 @@ public final class GraphCanvas extends JComponent {
 
             @Override
             public void mouseMoved(MouseEvent e) {
-                model.setHover(nodeAt(e.getPoint()));
-                setHoverColumn(columnAt(e.getPoint()));
-                updateColumnHover(e.getPoint());
+                Point point = e.getPoint();
+                CanvasHitTest.ExpanderHit expander = expanderAt(point);
+                model.setHover(expander != null ? null : cardAt(point));
+                String info = expander == null ? infoAt(point) : null;
+                String toggle = expander == null && info == null ? toggleAt(point) : null;
+                String column = expander == null && info == null && toggle == null ? columnAt(point) : null;
+                setPointerTargets(toggle, column, expander, info, expander == null && edgeAt(point) != null);
             }
 
             @Override
             public void mouseExited(MouseEvent e) {
                 model.setHover(null);
-                setHoverColumn(null);
-                resetColumnHover();
+                setPointerTargets(null, null, null, null, false);
             }
 
             @Override
@@ -437,13 +701,7 @@ public final class GraphCanvas extends JComponent {
 
             @Override
             public void mouseWheelMoved(MouseWheelEvent e) {
-                String node = columnListNodeAt(e.getPoint());
-                if (node != null) {
-                    columnRenderer.scrollBy(node, e.getWheelRotation());
-                    repaint();
-                    return;
-                }
-                viewport.zoomAt(e.getPoint(), e.getWheelRotation() < 0 ? 1.1 : 1 / 1.1);
+                CanvasWheel.apply(e, viewport);
             }
         };
         addMouseListener(adapter);
@@ -452,39 +710,54 @@ public final class GraphCanvas extends JComponent {
     }
 
     private void handleLeftClick(@NotNull MouseEvent e) {
-        String columnId = columnAt(e.getPoint());
+        Point point = e.getPoint();
+        CanvasHitTest.ExpanderHit expander = expanderAt(point);
+        if (expander != null) {
+            if (expandHandler != null) expandHandler.accept(expander.nodeId(), expander.direction());
+            return;
+        }
+        String toggle = toggleAt(point);
+        if (toggle != null) {
+            anchorNodeId = toggle;
+            model.toggleExpanded(toggle);
+            return;
+        }
+        String columnId = columnAt(point);
         if (columnId != null) {
-            anchorNodeId = columnListNodeAt(e.getPoint());
-            if (e.isControlDown() || e.isMetaDown()) {
-                model.toggleColumn(columnId);
-            } else {
-                model.selectColumn(columnId);
-            }
+            anchorNodeId = cardAt(point);
+            selectColumn(columnId, e.isControlDown() || e.isMetaDown() || e.isShiftDown());
+            return;
+        }
+        String id = nodeAt(point);
+        if (id == null && cardAt(point) != null) return;
+        if (e.getClickCount() == 2 && id != null) {
+            openNode(model.graph().node(id));
+            return;
+        }
+        LinkRef edge = id == null ? edgeAt(point) : null;
+        if (edge != null) {
+            model.selectLink(edge);
             selectionHandler.run();
             return;
         }
-        if (columnListNodeAt(e.getPoint()) != null) return;
-
-        String id = nodeAt(e.getPoint());
-        if (e.getClickCount() == 2 && id != null) {
-            openSource(model.graph().node(id));
-            return;
-        }
-        if (id != null && columnRenderer.columnCountFor(id) > 0 && !Objects.equals(id, hoverExpandedNodeId)) {
-            model.clearColumnSelection();
-            columnHoverTimer.stop();
-            hoverExpandedNodeId = id;
-            repaint();
-            return;
-        }
-        if (id == null) collapseColumnList();
-        model.clearColumnSelection();
+        if (id == null) model.clearColumnSelection();
         model.select(id);
         if (id != null) selectionHandler.run();
     }
 
+    private void selectColumn(@NotNull String columnId, boolean addToSelection) {
+        if (addToSelection) {
+            model.toggleColumn(columnId);
+        } else if (model.selectedColumnIds().equals(Set.of(columnId))) {
+            model.clearColumnSelection();
+        } else {
+            model.selectColumn(columnId);
+        }
+        if (!model.selectedColumnIds().isEmpty()) selectionHandler.run();
+    }
+
     private void showContextMenu(@NotNull MouseEvent e) {
-        String id = nodeAt(e.getPoint());
+        String id = cardAt(e.getPoint());
         if (id == null || model.graph().node(id) == null) return;
         ActionManager.getInstance()
                 .createActionPopupMenu("Dataform.Lineage.Node", contextMenuFor(id))
@@ -539,6 +812,15 @@ public final class GraphCanvas extends JComponent {
         };
     }
 
+    private void openNode(@Nullable LineageNode node) {
+        if (node == null) return;
+        if (DataplexGraphBuilder.TYPE_OUTSIDE.equals(node.dataformType())) {
+            urlOpener.accept(BigQueryConsoleUrls.tableUrl(node.fullName()));
+        } else if (!DataplexGraphBuilder.TYPE_ASSET.equals(node.dataformType())) {
+            openSource(node);
+        }
+    }
+
     private void openSource(@Nullable LineageNode node) {
         LineageActions.openSource(project, node);
     }
@@ -549,22 +831,26 @@ public final class GraphCanvas extends JComponent {
         emptyText.paint(this, g);
         if (layout == null || layout.positions().isEmpty()) return;
 
-        columnRenderer.clearRowBounds();
-
         Graphics2D g2 = (Graphics2D) g.create();
         try {
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
             viewport.applyTo(g2);
 
-            edgeRenderer.paintEdges(g2, layout, columnRenderer.listBoundsByNode());
+            edgeRenderer.paintEdges(g2, layout, this::extraHeight);
             for (NodePosition pos : layout.positions().values()) {
                 LineageNode node = model.graph().node(pos.id());
                 if (node == null) continue;
-                nodeRenderer.paint(g2, node, pos, layout.nodeH(), pos.id().equals(model.selectedId()));
+                int extra = extraHeight(pos.id());
+                nodeRenderer.paint(g2, node, pos, layout.nodeH(), extra, pos.id().equals(model.selectedId()));
+                if (extra > 0) columnRenderer.paintRows(g2, pos.id(), pos, layout.nodeH());
             }
             edgeRenderer.paintOverlappingParts(g2);
-            columnRenderer.paint(g2, layout, hoverExpandedNodeId);
+            for (NodePosition pos : layout.positions().values()) {
+                int[] counts = expanders.get(pos.id());
+                if (counts == null) continue;
+                nodeRenderer.paintExpanders(g2, pos, layout.nodeH() + extraHeight(pos.id()), counts[0], counts[1]);
+            }
         } finally {
             g2.dispose();
         }
@@ -597,5 +883,11 @@ public final class GraphCanvas extends JComponent {
         } finally {
             bg.dispose();
         }
+    }
+
+    /**
+     * The zoom and scroll position of the canvas.
+     */
+    record ViewportState(double zoom, double offsetX, double offsetY) {
     }
 }

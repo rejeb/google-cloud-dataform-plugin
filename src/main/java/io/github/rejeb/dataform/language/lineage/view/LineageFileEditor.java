@@ -19,22 +19,25 @@ package io.github.rejeb.dataform.language.lineage.view;
 import com.intellij.openapi.fileEditor.FileEditor;
 import com.intellij.openapi.fileEditor.FileEditorState;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.util.UserDataHolderBase;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.messages.MessageBusConnection;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationEvent;
 import io.github.rejeb.dataform.language.lineage.model.LineageModel;
+import io.github.rejeb.dataform.language.lineage.model.LineageSource;
 import io.github.rejeb.dataform.language.schema.sql.DataformSchemaEvent;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.JComponent;
 import java.beans.PropertyChangeListener;
+import java.util.List;
 
 /**
  * File editor hosting the project-wide {@link LineageProjectPanel}.
  * Refreshes the graph every time the editor tab is selected and after every compilation and schema
- * refresh, which every save of a source triggers.
+ * refresh, which every save of a source triggers, and tells the panel when its tab is shown or hidden.
  */
 public final class LineageFileEditor extends UserDataHolderBase implements FileEditor {
 
@@ -61,6 +64,12 @@ public final class LineageFileEditor extends UserDataHolderBase implements FileE
     @Override
     public void selectNotify() {
         panel.refresh(false);
+        panel.setShown(true);
+    }
+
+    @Override
+    public void deselectNotify() {
+        panel.setShown(false);
     }
 
     @Override
@@ -100,8 +109,29 @@ public final class LineageFileEditor extends UserDataHolderBase implements FileE
     public void removePropertyChangeListener(@NotNull PropertyChangeListener listener) {
     }
 
+    /**
+     * Switches the editor to a lineage source, as its toolbar switch does.
+     */
+    public void showSource(@NotNull LineageSource source) {
+        panel.showSource(source);
+    }
+
+    /**
+     * Switches the editor to a lineage source and shows tables: one selected, several marked.
+     *
+     * @param source the source to switch to, {@code null} to keep the one shown
+     */
+    public void showNodes(@Nullable LineageSource source, @NotNull List<String> nodeIds) {
+        panel.showNodes(source, nodeIds);
+    }
+
+    @NotNull LineageModel model() {
+        return model;
+    }
+
     @Override
     public void dispose() {
         connection.disconnect();
+        Disposer.dispose(panel);
     }
 }

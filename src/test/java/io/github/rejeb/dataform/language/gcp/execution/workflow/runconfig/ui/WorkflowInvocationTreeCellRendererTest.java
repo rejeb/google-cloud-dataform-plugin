@@ -17,6 +17,7 @@
 package io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.ui;
 
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
+import com.intellij.ui.AnimatedIcon;
 import com.intellij.ui.SimpleColoredComponent;
 import com.intellij.ui.SimpleTextAttributes;
 import com.intellij.ui.treeStructure.Tree;
@@ -65,7 +66,7 @@ public class WorkflowInvocationTreeCellRendererTest extends BasePlatformTestCase
 
         WorkflowInvocationTreeCellRenderer renderer = render(action);
 
-        assertSame(DataformIcons.SPINNER, renderer.getIcon());
+        assertSame(AnimatedIcon.Default.INSTANCE, renderer.getIcon());
         assertNotNull(renderer.rightText());
     }
 
@@ -85,7 +86,7 @@ public class WorkflowInvocationTreeCellRendererTest extends BasePlatformTestCase
         assertSame(DataformIcons.STATUS_SKIPPED, ActionStateIcons.of(InvocationActionState.DISABLED));
         assertSame(DataformIcons.STATUS_CANCELLED, ActionStateIcons.of(InvocationActionState.CANCELLED));
         assertSame(DataformIcons.STATUS_SUCCEEDED, ActionStateIcons.of(InvocationActionState.SUCCEEDED));
-        assertSame(DataformIcons.SPINNER, ActionStateIcons.of(WorkflowInvocationState.RUNNING));
+        assertSame(AnimatedIcon.Default.INSTANCE, ActionStateIcons.of(WorkflowInvocationState.RUNNING));
     }
 
     private static WorkflowInvocationTreeCellRenderer render(Object value) {

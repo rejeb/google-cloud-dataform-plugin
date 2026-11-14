@@ -18,7 +18,6 @@ package io.github.rejeb.dataform.language.settings;
 
 import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.openapi.ui.ComboBox;
-import com.intellij.openapi.ui.panel.ComponentPanelBuilder;
 import com.intellij.ui.TitledSeparator;
 import com.intellij.ui.components.ActionLink;
 import com.intellij.ui.components.JBCheckBox;
@@ -27,6 +26,7 @@ import com.intellij.ui.components.JBRadioButton;
 import com.intellij.ui.components.JBTextField;
 import com.intellij.util.ui.FormBuilder;
 import com.intellij.util.ui.JBUI;
+import io.github.rejeb.dataform.language.ui.CommentLabel;
 import io.github.rejeb.dataform.language.ui.StatusLabel;
 import org.jetbrains.annotations.NotNull;
 
@@ -191,7 +191,7 @@ public final class BigQueryCostSettingsPanel {
     }
 
     private static @NotNull JComponent hint(@NotNull String text) {
-        JComponent comment = ComponentPanelBuilder.createCommentComponent(text, true);
+        JComponent comment = new CommentLabel(text);
         comment.setBorder(JBUI.Borders.emptyLeft(INDENT + RADIO_TEXT_OFFSET));
         return comment;
     }

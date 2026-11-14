@@ -45,6 +45,7 @@ public class SqlxSplitEditor extends TextEditorWithPreview {
     @Override
     protected void onLayoutChange(Layout oldValue, Layout newValue) {
         super.onLayoutChange(oldValue, newValue);
+        myPreview.setPaneShown(newValue != Layout.SHOW_EDITOR);
         if (newValue != Layout.SHOW_EDITOR) {
             myPreview.selectNotify();
         }
@@ -52,6 +53,7 @@ public class SqlxSplitEditor extends TextEditorWithPreview {
 
     @Override
     public void selectNotify() {
+        myPreview.setPaneShown(getLayout() != Layout.SHOW_EDITOR);
         super.selectNotify();
         myPreview.selectNotify();
     }

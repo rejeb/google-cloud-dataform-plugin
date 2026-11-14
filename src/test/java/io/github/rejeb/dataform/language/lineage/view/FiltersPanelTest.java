@@ -152,4 +152,33 @@ public class FiltersPanelTest extends BasePlatformTestCase {
 
         assertEquals(JBUIScale.scale(240), panel.getPreferredSize().width);
     }
+
+    public void testDataplexListsOutsideAndAssetTypesAndCallsSchemasDatasets() {
+        LineageModel model = LineageViewFixtures.model();
+        FiltersPanel panel = new FiltersPanel(model);
+        io.github.rejeb.dataform.language.lineage.dataplex.DataplexView view = DataplexViewFixtures.view(model.graph(),
+                "p.a.alpha", "other.landing.raw", "p.a.alpha", "gs://bucket/orders/*.csv", "p.a.alpha");
+
+        model.setSource(io.github.rejeb.dataform.language.lineage.model.LineageSource.DATAPLEX);
+        model.setDataplexView(view);
+        model.setGraph(view.graph());
+        settle();
+
+        assertEquals(List.of("Action types", "Tags", "Datasets"),
+                sections(panel).stream().map(CollapsibleSection::title).toList());
+        assertEquals(List.of("table", "outside the repository", "not a BigQuery table"), names(panel.typeRows()));
+        assertTrue(names(panel.schemaRows()).contains("other.landing"));
+    }
+
+    public void testBackOnDataformTheSectionReadsSchemasAgain() {
+        LineageModel model = LineageViewFixtures.model();
+        FiltersPanel panel = new FiltersPanel(model);
+        model.setSource(io.github.rejeb.dataform.language.lineage.model.LineageSource.DATAPLEX);
+        settle();
+
+        model.setSource(io.github.rejeb.dataform.language.lineage.model.LineageSource.DATAFORM);
+        settle();
+
+        assertEquals("Schemas", sections(panel).get(2).title());
+    }
 }

@@ -111,6 +111,39 @@ public class SqlxSplitEditorTest extends BasePlatformTestCase {
         assertFalse(selected("Lineage"));
     }
 
+    public void testTheLineageCardIsShownOnlyWhileTheTabIsSelectedThePaneOpenAndTheCardActive() {
+        editor.setLayout(Layout.SHOW_EDITOR);
+        editor.selectNotify();
+        assertFalse(preview.isLineageShown());
+
+        click("Lineage");
+        assertTrue(preview.isLineageShown());
+
+        click("Schema");
+        assertFalse(preview.isLineageShown());
+
+        click("Lineage");
+        editor.deselectNotify();
+        assertFalse(preview.isLineageShown());
+
+        editor.selectNotify();
+        assertTrue(preview.isLineageShown());
+
+        editor.setLayout(Layout.SHOW_EDITOR);
+        assertFalse(preview.isLineageShown());
+    }
+
+    public void testClosingTheEditorHidesTheLineageCard() {
+        editor.setLayout(Layout.SHOW_EDITOR);
+        editor.selectNotify();
+        click("Lineage");
+        assertTrue(preview.isLineageShown());
+
+        Disposer.dispose(editor);
+
+        assertFalse(preview.isLineageShown());
+    }
+
     public void testClickingTheShownViewAgainHidesThePreview() {
         editor.setLayout(Layout.SHOW_EDITOR);
         click("Schema");

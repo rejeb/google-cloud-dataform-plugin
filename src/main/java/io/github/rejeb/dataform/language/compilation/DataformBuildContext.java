@@ -16,6 +16,7 @@
  */
 package io.github.rejeb.dataform.language.compilation;
 
+import com.intellij.ide.ActivityTracker;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Key;
 import com.intellij.openapi.util.UserDataHolderEx;
@@ -57,7 +58,10 @@ public final class DataformBuildContext {
         return finished - started;
     }
 
-    /** Blocks until the build semaphore is acquired: one build at a time per project. */
+    /**
+     * Blocks until the build semaphore is acquired: one build at a time per project. Toolbars
+     * showing whether a build runs are asked to update, as they would otherwise wait for user input.
+     */
     public boolean waitAndStart() {
         while (true) {
             if (project.isDisposed()) {
@@ -65,7 +69,10 @@ public final class DataformBuildContext {
                 return false;
             }
             try {
-                if (buildSemaphore.tryAcquire(100, TimeUnit.MILLISECONDS)) return true;
+                if (buildSemaphore.tryAcquire(100, TimeUnit.MILLISECONDS)) {
+                    ActivityTracker.getInstance().inc();
+                    return true;
+                }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 canceled();
@@ -74,9 +81,14 @@ public final class DataformBuildContext {
         }
     }
 
+    /**
+     * Releases the build semaphore, asks the toolbars to show that no build runs any more, then
+     * completes {@link #result}.
+     */
     public void finished(boolean isSuccess, String message) {
         finished = System.currentTimeMillis();
         buildSemaphore.release();
+        ActivityTracker.getInstance().inc();
         result.complete(new DataformBuildResult(isSuccess, false));
     }
 

@@ -24,6 +24,7 @@ import com.intellij.psi.PsiFile;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * A table keeps the source file it was built with until the next schema refresh, and the file may
@@ -63,6 +64,23 @@ public class DataformDasTableSourceFileTest extends BasePlatformTestCase {
 
         assertEquals(replacement, table.getContainingFile());
         assertTrue(table.canNavigate());
+    }
+
+    public void testALazySourceIsLookedUpOnlyOnceAndOnlyWhenAskedFor() {
+        VirtualFile source = myFixture.addFileToProject(PATH, "SELECT 1 AS customer_id\n").getVirtualFile();
+        AtomicInteger lookups = new AtomicInteger();
+        DataformDasTable table = DataformDasTable.withLazySource(getPsiManager(), "proj.ds.bronze_customers",
+                "bronze_customers", COLUMNS, "bronze_customers.sqlx", () -> {
+                    lookups.incrementAndGet();
+                    return source;
+                });
+
+        assertEquals("bronze_customers.sqlx", table.presentableLocation());
+        assertEquals(0, lookups.get());
+
+        assertEquals(source, table.getSourceFile());
+        assertTrue(table.canNavigate());
+        assertEquals(1, lookups.get());
     }
 
     public void testAColumnOfADeletedFileStaysUsableButCannotNavigate() throws Exception {

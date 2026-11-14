@@ -16,6 +16,7 @@
  */
 package io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.ui;
 
+import com.intellij.ui.AnimatedIcon;
 import io.github.rejeb.dataform.language.DataformIcons;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.InvocationActionState;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowInvocationState;
@@ -25,7 +26,9 @@ import javax.swing.Icon;
 
 /**
  * The status icons of a workflow run, shared by its tree, its status line and its detail headers so
- * they always agree; they are the prototype's.
+ * they always agree. They are the platform's run states: a running state turns the platform
+ * spinner, which takes the theme's {@code ProgressIcon.color}, and the ended states are the test
+ * runner's icons.
  */
 final class ActionStateIcons {
 
@@ -35,7 +38,7 @@ final class ActionStateIcons {
     @NotNull
     static Icon of(@NotNull WorkflowInvocationState state) {
         return switch (state) {
-            case RUNNING -> DataformIcons.SPINNER;
+            case RUNNING -> AnimatedIcon.Default.INSTANCE;
             case SUCCEEDED -> DataformIcons.STATUS_SUCCEEDED;
             case FAILED -> DataformIcons.STATUS_FAILED;
             case CANCELLED -> DataformIcons.STATUS_CANCELLED;
@@ -46,7 +49,7 @@ final class ActionStateIcons {
     @NotNull
     static Icon of(@NotNull InvocationActionState state) {
         return switch (state) {
-            case RUNNING -> DataformIcons.SPINNER;
+            case RUNNING -> AnimatedIcon.Default.INSTANCE;
             case SUCCEEDED -> DataformIcons.STATUS_SUCCEEDED;
             case FAILED -> DataformIcons.STATUS_FAILED;
             case SKIPPED, DISABLED -> DataformIcons.STATUS_SKIPPED;
@@ -64,7 +67,7 @@ final class ActionStateIcons {
         return switch (status) {
             case "DONE" -> DataformIcons.STATUS_SUCCEEDED;
             case "FAILED" -> DataformIcons.STATUS_FAILED;
-            case "RUNNING" -> DataformIcons.SPINNER;
+            case "RUNNING" -> AnimatedIcon.Default.INSTANCE;
             default -> DataformIcons.STATUS_PENDING;
         };
     }

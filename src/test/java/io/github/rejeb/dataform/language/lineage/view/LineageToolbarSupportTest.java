@@ -56,7 +56,8 @@ public class LineageToolbarSupportTest extends BasePlatformTestCase {
     }
 
     public void testTheLegendIsATextButtonWithADropDownArrow() {
-        AnAction legend = LineageToolbarSupport.legendAction(() -> java.util.List.of("view"));
+        AnAction legend = LineageToolbarSupport.legendAction(() -> java.util.List.of("view"),
+                () -> io.github.rejeb.dataform.language.lineage.model.LineageSource.DATAFORM);
         Presentation presentation = legend.getTemplatePresentation();
 
         assertEquals("Legend", presentation.getText());

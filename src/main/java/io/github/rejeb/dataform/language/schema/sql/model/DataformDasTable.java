@@ -22,6 +22,7 @@ import com.intellij.database.model.DasTable;
 import com.intellij.database.model.ObjectKind;
 import com.intellij.openapi.fileEditor.OpenFileDescriptor;
 import com.intellij.openapi.fileTypes.PlainTextFileType;
+import com.intellij.openapi.util.NullableLazyValue;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.VirtualFileManager;
 import com.intellij.psi.PsiElement;
@@ -35,6 +36,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 
 public class DataformDasTable extends DataformDasElement implements DasTable {
     @Nullable
@@ -42,7 +44,9 @@ public class DataformDasTable extends DataformDasElement implements DasTable {
     private final String myName;
     private final List<ColumnInfo> myColumns;
     @Nullable
-    private final VirtualFile mySourceFile;
+    private final String mySourceName;
+    @NotNull
+    private final NullableLazyValue<VirtualFile> mySourceFile;
     private volatile PsiFile myFallbackFile;
 
     public DataformDasTable(@NotNull PsiManager psiManager,
@@ -61,11 +65,40 @@ public class DataformDasTable extends DataformDasElement implements DasTable {
                             @NotNull String table,
                             @NotNull List<ColumnInfo> columns,
                             @Nullable VirtualFile sourceFile) {
+        this(psiManager, fullName, table, columns, sourceFile != null ? sourceFile.getName() : null,
+                () -> sourceFile);
+    }
+
+    private DataformDasTable(@NotNull PsiManager psiManager,
+                             @Nullable String fullName,
+                             @NotNull String table,
+                             @NotNull List<ColumnInfo> columns,
+                             @Nullable String sourceName,
+                             @NotNull Supplier<@Nullable VirtualFile> sourceFile) {
         super(psiManager);
         this.myFullName = fullName;
         this.myName = table;
         this.myColumns = columns;
-        this.mySourceFile = sourceFile;
+        this.mySourceName = sourceName;
+        this.mySourceFile = NullableLazyValue.volatileLazyNullable(sourceFile);
+    }
+
+    /**
+     * A table whose source file is looked up only when first asked for, then kept. Building a table
+     * must not touch the file system: the persisted schemas are restored on whatever thread first
+     * asks for them, the EDT included, and a column rename rebuilds tables inside a write action.
+     *
+     * @param sourceName the name of the source file, shown without looking the file up
+     * @param sourceFile finds the source file, returning {@code null} when it does not exist
+     * @return the table
+     */
+    public static @NotNull DataformDasTable withLazySource(@NotNull PsiManager psiManager,
+                                                           @NotNull String fullName,
+                                                           @NotNull String table,
+                                                           @NotNull List<ColumnInfo> columns,
+                                                           @Nullable String sourceName,
+                                                           @NotNull Supplier<@Nullable VirtualFile> sourceFile) {
+        return new DataformDasTable(psiManager, fullName, table, columns, sourceName, sourceFile);
     }
 
     /** The full {@code database.schema.name} of the table, {@code null} when unknown. */
@@ -109,7 +142,7 @@ public class DataformDasTable extends DataformDasElement implements DasTable {
      * nothing, and handing it to the platform throws.
      */
     private @Nullable VirtualFile liveSourceFile() {
-        VirtualFile file = mySourceFile;
+        VirtualFile file = mySourceFile.getValue();
         if (file == null || file.isValid()) return file;
         VirtualFile current = VirtualFileManager.getInstance().findFileByUrl(file.getUrl());
         return current != null && current.isValid() ? current : null;
@@ -128,7 +161,7 @@ public class DataformDasTable extends DataformDasElement implements DasTable {
             return myFullName.equalsIgnoreCase(other.myFullName);
         }
         return myName.equalsIgnoreCase(other.myName)
-                && Objects.equals(mySourceFile, other.mySourceFile);
+                && Objects.equals(mySourceFile.getValue(), other.mySourceFile.getValue());
     }
 
     @Override
@@ -159,7 +192,7 @@ public class DataformDasTable extends DataformDasElement implements DasTable {
 
     @Override
     protected @Nullable String presentableLocation() {
-        return mySourceFile != null ? mySourceFile.getName() : null;
+        return mySourceName;
     }
 
     @Override

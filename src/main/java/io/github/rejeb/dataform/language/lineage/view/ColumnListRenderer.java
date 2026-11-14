@@ -17,339 +17,188 @@
 package io.github.rejeb.dataform.language.lineage.view;
 
 import com.intellij.ui.ColorUtil;
+import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
-import io.github.rejeb.dataform.language.columns.analysis.ColumnEdge;
-import io.github.rejeb.dataform.language.columns.analysis.ColumnLineageGraph;
 import io.github.rejeb.dataform.language.columns.model.ColumnRef;
-import io.github.rejeb.dataform.language.columns.analysis.Confidence;
-import io.github.rejeb.dataform.language.lineage.layout.LayoutResult;
 import io.github.rejeb.dataform.language.lineage.layout.NodePosition;
-import io.github.rejeb.dataform.language.lineage.model.Direction;
+import io.github.rejeb.dataform.language.lineage.model.CardColumns;
 import io.github.rejeb.dataform.language.lineage.model.LineageModel;
+import io.github.rejeb.dataform.language.lineage.model.SearchScope;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.awt.BasicStroke;
+import java.awt.AlphaComposite;
 import java.awt.Color;
+import java.awt.Composite;
+import java.awt.Font;
+import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.Shape;
-import java.awt.geom.Path2D;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
+import java.awt.geom.RoundRectangle2D;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import javax.swing.JComponent;
+import java.util.Locale;
+import java.util.Objects;
 
 /**
- * Paints the per-node column lists and the column-level lineage edges between them, and owns
- * the state they need: row bounds for hit testing, per-node scroll offsets, hover row and the
- * stable colour slot of each selected column.
+ * Paints the column rows of a node card, under its header: one row per column with its name and
+ * type, the "more columns" footer and the note row. A row on a shown lineage is tinted with the
+ * colour of that lineage; the column the lineage starts from is outlined and bold.
  */
 final class ColumnListRenderer {
 
-    static final int COLUMN_ROW_H = 16;
-    private static final int MAX_COLUMN_LIST_ROWS = 12;
+    static final int PAD = 10;
+    private static final int GAP = 8;
+    private static final int NODE_ARC = 14;
+    private static final int LINEAGE_TINT_ALPHA = 56;
+    private static final int SEARCH_MARK_ALPHA = 90;
+    private static final float DIM_ALPHA = 0.28f;
 
-    private final JComponent host;
     private final LineageModel model;
-    private final CanvasViewport viewport;
-
-    private final Map<String, Rectangle> rowBounds = new LinkedHashMap<>();
-    private final Map<String, Rectangle> listBoundsByNode = new LinkedHashMap<>();
-    private final Map<String, Integer> scrollByNode = new LinkedHashMap<>();
-    private final Map<String, Integer> colorIndexByColumn = new LinkedHashMap<>();
     private @Nullable String hoverColumnId;
 
-    ColumnListRenderer(@NotNull JComponent host, @NotNull LineageModel model,
-                       @NotNull CanvasViewport viewport) {
-        this.host = host;
+    ColumnListRenderer(@NotNull LineageModel model) {
         this.model = model;
-        this.viewport = viewport;
     }
 
-    @NotNull Map<String, Rectangle> listBoundsByNode() {
-        return listBoundsByNode;
-    }
-
-    void clearRowBounds() {
-        rowBounds.clear();
-    }
-
-    @Nullable String columnAt(double worldX, double worldY) {
-        return CanvasHitTest.columnAt(rowBounds, worldX, worldY);
-    }
-
-    @Nullable String listNodeAt(double worldX, double worldY) {
-        for (Map.Entry<String, Rectangle> entry : listBoundsByNode.entrySet()) {
-            if (entry.getValue().contains(worldX, worldY)) return entry.getKey();
-        }
-        return null;
-    }
-
-    void scrollBy(@NotNull String nodeId, int amount) {
-        scrollByNode.merge(nodeId, amount, Integer::sum);
-    }
-
-    /** Sets the hovered row; returns {@code true} when it changed and a repaint is needed. */
+    /**
+     * Sets the row under the pointer.
+     *
+     * @return {@code true} when it changed and a repaint is needed
+     */
     boolean setHoverColumn(@Nullable String columnId) {
-        if (java.util.Objects.equals(hoverColumnId, columnId)) return false;
+        if (Objects.equals(hoverColumnId, columnId)) return false;
         hoverColumnId = columnId;
         return true;
     }
 
-    int columnCountFor(@NotNull String tableNodeId) {
-        ColumnLineageGraph cg = model.columnGraph();
-        return cg == null ? 0 : cg.columnsForTable(tableNodeId).size();
+    /**
+     * @return the height the card of the node needs under its header, {@code 0} when it lists no column
+     */
+    int extraHeight(@NotNull String nodeId) {
+        return NodeCardMetrics.rowsHeight(model.cardColumns(nodeId), model.cardNote(nodeId) != null);
     }
 
     /**
-     * Vertical space to reserve below a single node for its column list, so the node beneath it
-     * stays clear. Only reserved when a column is selected (the scoped list is visible), and
-     * sized to the number of participating columns actually shown on that node.
+     * Paints the rows of the card of a node inside the box {@link NodeRenderer} painted for it.
+     *
+     * @param nodeH the height of the header
      */
-    int reservedHeightFor(@NotNull String nodeId) {
-        ColumnLineageGraph cg = model.columnGraph();
-        if (cg == null || model.selectedColumnId() == null) return 0;
-        ColumnRef selectedRef = cg.column(model.selectedColumnId());
-        String selectedNode = selectedRef != null ? selectedRef.tableNodeId() : null;
-        int count;
-        if (nodeId.equals(selectedNode)) {
-            count = columnCountFor(nodeId);
-        } else {
-            count = 0;
-            for (String columnId : model.highlightColumnLineage()) {
-                ColumnRef ref = cg.column(columnId);
-                if (ref != null && ref.tableNodeId().equals(nodeId)) count++;
-            }
-        }
-        return count > 0 ? visibleRowCount(count) * COLUMN_ROW_H + 6 : 0;
-    }
+    void paintRows(@NotNull Graphics2D g2, @NotNull String nodeId, @NotNull NodePosition pos, int nodeH) {
+        CardColumns columns = model.cardColumns(nodeId);
+        String note = model.cardNote(nodeId);
+        int extra = NodeCardMetrics.rowsHeight(columns, note != null);
+        if (extra == 0) return;
 
-    /**
-     * World-space bounds of a node's column list. Opens below the node when the viewport has
-     * room; otherwise opens above so the list is not clipped at the bottom of the screen.
-     */
-    @NotNull Rectangle listWorldBounds(@NotNull NodePosition pos, int count, int nodeH) {
-        int listHeight = visibleRowCount(count) * COLUMN_ROW_H;
-        int x = (int) Math.round(pos.x());
-        int top = opensAbove(pos, count, nodeH)
-                ? (int) Math.round(pos.y()) - 2 - listHeight
-                : (int) Math.round(pos.y()) + nodeH + 2;
-        return new Rectangle(x, top, pos.width(), Math.max(listHeight, 1));
-    }
-
-    private boolean opensAbove(@NotNull NodePosition pos, int count, int nodeH) {
-        double zoom = viewport.zoom();
-        double listScreenHeight = visibleRowCount(count) * COLUMN_ROW_H * zoom;
-        double spaceBelow = host.getHeight() - (viewport.offsetY() + (pos.y() + nodeH) * zoom);
-        double spaceAbove = viewport.offsetY() + pos.y() * zoom;
-        if (spaceBelow >= listScreenHeight) return false;
-        return spaceAbove > spaceBelow;
-    }
-
-    private static int visibleRowCount(int count) {
-        return Math.min(count, MAX_COLUMN_LIST_ROWS);
-    }
-
-    /**
-     * Paints the column lists of the nodes that participate in the current selection, or of the
-     * node whose columns were revealed by hover, plus the coloured lineage edges between rows.
-     */
-    void paint(@NotNull Graphics2D g2, @NotNull LayoutResult layout, @Nullable String hoverExpandedNodeId) {
-        ColumnLineageGraph cg = model.columnGraph();
-        if (cg == null) return;
-
-        Map<String, List<ColumnRef>> byTable = columnsByTable(cg, hoverExpandedNodeId);
-        if (byTable.isEmpty()) return;
-
-        List<String> selectedIds = new ArrayList<>(model.selectedColumnIds());
-        reconcileSelectionColors(selectedIds);
-        Map<String, Set<String>> lineageBySelected = new LinkedHashMap<>();
-        Map<String, Color> colorBySelected = new LinkedHashMap<>();
-        for (String selectedId : selectedIds) {
-            Set<String> lineage = new LinkedHashSet<>();
-            lineage.add(selectedId);
-            lineage.addAll(cg.upstream(selectedId));
-            lineage.addAll(cg.downstream(selectedId));
-            lineageBySelected.put(selectedId, lineage);
-            colorBySelected.put(selectedId, LineageTheme.selectionColor(colorIndexByColumn.get(selectedId)));
-        }
-
-        listBoundsByNode.clear();
-        for (Map.Entry<String, List<ColumnRef>> entry : byTable.entrySet()) {
-            NodePosition pos = layout.positions().get(entry.getKey());
-            if (pos == null) continue;
-            paintList(g2, entry.getKey(), entry.getValue(), pos, layout.nodeH(),
-                    selectedIds, lineageBySelected, colorBySelected);
-        }
-
-        for (ColumnEdge edge : cg.edges()) {
-            Rectangle from = rowBounds.get(edge.from().id());
-            Rectangle to = rowBounds.get(edge.to().id());
-            if (from == null || to == null) continue;
-            Color color = edgeOwnerColor(edge.from().id(), edge.to().id(),
-                    selectedIds, lineageBySelected, colorBySelected);
-            if (color == null) continue;
-            drawColumnEdge(g2, from, to, color, edge.kind() == Confidence.AMBIGUOUS);
-        }
-    }
-
-    /**
-     * Columns to show per node: when a column is selected, every column on its lineage plus the
-     * full list of the selected column's own table; otherwise the hovered node's full list.
-     */
-    private @NotNull Map<String, List<ColumnRef>> columnsByTable(@NotNull ColumnLineageGraph cg,
-                                                                 @Nullable String hoverExpandedNodeId) {
-        Set<String> highlight = model.highlightColumnLineage();
-        Map<String, List<ColumnRef>> byTable = new LinkedHashMap<>();
-        if (model.selectedColumnId() != null && !highlight.isEmpty()) {
-            ColumnRef selectedRef = cg.column(model.selectedColumnId());
-            String selectedNode = selectedRef != null ? selectedRef.tableNodeId() : null;
-            for (String colId : highlight) {
-                ColumnRef ref = cg.column(colId);
-                if (ref == null || ref.tableNodeId().equals(selectedNode)) continue;
-                byTable.computeIfAbsent(ref.tableNodeId(), k -> new ArrayList<>()).add(ref);
-            }
-            if (selectedNode != null) {
-                byTable.computeIfAbsent(selectedNode, k -> new ArrayList<>())
-                        .addAll(cg.columnsForTable(selectedNode));
-            }
-        } else if (hoverExpandedNodeId != null) {
-            List<ColumnRef> columns = cg.columnsForTable(hoverExpandedNodeId);
-            if (!columns.isEmpty()) {
-                byTable.computeIfAbsent(hoverExpandedNodeId, k -> new ArrayList<>()).addAll(columns);
-            }
-        }
-        return byTable;
-    }
-
-    private void paintList(@NotNull Graphics2D g2, @NotNull String nodeId,
-                           @NotNull List<ColumnRef> columns, @NotNull NodePosition pos, int nodeH,
-                           @NotNull List<String> selectedIds,
-                           @NotNull Map<String, Set<String>> lineageBySelected,
-                           @NotNull Map<String, Color> colorBySelected) {
-        int total = columns.size();
-        int visibleRows = visibleRowCount(total);
-        int maxScroll = Math.max(0, total - visibleRows);
-        int scroll = Math.max(0, Math.min(scrollByNode.getOrDefault(nodeId, 0), maxScroll));
-        scrollByNode.put(nodeId, scroll);
-
-        Rectangle listBounds = listWorldBounds(pos, total, nodeH);
-        listBoundsByNode.put(nodeId, listBounds);
-
+        boolean selected = nodeId.equals(model.selectedId());
+        Composite oldComposite = g2.getComposite();
         Shape oldClip = g2.getClip();
-        g2.clip(listBounds);
-        for (int row = 0; row < visibleRows; row++) {
-            ColumnRef ref = columns.get(scroll + row);
-            Rectangle rect = new Rectangle(listBounds.x, listBounds.y + row * COLUMN_ROW_H,
-                    pos.width(), COLUMN_ROW_H - 2);
-            rowBounds.put(ref.id(), rect);
-            Color highlightColor = ownerColor(ref.id(), selectedIds, lineageBySelected, colorBySelected);
-            drawColumnRow(g2, ref, rect, highlightColor, ref.id().equals(hoverColumnId));
+        Font oldFont = g2.getFont();
+        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER,
+                model.dimmedIds().contains(nodeId) ? DIM_ALPHA : 1f));
+        g2.clip(interior(pos, nodeH + extra, selected ? 2 : 1));
+
+        List<ColumnRef> rows = columns.rows();
+        for (int i = 0; i < rows.size(); i++) {
+            paintRow(g2, rows.get(i), NodeCardMetrics.rowBounds(pos, nodeH, i), selected);
         }
+        if (columns.hidden() > 0) {
+            paintNote(g2, "+ " + columns.hidden() + " more columns", UIUtil.getContextHelpForeground(),
+                    NodeCardMetrics.footerBounds(pos, nodeH, columns), selected);
+        }
+        if (note != null) {
+            paintNote(g2, note, LineageTheme.glyphForeground("operations"),
+                    NodeCardMetrics.noteBounds(pos, nodeH, columns), selected);
+        }
+
+        g2.setFont(oldFont);
         g2.setClip(oldClip);
-
-        if (total > visibleRows) {
-            drawScrollbar(g2, listBounds, scroll, visibleRows, total);
-        }
+        g2.setComposite(oldComposite);
     }
 
-    /**
-     * Keeps each selected column's colour index stable across selection changes: deselected
-     * columns free their slot; a newly selected column takes the lowest unused slot without
-     * disturbing the colours of columns that stay selected.
-     */
-    private void reconcileSelectionColors(@NotNull List<String> selectedIds) {
-        colorIndexByColumn.keySet().retainAll(selectedIds);
-        Set<Integer> used = new HashSet<>(colorIndexByColumn.values());
-        for (String id : selectedIds) {
-            if (!colorIndexByColumn.containsKey(id)) {
-                int index = 0;
-                while (used.contains(index)) index++;
-                colorIndexByColumn.put(id, index);
-                used.add(index);
-            }
-        }
+    private static @NotNull Shape interior(@NotNull NodePosition pos, int height, int border) {
+        return new RoundRectangle2D.Double(Math.round(pos.x()) + border, Math.round(pos.y()) + border,
+                pos.width() - 2 * border + 1, height - 2 * border + 1, NODE_ARC, NODE_ARC);
     }
 
-    /** Colour of the first selected column whose lineage contains this column, or {@code null}. */
-    private @Nullable Color ownerColor(@NotNull String columnId, @NotNull List<String> selectedIds,
-                                       @NotNull Map<String, Set<String>> lineageBySelected,
-                                       @NotNull Map<String, Color> colorBySelected) {
-        for (String selectedId : selectedIds) {
-            if (lineageBySelected.get(selectedId).contains(columnId)) {
-                return colorBySelected.get(selectedId);
-            }
+    private void paintRow(@NotNull Graphics2D g2, @NotNull ColumnRef column, @NotNull Rectangle row,
+                          boolean onSelectedNode) {
+        Integer colourSlot = model.lineageColourIndex().get(column.id());
+        Color lineage = colourSlot == null ? null : LineageTheme.selectionColor(colourSlot);
+        boolean root = model.isRootColumn(column.id());
+
+        paintRowBackground(g2, row, lineage, column.id().equals(hoverColumnId), onSelectedNode);
+        g2.setColor(JBUI.CurrentTheme.Separator.color());
+        g2.fillRect(row.x, row.y, row.width, 1);
+        if (root) {
+            g2.setColor(lineage != null ? lineage : LineageTheme.searchMatch());
+            g2.drawRect(row.x + 1, row.y + 1, row.width - 2, row.height - 2);
         }
-        return null;
-    }
 
-    private @Nullable Color edgeOwnerColor(@NotNull String from, @NotNull String to,
-                                           @NotNull List<String> selectedIds,
-                                           @NotNull Map<String, Set<String>> lineageBySelected,
-                                           @NotNull Map<String, Color> colorBySelected) {
-        for (String selectedId : selectedIds) {
-            Set<String> lineage = lineageBySelected.get(selectedId);
-            if (lineage.contains(from) && lineage.contains(to)) {
-                return colorBySelected.get(selectedId);
-            }
+        String type = model.columnType(column);
+        int right = row.x + row.width - PAD;
+        if (type != null) {
+            g2.setFont(LineageTheme.columnTypeFont());
+            FontMetrics typeFm = g2.getFontMetrics();
+            String shown = LineageTheme.clip(g2, type, row.width / 2 - PAD);
+            right -= typeFm.stringWidth(shown);
+            g2.setColor(UIUtil.getContextHelpForeground());
+            g2.drawString(shown, right, baseline(row, typeFm));
+            right -= GAP;
         }
-        return null;
-    }
 
-    private void drawColumnRow(@NotNull Graphics2D g2, @NotNull ColumnRef ref,
-                               @NotNull Rectangle rect, @Nullable Color highlightColor, boolean hover) {
-        boolean lit = highlightColor != null;
-        Color accent = lit ? highlightColor : LineageTheme.accentColor();
-        Color background = lit ? ColorUtil.toAlpha(accent, 40)
-                : hover ? ColorUtil.toAlpha(LineageTheme.accentColor(), 22)
-                : LineageTheme.nodeBackground();
-        g2.setColor(background);
-        g2.fillRoundRect(rect.x, rect.y, rect.width, rect.height, 6, 6);
-        g2.setColor(lit || hover ? accent : LineageTheme.nodeBorder());
-        g2.setStroke(new BasicStroke(lit || hover ? 1.4f : 1f));
-        g2.drawRoundRect(rect.x, rect.y, rect.width, rect.height, 6, 6);
-
+        Font nameFont = LineageTheme.columnFont();
+        g2.setFont(root ? nameFont.deriveFont(Font.BOLD) : nameFont);
+        FontMetrics nameFm = g2.getFontMetrics();
+        int left = row.x + PAD;
+        String name = LineageTheme.clip(g2, column.columnName(), right - left);
+        paintSearchMark(g2, name, left, row, nameFm);
         g2.setColor(UIUtil.getLabelForeground());
-        g2.setFont(LineageTheme.monospace(10f));
-        var fm = g2.getFontMetrics();
-        int ty = rect.y + (rect.height + fm.getAscent() - fm.getDescent()) / 2;
-        g2.drawString(LineageTheme.clip(g2, ref.columnName(), rect.width - 12), rect.x + 6, ty);
+        g2.drawString(name, left, baseline(row, nameFm));
     }
 
-    private void drawScrollbar(@NotNull Graphics2D g2, @NotNull Rectangle bounds,
-                               int scroll, int visibleRows, int total) {
-        int barW = 3;
-        int x = bounds.x + bounds.width - barW - 1;
-        g2.setColor(ColorUtil.toAlpha(LineageTheme.edgeColor(), 60));
-        g2.fillRoundRect(x, bounds.y, barW, bounds.height, barW, barW);
-        int thumbH = Math.max(6, (int) Math.round(bounds.height * (double) visibleRows / total));
-        int thumbY = bounds.y + (int) Math.round(
-                (bounds.height - thumbH) * (double) scroll / Math.max(1, total - visibleRows));
-        g2.setColor(LineageTheme.edgeColor());
-        g2.fillRoundRect(x, thumbY, barW, thumbH, barW, barW);
+    private static void paintRowBackground(@NotNull Graphics2D g2, @NotNull Rectangle row, @Nullable Color lineage,
+                                           boolean hover, boolean onSelectedNode) {
+        if (onSelectedNode) {
+            g2.setColor(LineageTheme.nodeBackground());
+            g2.fillRect(row.x, row.y, row.width, row.height);
+        }
+        if (lineage != null) {
+            g2.setColor(ColorUtil.toAlpha(lineage, LINEAGE_TINT_ALPHA));
+            g2.fillRect(row.x, row.y, row.width, row.height);
+        } else if (hover) {
+            g2.setColor(LineageTheme.rowHover());
+            g2.fillRect(row.x, row.y, row.width, row.height);
+        }
     }
 
-    private void drawColumnEdge(@NotNull Graphics2D g2, @NotNull Rectangle from,
-                                @NotNull Rectangle to, @NotNull Color color, boolean ambiguous) {
-        double x1 = from.x + from.width;
-        double y1 = from.y + from.height / 2.0;
-        double x2 = to.x;
-        double y2 = to.y + to.height / 2.0;
-        double cx = (x1 + x2) / 2.0;
-        Path2D.Double path = new Path2D.Double();
-        path.moveTo(x1, y1);
-        path.curveTo(cx, y1, cx, y2, x2, y2);
-        g2.setColor(color);
-        float[] dash = ambiguous ? new float[]{1.5f, 4f} : new float[]{4f, 3f};
-        g2.setStroke(new BasicStroke(ambiguous ? 1f : 1.4f, BasicStroke.CAP_BUTT,
-                BasicStroke.JOIN_ROUND, 1f, dash, 0f));
-        g2.draw(path);
-        g2.setStroke(new BasicStroke(1f));
-        EdgeRenderer.drawArrowHead(g2, x2, y2, Direction.LR);
+    private void paintSearchMark(@NotNull Graphics2D g2, @NotNull String shownName, int left, @NotNull Rectangle row,
+                                 @NotNull FontMetrics fm) {
+        String needle = model.searchQuery().trim().toLowerCase(Locale.ROOT);
+        if (model.searchScope() != SearchScope.COLUMNS || needle.isEmpty()) return;
+        int at = shownName.toLowerCase(Locale.ROOT).indexOf(needle);
+        if (at < 0) return;
+        int from = left + fm.stringWidth(shownName.substring(0, at));
+        int width = fm.stringWidth(shownName.substring(at, at + needle.length()));
+        int height = fm.getAscent() + fm.getDescent();
+        g2.setColor(ColorUtil.toAlpha(LineageTheme.searchMatch(), SEARCH_MARK_ALPHA));
+        g2.fillRoundRect(from - 1, row.y + (row.height - height) / 2, width + 2, height, 4, 4);
+    }
+
+    private static void paintNote(@NotNull Graphics2D g2, @NotNull String text, @NotNull Color colour,
+                                  @NotNull Rectangle row, boolean onSelectedNode) {
+        if (onSelectedNode) {
+            g2.setColor(LineageTheme.nodeBackground());
+            g2.fillRect(row.x, row.y, row.width, row.height);
+        }
+        g2.setColor(JBUI.CurrentTheme.Separator.color());
+        g2.fillRect(row.x, row.y, row.width, 1);
+        g2.setFont(LineageTheme.columnTypeFont());
+        g2.setColor(colour);
+        g2.drawString(LineageTheme.clip(g2, text, row.width - 2 * PAD), row.x + PAD, baseline(row, g2.getFontMetrics()));
+    }
+
+    private static int baseline(@NotNull Rectangle row, @NotNull FontMetrics fm) {
+        return row.y + (row.height + fm.getAscent() - fm.getDescent()) / 2;
     }
 }

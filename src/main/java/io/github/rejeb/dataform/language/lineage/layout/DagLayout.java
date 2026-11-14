@@ -150,7 +150,7 @@ public final class DagLayout {
                 : layoutLeftToRight(layers, widths, nodeH, layerGap, rowGap, extraVerticalHeight);
 
         int maxWidth = widths.values().stream().mapToInt(Integer::intValue).max().orElse(0);
-        return new LayoutResult(positions, computeBounds(positions, nodeH), maxWidth, nodeH);
+        return new LayoutResult(positions, computeBounds(positions, nodeH, extraVerticalHeight), maxWidth, nodeH);
     }
 
     /**
@@ -307,7 +307,8 @@ public final class DagLayout {
     }
 
     private static @NotNull Rectangle2D.Double computeBounds(@NotNull Map<String, NodePosition> positions,
-                                                             int nodeH) {
+                                                             int nodeH,
+                                                             @NotNull ToIntFunction<String> extraVerticalHeight) {
         if (positions.isEmpty()) return new Rectangle2D.Double(0, 0, 0, 0);
         double minX = Double.POSITIVE_INFINITY, minY = Double.POSITIVE_INFINITY;
         double maxX = Double.NEGATIVE_INFINITY, maxY = Double.NEGATIVE_INFINITY;
@@ -315,7 +316,7 @@ public final class DagLayout {
             minX = Math.min(minX, p.x());
             minY = Math.min(minY, p.y());
             maxX = Math.max(maxX, p.x() + p.width());
-            maxY = Math.max(maxY, p.y() + nodeH);
+            maxY = Math.max(maxY, p.y() + nodeH + extraVerticalHeight.applyAsInt(p.id()));
         }
         return new Rectangle2D.Double(minX, minY, maxX - minX, maxY - minY);
     }

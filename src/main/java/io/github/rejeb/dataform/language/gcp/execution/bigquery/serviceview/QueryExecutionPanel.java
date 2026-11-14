@@ -42,6 +42,7 @@ import com.intellij.openapi.ide.CopyPasteManager;
 import com.intellij.openapi.project.DumbAwareAction;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Disposer;
+import com.intellij.ui.AnimatedIcon;
 import com.intellij.ui.InlineBanner;
 import com.intellij.ui.JBColor;
 import com.intellij.ui.SimpleColoredComponent;
@@ -252,7 +253,7 @@ public class QueryExecutionPanel extends JPanel implements Disposable {
                                              @Nullable BigQueryJobStats stats) {
         BigQueryJobResult result = run.result();
         return switch (run.state()) {
-            case RUNNING -> new JBLabel("Waiting for BigQuery…", DataformIcons.SPINNER, SwingConstants.CENTER);
+            case RUNNING -> new JBLabel("Waiting for BigQuery…", AnimatedIcon.Default.INSTANCE, SwingConstants.CENTER);
             case CANCELLED -> emptyState("The query was cancelled.", null);
             case FAILED -> buildFailurePanel(project, run, errorOf(result));
             case SUCCEEDED -> result != null && result.pagedResult() != null && result.pagedResult().getTotalRows() > 0

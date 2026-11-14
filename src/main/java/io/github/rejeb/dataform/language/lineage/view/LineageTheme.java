@@ -20,12 +20,20 @@ import com.intellij.openapi.editor.colors.EditorColorsManager;
 import com.intellij.ui.JBColor;
 import com.intellij.ui.scale.JBUIScale;
 import com.intellij.util.ui.JBFont;
+import com.intellij.util.ui.UIUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import javax.swing.Icon;
+import java.awt.BasicStroke;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Font;
+import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.geom.Ellipse2D;
+import java.awt.geom.Rectangle2D;
 
 /**
  * Colours, fonts and text helpers shared by every lineage view component. Every colour is a
@@ -34,8 +42,9 @@ import java.awt.Graphics2D;
 public final class LineageTheme {
 
     private static final String THEME_KEY_PREFIX = "Dataform.Lineage.";
-    private static final float GOLDEN_RATIO_CONJUGATE = 0.618033988f;
-    private static final float FIRST_SELECTION_HUE = 0.61f;
+    private static final int[][] SELECTION_PALETTE = {
+            {0x1F9E7A, 0x4FC3A1}, {0x9B4FB5, 0xC98BDB}, {0xB5762A, 0xE0AD7A}, {0xC9424D, 0xE06C75}, {0x1E8C99, 0x56B6C2}
+    };
 
     private static Font monoBase;
 
@@ -89,6 +98,29 @@ public final class LineageTheme {
 
     public static @NotNull Color edgeColor() {
         return themed("Edge", 0xA8ADBD, 0x5A5D63);
+    }
+
+    /**
+     * Colour of an edge Knowledge Catalog recorded and the repository does not declare.
+     */
+    public static @NotNull Color differenceColor() {
+        return themed("Difference", 0xC77C1A, 0xE0AD7A);
+    }
+
+    /**
+     * Colour of the dashed border of a node that is outside the repository.
+     */
+    public static @NotNull Color outsideBorder() {
+        return themed("OutsideBorder", 0x9DA0A8, 0x6F737A);
+    }
+
+    /**
+     * The freshness icon of a node header: a circled "i", 12 pixels wide.
+     *
+     * @param strong whether the pointer is over it or its node is selected
+     */
+    public static @NotNull Icon infoIcon(boolean strong) {
+        return new InfoIcon(strong);
     }
 
     /**
@@ -163,19 +195,49 @@ public final class LineageTheme {
             case "operation", "operations" -> "O";
             case "assertion" -> "A";
             case "test" -> "U";
+            case "outside", "asset" -> "↗";
             default -> "?";
         };
     }
 
     /**
-     * A distinct colour per selected column. The first selection is blue; subsequent hues are
-     * spread by the golden ratio so consecutive selections are far apart on the wheel and colours
-     * do not repeat for a large number of selections. Saturation/brightness are tuned per theme.
+     * The colour of a column lineage. The first one is the accent colour; the palette holds six
+     * colours and then repeats.
      */
     public static @NotNull Color selectionColor(int index) {
-        float hue = (FIRST_SELECTION_HUE + index * GOLDEN_RATIO_CONJUGATE) % 1.0f;
-        return new JBColor(Color.getHSBColor(hue, 0.68f, 0.72f),
-                Color.getHSBColor(hue, 0.55f, 0.88f));
+        int slot = Math.floorMod(index, SELECTION_PALETTE.length + 1);
+        if (slot == 0) return accentColor();
+        int[] pair = SELECTION_PALETTE[slot - 1];
+        return themed("Selection" + (slot + 1), pair[0], pair[1]);
+    }
+
+    /**
+     * The translucent tint of the band of a node header that opens and closes its columns,
+     * while the pointer is over it. It is painted under the texts.
+     */
+    public static @NotNull Color toggleBand() {
+        return new JBColor(new Color(20, 30, 60, 26), new Color(0, 0, 0, 82));
+    }
+
+    /**
+     * The tint of the column row under the pointer.
+     */
+    public static @NotNull Color rowHover() {
+        return new JBColor(new Color(20, 30, 60, 15), new Color(255, 255, 255, 15));
+    }
+
+    /**
+     * Font of a column name in a node card.
+     */
+    public static @NotNull Font columnFont() {
+        return JBFont.medium();
+    }
+
+    /**
+     * Font of a column type and of the note rows of a node card.
+     */
+    public static @NotNull Font columnTypeFont() {
+        return JBFont.small();
     }
 
     /**
@@ -184,6 +246,45 @@ public final class LineageTheme {
      */
     static @NotNull Color themed(@NotNull String key, int light, int dark) {
         return JBColor.namedColor(THEME_KEY_PREFIX + key, new JBColor(light, dark));
+    }
+
+    private static final class InfoIcon implements Icon {
+
+        private static final int SIZE = 12;
+        private final boolean strong;
+
+        private InfoIcon(boolean strong) {
+            this.strong = strong;
+        }
+
+        @Override
+        public void paintIcon(Component c, Graphics g, int x, int y) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            try {
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
+                double side = getIconWidth();
+                g2.setColor(strong ? UIUtil.getLabelForeground() : UIUtil.getContextHelpForeground());
+                g2.setStroke(new BasicStroke((float) (side / 12.0)));
+                g2.draw(new Ellipse2D.Double(x + 0.5, y + 0.5, side - 1, side - 1));
+                double centre = x + side / 2;
+                double dot = side / 8.0;
+                g2.fill(new Ellipse2D.Double(centre - dot / 2, y + side * 0.25, dot, dot));
+                g2.fill(new Rectangle2D.Double(centre - dot / 2, y + side * 0.44, dot, side * 0.32));
+            } finally {
+                g2.dispose();
+            }
+        }
+
+        @Override
+        public int getIconWidth() {
+            return JBUIScale.scale(SIZE);
+        }
+
+        @Override
+        public int getIconHeight() {
+            return JBUIScale.scale(SIZE);
+        }
     }
 
     /** Truncates the text with an ellipsis so it fits {@code maxWidth} in the current font. */
