@@ -21,8 +21,10 @@ import com.intellij.openapi.ide.CopyPasteManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.ui.EditorNotificationPanel;
 import com.intellij.ui.InlineBanner;
+import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.gcp.auth.DataformCredentialsService;
 import io.github.rejeb.dataform.language.lineage.dataplex.DataplexLineageException;
+import io.github.rejeb.dataform.language.lineage.dataplex.DataplexLineageService;
 import io.github.rejeb.dataform.language.lineage.dataplex.TimeRange;
 import io.github.rejeb.dataform.language.ui.Banners;
 import org.jetbrains.annotations.NotNull;
@@ -176,6 +178,15 @@ final class DataplexStateBanner {
         Runnable action = actions.get(label);
         if (action == null) throw new IllegalArgumentException("No action: " + label);
         action.run();
+    }
+
+    static @NotNull String projectIdOf(@NotNull DataplexLineageService service, @Nullable CompiledGraph compiled) {
+        if (compiled == null) return "this project";
+        try {
+            return service.scopeOf(compiled).projectId();
+        } catch (RuntimeException e) {
+            return "this project";
+        }
     }
 
     /**

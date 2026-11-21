@@ -20,14 +20,15 @@ import com.google.api.gax.rpc.UnavailableException;
 import com.google.cloud.dataform.v1.*;
 import com.google.protobuf.ByteString;
 import com.intellij.openapi.diagnostic.Logger;
-import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.util.concurrency.AppExecutorUtil;
 import io.github.rejeb.dataform.language.gcp.common.CommitAuthorConfig;
 import io.github.rejeb.dataform.language.gcp.common.DataformApi;
 import io.github.rejeb.dataform.language.gcp.common.GcpApiException;
+import io.github.rejeb.dataform.language.gcp.common.RepositoryCoordinates;
 import io.github.rejeb.dataform.language.gcp.workspace.DataformRepository;
 import io.github.rejeb.dataform.language.gcp.workspace.UncommittedChange;
 import io.github.rejeb.dataform.language.gcp.workspace.Workspace;
+import io.github.rejeb.dataform.language.util.concurrent.Futures;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -38,13 +39,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
 import static io.github.rejeb.dataform.language.gcp.workspace.repository.DataformResourceNames.isEmptyRepoException;
-import static io.github.rejeb.dataform.language.gcp.workspace.repository.DataformResourceNames.workspaceName;
-import static io.github.rejeb.dataform.language.gcp.workspace.repository.WorkspaceFileReader.listAllRepositoryPaths;
-import static io.github.rejeb.dataform.language.gcp.workspace.repository.WorkspaceFileReader.listAllWorkspacePaths;
-import static io.github.rejeb.dataform.language.gcp.workspace.repository.WorkspaceFileReader.readAllRepositoryFiles;
-import static io.github.rejeb.dataform.language.gcp.workspace.repository.WorkspaceFileReader.readAllWorkspaceFiles;
-import static io.github.rejeb.dataform.language.gcp.workspace.repository.WorkspaceFileReader.readRepositoryFile;
-import static io.github.rejeb.dataform.language.gcp.workspace.repository.WorkspaceFileReader.readWorkspaceFile;
 
 public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
 
@@ -59,14 +53,12 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
     @Override
     @NotNull
     public DataformRepository findRepository(
-            @NotNull String projectId,
-            @NotNull String location,
-            @NotNull String repositoryId
+            @NotNull RepositoryCoordinates repository
     ) {
-        return DataformApi.call(projectId,
-                e -> "Error reading GCP Dataform repository \"" + repositoryId + "\": " + e.getMessage(),
+        return DataformApi.call(repository.projectId(),
+                e -> "Error reading GCP Dataform repository \"" + repository.repositoryId() + "\": " + e.getMessage(),
                 client -> DataformRepositoryMapper.toDataformRepository(
-                        client.getRepository(RepositoryName.of(projectId, location, repositoryId))));
+                        client.getRepository(repository.repositoryName())));
     }
 
     @Override
@@ -84,14 +76,12 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
     @Override
     @NotNull
     public List<Workspace> findAll(
-            @NotNull String projectId,
-            @NotNull String location,
-            @NotNull String repositoryId
+            @NotNull RepositoryCoordinates repository
     ) {
-        return DataformApi.call(projectId,
+        return DataformApi.call(repository.projectId(),
                 e -> "Error fetching workspaces from GCP Dataform API. Message: " + e.getMessage(), client -> {
             List<Workspace> result = new ArrayList<>();
-            String parent = RepositoryName.of(projectId, location, repositoryId).toString();
+            String parent = repository.repositoryName();
             ListWorkspacesRequest request = ListWorkspacesRequest.newBuilder()
                     .setParent(parent)
                     .build();
@@ -104,15 +94,13 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
 
     @Override
     public void pushGitCommits(
-            @NotNull String projectId,
-            @NotNull String location,
-            @NotNull String repositoryId,
+            @NotNull RepositoryCoordinates repository,
             @NotNull String workspaceId,
             @Nullable String remoteBranch,
             @NotNull CommitAuthorConfig author
     ) {
-        DataformApi.run(projectId, "Error pushing commits to GCP Dataform workspace.", client ->
-                client.pushGitCommits(pushRequest(workspaceName(projectId, location, repositoryId, workspaceId), remoteBranch)));
+        DataformApi.run(repository.projectId(), "Error pushing commits to GCP Dataform workspace.", client ->
+                client.pushGitCommits(pushRequest(repository.workspaceName(workspaceId), remoteBranch)));
     }
 
     static @NotNull PushGitCommitsRequest pushRequest(@NotNull String workspaceName, @Nullable String remoteBranch) {
@@ -125,15 +113,13 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
 
     @Override
     public void push(
-            @NotNull String projectId,
-            @NotNull String location,
-            @NotNull String repositoryId,
+            @NotNull RepositoryCoordinates repository,
             @NotNull String workspaceId,
             @NotNull Map<String, String> filesToWrite,
             @NotNull Set<String> pathsToDelete
     ) {
-        DataformApi.run(projectId, "Error syncing files to GCP Dataform workspace.", client -> {
-            String wsName = workspaceName(projectId, location, repositoryId, workspaceId);
+        DataformApi.run(repository.projectId(), "Error syncing files to GCP Dataform workspace.", client -> {
+            String wsName = repository.workspaceName(workspaceId);
             writeAllFiles(wsName, filesToWrite, client);
             deleteAllFiles(wsName, pathsToDelete, client);
         });
@@ -146,13 +132,11 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
             writes.add(writeWithRetry(wsName, entry.getKey(), entry.getValue(), 0, client));
         }
         try {
-            CompletableFuture.allOf(writes.toArray(CompletableFuture[]::new)).join();
-        } catch (CompletionException e) {
-            Throwable cause = e.getCause() != null ? e.getCause() : e;
-            if (cause instanceof GcpApiException api) {
-                throw api;
-            }
-            throw new GcpApiException("Error writing files to GCP Dataform workspace.", cause);
+            Futures.await(CompletableFuture.allOf(writes.toArray(CompletableFuture[]::new)));
+        } catch (GcpApiException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            throw new GcpApiException("Error writing files to GCP Dataform workspace.", e);
         }
     }
 
@@ -233,17 +217,14 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
     @Override
     @NotNull
     public List<String> listAllPaths(
-            @NotNull String projectId,
-            @NotNull String location,
-            @NotNull String repositoryId,
+            @NotNull RepositoryCoordinates repository,
             @Nullable String workspaceId
     ) {
         try {
-            return DataformApi.call(projectId, e -> "Error listing files of GCP Dataform "
-                    + (workspaceId != null ? "workspace \"" + workspaceId + "\"" : "repository")
-                    + ": " + e.getMessage(), client -> workspaceId != null
-                    ? listAllWorkspacePaths(projectId, location, repositoryId, workspaceId, "", client)
-                    : listAllRepositoryPaths(projectId, location, repositoryId, "", client));
+            return DataformApi.call(repository.projectId(), e -> "Error listing files of GCP Dataform "
+                    + (Workspace.isMainBranch(workspaceId) ? "repository" : "workspace \"" + workspaceId + "\"")
+                    + ": " + e.getMessage(),
+                    client -> WorkspaceFileReader.listAll(FileSource.of(repository, workspaceId, client)));
         } catch (GcpApiException e) {
             if (!isEmptyRepoException(e)) throw e;
             LOG.info("Repository is empty (no commits yet), returning no paths.");
@@ -254,15 +235,12 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
     @Override
     @NotNull
     public Map<String, String> readAllFiles(
-            @NotNull String projectId,
-            @NotNull String location,
-            @NotNull String repositoryId,
+            @NotNull RepositoryCoordinates repository,
             @Nullable String workspaceId
     ) {
         try {
-            return DataformApi.call(projectId, "Error reading files from GCP Dataform.", client -> workspaceId != null
-                    ? readAllWorkspaceFiles(projectId, location, repositoryId, workspaceId, client)
-                    : readAllRepositoryFiles(projectId, location, repositoryId, client));
+            return DataformApi.call(repository.projectId(), "Error reading files from GCP Dataform.",
+                    client -> WorkspaceFileReader.readAll(FileSource.of(repository, workspaceId, client)));
         } catch (GcpApiException e) {
             if (!isEmptyRepoException(e)) throw e;
             LOG.info("Repository is empty (no commits yet), returning empty file map.");
@@ -272,21 +250,19 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
 
     @Override
     public void createRepository(
-            @NotNull String projectId,
-            @NotNull String location,
-            @NotNull String repositoryId,
+            @NotNull RepositoryCoordinates repository,
             @NotNull String serviceAccount
     ) {
-        DataformApi.run(projectId, e -> "Error creating Dataform repository \"" + repositoryId + "\": " + e.getMessage(), client -> {
-            String parent = LocationName.of(projectId, location).toString();
-            Repository.Builder repository = Repository.newBuilder();
+        DataformApi.run(repository.projectId(), e -> "Error creating Dataform repository \"" + repository.repositoryId() + "\": " + e.getMessage(), client -> {
+            String parent = LocationName.of(repository.projectId(), repository.location()).toString();
+            Repository.Builder definition = Repository.newBuilder();
             if (!serviceAccount.isBlank()) {
-                repository.setServiceAccount(serviceAccount.trim());
+                definition.setServiceAccount(serviceAccount.trim());
             }
             CreateRepositoryRequest request = CreateRepositoryRequest.newBuilder()
                     .setParent(parent)
-                    .setRepositoryId(repositoryId)
-                    .setRepository(repository.build())
+                    .setRepositoryId(repository.repositoryId())
+                    .setRepository(definition.build())
                     .build();
             client.createRepository(request);
         });
@@ -294,13 +270,11 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
 
     @Override
     public void createWorkspace(
-            @NotNull String projectId,
-            @NotNull String location,
-            @NotNull String repositoryId,
+            @NotNull RepositoryCoordinates repository,
             @NotNull String workspaceId
     ) {
-        DataformApi.run(projectId, e -> "Error creating workspace \"" + workspaceId + "\": " + e.getMessage(), client -> {
-            String parent = RepositoryName.of(projectId, location, repositoryId).toString();
+        DataformApi.run(repository.projectId(), e -> "Error creating workspace \"" + workspaceId + "\": " + e.getMessage(), client -> {
+            String parent = repository.repositoryName();
             CreateWorkspaceRequest request = CreateWorkspaceRequest.newBuilder()
                     .setParent(parent)
                     .setWorkspaceId(workspaceId)
@@ -312,26 +286,22 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
 
     @Override
     public void deleteWorkspace(
-            @NotNull String projectId,
-            @NotNull String location,
-            @NotNull String repositoryId,
+            @NotNull RepositoryCoordinates repository,
             @NotNull String workspaceId
     ) {
-        DataformApi.run(projectId, e -> "Error deleting workspace \"" + workspaceId + "\": " + e.getMessage(), client ->
-                client.deleteWorkspace(workspaceName(projectId, location, repositoryId, workspaceId)));
+        DataformApi.run(repository.projectId(), e -> "Error deleting workspace \"" + workspaceId + "\": " + e.getMessage(), client ->
+                client.deleteWorkspace(repository.workspaceName(workspaceId)));
     }
 
     @Override
     @NotNull
     public List<UncommittedChange> fetchFileGitStatuses(
-            @NotNull String projectId,
-            @NotNull String location,
-            @NotNull String repositoryId,
+            @NotNull RepositoryCoordinates repository,
             @NotNull String workspaceId
     ) {
-        return DataformApi.call(projectId, "Error fetching git statuses from workspace.", client -> {
+        return DataformApi.call(repository.projectId(), "Error fetching git statuses from workspace.", client -> {
             FetchFileGitStatusesRequest request = FetchFileGitStatusesRequest.newBuilder()
-                    .setName(workspaceName(projectId, location, repositoryId, workspaceId))
+                    .setName(repository.workspaceName(workspaceId))
                     .build();
             FetchFileGitStatusesResponse response = client.fetchFileGitStatuses(request);
             return response.getUncommittedFileChangesList().stream()
@@ -342,17 +312,15 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
 
     @Override
     public void commitWorkspaceChanges(
-            @NotNull String projectId,
-            @NotNull String location,
-            @NotNull String repositoryId,
+            @NotNull RepositoryCoordinates repository,
             @NotNull String workspaceId,
             @NotNull List<String> paths,
             @NotNull String message,
             @NotNull CommitAuthorConfig author
     ) {
-        DataformApi.run(projectId, "Error committing workspace changes.", client -> {
+        DataformApi.run(repository.projectId(), "Error committing workspace changes.", client -> {
             CommitWorkspaceChangesRequest request = CommitWorkspaceChangesRequest.newBuilder()
-                    .setName(workspaceName(projectId, location, repositoryId, workspaceId))
+                    .setName(repository.workspaceName(workspaceId))
                     .setAuthor(CommitAuthor.newBuilder()
                             .setName(author.name())
                             .setEmailAddress(author.emailAddress())
@@ -365,15 +333,12 @@ public class GcpDataformWorkspaceRepository implements WorkspaceRepository {
     }
 
     @Override
-    public @NotNull String getFileContent(@NotNull String projectId,
-                                          @NotNull String location,
-                                          @NotNull String repositoryId,
+    public @NotNull String getFileContent(@NotNull RepositoryCoordinates repository,
                                           @Nullable String workspaceId,
                                           @NotNull String filePath) {
         try {
-            return DataformApi.call(projectId, "Failed to fetch file content", client -> StringUtil.isNotEmpty(workspaceId)
-                    ? readWorkspaceFile(projectId, location, repositoryId, workspaceId, filePath, client)
-                    : readRepositoryFile(projectId, location, repositoryId, filePath, client));
+            return DataformApi.call(repository.projectId(), "Failed to fetch file content",
+                    client -> FileSource.of(repository, workspaceId, client).read(filePath));
         } catch (GcpApiException e) {
             LOG.warn("Failed to fetch file content", e);
             return "";

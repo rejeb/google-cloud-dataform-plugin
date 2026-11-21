@@ -55,8 +55,10 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Creates {@code definitions/tests/test_<action>.sqlx} for the tables and views a SQLX or JS file
- * declares, asking which ones when the file declares several. The action shows on every SQLX file and
+ * Creates {@code test_<action>.sqlx} for the tables and views a SQLX or JS file declares, asking which
+ * ones when the file declares several, in {@code definitions/tests} followed by the file's directory
+ * under {@code definitions}: a file of {@code definitions/bronze/customer} is tested in
+ * {@code definitions/tests/bronze/customer}. The action shows on every SQLX file and
  * on the JS files holding actions, and is disabled, with the reason as its description, when the file
  * declares no table or view.
  */
@@ -117,7 +119,8 @@ public final class CreateDataformTestAction extends AnAction implements DumbAwar
             return;
         }
         List<CompiledTable> actions = testableActions(project, file);
-        VirtualFile testsDir = definitions.findChild(TestFileNames.TESTS_DIR);
+        String testsPath = TestFileNames.testsDirPath(definitions, file);
+        VirtualFile testsDir = definitions.findFileByRelativePath(testsPath);
         Map<CompiledTable, String> names = new LinkedHashMap<>();
         for (CompiledTable action : actions) {
             Target tested = TestFileNames.testedTarget(action);
@@ -134,7 +137,8 @@ public final class CreateDataformTestAction extends AnAction implements DumbAwar
             return;
         }
         ReadAction.nonBlocking(() -> contents(project, graph, chosen, names))
-                .finishOnUiThread(ModalityState.defaultModalityState(), contents -> write(project, definitions, contents))
+                .finishOnUiThread(ModalityState.defaultModalityState(),
+                        contents -> write(project, definitions, testsPath, contents))
                 .submit(AppExecutorUtil.getAppExecutorService());
     }
 
@@ -193,12 +197,12 @@ public final class CreateDataformTestAction extends AnAction implements DumbAwar
     }
 
     private static void write(@NotNull Project project, @NotNull VirtualFile definitions,
-                              @NotNull Map<String, String> contents) {
+                              @NotNull String testsPath, @NotNull Map<String, String> contents) {
         List<VirtualFile> created = new ArrayList<>();
         List<String> skipped = new ArrayList<>();
         WriteCommandAction.runWriteCommandAction(project, "Create Dataform Test", null, () -> {
             try {
-                VirtualFile tests = VfsUtil.createDirectoryIfMissing(definitions, TestFileNames.TESTS_DIR);
+                VirtualFile tests = VfsUtil.createDirectoryIfMissing(definitions, testsPath);
                 for (Map.Entry<String, String> entry : contents.entrySet()) {
                     if (tests.findChild(entry.getKey()) != null) {
                         skipped.add(entry.getKey());

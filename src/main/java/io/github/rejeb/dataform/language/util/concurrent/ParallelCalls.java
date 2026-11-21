@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.rejeb.dataform.language.lineage.dataplex;
+package io.github.rejeb.dataform.language.util.concurrent;
 
 import com.intellij.openapi.progress.ProcessCanceledException;
 import org.jetbrains.annotations.NotNull;
@@ -68,7 +68,7 @@ public final class ParallelCalls {
     /**
      * Runs every call, waits for all of them and returns their results in submission order. When calls
      * failed, the failure of the first failed call in submission order is rethrown, a checked exception
-     * wrapped in a {@link RuntimeException}.
+     * wrapped in a {@link CompletionException}.
      */
     public <T> @NotNull List<T> all(@NotNull List<? extends Callable<? extends T>> calls) {
         List<CompletableFuture<T>> futures = new ArrayList<>(calls.size());
@@ -83,11 +83,7 @@ public final class ParallelCalls {
         }
         List<T> results = new ArrayList<>(futures.size());
         for (CompletableFuture<T> future : futures) {
-            try {
-                results.add(future.join());
-            } catch (CompletionException failure) {
-                throw unwrap(failure.getCause());
-            }
+            results.add(Futures.await(future));
         }
         return results;
     }
@@ -121,13 +117,5 @@ public final class ParallelCalls {
             Thread.currentThread().interrupt();
             throw new ProcessCanceledException(interrupted);
         }
-    }
-
-    private static @NotNull RuntimeException unwrap(@Nullable Throwable failure) {
-        Throwable cause = failure;
-        while (cause instanceof CompletionException && cause.getCause() != null) cause = cause.getCause();
-        if (cause instanceof RuntimeException runtime) return runtime;
-        if (cause instanceof Error error) throw error;
-        return new RuntimeException(cause);
     }
 }

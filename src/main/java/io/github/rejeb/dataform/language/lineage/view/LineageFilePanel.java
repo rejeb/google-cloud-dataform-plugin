@@ -36,6 +36,7 @@ import io.github.rejeb.dataform.language.lineage.graph.LineageNode;
 import io.github.rejeb.dataform.language.lineage.model.LineageModel;
 import io.github.rejeb.dataform.language.lineage.model.LineageSource;
 import io.github.rejeb.dataform.language.lineage.model.RecordedActivity;
+import io.github.rejeb.dataform.language.ui.Actions;
 import io.github.rejeb.dataform.language.ui.PreviewHeader;
 import io.github.rejeb.dataform.language.ui.SegmentedSwitch;
 import io.github.rejeb.dataform.language.ui.Toolbars;
@@ -44,7 +45,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.awt.BorderLayout;
-import java.awt.Container;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -85,10 +85,9 @@ public final class LineageFilePanel extends JPanel {
     private final SegmentedSwitch<LineageSource> sourceSwitch;
     private final PreviewHeader header = new PreviewHeader();
     private final JBLabel loadingIcon = new JBLabel(AnimatedIcon.Default.INSTANCE);
-    private final JPanel stateBannerSlot = new JPanel(new BorderLayout());
+    private final StateBannerSlot stateBannerSlot = new StateBannerSlot();
     private final RecordedLineageRefresher refresher;
     private @Nullable LineageGraph declared;
-    private @Nullable DataplexStateBanner stateBanner;
     private @Nullable DataplexView recordedView;
     private boolean loading;
     private boolean shown;
@@ -119,7 +118,7 @@ public final class LineageFilePanel extends JPanel {
             @Override
             public void onView(@NotNull DataplexView view, boolean update) {
                 recordedView = view;
-                showStateBanner(null);
+                stateBannerSlot.setBanner(null);
                 showRecorded(view, update);
             }
 
@@ -143,8 +142,6 @@ public final class LineageFilePanel extends JPanel {
         sourceSwitch = new SegmentedSwitch<>(List.of(LineageSource.DATAFORM, LineageSource.DATAPLEX),
                 LineageSource::label, model.source(), this::switchSource);
 
-        stateBannerSlot.setOpaque(false);
-        stateBannerSlot.setVisible(false);
         JPanel banners = new JPanel(new VerticalLayout(JBUIScale.scale(6)));
         banners.setOpaque(false);
         banners.add(stateBannerSlot);
@@ -207,7 +204,7 @@ public final class LineageFilePanel extends JPanel {
      * The banner telling why Knowledge Catalog has nothing to show, {@code null} while it has.
      */
     @Nullable DataplexStateBanner stateBanner() {
-        return stateBanner;
+        return stateBannerSlot.banner();
     }
 
     /**
@@ -256,7 +253,7 @@ public final class LineageFilePanel extends JPanel {
     private void reloadRecorded() {
         CompiledGraph compiled = compiledGraph.get();
         if (!shown || compiled == null || model.source() != LineageSource.DATAPLEX) return;
-        showStateBanner(null);
+        stateBannerSlot.setBanner(null);
         refresher.reload(compiled, model.timeRange());
     }
 
@@ -264,7 +261,7 @@ public final class LineageFilePanel extends JPanel {
         refresher.hide();
         recordedView = null;
         setLoading(false);
-        showStateBanner(null);
+        stateBannerSlot.setBanner(null);
     }
 
     private void clearDrawing() {
@@ -303,32 +300,23 @@ public final class LineageFilePanel extends JPanel {
     }
 
     private void showActivity(@NotNull RecordedActivity activity) {
-        setLoading(activity == RecordedActivity.LOADING || activity == RecordedActivity.UPDATING);
+        setLoading(activity.isBusy());
         if (activity == RecordedActivity.LOADING && recordedView == null) {
-            showStateBanner(null);
+            stateBannerSlot.setBanner(null);
             showNothing("Loading the Knowledge Catalog lineage…");
         }
-        if (activity == RecordedActivity.UPDATING) showStateBanner(null);
+        if (activity == RecordedActivity.UPDATING) stateBannerSlot.setBanner(null);
     }
 
     private void showFailure(@NotNull DataplexLineageException.Kind kind, @Nullable String detail, boolean viewShown) {
         if (viewShown && recordedView != null) {
-            showStateBanner(DataplexStateBanner.updateFailed(detail, this::reloadRecorded));
+            stateBannerSlot.setBanner(DataplexStateBanner.updateFailed(detail, this::reloadRecorded));
             return;
         }
         clearDrawing();
-        showStateBanner(DataplexStateBanner.of(project, DataplexStateBanner.stateOf(kind), projectId(), model.timeRange(),
+        stateBannerSlot.setBanner(DataplexStateBanner.of(project, DataplexStateBanner.stateOf(kind),
+                DataplexStateBanner.projectIdOf(lineageService, compiledGraph.get()), model.timeRange(),
                 detail, this::reloadRecorded, () -> sourceSwitch.select(LineageSource.DATAFORM)));
-    }
-
-    private @NotNull String projectId() {
-        CompiledGraph compiled = compiledGraph.get();
-        if (compiled == null) return "this project";
-        try {
-            return lineageService.scopeOf(compiled).projectId();
-        } catch (RuntimeException e) {
-            return "this project";
-        }
     }
 
     private void showNothing(@NotNull String message) {
@@ -336,20 +324,6 @@ public final class LineageFilePanel extends JPanel {
         model.setDataplexView(null);
         model.setGraph(null);
         canvas.setPlaceholder(message, SHOW_DATAFORM, () -> sourceSwitch.select(LineageSource.DATAFORM));
-    }
-
-    private void showStateBanner(@Nullable DataplexStateBanner banner) {
-        if (stateBanner == banner) return;
-        stateBanner = banner;
-        stateBannerSlot.removeAll();
-        if (banner != null) stateBannerSlot.add(banner.component(), BorderLayout.CENTER);
-        stateBannerSlot.setVisible(banner != null);
-        stateBannerSlot.revalidate();
-        Container overlay = stateBannerSlot.getParent() == null ? null : stateBannerSlot.getParent().getParent();
-        if (overlay != null) {
-            overlay.revalidate();
-            overlay.repaint();
-        }
     }
 
     private void setLoading(boolean value) {
@@ -391,7 +365,7 @@ public final class LineageFilePanel extends JPanel {
         header.addLeading(loadingIcon);
         header.setTrailing(Toolbars.horizontal("Dataform.FileLineage", this,
                 LineageToolbarSupport.directionAction(model),
-                Toolbars.withText(LineageToolbarSupport.action("Open full lineage",
+                Toolbars.withText(Actions.of("Open full lineage",
                         "Open the project-wide Dataform lineage view",
                         DataformIcons.LINEAGE, this::openProjectLineage))).getComponent());
         return header;

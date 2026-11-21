@@ -156,8 +156,9 @@ Dataform expressions are folded to their evaluated value in the editor, the way 
   reported as unused
 
 ### Dataform Unit Tests
-- **Create Dataform Test**: Generates `definitions/tests/test_<action>.sqlx` for a table or view,
-  from the project view or the editor menu
+- **Create Dataform Test**: Generates `definitions/tests/<path>/test_<action>.sqlx` for a table or view,
+  from the project view or the editor menu, where `<path>` is the file's directory under `definitions`
+  (`definitions/bronze/customer/file.sqlx` is tested in `definitions/tests/bronze/customer/`)
 - **Test Editing**: Completion of the tested dataset, input names and column aliases, and
   `Ctrl+Click` from an alias to the column it stands for
 - **Run Tests on BigQuery**: A `Dataform Unit Tests` run configuration with gutter icons; results

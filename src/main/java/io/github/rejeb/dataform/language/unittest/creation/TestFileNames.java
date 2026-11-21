@@ -16,6 +16,8 @@
  */
 package io.github.rejeb.dataform.language.unittest.creation;
 
+import com.intellij.openapi.vfs.VfsUtilCore;
+import com.intellij.openapi.vfs.VirtualFile;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.compilation.model.CompiledTable;
 import io.github.rejeb.dataform.language.compilation.model.Declaration;
@@ -67,6 +69,19 @@ public final class TestFileNames {
     @NotNull
     public static String fileName(@NotNull Target tested, boolean ambiguous) {
         return "test_" + (ambiguous ? tested.getSchema() + "_" : "") + tested.getName() + ".sqlx";
+    }
+
+    /**
+     * Returns the directory of the tests of a source file, relative to its {@code definitions}
+     * directory: {@code tests} followed by the path of the source file's directory under
+     * {@code definitions}, so that {@code definitions/bronze/customer/file.sqlx} is tested in
+     * {@code definitions/tests/bronze/customer}.
+     */
+    @NotNull
+    public static String testsDirPath(@NotNull VirtualFile definitions, @NotNull VirtualFile source) {
+        VirtualFile parent = source.getParent();
+        String relative = parent == null ? null : VfsUtilCore.getRelativePath(parent, definitions);
+        return relative == null || relative.isEmpty() ? TESTS_DIR : TESTS_DIR + "/" + relative;
     }
 
     private static <T> List<T> present(List<T> list) {

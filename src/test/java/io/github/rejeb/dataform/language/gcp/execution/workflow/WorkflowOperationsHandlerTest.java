@@ -17,6 +17,7 @@
 package io.github.rejeb.dataform.language.gcp.execution.workflow;
 
 import io.github.rejeb.dataform.language.gcp.common.GcpConfigProvider;
+import io.github.rejeb.dataform.language.gcp.common.RepositoryCoordinates;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowCreationResult;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowRunRequest;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.repository.WorkflowRepository;
@@ -39,7 +40,7 @@ class WorkflowOperationsHandlerTest {
         when(config.getLocation()).thenReturn("europe-west1");
         when(config.getRepositoryId()).thenReturn("my-repo");
         when(config.getServiceAccount()).thenReturn("runner@my-project.iam.gserviceaccount.com");
-        when(repository.createWorkflowRun(any(), any(), any(), any(), any()))
+        when(repository.createWorkflowRun(any(), any(), any()))
                 .thenReturn(new WorkflowCreationResult("invocation", "workspace"));
         WorkflowRunRequest request = new WorkflowRunRequest(
                 "intellij-run-1", List.of(), List.of(), false, false, false);
@@ -47,9 +48,7 @@ class WorkflowOperationsHandlerTest {
         new WorkflowOperationsHandler(repository, config).createWorkflowRun(request);
 
         verify(repository).createWorkflowRun(
-                "my-project",
-                "europe-west1",
-                "my-repo",
+                new RepositoryCoordinates("my-project", "europe-west1", "my-repo"),
                 "runner@my-project.iam.gserviceaccount.com",
                 request);
     }

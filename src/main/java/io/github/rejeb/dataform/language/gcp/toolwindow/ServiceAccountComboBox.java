@@ -20,6 +20,7 @@ import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.project.Project;
 import io.github.rejeb.dataform.language.gcp.common.ServiceAccountLister;
 import io.github.rejeb.dataform.language.ui.FilteringComboBox;
+import io.github.rejeb.dataform.language.ui.LatestRequest;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.SwingUtilities;
@@ -45,7 +46,8 @@ public class ServiceAccountComboBox extends FilteringComboBox {
 
     private String loadedProjectId;
     private boolean loading;
-    private long generation;
+    private final LatestRequest lists = new LatestRequest(
+            task -> ApplicationManager.getApplication().executeOnPooledThread(task), SwingUtilities::invokeLater);
 
     public ServiceAccountComboBox(@NotNull Project project, @NotNull Supplier<String> projectIdSupplier) {
         super(List.of());
@@ -76,19 +78,10 @@ public class ServiceAccountComboBox extends FilteringComboBox {
             return;
         }
         loading = true;
-        long token = ++generation;
-        ApplicationManager.getApplication().executeOnPooledThread(() -> {
-            ServiceAccountLister.Result result = ServiceAccountLister.list(projectId);
-            SwingUtilities.invokeLater(() -> applyResult(token, projectId, result));
-        });
+        lists.submit(() -> ServiceAccountLister.list(projectId), result -> applyResult(projectId, result));
     }
 
-    private void applyResult(long token,
-                             @NotNull String projectId,
-                             @NotNull ServiceAccountLister.Result result) {
-        if (token != generation) {
-            return;
-        }
+    private void applyResult(@NotNull String projectId, @NotNull ServiceAccountLister.Result result) {
         loading = false;
         loadedProjectId = projectId;
         if (result.permissionDenied() || result.emails().isEmpty()) {

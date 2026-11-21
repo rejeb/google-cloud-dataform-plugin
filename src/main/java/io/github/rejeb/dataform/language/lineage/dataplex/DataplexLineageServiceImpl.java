@@ -30,6 +30,8 @@ import io.github.rejeb.dataform.language.lineage.extractor.LineageExtractorImpl;
 import io.github.rejeb.dataform.language.lineage.graph.LineageGraph;
 import io.github.rejeb.dataform.language.lineage.graph.LineageNode;
 import io.github.rejeb.dataform.language.service.DataformProjectDefaults;
+import io.github.rejeb.dataform.language.util.concurrent.Futures;
+import io.github.rejeb.dataform.language.util.concurrent.ParallelCalls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -47,7 +49,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -288,7 +289,7 @@ public final class DataplexLineageServiceImpl implements DataplexLineageService 
         synchronized (lock) {
             running = inFlight.putIfAbsent(key, mine);
         }
-        if (running != null) return await(running);
+        if (running != null) return Futures.await(running);
         try {
             T value = work.get();
             mine.complete(value);
@@ -300,16 +301,6 @@ public final class DataplexLineageServiceImpl implements DataplexLineageService 
             synchronized (lock) {
                 inFlight.remove(key, mine);
             }
-        }
-    }
-
-    private static <T> T await(@NotNull CompletableFuture<T> running) {
-        try {
-            return running.join();
-        } catch (CompletionException e) {
-            if (e.getCause() instanceof RuntimeException failure) throw failure;
-            if (e.getCause() instanceof Error failure) throw failure;
-            throw e;
         }
     }
 

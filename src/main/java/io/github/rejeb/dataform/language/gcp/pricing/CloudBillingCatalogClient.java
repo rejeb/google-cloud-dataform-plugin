@@ -16,8 +16,6 @@
  */
 package io.github.rejeb.dataform.language.gcp.pricing;
 
-import com.google.auth.oauth2.AccessToken;
-import com.google.auth.oauth2.GoogleCredentials;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -55,7 +53,7 @@ public final class CloudBillingCatalogClient implements PriceListFetcher {
 
     @Override
     public @NotNull PriceList fetch(@NotNull String currency) throws Exception {
-        String token = accessToken();
+        String token = DataformCredentialsService.getInstance().accessToken(null);
         Map<String, BigDecimal> prices = new LinkedHashMap<>();
         String listCurrency = currency;
         String pageToken = null;
@@ -74,17 +72,6 @@ public final class CloudBillingCatalogClient implements PriceListFetcher {
             pages++;
         } while (pageToken != null && !pageToken.isBlank() && pages < MAX_PAGES);
         return new PriceList(listCurrency, Instant.now(), prices, false);
-    }
-
-    @NotNull
-    private static String accessToken() throws IOException {
-        GoogleCredentials credentials = DataformCredentialsService.getInstance().get();
-        credentials.refreshIfExpired();
-        AccessToken token = credentials.getAccessToken();
-        if (token == null) {
-            throw new IOException("No access token for the Cloud Billing API");
-        }
-        return token.getTokenValue();
     }
 
     @NotNull

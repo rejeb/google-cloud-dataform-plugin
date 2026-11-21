@@ -64,7 +64,9 @@ import io.github.rejeb.dataform.language.lineage.model.SearchScope;
 import io.github.rejeb.dataform.language.lineage.service.LineageGraphService;
 import io.github.rejeb.dataform.language.lineage.toolwindow.LineageToolWindow;
 import io.github.rejeb.dataform.language.lineage.toolwindow.LineageToolWindowTab;
+import io.github.rejeb.dataform.language.ui.Actions;
 import io.github.rejeb.dataform.language.ui.Banners;
+import io.github.rejeb.dataform.language.ui.LatestRequest;
 import io.github.rejeb.dataform.language.ui.SegmentedSwitch;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -123,20 +125,21 @@ public final class LineageProjectPanel extends JPanel implements Disposable {
     private final JBLabel foundLabel = new JBLabel();
     private final LineageCards cards;
     private final DetailsPanel detailsPanel;
-    private final AtomicLong refreshGeneration = new AtomicLong();
+    private final LatestRequest refreshes = new LatestRequest(
+            task -> ApplicationManager.getApplication().executeOnPooledThread(task),
+            update -> ApplicationManager.getApplication().invokeLater(update, ModalityState.nonModal()));
     private final AtomicLong loadGeneration = new AtomicLong();
     private final DataplexLineageService lineageService;
     private final Executor executor;
     private final LineageToolWindow toolWindow;
     private final SegmentedSwitch<LineageSource> sourceSwitch;
     private final JBLabel loadingIcon = new JBLabel(AnimatedIcon.Default.INSTANCE);
-    private final JPanel stateBannerSlot = new JPanel(new BorderLayout());
+    private final StateBannerSlot stateBannerSlot = new StateBannerSlot();
     private ActionToolbar toolbar;
     private @Nullable CompiledGraph compiled;
     private @NotNull LineageGraphService.Graphs dataform = new LineageGraphService.Graphs(null, null);
     private final RecordedLineageRefresher refresher;
     private @NotNull TimeRange requestedRange;
-    private @Nullable DataplexStateBanner stateBanner;
     private @Nullable String shownFor;
     private boolean loading;
     private boolean shown;
@@ -152,7 +155,7 @@ public final class LineageProjectPanel extends JPanel implements Disposable {
     private @NotNull List<String> columnRoots = List.of();
     private @Nullable DataplexColumnLineage.Result recordedColumns;
     private final Map<String, ColumnRef> discoveredColumns = new LinkedHashMap<>();
-    private long columnGeneration;
+    private final LatestRequest columnReads;
     private @Nullable ColumnLineageGraph recordedGraph;
     private @Nullable ColumnLineageGraph appliedKnown;
     private @Nullable OutsideTableColumns.Result appliedOutside;
@@ -186,6 +189,8 @@ public final class LineageProjectPanel extends JPanel implements Disposable {
         this.model = model;
         this.lineageService = lineageService;
         this.executor = executor;
+        this.columnReads = new LatestRequest(executor,
+                update -> ApplicationManager.getApplication().invokeLater(update, ModalityState.nonModal()));
         this.toolWindow = toolWindow;
         this.requestedRange = model.timeRange();
         this.refresher = new RecordedLineageRefresher(lineageService, executor, new RecordedLineageRefresher.Listener() {
@@ -224,8 +229,6 @@ public final class LineageProjectPanel extends JPanel implements Disposable {
         canvas.setSelectionHandler(() -> setDetailsShown(true));
 
         ThreeComponentsSplitter graphArea = new ThreeComponentsSplitter(false, true);
-        stateBannerSlot.setOpaque(false);
-        stateBannerSlot.setVisible(false);
         JPanel banners = new JPanel(new VerticalLayout(JBUIScale.scale(6)));
         banners.setOpaque(false);
         banners.add(stateBannerSlot);
@@ -354,9 +357,9 @@ public final class LineageProjectPanel extends JPanel implements Disposable {
             String detail = failure;
             ApplicationManager.getApplication().invokeLater(() -> {
                 if (generation != loadGeneration.get()) return;
-                setLoading(isBusy(model.recordedActivity()));
+                setLoading(model.recordedActivity().isBusy());
                 if (larger == null) {
-                    showStateBanner(DataplexStateBanner.of(project, DataplexStateBanner.State.FAILED,
+                    stateBannerSlot.setBanner(DataplexStateBanner.of(project, DataplexStateBanner.State.FAILED,
                             view.scope().projectId(), view.range(), detail, this::reloadDataplex,
                             () -> sourceSwitch.select(LineageSource.DATAFORM)));
                     return;
@@ -413,7 +416,7 @@ public final class LineageProjectPanel extends JPanel implements Disposable {
      * The banner telling why Knowledge Catalog has nothing to show, {@code null} while it has.
      */
     @Nullable DataplexStateBanner stateBanner() {
-        return stateBanner;
+        return stateBannerSlot.banner();
     }
 
     /**
@@ -429,22 +432,16 @@ public final class LineageProjectPanel extends JPanel implements Disposable {
      * as what the recorded lineage is matched against with Knowledge Catalog.
      */
     public void refresh(boolean force) {
-        long generation = refreshGeneration.incrementAndGet();
-        ApplicationManager.getApplication().executeOnPooledThread(() -> {
+        refreshes.submit(() -> {
             DataformCompilationService svc = DataformCompilationService.getInstance(project);
             CompiledGraph compiled = force ? svc.compile(true) : svc.getCompiledGraph();
-
             LineageGraphService.Graphs graphs = compiled == null
                     ? new LineageGraphService.Graphs(null, null)
                     : LineageGraphService.getInstance(project).graphs(compiled);
-
-            Map<String, String> columnTypes = ColumnTypes.of(project);
-
-            ApplicationManager.getApplication().invokeLater(() -> {
-                if (generation != refreshGeneration.get()) return;
-                model.setColumnTypes(columnTypes);
-                showCompiled(compiled, graphs);
-            }, ModalityState.nonModal());
+            return new Refreshed(compiled, graphs, ColumnTypes.of(project));
+        }, refreshed -> {
+            model.setColumnTypes(refreshed.columnTypes());
+            showCompiled(refreshed.compiled(), refreshed.graphs());
         });
     }
 
@@ -477,7 +474,7 @@ public final class LineageProjectPanel extends JPanel implements Disposable {
         requestedRange = model.timeRange();
         askedTables = tablesOf(dataform);
         loadGeneration.incrementAndGet();
-        showStateBanner(null);
+        stateBannerSlot.setBanner(null);
         refresher.reload(compiledGraph, requestedRange);
     }
 
@@ -518,7 +515,7 @@ public final class LineageProjectPanel extends JPanel implements Disposable {
         askedTables = null;
         setLoading(false);
         model.setRecordedActivity(RecordedActivity.NONE);
-        showStateBanner(null);
+        stateBannerSlot.setBanner(null);
         canvas.clearPlaceholder();
     }
 
@@ -540,7 +537,7 @@ public final class LineageProjectPanel extends JPanel implements Disposable {
             drawAsLeft(view);
         }
         applyPendingNodes();
-        showStateBanner(view.snapshot().links().isEmpty()
+        stateBannerSlot.setBanner(view.snapshot().links().isEmpty()
                 ? DataplexStateBanner.of(project, DataplexStateBanner.State.NOTHING_RECORDED, view.scope().projectId(),
                 view.range(), null, this::reloadDataplex, () -> sourceSwitch.select(LineageSource.DATAFORM))
                 : null);
@@ -562,9 +559,9 @@ public final class LineageProjectPanel extends JPanel implements Disposable {
 
     private void showActivity(@NotNull RecordedActivity activity) {
         model.setRecordedActivity(activity);
-        setLoading(isBusy(activity));
+        setLoading(activity.isBusy());
         if (activity == RecordedActivity.LOADING && model.dataplexView() == null) {
-            showStateBanner(null);
+            stateBannerSlot.setBanner(null);
             dropView();
             canvas.setPlaceholder("Loading the Knowledge Catalog lineage…", "Show Dataform lineage",
                     () -> sourceSwitch.select(LineageSource.DATAFORM));
@@ -573,27 +570,14 @@ public final class LineageProjectPanel extends JPanel implements Disposable {
 
     private void showFailure(@NotNull DataplexLineageException.Kind kind, @Nullable String detail, boolean viewShown) {
         if (viewShown && model.dataplexView() != null) {
-            showStateBanner(DataplexStateBanner.updateFailed(detail, this::reloadDataplex));
+            stateBannerSlot.setBanner(DataplexStateBanner.updateFailed(detail, this::reloadDataplex));
             return;
         }
         canvas.clearPlaceholder();
         dropView();
-        showStateBanner(DataplexStateBanner.of(project, DataplexStateBanner.stateOf(kind), projectId(), requestedRange,
+        stateBannerSlot.setBanner(DataplexStateBanner.of(project, DataplexStateBanner.stateOf(kind),
+                DataplexStateBanner.projectIdOf(lineageService, compiled), requestedRange,
                 detail, this::reloadDataplex, () -> sourceSwitch.select(LineageSource.DATAFORM)));
-    }
-
-    private @NotNull String projectId() {
-        CompiledGraph compiledGraph = compiled;
-        if (compiledGraph == null) return "this project";
-        try {
-            return lineageService.scopeOf(compiledGraph).projectId();
-        } catch (RuntimeException e) {
-            return "this project";
-        }
-    }
-
-    private static boolean isBusy(@NotNull RecordedActivity activity) {
-        return activity == RecordedActivity.LOADING || activity == RecordedActivity.UPDATING;
     }
 
     private void expand(@NotNull String nodeId, @NotNull DataplexLineageClient.Direction direction) {
@@ -613,9 +597,9 @@ public final class LineageProjectPanel extends JPanel implements Disposable {
             String detail = failure;
             ApplicationManager.getApplication().invokeLater(() -> {
                 if (generation != loadGeneration.get()) return;
-                setLoading(isBusy(model.recordedActivity()));
+                setLoading(model.recordedActivity().isBusy());
                 if (larger == null) {
-                    showStateBanner(DataplexStateBanner.of(project, DataplexStateBanner.State.FAILED,
+                    stateBannerSlot.setBanner(DataplexStateBanner.of(project, DataplexStateBanner.State.FAILED,
                             view.scope().projectId(), view.range(), detail, this::reloadDataplex,
                             () -> sourceSwitch.select(LineageSource.DATAFORM)));
                     return;
@@ -695,7 +679,7 @@ public final class LineageProjectPanel extends JPanel implements Disposable {
     private void syncColumnLineage(boolean recorded) {
         if (!recorded) {
             if (recordedGraph == null) return;
-            columnGeneration++;
+            columnReads.cancel();
             recordedGraph = null;
             columnView = null;
             columnRoots = List.of();
@@ -707,7 +691,7 @@ public final class LineageProjectPanel extends JPanel implements Disposable {
         }
         DataplexView view = model.dataplexView();
         if (view != columnView) {
-            columnGeneration++;
+            columnReads.cancel();
             columnView = view;
             columnRoots = List.of();
             recordedColumns = null;
@@ -717,7 +701,7 @@ public final class LineageProjectPanel extends JPanel implements Disposable {
         applyRecordedColumns();
         List<String> roots = view == null ? List.of() : model.lineageRootIds();
         if (roots.equals(columnRoots)) return;
-        long generation = ++columnGeneration;
+        columnReads.cancel();
         columnRoots = roots;
         recordedColumns = null;
         showColumnLineageReason(null);
@@ -729,27 +713,20 @@ public final class LineageProjectPanel extends JPanel implements Disposable {
             ColumnRef column = graph.column(id);
             if (column != null) refs.add(column);
         }
-        executor.execute(() -> {
-            DataplexColumnLineage.Result read;
-            try {
-                read = lineageService.columnLineage(view, refs);
-            } catch (ProcessCanceledException e) {
-                throw e;
-            } catch (RuntimeException e) {
-                read = new DataplexColumnLineage.Result(ColumnLineageGraph.builder().build(),
-                        "Knowledge Catalog cannot give the column lineage: " + e.getMessage());
-            }
-            DataplexColumnLineage.Result result = read;
-            ApplicationManager.getApplication().invokeLater(() -> {
-                if (generation != columnGeneration) return;
-                recordedColumns = result;
-                for (ColumnRef column : result.graph().columns()) {
-                    discoveredColumns.putIfAbsent(column.id().toLowerCase(Locale.ROOT), column);
-                }
-                showColumnLineageReason(result.reason());
-                applyRecordedColumns();
-            }, ModalityState.nonModal());
-        });
+        columnReads.submit(() -> lineageService.columnLineage(view, refs),
+                this::showRecordedColumns,
+                RuntimeException.class,
+                e -> showRecordedColumns(new DataplexColumnLineage.Result(ColumnLineageGraph.builder().build(),
+                        "Knowledge Catalog cannot give the column lineage: " + e.getMessage())));
+    }
+
+    private void showRecordedColumns(@NotNull DataplexColumnLineage.Result result) {
+        recordedColumns = result;
+        for (ColumnRef column : result.graph().columns()) {
+            discoveredColumns.putIfAbsent(column.id().toLowerCase(Locale.ROOT), column);
+        }
+        showColumnLineageReason(result.reason());
+        applyRecordedColumns();
     }
 
     private void applyRecordedColumns() {
@@ -775,20 +752,6 @@ public final class LineageProjectPanel extends JPanel implements Disposable {
         if (reason != null) Banners.setMessage(columnReasonBanner, reason);
         columnReasonBanner.setVisible(reason != null);
         Container overlay = columnReasonBanner.getParent() == null ? null : columnReasonBanner.getParent().getParent();
-        if (overlay != null) {
-            overlay.revalidate();
-            overlay.repaint();
-        }
-    }
-
-    private void showStateBanner(@Nullable DataplexStateBanner banner) {
-        if (stateBanner == banner) return;
-        stateBanner = banner;
-        stateBannerSlot.removeAll();
-        if (banner != null) stateBannerSlot.add(banner.component(), BorderLayout.CENTER);
-        stateBannerSlot.setVisible(banner != null);
-        stateBannerSlot.revalidate();
-        Container overlay = stateBannerSlot.getParent() == null ? null : stateBannerSlot.getParent().getParent();
         if (overlay != null) {
             overlay.revalidate();
             overlay.repaint();
@@ -831,7 +794,7 @@ public final class LineageProjectPanel extends JPanel implements Disposable {
 
         List<AnAction> shared = new ArrayList<>();
         shared.add(LineageToolbarSupport.component(sourceHolder));
-        shared.add(LineageToolbarSupport.toggle("Show filters", "Show or hide the filters",
+        shared.add(Actions.toggle("Show filters", "Show or hide the filters",
                 () -> LineageIcons.FILTERS, filtersPanel::isVisible,
                 () -> filtersPanel.setVisible(!filtersPanel.isVisible())));
         shared.add(LineageToolbarSupport.component(searchBox));
@@ -839,24 +802,24 @@ public final class LineageProjectPanel extends JPanel implements Disposable {
         shared.add(Separator.create());
         shared.add(LineageToolbarSupport.directionAction(model));
         shared.add(LineageToolbarSupport.densityToggle(model));
-        shared.add(LineageToolbarSupport.toggle("Show minimap", "Show or hide the minimap",
+        shared.add(Actions.toggle("Show minimap", "Show or hide the minimap",
                 () -> LineageIcons.MINIMAP, model::minimapVisible, model::toggleMinimap));
-        shared.add(LineageToolbarSupport.toggle("Show details", "Show or hide the details of the selection",
+        shared.add(Actions.toggle("Show details", "Show or hide the details of the selection",
                 () -> LineageIcons.DETAILS, detailsPanel::isVisible,
                 () -> setDetailsShown(!detailsPanel.isVisible())));
         shared.add(Separator.create());
-        shared.add(LineageToolbarSupport.action("Fit to view", "Fit the graph to the visible area",
+        shared.add(Actions.of("Fit to view", "Fit the graph to the visible area",
                 LineageIcons.FIT, canvas::fitToView));
         AnAction legend = LineageToolbarSupport.legendAction(
                 () -> LineageLegend.orderedTypes(model.typeCounts().keySet()), model::source);
 
         List<AnAction> declared = new ArrayList<>(shared);
-        declared.add(LineageToolbarSupport.action("Recompile and refresh", "Recompile the project and refresh the lineage",
+        declared.add(Actions.of("Recompile and refresh", "Recompile the project and refresh the lineage",
                 DataformIcons.REFRESH, () -> refresh(true)));
         declared.add(legend);
 
         List<AnAction> recorded = new ArrayList<>(shared);
-        recorded.add(LineageToolbarSupport.action("Reload from Knowledge Catalog",
+        recorded.add(Actions.of("Reload from Knowledge Catalog",
                 "Read the recorded lineage again", DataformIcons.REFRESH, this::reloadDataplex));
         recorded.add(LineageToolbarSupport.component(loadingIcon));
         recorded.add(LineageToolbarSupport.timeRangeAction(model));
@@ -939,5 +902,9 @@ public final class LineageProjectPanel extends JPanel implements Disposable {
         String counter = SearchCounter.text(model);
         foundLabel.setVisible(!counter.isEmpty());
         foundLabel.setText(counter);
+    }
+
+    private record Refreshed(@Nullable CompiledGraph compiled, @NotNull LineageGraphService.Graphs graphs,
+                             @NotNull Map<String, String> columnTypes) {
     }
 }

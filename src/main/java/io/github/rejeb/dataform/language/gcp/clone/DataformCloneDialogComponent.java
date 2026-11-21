@@ -54,12 +54,14 @@ import io.github.rejeb.dataform.language.gcp.auth.DataformCredentialsService;
 import io.github.rejeb.dataform.language.gcp.auth.GcpAuthErrors;
 import io.github.rejeb.dataform.language.gcp.common.DataformLocations;
 import io.github.rejeb.dataform.language.gcp.common.GcpApiException;
+import io.github.rejeb.dataform.language.gcp.common.RepositoryCoordinates;
 import io.github.rejeb.dataform.language.gcp.workspace.DataformRepository;
 import io.github.rejeb.dataform.language.gcp.workspace.Workspace;
 import io.github.rejeb.dataform.language.gcp.workspace.repository.WorkspaceRepository;
 import io.github.rejeb.dataform.language.ui.Banners;
 import io.github.rejeb.dataform.language.ui.EmptyStates;
 import io.github.rejeb.dataform.language.ui.FilteringComboBox;
+import io.github.rejeb.dataform.language.ui.LatestRequest;
 import io.github.rejeb.dataform.language.ui.StatusLabel;
 import io.github.rejeb.dataform.language.ui.UiText;
 import org.jetbrains.annotations.NotNull;
@@ -138,8 +140,8 @@ final class DataformCloneDialogComponent extends VcsCloneDialogExtensionComponen
     private @Nullable String listedProject;
     private @Nullable String listedLocation;
     private @Nullable String listingProblem;
-    private long listingGeneration;
-    private long workspaceGeneration;
+    private final LatestRequest listing;
+    private final LatestRequest workspaceListing;
     private boolean started;
     private boolean signedIn;
     private boolean showsSignIn;
@@ -157,6 +159,8 @@ final class DataformCloneDialogComponent extends VcsCloneDialogExtensionComponen
         this.credentials = credentials;
         this.starter = starter;
         this.background = background;
+        this.listing = new LatestRequest(background, this::onUi);
+        this.workspaceListing = new LatestRequest(background, this::onUi);
         this.typingPause = new Alarm(Alarm.ThreadToUse.SWING_THREAD, this);
         Disposer.register(this, alive);
         PropertiesComponent properties = PropertiesComponent.getInstance();
@@ -218,7 +222,7 @@ final class DataformCloneDialogComponent extends VcsCloneDialogExtensionComponen
         }
         String gcpProject = projectField.getText().trim();
         String location = locationField.getText();
-        long generation = ++listingGeneration;
+        listing.cancel();
         if (gcpProject.isEmpty() || location.isEmpty()) {
             repositoryList.setPaintBusy(false);
             listed(gcpProject, location, List.of());
@@ -226,24 +230,16 @@ final class DataformCloneDialogComponent extends VcsCloneDialogExtensionComponen
         }
         repositoryList.setPaintBusy(true);
         EmptyStates.show(repositoryList.getEmptyText(), "Loading repositories…");
-        background.execute(() -> {
-            try {
-                List<DataformRepository> found = repository.findRepositories(gcpProject, location);
-                onUi(() -> {
-                    if (generation == listingGeneration) {
-                        repositoryList.setPaintBusy(false);
-                        listed(gcpProject, location, found);
-                    }
+        listing.submit(() -> repository.findRepositories(gcpProject, location),
+                found -> {
+                    repositoryList.setPaintBusy(false);
+                    listed(gcpProject, location, found);
+                },
+                GcpApiException.class,
+                failure -> {
+                    repositoryList.setPaintBusy(false);
+                    listingFailed(failure);
                 });
-            } catch (GcpApiException e) {
-                onUi(() -> {
-                    if (generation == listingGeneration) {
-                        repositoryList.setPaintBusy(false);
-                        listingFailed(e);
-                    }
-                });
-            }
-        });
     }
 
     boolean showsSignIn() {
@@ -447,7 +443,7 @@ final class DataformCloneDialogComponent extends VcsCloneDialogExtensionComponen
         if (Objects.equals(chosen, form.repository())) {
             return;
         }
-        workspaceGeneration++;
+        workspaceListing.cancel();
         loadingWorkspaces = false;
         form.selectRepository(chosen);
         directory.follow(chosen == null ? null : chosen.repositoryId());
@@ -468,29 +464,19 @@ final class DataformCloneDialogComponent extends VcsCloneDialogExtensionComponen
         }
         form.workspacesRequested();
         loadingWorkspaces = true;
-        long generation = ++workspaceGeneration;
         String gcpProject = listedProject;
         String location = listedLocation;
-        background.execute(() -> {
-            try {
-                List<String> workspaces = repository.findAll(gcpProject, location, chosen.repositoryId()).stream()
+        workspaceListing.submit(() -> repository.findAll(
+                                new RepositoryCoordinates(gcpProject, location, chosen.repositoryId())).stream()
                         .map(Workspace::workspaceId)
-                        .toList();
-                onUi(() -> {
-                    if (generation == workspaceGeneration) {
-                        loadingWorkspaces = false;
-                        form.workspacesLoaded(workspaces);
-                        showSource();
-                    }
-                });
-            } catch (GcpApiException e) {
-                onUi(() -> {
-                    if (generation == workspaceGeneration) {
-                        workspacesFailed(e);
-                    }
-                });
-            }
-        });
+                        .toList(),
+                workspaces -> {
+                    loadingWorkspaces = false;
+                    form.workspacesLoaded(workspaces);
+                    showSource();
+                },
+                GcpApiException.class,
+                this::workspacesFailed);
     }
 
     private void workspacesFailed(@NotNull GcpApiException failure) {

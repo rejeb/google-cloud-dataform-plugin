@@ -16,11 +16,8 @@
  */
 package io.github.rejeb.dataform.language.fileEditor;
 
-import com.intellij.openapi.actionSystem.ActionUpdateThread;
-import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.editor.colors.EditorColorsManager;
 import com.intellij.openapi.ide.CopyPasteManager;
-import com.intellij.openapi.project.DumbAwareAction;
 import com.intellij.ui.ColoredTreeCellRenderer;
 import com.intellij.ui.JBColor;
 import com.intellij.ui.TreeTableSpeedSearch;
@@ -33,6 +30,7 @@ import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
 import io.github.rejeb.dataform.language.DataformIcons;
 import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
+import io.github.rejeb.dataform.language.ui.Actions;
 import io.github.rejeb.dataform.language.ui.CollapsibleSection;
 import io.github.rejeb.dataform.language.ui.EmptyStates;
 import io.github.rejeb.dataform.language.ui.ReadOnlyTextFields;
@@ -61,7 +59,6 @@ import java.awt.datatransfer.StringSelection;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.List;
-import java.util.function.BooleanSupplier;
 
 /**
  * The schema of one action in the schema preview: its columns in a tree table inside a rounded box,
@@ -165,10 +162,10 @@ class TableSchemaSection extends CollapsibleSection {
         header.setDefaultRenderer(headerRenderer());
 
         setTrailing(Toolbars.horizontal(PLACE, this,
-                action("Copy Column Names", DataformIcons.COPY, () -> !columns.isEmpty(),
+                Actions.shownWhen("Copy Column Names", "Copy Column Names", DataformIcons.COPY, () -> !columns.isEmpty(),
                         () -> CopyPasteManager.getInstance()
                                 .setContents(new StringSelection(SchemaTreeModel.columnNames(columns)))),
-                action("Refresh Schema", DataformIcons.REFRESH, () -> true, refresh)).getComponent());
+                Actions.shownWhen("Refresh Schema", "Refresh Schema", DataformIcons.REFRESH, () -> true, refresh)).getComponent());
 
         JPanel table = new JPanel(new BorderLayout());
         table.setOpaque(false);
@@ -289,27 +286,6 @@ class TableSchemaSection extends CollapsibleSection {
             label.setFont(JBFont.medium());
             label.setForeground(UIUtil.getContextHelpForeground());
             return label;
-        };
-    }
-
-    @NotNull
-    private static DumbAwareAction action(@NotNull String text, @NotNull Icon icon, @NotNull BooleanSupplier shown,
-                                          @NotNull Runnable perform) {
-        return new DumbAwareAction(text, text, icon) {
-            @Override
-            public void actionPerformed(@NotNull AnActionEvent e) {
-                perform.run();
-            }
-
-            @Override
-            public void update(@NotNull AnActionEvent e) {
-                e.getPresentation().setEnabledAndVisible(shown.getAsBoolean());
-            }
-
-            @Override
-            public @NotNull ActionUpdateThread getActionUpdateThread() {
-                return ActionUpdateThread.EDT;
-            }
         };
     }
 }

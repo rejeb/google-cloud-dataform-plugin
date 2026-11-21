@@ -16,9 +16,8 @@
  */
 package io.github.rejeb.dataform.language.gcp.execution.workflow;
 
-import io.github.rejeb.dataform.language.gcp.common.GcpApiException;
-import io.github.rejeb.dataform.language.gcp.common.GcpConfigProvider.RepositoryCoordinates;
 import io.github.rejeb.dataform.language.gcp.common.GcpConfigProvider;
+import io.github.rejeb.dataform.language.gcp.common.RepositoryCoordinates;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowCreationResult;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowProgressSession;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowRunRequest;
@@ -41,9 +40,9 @@ public final class WorkflowOperationsHandler implements WorkflowOperations {
     @Override
     @NotNull
     public WorkflowCreationResult createWorkflowRun(@NotNull WorkflowRunRequest request) {
-        RepositoryCoordinates config = requireConfig();
+        RepositoryCoordinates config = GcpConfigProvider.requireCoordinatesOf(configProvider);
         return repository.createWorkflowRun(
-                config.projectId(), config.location(), config.repositoryId(),
+                config,
                 configProvider.getServiceAccount(), request);
     }
 
@@ -56,14 +55,5 @@ public final class WorkflowOperationsHandler implements WorkflowOperations {
     @Override
     public void cancelWorkflowRun(@NotNull String workflowRunName) {
         repository.cancelWorkflowRun(workflowRunName);
-    }
-
-    @NotNull
-    private RepositoryCoordinates requireConfig() {
-        RepositoryCoordinates config = GcpConfigProvider.coordinatesOf(configProvider);
-        if (config == null) {
-            throw new GcpApiException("No active repository config — configure a repository first.");
-        }
-        return config;
     }
 }

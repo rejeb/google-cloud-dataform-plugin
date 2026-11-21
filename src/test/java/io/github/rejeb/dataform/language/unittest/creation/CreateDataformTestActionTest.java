@@ -196,4 +196,40 @@ public class CreateDataformTestActionTest extends BasePlatformTestCase {
         assertEquals("keep me", VfsUtilCore.loadText(
                 orders.getParent().findFileByRelativePath("tests/test_orders.sqlx")));
     }
+
+    private static final String NESTED_GRAPH = """
+            {
+              "tables": [
+                {"type": "table", "target": {"database": "p", "schema": "bronze", "name": "customer"},
+                 "fileName": "definitions/bronze/customer/customer.sqlx", "disabled": false}
+              ],
+              "graphErrors": {"compilationErrors": []}
+            }""";
+
+    private VirtualFile nestedCustomer() {
+        UnitTestGraphFixture.install(getProject(), getTestRootDisposable(), NESTED_GRAPH);
+        return myFixture.addFileToProject("definitions/bronze/customer/customer.sqlx", "").getVirtualFile();
+    }
+
+    public void testCreatesTheTestInTheTestsSubdirectoryMirroringDefinitions() {
+        VirtualFile customer = nestedCustomer();
+        VirtualFile definitions = customer.getParent().getParent().getParent();
+        action().actionPerformed(eventOn(customer));
+        drain();
+        assertNotNull(definitions.findFileByRelativePath("tests/bronze/customer/test_customer.sqlx"));
+        assertNull(definitions.findFileByRelativePath("tests/test_customer.sqlx"));
+    }
+
+    public void testAnExistingTestInTheMirroredSubdirectoryIsKept() throws IOException {
+        myFixture.addFileToProject("definitions/tests/bronze/customer/test_customer.sqlx", "keep me");
+        VirtualFile customer = nestedCustomer();
+        VirtualFile definitions = customer.getParent().getParent().getParent();
+        AtomicInteger requests = countingCompileRequests();
+        action().actionPerformed(eventOn(customer));
+        drain();
+        assertEquals("keep me", VfsUtilCore.loadText(
+                definitions.findFileByRelativePath("tests/bronze/customer/test_customer.sqlx")));
+        assertNull(definitions.findFileByRelativePath("tests/test_customer.sqlx"));
+        assertEquals(0, requests.get());
+    }
 }

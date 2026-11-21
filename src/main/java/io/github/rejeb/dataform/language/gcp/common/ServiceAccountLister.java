@@ -16,7 +16,6 @@
  */
 package io.github.rejeb.dataform.language.gcp.common;
 
-import com.google.auth.oauth2.GoogleCredentials;
 import com.intellij.openapi.diagnostic.Logger;
 import io.github.rejeb.dataform.language.gcp.auth.DataformCredentialsService;
 import io.github.rejeb.dataform.language.gcp.auth.SslConfig;
@@ -116,13 +115,7 @@ public final class ServiceAccountLister {
     @Nullable
     private static String accessToken(@NotNull String projectId) {
         try {
-            GoogleCredentials credentials = DataformCredentialsService.getInstance()
-                    .get()
-                    .createWithQuotaProject(projectId);
-            credentials.refreshIfExpired();
-            return credentials.getAccessToken() != null
-                    ? credentials.getAccessToken().getTokenValue()
-                    : null;
+            return DataformCredentialsService.getInstance().accessToken(projectId);
         } catch (Exception e) {
             LOG.info("No usable credential to list service accounts.", e);
             return null;

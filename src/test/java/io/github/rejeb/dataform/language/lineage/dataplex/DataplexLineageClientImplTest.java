@@ -36,6 +36,7 @@ import com.google.rpc.ErrorInfo;
 import io.github.rejeb.dataform.language.gcp.auth.GcpAuthRequiredException;
 import io.github.rejeb.dataform.language.lineage.dataplex.DataplexLineageClient.Direction;
 import io.github.rejeb.dataform.language.lineage.dataplex.DataplexLineageException.Kind;
+import io.github.rejeb.dataform.language.util.concurrent.ParallelCalls;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;

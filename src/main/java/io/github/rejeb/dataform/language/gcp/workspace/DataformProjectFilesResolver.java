@@ -17,7 +17,7 @@
 package io.github.rejeb.dataform.language.gcp.workspace;
 
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.roots.ProjectRootManager;
+import com.intellij.openapi.project.ProjectUtil;
 import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.VirtualFileFilter;
@@ -36,7 +36,8 @@ import java.util.regex.Pattern;
 
 /**
  * Lists the files of the project that a push sends to the Dataform workspace: everything under
- * the content root, minus what {@code .gitignore} and {@code .gcloudignore} exclude.
+ * the project directory, the one the compilation also works in, minus what {@code .gitignore} and
+ * {@code .gcloudignore} exclude.
  */
 public final class DataformProjectFilesResolver {
 
@@ -54,7 +55,7 @@ public final class DataformProjectFilesResolver {
 
     @NotNull
     public static List<String> resolve(@NotNull Project project) {
-        VirtualFile contentRoot = resolveContentRoot(project);
+        VirtualFile contentRoot = projectDirectory(project);
         if (contentRoot == null) return List.of();
 
         List<IgnoreRule> rules = new ArrayList<>();
@@ -97,7 +98,7 @@ public final class DataformProjectFilesResolver {
      */
     @NotNull
     public static Predicate<String> gitIgnored(@NotNull Project project) {
-        VirtualFile contentRoot = resolveContentRoot(project);
+        VirtualFile contentRoot = projectDirectory(project);
         List<IgnoreRule> rules = contentRoot == null ? List.of() : readIgnorePatterns(contentRoot, ".gitignore");
         return relativePath -> isGitIgnored(relativePath, rules);
     }
@@ -154,9 +155,8 @@ public final class DataformProjectFilesResolver {
     }
 
     @Nullable
-    private static VirtualFile resolveContentRoot(@NotNull Project project) {
-        VirtualFile[] roots = ProjectRootManager.getInstance(project).getContentRoots();
-        return roots.length > 0 ? roots[0] : null;
+    static VirtualFile projectDirectory(@NotNull Project project) {
+        return ProjectUtil.guessProjectDir(project);
     }
 
     /**

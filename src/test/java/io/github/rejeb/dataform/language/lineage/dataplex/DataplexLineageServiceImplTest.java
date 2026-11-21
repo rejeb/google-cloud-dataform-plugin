@@ -25,6 +25,7 @@ import io.github.rejeb.dataform.language.lineage.dataplex.cache.DataplexLineageC
 import io.github.rejeb.dataform.language.lineage.dataplex.cache.DataplexLineageCacheImpl;
 import io.github.rejeb.dataform.language.lineage.dataplex.cache.Expansion;
 import io.github.rejeb.dataform.language.lineage.dataplex.cache.LineageCacheEntry;
+import io.github.rejeb.dataform.language.util.concurrent.ParallelCalls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.Test;
