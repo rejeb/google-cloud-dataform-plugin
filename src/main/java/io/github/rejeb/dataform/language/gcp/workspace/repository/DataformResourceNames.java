@@ -16,37 +16,15 @@
  */
 package io.github.rejeb.dataform.language.gcp.workspace.repository;
 
-import com.google.cloud.dataform.v1.WorkspaceName;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Builds the resource names the Dataform API addresses repositories and workspaces by, and reads
- * the one error that is not a failure: a repository with no commit yet answers every listing with
- * a not-found, which callers treat as an empty repository.
+ * Reads the one Dataform API error that is not a failure: a repository with no commit yet answers
+ * every listing with a not-found, which callers treat as an empty repository.
  */
 final class DataformResourceNames {
 
     private DataformResourceNames() {
-    }
-
-    static String workspaceName(
-            @NotNull String projectId,
-            @NotNull String location,
-            @NotNull String repositoryId,
-            @NotNull String workspaceId
-    ) {
-        return WorkspaceName.of(projectId, location, repositoryId, workspaceId).toString();
-    }
-
-    @NotNull
-    static String repositoryName(
-            @NotNull String projectId,
-            @NotNull String location,
-            @NotNull String repositoryId
-    ) {
-        return "projects/" + projectId
-                + "/locations/" + location
-                + "/repositories/" + repositoryId;
     }
 
     static boolean isEmptyRepoException(@NotNull Throwable t) {

@@ -29,29 +29,9 @@
                 language="SQL"
                 implementationClass="io.github.rejeb.dataform.language.unittest.completion.SqlxTestColumnCompletionContributor"/>
 
-        <completion.contributor
-                language="JavaScript" order="first"
-                id="dataformConfigTagCompletion"
-                implementationClass="io.github.rejeb.dataform.language.config.completion.DataformConfigTagCompletionContributor"/>
-
-        <completion.contributor
-                language="JavaScript" order="first"
-                id="dataformConfigValueCompletion"
-                implementationClass="io.github.rejeb.dataform.language.config.completion.DataformConfigValueCompletionContributor"/>
-
         <completion.confidence
                 language="JavaScript" order="first"
                 implementationClass="io.github.rejeb.dataform.language.config.ConfigColumnCompletionConfidence"/>
-
-        <completion.contributor
-                language="JavaScript" order="first"
-                id="dataformConfigColumnCompletion"
-                implementationClass="io.github.rejeb.dataform.language.config.completion.DataformConfigColumnCompletionContributor"/>
-
-        <completion.contributor
-                language="JavaScript" order="first"
-                id="dataformConfigPropertyCompletion"
-                implementationClass="io.github.rejeb.dataform.language.config.completion.DataformConfigPropertyCompletionContributor"/>
 
         <completion.contributor
                 language="JavaScript" order="first"
@@ -59,9 +39,14 @@
                 implementationClass="io.github.rejeb.dataform.language.completion.DataformRefCompletionContributor"/>
 
         <completion.contributor
-                language="JavaScript" order="first, before dataformConfigValueCompletion"
+                language="JavaScript" order="first, before dataformConfigCompletion"
                 id="dataformTestDatasetCompletion"
                 implementationClass="io.github.rejeb.dataform.language.unittest.DataformTestDatasetCompletionContributor"/>
+
+        <completion.contributor
+                language="JavaScript" order="first, after dataformRefCompletion"
+                id="dataformConfigCompletion"
+                implementationClass="io.github.rejeb.dataform.language.config.completion.SqlxConfigCompletionContributor"/>
 
         <completion.contributor
                 language="JavaScript" order="first"

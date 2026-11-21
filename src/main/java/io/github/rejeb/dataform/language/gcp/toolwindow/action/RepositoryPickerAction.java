@@ -16,27 +16,20 @@
  */
 package io.github.rejeb.dataform.language.gcp.toolwindow.action;
 
-import com.intellij.openapi.actionSystem.ActionGroup;
-import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.DefaultActionGroup;
 import com.intellij.openapi.actionSystem.Presentation;
-import com.intellij.openapi.actionSystem.ex.CustomComponentAction;
-import com.intellij.openapi.project.DumbAware;
 import io.github.rejeb.dataform.language.DataformIcons;
 import io.github.rejeb.dataform.language.gcp.settings.DataformRepositoryConfig;
 import io.github.rejeb.dataform.language.gcp.toolwindow.WorkspaceSelection;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
-
-import javax.swing.JComponent;
 
 /**
  * The repository picker of the Dataform tool window toolbar: shows the active repository and
  * lists every configured one, then the action managing them.
  */
-public class RepositoryPickerAction extends ActionGroup implements CustomComponentAction, DumbAware {
+public class RepositoryPickerAction extends PickerAction {
 
     /**
      * The widest the repository name gets in the toolbar, in unscaled pixels.
@@ -50,11 +43,8 @@ public class RepositoryPickerAction extends ActionGroup implements CustomCompone
 
     public RepositoryPickerAction(@NotNull WorkspaceSelection selection, @NotNull AnAction manageRepositories) {
         this.selection = selection;
+        super("Repository", MAX_LABEL_WIDTH);
         this.manageRepositories = manageRepositories;
-        Presentation template = getTemplatePresentation();
-        template.setPopupGroup(true);
-        template.setDisableGroupIfEmpty(false);
-        template.setDescription("Repository");
     }
 
     @Override
@@ -65,24 +55,10 @@ public class RepositoryPickerAction extends ActionGroup implements CustomCompone
         presentation.setText(active != null ? active.displayName() : NO_REPOSITORY, false);
     }
 
-    @Override
-    public @NotNull ActionUpdateThread getActionUpdateThread() {
-        return ActionUpdateThread.BGT;
-    }
-
-    @Override
-    public AnAction @NotNull [] getChildren(@Nullable AnActionEvent e) {
-        return choices().getChildActionsOrStubs();
-    }
-
-    @Override
-    public @NotNull JComponent createCustomComponent(@NotNull Presentation presentation, @NotNull String place) {
-        return new PickerButton(this, presentation, place, MAX_LABEL_WIDTH);
-    }
-
     /**
      * The choices of the picker: every configured repository, then the action managing them.
      */
+    @Override
     public @NotNull DefaultActionGroup choices() {
         DefaultActionGroup group = new DefaultActionGroup();
         for (DataformRepositoryConfig repository : selection.repositories()) {

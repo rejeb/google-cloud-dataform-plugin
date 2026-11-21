@@ -22,6 +22,7 @@ import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.util.io.NioFiles;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
 import io.github.rejeb.dataform.language.gcp.common.GcpApiException;
+import io.github.rejeb.dataform.language.gcp.common.RepositoryCoordinates;
 import io.github.rejeb.dataform.language.gcp.workspace.DataformRepository;
 import io.github.rejeb.dataform.language.gcp.workspace.repository.WorkspaceRepository;
 
@@ -70,7 +71,7 @@ public class WorkspaceDownloadTest extends BasePlatformTestCase {
     }
 
     private void workspaceHolds(Map<String, String> files) {
-        when(repository.readAllFiles("acme", "europe-west1", "finance-marts", "dev-you")).thenReturn(files);
+        when(repository.readAllFiles(new RepositoryCoordinates("acme", "europe-west1", "finance-marts"), "dev-you")).thenReturn(files);
     }
 
     private void download(ProgressIndicator indicator) throws IOException {
@@ -121,7 +122,7 @@ public class WorkspaceDownloadTest extends BasePlatformTestCase {
     }
 
     public void testAnApiFailureOpensNothing() {
-        when(repository.readAllFiles("acme", "europe-west1", "finance-marts", "dev-you"))
+        when(repository.readAllFiles(new RepositoryCoordinates("acme", "europe-west1", "finance-marts"), "dev-you"))
                 .thenThrow(new GcpApiException("denied", new RuntimeException()));
 
         assertThrows(GcpApiException.class, () -> download(new EmptyProgressIndicator()));

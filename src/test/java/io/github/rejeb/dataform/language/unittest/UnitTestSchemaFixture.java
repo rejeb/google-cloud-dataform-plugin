@@ -18,21 +18,16 @@ package io.github.rejeb.dataform.language.unittest;
 
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiManager;
 import com.intellij.testFramework.ServiceContainerUtil;
-import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
-import io.github.rejeb.dataform.language.columns.model.ColumnRef;
 import io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService;
+import io.github.rejeb.dataform.language.schema.sql.StubSchemaService;
 import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasTable;
-import org.jetbrains.annotations.NotNull;
 
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 public final class UnitTestSchemaFixture {
 
@@ -68,37 +63,5 @@ public final class UnitTestSchemaFixture {
                 fullName.substring(fullName.lastIndexOf('.') + 1), columns, null)));
         ServiceContainerUtil.replaceService(project, DataformTableSchemaService.class,
                 new StubSchemaService(tables), disposable);
-    }
-
-    private record StubSchemaService(Map<String, DataformDasTable> tables) implements DataformTableSchemaService {
-
-        @Override
-        public void refreshAsync(@NotNull CompiledGraph graph, boolean forceRefresh,
-                                 @NotNull Set<String> failedFileNames) {
-        }
-
-        @Override
-        public @NotNull Map<String, DataformDasTable> getAllTables() {
-            return tables;
-        }
-
-        @Override
-        public void renameColumn(@NotNull Set<ColumnRef> columns, @NotNull String newName,
-                                 @NotNull Collection<VirtualFile> written) {
-        }
-
-        @Override
-        public State getState() {
-            return new State();
-        }
-
-        @Override
-        public void loadState(@NotNull State state) {
-        }
-
-        @Override
-        public long getModificationCount() {
-            return 0;
-        }
     }
 }

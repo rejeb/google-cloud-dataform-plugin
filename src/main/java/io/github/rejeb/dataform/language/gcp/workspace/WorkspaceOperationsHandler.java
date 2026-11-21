@@ -22,11 +22,10 @@ import com.intellij.openapi.application.WriteAction;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.roots.ProjectRootManager;
 import com.intellij.openapi.vfs.VirtualFile;
 import io.github.rejeb.dataform.language.gcp.common.CommitAuthorConfig;
 import io.github.rejeb.dataform.language.gcp.common.GcpApiException;
-import io.github.rejeb.dataform.language.gcp.common.GcpConfigProvider.RepositoryCoordinates;
+import io.github.rejeb.dataform.language.gcp.common.RepositoryCoordinates;
 import io.github.rejeb.dataform.language.gcp.common.GcpConfigProvider;
 import io.github.rejeb.dataform.language.gcp.gitremote.GitRemoteBranch;
 import io.github.rejeb.dataform.language.gcp.gitremote.GitConfigLocalClones;
@@ -52,6 +51,7 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
     private final WorkspaceRepository workspaceRepository;
     private final GcpConfigProvider configProvider;
     private final Function<Project, List<String>> filesResolver;
+    private final Function<Project, VirtualFile> projectDirectory;
     private final Project project;
     private final @Nullable GitRemoteBranches gitRemoteBranches;
     private final LocalClones localClones;
@@ -98,12 +98,26 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
             @Nullable GitRemoteBranches gitRemoteBranches,
             @NotNull LocalClones localClones
     ) {
+        this(workspaceRepository, configProvider, project, filesResolver,
+                DataformProjectFilesResolver::projectDirectory, gitRemoteBranches, localClones);
+    }
+
+    WorkspaceOperationsHandler(
+            @NotNull WorkspaceRepository workspaceRepository,
+            @NotNull GcpConfigProvider configProvider,
+            @NotNull Project project,
+            @NotNull Function<Project, List<String>> filesResolver,
+            @NotNull Function<Project, VirtualFile> projectDirectory,
+            @Nullable GitRemoteBranches gitRemoteBranches,
+            @NotNull LocalClones localClones
+    ) {
         this.localClones = localClones;
         this.gitRemoteBranches = gitRemoteBranches;
         this.workspaceRepository = workspaceRepository;
         this.configProvider = configProvider;
         this.project = project;
         this.filesResolver = filesResolver;
+        this.projectDirectory = projectDirectory;
     }
 
     @Override
@@ -152,7 +166,7 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
         knownRepository = null;
         DataformRepository repository;
         try {
-            repository = workspaceRepository.findRepository(config.projectId(), config.location(), config.repositoryId());
+            repository = workspaceRepository.findRepository(config);
         } catch (GcpApiException e) {
             LOG.warn("Failed to read Dataform repository " + config.repositoryId(), e);
             return null;
@@ -173,7 +187,7 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
     private <T> T read(@NotNull RepositoryCoordinates config, @Nullable String workspaceId,
                        @NotNull Supplier<T> fromDataform, @NotNull Function<GitRemoteBranch, T> fromGitRemote,
                        @NotNull T nothing) {
-        if (workspaceId != null) {
+        if (!Workspace.isMainBranch(workspaceId)) {
             return fromDataform.get();
         }
         return switch (sourceIn(knownRepository(config))) {
@@ -196,7 +210,7 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
     public List<Workspace> listWorkspaces() {
         RepositoryCoordinates config = readConfig();
         if (config == null) return List.of();
-        return workspaceRepository.findAll(config.projectId(), config.location(), config.repositoryId());
+        return workspaceRepository.findAll(config);
     }
 
     @Override
@@ -204,7 +218,7 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
         RepositoryCoordinates config = readConfig();
         if (config == null) return;
         CommitAuthorConfig author = configProvider.getCommitAuthor();
-        workspaceRepository.pushGitCommits(config.projectId(), config.location(), config.repositoryId(),
+        workspaceRepository.pushGitCommits(config,
                 workspaceId, remoteBranch, author);
     }
 
@@ -215,7 +229,7 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
         if (config == null) return Map.of();
         return read(config, workspaceId,
                 () -> workspaceRepository.readAllFiles(
-                        config.projectId(), config.location(), config.repositoryId(), workspaceId),
+                        config, workspaceId),
                 WorkspaceOperationsHandler::readAll, Map.of());
     }
 
@@ -229,7 +243,7 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
 
     @Override
     public void testConnection(@NotNull DataformRepositoryConfig config) {
-        workspaceRepository.findAll(config.projectId(), config.location(), config.repositoryId());
+        workspaceRepository.findAll(config.coordinates());
     }
 
     @Override
@@ -237,33 +251,18 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
         RepositoryCoordinates config = readConfig();
         if (config == null) return;
         saveDocuments();
-        Map<String, String> localFiles = ReadAction.computeBlocking(() -> {
-            List<String> paths = filesResolver.apply(project);
-            VirtualFile[] roots = ProjectRootManager.getInstance(project).getContentRoots();
-            if (roots.length == 0 || paths.isEmpty()) return Map.of();
-
-            VirtualFile contentRoot = roots[0];
-            Map<String, String> result = new LinkedHashMap<>();
-            for (String path : paths) {
-                VirtualFile vf = contentRoot.findFileByRelativePath(path);
-                if (vf != null && !vf.isDirectory()) {
-                    try {
-                        result.put(path, new String(vf.contentsToByteArray(), StandardCharsets.UTF_8));
-                    } catch (IOException e) {
-                        LOG.warn("Cannot read local file: " + path, e);
-                    }
-                }
-            }
-            return result;
-        });
-
+        VirtualFile directory = projectDirectory.apply(project);
+        if (directory == null) {
+            throw new GcpApiException("Nothing to upload: the project directory cannot be found.");
+        }
+        Map<String, String> localFiles = ReadAction.computeBlocking(() -> readLocalFiles(directory));
         if (localFiles.isEmpty()) {
-            LOG.info("pushCode: no local files resolved, skipping push for workspace: " + workspaceId);
-            return;
+            throw new GcpApiException("Nothing to upload: no project file found in "
+                    + directory.getPresentableUrl() + ".");
         }
 
         List<String> remotePaths = workspaceRepository.listAllPaths(
-                config.projectId(), config.location(), config.repositoryId(), workspaceId);
+                config, workspaceId);
 
         Set<String> toDelete = new HashSet<>(remotePaths);
         toDelete.removeAll(localFiles.keySet());
@@ -272,8 +271,23 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
             return;
         }
         workspaceRepository.push(
-                config.projectId(), config.location(), config.repositoryId(),
+                config,
                 workspaceId, localFiles, toDelete);
+    }
+
+    private @NotNull Map<String, String> readLocalFiles(@NotNull VirtualFile directory) {
+        Map<String, String> result = new LinkedHashMap<>();
+        for (String path : filesResolver.apply(project)) {
+            VirtualFile vf = directory.findFileByRelativePath(path);
+            if (vf != null && !vf.isDirectory()) {
+                try {
+                    result.put(path, new String(vf.contentsToByteArray(), StandardCharsets.UTF_8));
+                } catch (IOException e) {
+                    LOG.warn("Cannot read local file: " + path, e);
+                }
+            }
+        }
+        return result;
     }
 
     /**
@@ -286,12 +300,7 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
     }
 
     public void createRepository(@NotNull DataformRepositoryConfig config) {
-        workspaceRepository.createRepository(
-                config.projectId(),
-                config.location(),
-                config.repositoryId(),
-                config.serviceAccount()
-        );
+        workspaceRepository.createRepository(config.coordinates(), config.serviceAccount());
     }
 
     /**
@@ -301,15 +310,9 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
      * @throws GcpApiException if creation fails or config is missing
      */
     public void createWorkspace(@NotNull String workspaceId) {
-        RepositoryCoordinates config = readConfig();
-        if (config == null) {
-            throw new GcpApiException(
-                    "No active repository config — configure a repository first.");
-        }
+        RepositoryCoordinates config = GcpConfigProvider.requireCoordinatesOf(configProvider);
         workspaceRepository.createWorkspace(
-                config.projectId(),
-                config.location(),
-                config.repositoryId(),
+                config,
                 workspaceId
         );
     }
@@ -322,15 +325,9 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
      */
     @Override
     public void deleteWorkspace(@NotNull String workspaceId) {
-        RepositoryCoordinates config = readConfig();
-        if (config == null) {
-            throw new GcpApiException(
-                    "No active repository config — configure a repository first.");
-        }
+        RepositoryCoordinates config = GcpConfigProvider.requireCoordinatesOf(configProvider);
         workspaceRepository.deleteWorkspace(
-                config.projectId(),
-                config.location(),
-                config.repositoryId(),
+                config,
                 workspaceId
         );
     }
@@ -342,7 +339,7 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
         if (config == null) return List.of();
         Predicate<String> ignored = DataformProjectFilesResolver.gitIgnored(project);
         return workspaceRepository.fetchFileGitStatuses(
-                        config.projectId(), config.location(), config.repositoryId(), workspaceId)
+                        config, workspaceId)
                 .stream()
                 .filter(change -> !ignored.test(change.path()))
                 .toList();
@@ -358,7 +355,7 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
         if (config == null) return;
         CommitAuthorConfig author = configProvider.getCommitAuthor();
         workspaceRepository.commitWorkspaceChanges(
-                config.projectId(), config.location(), config.repositoryId(),
+                config,
                 workspaceId, paths, message, author);
     }
 
@@ -370,7 +367,7 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
         }
         return read(config, workspaceId,
                 () -> workspaceRepository.listAllPaths(
-                        config.projectId(), config.location(), config.repositoryId(), workspaceId),
+                        config, workspaceId),
                 GitRemoteBranch::listFiles, List.of());
     }
 
@@ -382,7 +379,7 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
         }
         return read(config, workspaceId,
                 () -> workspaceRepository.getFileContent(
-                        config.projectId(), config.location(), config.repositoryId(), workspaceId, filePath),
+                        config, workspaceId, filePath),
                 branch -> branch.readFile(filePath), "");
     }
 
@@ -392,14 +389,13 @@ public class WorkspaceOperationsHandler implements WorkspaceOperations {
     }
 
     private void writeFilesToVfs(@NotNull Map<String, String> files) {
-        VirtualFile[] roots = ProjectRootManager.getInstance(project).getContentRoots();
-        if (roots.length == 0) return;
-        VirtualFile contentRoot = roots[0];
+        VirtualFile directory = projectDirectory.apply(project);
+        if (directory == null) return;
 
         try {
             WriteAction.runAndWait(() -> {
                 for (Map.Entry<String, String> entry : files.entrySet()) {
-                    DataformPaths.writeText(contentRoot, entry.getKey(), entry.getValue());
+                    DataformPaths.writeText(directory, entry.getKey(), entry.getValue());
                 }
             });
         } catch (IOException e) {

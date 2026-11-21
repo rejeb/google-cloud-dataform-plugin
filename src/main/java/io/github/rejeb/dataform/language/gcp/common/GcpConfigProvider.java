@@ -51,7 +51,16 @@ public interface GcpConfigProvider {
                 ? null : new RepositoryCoordinates(projectId, location, repositoryId);
     }
 
-    /** The project, location and id of a Dataform repository. */
-    record RepositoryCoordinates(@NotNull String projectId, @NotNull String location, @NotNull String repositoryId) {
+    /**
+     * @param provider the configuration to read
+     * @return the coordinates of the configured repository
+     * @throws GcpApiException when one of them is missing
+     */
+    static @NotNull RepositoryCoordinates requireCoordinatesOf(@NotNull GcpConfigProvider provider) {
+        RepositoryCoordinates coordinates = coordinatesOf(provider);
+        if (coordinates == null) {
+            throw new GcpApiException("No active repository config — configure a repository first.");
+        }
+        return coordinates;
     }
 }

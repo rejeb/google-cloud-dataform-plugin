@@ -98,7 +98,7 @@ Google Cloud Dataform for IntelliJ IDEA: full language support for your projects
 
 <h2>Unit Tests</h2>
 <ul>
-    <li>Create Dataform Test from the Project view or editor context menu of a table or view: generates <code>definitions/tests/test_&lt;action&gt;.sqlx</code> with one input per dependency and the expected output, pre-filled from the resolved schemas.</li>
+    <li>Create Dataform Test from the Project view or editor context menu of a table or view: generates <code>definitions/tests/&lt;path&gt;/test_&lt;action&gt;.sqlx</code>, where <code>&lt;path&gt;</code> is the file's directory under <code>definitions</code>, with one input per dependency and the expected output, pre-filled from the resolved schemas.</li>
     <li>Column completion after <code>AS</code> in <code>input</code> blocks and in the expected output, including the fields of <code>STRUCT</code> and arrays of structs.</li>
     <li>Generate SELECT from schema intention (<code>Alt+Enter</code>) filling an input or the expected output with a typed placeholder row.</li>
     <li>Completion and navigation for the tested dataset and the input names of a test.</li>

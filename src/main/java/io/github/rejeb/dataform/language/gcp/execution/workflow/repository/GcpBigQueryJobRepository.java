@@ -26,6 +26,7 @@ import io.github.rejeb.dataform.language.gcp.execution.workflow.model.BigQueryJo
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.BigQueryJobDetails;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.InvocationActionState;
 import io.github.rejeb.dataform.language.util.GcpClientsUtils;
+import io.github.rejeb.dataform.language.util.concurrent.Futures;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -34,7 +35,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class GcpBigQueryJobRepository implements BigQueryJobRepository {
@@ -116,7 +116,7 @@ public final class GcpBigQueryJobRepository implements BigQueryJobRepository {
         String realLocation = job.getJobId().getLocation() != null
                 ? job.getJobId().getLocation() : location;
 
-        List<BigQueryChildJob> childJobs = joined(children);
+        List<BigQueryChildJob> childJobs = Futures.await(children);
 
         Integer statementsProcessed = childJobs.isEmpty() ? 1 : childJobs.size();
 
@@ -184,15 +184,6 @@ public final class GcpBigQueryJobRepository implements BigQueryJobRepository {
             ));
         }
         return StatementFacts.inRunOrder(childJobs);
-    }
-
-    private static <T> T joined(@NotNull CompletableFuture<T> future) {
-        try {
-            return future.join();
-        } catch (CompletionException e) {
-            if (e.getCause() instanceof RuntimeException runtime) throw runtime;
-            throw e;
-        }
     }
 
     private static String computeJobStatus(JobStatus status) {

@@ -103,7 +103,7 @@ public interface WorkspaceOperations {
      * no longer exist locally are deleted.
      *
      * @param workspaceId the target workspace ID
-     * @throws GcpApiException on API error
+     * @throws GcpApiException on API error, or when the project directory holds no file to upload
      */
     default void pushCode(@NotNull String workspaceId) {
         pushCode(workspaceId, deletions -> true);
@@ -117,7 +117,7 @@ public interface WorkspaceOperations {
      * @param workspaceId      the target workspace ID
      * @param deletionApproval asked once, with the remote paths about to be deleted, when there
      *                         are any
-     * @throws GcpApiException on API error
+     * @throws GcpApiException on API error, or when the project directory holds no file to upload
      */
     void pushCode(@NotNull String workspaceId, @NotNull Predicate<Set<String>> deletionApproval);
 

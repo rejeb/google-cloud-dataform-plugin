@@ -17,6 +17,7 @@
 package io.github.rejeb.dataform.language.lineage.dataplex;
 
 import io.github.rejeb.dataform.language.lineage.dataplex.DataplexLineageClient.Direction;
+import io.github.rejeb.dataform.language.util.concurrent.ParallelCalls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

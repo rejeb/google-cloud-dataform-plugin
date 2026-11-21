@@ -38,6 +38,7 @@ import io.github.rejeb.dataform.language.lineage.graph.LineageNode;
 import io.github.rejeb.dataform.language.lineage.model.LineageModel;
 import io.github.rejeb.dataform.language.lineage.model.LinkRef;
 import io.github.rejeb.dataform.language.ui.EmptyStates;
+import io.github.rejeb.dataform.language.ui.LatestRequest;
 import io.github.rejeb.dataform.language.ui.SegmentedSwitch;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -72,7 +73,7 @@ public final class TracePanel extends JPanel {
     private static final String HINT = "Up to 5 levels, including what is not on the graph yet";
 
     private final Supplier<DataplexLineageService> service;
-    private final Executor executor;
+    private final LatestRequest reads;
     private final Runnable showCatalog;
     private final CollectionListModel<Row> rows = new CollectionListModel<>();
     private final JBList<Row> list = new JBList<>(rows);
@@ -85,7 +86,6 @@ public final class TracePanel extends JPanel {
     private @Nullable DataplexView shownView;
     private @Nullable String shownNode;
     private @Nullable Direction shownDirection;
-    private long generation;
 
     /**
      * @param service     reads the recorded lineage
@@ -96,7 +96,8 @@ public final class TracePanel extends JPanel {
                       @NotNull Runnable showCatalog) {
         super(new BorderLayout());
         this.service = service;
-        this.executor = executor;
+        this.reads = new LatestRequest(executor,
+                update -> ApplicationManager.getApplication().invokeLater(update, ModalityState.nonModal()));
         this.showCatalog = showCatalog;
         directionSwitch = new SegmentedSwitch<>(List.of(Direction.UPSTREAM, Direction.DOWNSTREAM),
                 direction -> direction == Direction.UPSTREAM ? "Upstream" : "Downstream", Direction.UPSTREAM,
@@ -227,38 +228,26 @@ public final class TracePanel extends JPanel {
 
     private void read(@NotNull LineageModel model, @NotNull DataplexView view, @NotNull String nodeId,
                       @NotNull Direction direction, @NotNull String none) {
-        long asked = ++generation;
-        executor.execute(() -> {
-            List<TraceEntry> entries = List.of();
-            RuntimeException failure = null;
-            try {
-                entries = service.get().trace(view, nodeId, direction);
-            } catch (RuntimeException e) {
-                failure = e;
-            }
-            List<TraceEntry> answer = entries;
-            RuntimeException failed = failure;
-            ApplicationManager.getApplication().invokeLater(() -> {
-                if (asked != generation) return;
-                if (failed != null) {
+        reads.submit(() -> service.get().trace(view, nodeId, direction),
+                answer -> {
+                    List<Row> shown = new ArrayList<>();
+                    TraceGroups.group(answer, view.scope().projectId()).forEach((group, grouped) -> {
+                        shown.add(new Row(group, grouped.size(), null));
+                        grouped.forEach(entry -> shown.add(new Row(group, 0, entry)));
+                    });
+                    rows.replaceAll(shown);
+                    EmptyStates.show(list.getEmptyText(), none);
+                },
+                RuntimeException.class,
+                failed -> {
                     state = LineageToolWindowState.of(model, LineageToolWindowState.kindOf(failed));
                     header.setVisible(false);
                     EmptyStates.show(list.getEmptyText(), LineageToolWindowState.cannotAnswer(failed));
-                    return;
-                }
-                List<Row> shown = new ArrayList<>();
-                TraceGroups.group(answer, view.scope().projectId()).forEach((group, grouped) -> {
-                    shown.add(new Row(group, grouped.size(), null));
-                    grouped.forEach(entry -> shown.add(new Row(group, 0, entry)));
                 });
-                rows.replaceAll(shown);
-                EmptyStates.show(list.getEmptyText(), none);
-            }, ModalityState.nonModal());
-        });
     }
 
     private void forget() {
-        generation++;
+        reads.cancel();
         shownView = null;
         shownNode = null;
         shownDirection = null;

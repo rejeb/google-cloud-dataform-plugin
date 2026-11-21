@@ -74,7 +74,7 @@ public final class GcpIdentityResolver {
                     return new CommitAuthorConfig(email, email);
                 }
                 case UserCredentials userCredentials -> {
-                    return resolveFromUserInfo(credentials);
+                    return resolveFromUserInfo();
                 }
                 default -> {
                 }
@@ -88,10 +88,8 @@ public final class GcpIdentityResolver {
     }
 
     @NotNull
-    private static CommitAuthorConfig resolveFromUserInfo(
-            @NotNull GoogleCredentials credentials
-    ) throws IOException, InterruptedException {
-        String accessToken = credentials.getAccessToken().getTokenValue();
+    private static CommitAuthorConfig resolveFromUserInfo() throws IOException, InterruptedException {
+        String accessToken = DataformCredentialsService.getInstance().accessToken(null);
         HttpResponse<String> response = SslConfig.getWithBearer(OAuthClientConfig.USERINFO_ENDPOINT, accessToken, HTTP_TIMEOUT);
         if (response.statusCode() != 200) {
             throw new IOException("userinfo endpoint returned " + response.statusCode());

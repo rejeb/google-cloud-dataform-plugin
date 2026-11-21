@@ -18,6 +18,7 @@ package io.github.rejeb.dataform.language.gcp.workspace.repository;
 
 import io.github.rejeb.dataform.language.gcp.common.CommitAuthorConfig;
 import io.github.rejeb.dataform.language.gcp.common.GcpApiException;
+import io.github.rejeb.dataform.language.gcp.common.RepositoryCoordinates;
 import io.github.rejeb.dataform.language.gcp.workspace.DataformRepository;
 import io.github.rejeb.dataform.language.gcp.workspace.UncommittedChange;
 import io.github.rejeb.dataform.language.gcp.workspace.Workspace;
@@ -36,13 +37,11 @@ public interface WorkspaceRepository {
      * @throws GcpApiException on network or API error, or when the repository does not exist
      */
     @NotNull DataformRepository findRepository(
-            @NotNull String projectId,
-            @NotNull String location,
-            @NotNull String repositoryId
+            @NotNull RepositoryCoordinates repository
     );
 
     /**
-     * Lists the Dataform repositories of a GCP project in one location, sorted by name.
+     * Lists the Dataform repositories of a GCP project in one repository.location(), sorted by name.
      *
      * @throws GcpApiException on network or API error
      */
@@ -56,11 +55,7 @@ public interface WorkspaceRepository {
      *
      * @throws GcpApiException on network or API error
      */
-    @NotNull List<Workspace> findAll(
-            @NotNull String projectId,
-            @NotNull String location,
-            @NotNull String repositoryId
-    );
+    @NotNull List<Workspace> findAll(@NotNull RepositoryCoordinates repository);
 
     /**
      * Commits and pushes local workspace changes to the remote repository.
@@ -70,9 +65,7 @@ public interface WorkspaceRepository {
      * @throws GcpApiException on network or API error
      */
     void pushGitCommits(
-            @NotNull String projectId,
-            @NotNull String location,
-            @NotNull String repositoryId,
+            @NotNull RepositoryCoordinates repository,
             @NotNull String workspaceId,
             @Nullable String remoteBranch,
             @NotNull CommitAuthorConfig author
@@ -87,9 +80,7 @@ public interface WorkspaceRepository {
      * @throws GcpApiException on API error
      */
     @NotNull Map<String, String> readAllFiles(
-            @NotNull String projectId,
-            @NotNull String location,
-            @NotNull String repositoryId,
+            @NotNull RepositoryCoordinates repository,
             @Nullable String workspaceId
     );
 
@@ -101,16 +92,12 @@ public interface WorkspaceRepository {
      * @throws GcpApiException on API error
      */
     @NotNull List<String> listAllPaths(
-            @NotNull String projectId,
-            @NotNull String location,
-            @NotNull String repositoryId,
+            @NotNull RepositoryCoordinates repository,
             @Nullable String workspaceId
     );
 
     void push(
-            @NotNull String projectId,
-            @NotNull String location,
-            @NotNull String repositoryId,
+            @NotNull RepositoryCoordinates repository,
             @NotNull String workspaceId,
             @NotNull Map<String, String> filesToWrite,
             @NotNull Set<String> pathsToDelete
@@ -122,9 +109,7 @@ public interface WorkspaceRepository {
      * @throws GcpApiException if the API call fails (e.g. already exists, permission denied)
      */
     void createRepository(
-            @NotNull String projectId,
-            @NotNull String location,
-            @NotNull String repositoryId,
+            @NotNull RepositoryCoordinates repository,
             @NotNull String serviceAccount
     );
 
@@ -135,9 +120,7 @@ public interface WorkspaceRepository {
      * @throws GcpApiException if the API call fails (e.g. already exists, permission denied)
      */
     void createWorkspace(
-            @NotNull String projectId,
-            @NotNull String location,
-            @NotNull String repositoryId,
+            @NotNull RepositoryCoordinates repository,
             @NotNull String workspaceId
     );
 
@@ -148,9 +131,7 @@ public interface WorkspaceRepository {
      * @throws GcpApiException if the API call fails (e.g. not found, permission denied)
      */
     void deleteWorkspace(
-            @NotNull String projectId,
-            @NotNull String location,
-            @NotNull String repositoryId,
+            @NotNull RepositoryCoordinates repository,
             @NotNull String workspaceId
     );
 
@@ -160,9 +141,7 @@ public interface WorkspaceRepository {
      * @throws GcpApiException on API error
      */
     @NotNull List<UncommittedChange> fetchFileGitStatuses(
-            @NotNull String projectId,
-            @NotNull String location,
-            @NotNull String repositoryId,
+            @NotNull RepositoryCoordinates repository,
             @NotNull String workspaceId
     );
 
@@ -172,9 +151,7 @@ public interface WorkspaceRepository {
      * @throws GcpApiException on API error
      */
     void commitWorkspaceChanges(
-            @NotNull String projectId,
-            @NotNull String location,
-            @NotNull String repositoryId,
+            @NotNull RepositoryCoordinates repository,
             @NotNull String workspaceId,
             @NotNull List<String> paths,
             @NotNull String message,
@@ -183,9 +160,7 @@ public interface WorkspaceRepository {
 
     @NotNull
     String getFileContent(
-            @NotNull String projectId,
-            @NotNull String location,
-            @NotNull String repositoryId,
+            @NotNull RepositoryCoordinates repository,
             @Nullable String workspaceId,
             @NotNull String filePath);
 }

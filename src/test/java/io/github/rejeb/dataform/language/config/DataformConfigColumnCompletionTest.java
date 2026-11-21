@@ -16,6 +16,7 @@
  */
 package io.github.rejeb.dataform.language.config;
 
+import io.github.rejeb.dataform.language.compilation.StubCompilationService;
 import io.github.rejeb.dataform.language.lineage.service.LineageGraphService;
 import io.github.rejeb.dataform.language.columns.analysis.ColumnLineageGraph;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -37,6 +38,7 @@ import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
 import io.github.rejeb.dataform.language.columns.model.ColumnRef;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import io.github.rejeb.dataform.language.schema.sql.DataformTableSchemaService;
+import io.github.rejeb.dataform.language.schema.sql.StubSchemaService;
 import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
 import io.github.rejeb.dataform.language.schema.sql.model.DataformDasTable;
 import io.github.rejeb.dataform.language.setup.DataformInterpreterManager;
@@ -47,7 +49,6 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class DataformConfigColumnCompletionTest extends BasePlatformTestCase {
@@ -599,72 +600,6 @@ public class DataformConfigColumnCompletionTest extends BasePlatformTestCase {
         @Override
         public ColumnLineageGraph lastBuiltColumnGraph() {
             return columns;
-        }
-    }
-
-    private record StubCompilationService(CompiledGraph graph) implements DataformCompilationService {
-
-        @Override
-        public CompiledGraph compile(boolean forceRefresh) {
-            return graph;
-        }
-
-        @Override
-        public CompiledGraph getCompiledGraph() {
-            return graph;
-        }
-
-        @Override
-        public State getState() {
-            return new State();
-        }
-
-        @Override
-        public void loadState(@NotNull State state) {
-        }
-
-        @Override
-        public void dispose() {
-        }
-
-        @Override
-        public long getModificationCount() {
-            return 0;
-        }
-    }
-
-    private record StubSchemaService(Map<String, DataformDasTable> tables)
-            implements DataformTableSchemaService {
-
-        @Override
-        public void refreshAsync(@NotNull CompiledGraph graph,
-                                 boolean forceRefresh,
-                                 @NotNull Set<String> failedFileNames) {
-        }
-
-        @Override
-        public @NotNull Map<String, DataformDasTable> getAllTables() {
-            return tables;
-        }
-
-        @Override
-        public void renameColumn(@NotNull Set<ColumnRef> columns, @NotNull String newName,
-                                 @NotNull java.util.Collection<
-                                         com.intellij.openapi.vfs.VirtualFile> written) {
-        }
-
-        @Override
-        public State getState() {
-            return new State();
-        }
-
-        @Override
-        public void loadState(@NotNull State state) {
-        }
-
-        @Override
-        public long getModificationCount() {
-            return 0;
         }
     }
 }

@@ -16,6 +16,7 @@
  */
 package io.github.rejeb.dataform.language.gcp.settings;
 
+import io.github.rejeb.dataform.language.gcp.common.RepositoryCoordinates;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -55,5 +56,13 @@ public record DataformRepositoryConfig(
     @NotNull
     public String displayName() {
         return !label.isBlank() ? label : repositoryId;
+    }
+
+    /**
+     * @return the project, location and id of the configured repository
+     */
+    @NotNull
+    public RepositoryCoordinates coordinates() {
+        return new RepositoryCoordinates(projectId, location, repositoryId);
     }
 }

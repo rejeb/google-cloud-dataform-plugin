@@ -70,6 +70,7 @@ import io.github.rejeb.dataform.language.lineage.graph.LineageNode;
 import io.github.rejeb.dataform.language.lineage.model.LineageModel;
 import io.github.rejeb.dataform.language.lineage.model.LineageSource;
 import io.github.rejeb.dataform.language.lineage.model.LinkRef;
+import io.github.rejeb.dataform.language.ui.Actions;
 import io.github.rejeb.dataform.language.ui.ReadOnlyTextFields;
 import io.github.rejeb.dataform.language.ui.Toolbars;
 import io.github.rejeb.dataform.language.ui.UiText;
@@ -224,26 +225,17 @@ public final class DetailsPanel extends JPanel {
                 () -> node == null ? null : BigQueryConsoleUrls.tableUrl(node.fullName()));
         openLatestJob = consoleAction("Open latest job", "Open the latest BigQuery job recorded for this link",
                 () -> latestJobUrl);
-        showRuns = Toolbars.withText(new DumbAwareAction("Show runs", "Show the runs recorded for this link",
-                DataformIcons.RUN) {
-            @Override
-            public void actionPerformed(@NotNull AnActionEvent e) {
-                if (tabOpener != null) tabOpener.accept(LineageToolWindowTab.RUNS);
-            }
-        });
-        trace = Toolbars.withText(new DumbAwareAction("Trace", "List everything recorded upstream and downstream of the table",
-                DataformIcons.LINEAGE) {
-            @Override
-            public void actionPerformed(@NotNull AnActionEvent e) {
-                if (tabOpener != null) tabOpener.accept(LineageToolWindowTab.TRACE);
-            }
-        });
-        copyName = Toolbars.withText(new DumbAwareAction("Copy name", "Copy the full name", AllIcons.Actions.Copy) {
-            @Override
-            public void actionPerformed(@NotNull AnActionEvent e) {
-                if (node != null) CopyPasteManager.getInstance().setContents(new StringSelection(node.fullName()));
-            }
-        });
+        showRuns = Toolbars.withText(Actions.of("Show runs", "Show the runs recorded for this link",
+                DataformIcons.RUN, () -> {
+                    if (tabOpener != null) tabOpener.accept(LineageToolWindowTab.RUNS);
+                }));
+        trace = Toolbars.withText(Actions.of("Trace", "List everything recorded upstream and downstream of the table",
+                DataformIcons.LINEAGE, () -> {
+                    if (tabOpener != null) tabOpener.accept(LineageToolWindowTab.TRACE);
+                }));
+        copyName = Toolbars.withText(Actions.of("Copy name", "Copy the full name", AllIcons.Actions.Copy, () -> {
+            if (node != null) CopyPasteManager.getInstance().setContents(new StringSelection(node.fullName()));
+        }));
         declaredActions = List.of(openSqlx, run, focus);
         toolbar = Toolbars.horizontal(PLACE, this, declaredActions.toArray(AnAction.EMPTY_ARRAY));
 
@@ -642,23 +634,11 @@ public final class DetailsPanel extends JPanel {
     }
 
     private AnAction consoleAction(@NotNull String text, @NotNull String description, @NotNull Supplier<String> url) {
-        return Toolbars.withText(new DumbAwareAction(text, description, AllIcons.Ide.External_link_arrow) {
-            @Override
-            public void actionPerformed(@NotNull AnActionEvent e) {
-                String page = url.get();
-                if (page != null) urlOpener.accept(page);
-            }
-
-            @Override
-            public void update(@NotNull AnActionEvent e) {
-                e.getPresentation().setEnabled(url.get() != null);
-            }
-
-            @Override
-            public @NotNull ActionUpdateThread getActionUpdateThread() {
-                return ActionUpdateThread.EDT;
-            }
-        });
+        return Toolbars.withText(Actions.enabledWhen(text, description, AllIcons.Ide.External_link_arrow,
+                () -> url.get() != null, () -> {
+                    String page = url.get();
+                    if (page != null) urlOpener.accept(page);
+                }));
     }
 
     private record Failure(@Nullable String message) {

@@ -20,8 +20,8 @@ import com.google.cloud.bigquery.*;
 import com.intellij.openapi.diagnostic.Logger;
 import io.github.rejeb.dataform.language.gcp.auth.AuthTrigger;
 import io.github.rejeb.dataform.language.gcp.auth.GcpCalls;
+import io.github.rejeb.dataform.language.gcp.execution.bigquery.BigQueryDryRun;
 import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
-import io.github.rejeb.dataform.language.util.GcpClientsUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -43,40 +43,18 @@ public final class BigQueryDryRunSchemaExtractorImpl implements BigQueryDryRunSc
                     () -> runDryRun(projectId, location, dryRunQuery)));
         } catch (BigQueryException e) {
             LOG.warn("BigQuery dry-run [" + dryRunQuery + "] failed: [" + e.getCode() + "] " + e.getMessage());
-            return DryRunResult.failure(messageOf(e));
+            return DryRunResult.failure(BigQueryDryRun.messageOf(e));
         } catch (Exception e) {
             LOG.warn("Unexpected error during BigQuery dry-run", e);
-            return DryRunResult.failure(messageOf(e));
+            return DryRunResult.failure(BigQueryDryRun.messageOf(e));
         }
-    }
-
-    @NotNull
-    private static String messageOf(@NotNull Exception e) {
-        String message = e.getMessage();
-        if (message != null && !message.isBlank()) return message;
-        Throwable cause = e.getCause();
-        if (cause != null && cause.getMessage() != null && !cause.getMessage().isBlank()) {
-            return cause.getMessage();
-        }
-        return e.getClass().getSimpleName();
     }
 
     @NotNull
     private List<ColumnInfo> runDryRun(@NotNull String projectId,
                                        @Nullable String location,
                                        @NotNull String dryRunQuery) {
-        BigQuery bigQuery = GcpClientsUtils.bigQuery(projectId);
-
-        QueryJobConfiguration config = QueryJobConfiguration.newBuilder(dryRunQuery)
-                .setDryRun(true)
-                .setUseLegacySql(false)
-                .build();
-
-        JobId jobId = location != null && !location.isBlank()
-                ? JobId.newBuilder().setLocation(location).build()
-                : JobId.of();
-
-        Job dryRunJob = bigQuery.create(JobInfo.newBuilder(config).setJobId(jobId).build());
+        Job dryRunJob = BigQueryDryRun.run(projectId, location, dryRunQuery);
 
         Schema schema = dryRunJob.getStatistics() instanceof JobStatistics.QueryStatistics queryStats
                 ? queryStats.getSchema() : null;

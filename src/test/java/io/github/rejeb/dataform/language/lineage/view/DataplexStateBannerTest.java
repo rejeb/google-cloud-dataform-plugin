@@ -17,13 +17,19 @@
 package io.github.rejeb.dataform.language.lineage.view;
 
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
+import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 import com.intellij.ui.EditorNotificationPanel;
 import io.github.rejeb.dataform.language.lineage.dataplex.DataplexLineageException.Kind;
+import io.github.rejeb.dataform.language.lineage.dataplex.DataplexLineageService;
+import io.github.rejeb.dataform.language.lineage.dataplex.LineageScope;
 import io.github.rejeb.dataform.language.lineage.dataplex.TimeRange;
 import io.github.rejeb.dataform.language.lineage.view.DataplexStateBanner.State;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class DataplexStateBannerTest extends BasePlatformTestCase {
 
@@ -99,5 +105,25 @@ public class DataplexStateBannerTest extends BasePlatformTestCase {
 
     public void testTheBannerShowsItsTitleInBoldAboveTheMessage() {
         assertNotNull(banner(State.API_DISABLED).component());
+    }
+
+    public void testWithoutCompiledGraphTheProjectIsThisProject() {
+        assertEquals("this project", DataplexStateBanner.projectIdOf(mock(DataplexLineageService.class), null));
+    }
+
+    public void testAnUnreadableScopeGivesThisProject() {
+        DataplexLineageService service = mock(DataplexLineageService.class);
+        CompiledGraph compiled = mock(CompiledGraph.class);
+        when(service.scopeOf(compiled)).thenThrow(new IllegalStateException("no scope"));
+
+        assertEquals("this project", DataplexStateBanner.projectIdOf(service, compiled));
+    }
+
+    public void testTheProjectIsTheScopeProject() {
+        DataplexLineageService service = mock(DataplexLineageService.class);
+        CompiledGraph compiled = mock(CompiledGraph.class);
+        when(service.scopeOf(compiled)).thenReturn(new LineageScope("acme", "EU"));
+
+        assertEquals("acme", DataplexStateBanner.projectIdOf(service, compiled));
     }
 }

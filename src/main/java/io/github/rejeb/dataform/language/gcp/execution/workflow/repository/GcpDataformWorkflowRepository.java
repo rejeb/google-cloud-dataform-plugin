@@ -21,6 +21,7 @@ import com.google.cloud.dataform.v1.*;
 import com.intellij.openapi.diagnostic.Logger;
 import io.github.rejeb.dataform.language.gcp.common.DataformApi;
 import io.github.rejeb.dataform.language.gcp.common.GcpApiException;
+import io.github.rejeb.dataform.language.gcp.common.RepositoryCoordinates;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.*;
 import io.github.rejeb.dataform.language.util.GcpClientsUtils;
 import org.jetbrains.annotations.NotNull;
@@ -37,15 +38,13 @@ public final class GcpDataformWorkflowRepository implements WorkflowRepository {
     @Override
     @NotNull
     public WorkflowCreationResult createWorkflowRun(
-            @NotNull String projectId,
-            @NotNull String location,
-            @NotNull String repositoryId,
+            @NotNull RepositoryCoordinates repository,
             @NotNull String serviceAccount,
             @NotNull WorkflowRunRequest request
     ) {
-        return DataformApi.call(projectId, "Error creating workflow run.", client -> {
-            String repoName = RepositoryName.of(projectId, location, repositoryId).toString();
-            String wsName = WorkspaceName.of(projectId, location, repositoryId, request.workspaceId()).toString();
+        return DataformApi.call(repository.projectId(), "Error creating workflow run.", client -> {
+            String repoName = repository.repositoryName();
+            String wsName = repository.workspaceName(request.workspaceId());
             ensureNpmPackagesInstalled(wsName, client);
             CompilationResult compilation = client.createCompilationResult(
                     CreateCompilationResultRequest.newBuilder()

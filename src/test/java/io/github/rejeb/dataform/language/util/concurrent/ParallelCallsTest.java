@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.rejeb.dataform.language.lineage.dataplex;
+package io.github.rejeb.dataform.language.util.concurrent;
 
 import org.junit.jupiter.api.Test;
 

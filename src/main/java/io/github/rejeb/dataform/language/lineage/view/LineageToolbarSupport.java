@@ -37,6 +37,7 @@ import io.github.rejeb.dataform.language.lineage.model.Density;
 import io.github.rejeb.dataform.language.lineage.model.Direction;
 import io.github.rejeb.dataform.language.lineage.model.LineageModel;
 import io.github.rejeb.dataform.language.lineage.model.LineageSource;
+import io.github.rejeb.dataform.language.ui.Actions;
 import io.github.rejeb.dataform.language.ui.RoundedBox;
 import io.github.rejeb.dataform.language.ui.Toolbars;
 import org.jetbrains.annotations.NotNull;
@@ -45,7 +46,6 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.InputEvent;
 import java.util.List;
-import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -56,44 +56,6 @@ final class LineageToolbarSupport {
     private static final double ZOOM_STEP = 1.2;
 
     private LineageToolbarSupport() {
-    }
-
-    static DumbAwareAction action(@NotNull String text, @NotNull String description,
-                                  @NotNull Icon icon, @NotNull Runnable run) {
-        return new DumbAwareAction(text, description, icon) {
-            @Override
-            public void actionPerformed(@NotNull AnActionEvent e) {
-                run.run();
-            }
-        };
-    }
-
-    static ToggleAction toggle(@NotNull String text, @NotNull String description,
-                               @NotNull Supplier<Icon> icon,
-                               @NotNull BooleanSupplier state,
-                               @NotNull Runnable toggle) {
-        return new ToggleAction(text, description, icon.get()) {
-            @Override
-            public boolean isSelected(@NotNull AnActionEvent e) {
-                return state.getAsBoolean();
-            }
-
-            @Override
-            public void setSelected(@NotNull AnActionEvent e, boolean requested) {
-                if (requested != state.getAsBoolean()) toggle.run();
-            }
-
-            @Override
-            public void update(@NotNull AnActionEvent e) {
-                super.update(e);
-                e.getPresentation().setIcon(icon.get());
-            }
-
-            @Override
-            public @NotNull ActionUpdateThread getActionUpdateThread() {
-                return ActionUpdateThread.EDT;
-            }
-        };
     }
 
     /**
@@ -273,7 +235,7 @@ final class LineageToolbarSupport {
     }
 
     static ToggleAction densityToggle(@NotNull LineageModel model) {
-        return toggle("Compact density", "Show the nodes on one line",
+        return Actions.toggle("Compact density", "Show the nodes on one line",
                 () -> LineageIcons.DENSITY,
                 () -> model.density() == Density.COMPACT, model::toggleDensity);
     }
@@ -283,8 +245,8 @@ final class LineageToolbarSupport {
      */
     static @NotNull List<AnAction> zoomActions(@NotNull GraphCanvas canvas) {
         return List.of(
-                action("Zoom out", "Zoom out", LineageIcons.ZOOM_OUT, () -> canvas.zoomBy(1 / ZOOM_STEP)),
-                action("Zoom in", "Zoom in", LineageIcons.ZOOM_IN, () -> canvas.zoomBy(ZOOM_STEP)));
+                Actions.of("Zoom out", "Zoom out", LineageIcons.ZOOM_OUT, () -> canvas.zoomBy(1 / ZOOM_STEP)),
+                Actions.of("Zoom in", "Zoom in", LineageIcons.ZOOM_IN, () -> canvas.zoomBy(ZOOM_STEP)));
     }
 
     /**

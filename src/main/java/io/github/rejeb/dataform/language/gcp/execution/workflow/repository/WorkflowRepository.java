@@ -17,6 +17,7 @@
 package io.github.rejeb.dataform.language.gcp.execution.workflow.repository;
 
 import io.github.rejeb.dataform.language.gcp.common.GcpApiException;
+import io.github.rejeb.dataform.language.gcp.common.RepositoryCoordinates;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowCreationResult;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowProgressSession;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowRunRequest;
@@ -37,9 +38,7 @@ public interface WorkflowRepository {
      * @throws GcpApiException on API error
      */
     @NotNull WorkflowCreationResult createWorkflowRun(
-            @NotNull String projectId,
-            @NotNull String location,
-            @NotNull String repositoryId,
+            @NotNull RepositoryCoordinates repository,
             @NotNull String serviceAccount,
             @NotNull WorkflowRunRequest request
     );

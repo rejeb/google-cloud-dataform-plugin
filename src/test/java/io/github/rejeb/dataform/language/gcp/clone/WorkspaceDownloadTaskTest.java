@@ -25,6 +25,7 @@ import com.intellij.openapi.wm.impl.welcomeScreen.cloneableProjects.CloneablePro
 import com.intellij.testFramework.PlatformTestUtil;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
 import io.github.rejeb.dataform.language.gcp.common.GcpApiException;
+import io.github.rejeb.dataform.language.gcp.common.RepositoryCoordinates;
 import io.github.rejeb.dataform.language.gcp.workspace.DataformRepository;
 import io.github.rejeb.dataform.language.gcp.workspace.repository.WorkspaceRepository;
 
@@ -93,7 +94,7 @@ public class WorkspaceDownloadTaskTest extends BasePlatformTestCase {
     }
 
     public void testASuccessfulDownloadCompletesTheCheckout() {
-        when(repository.readAllFiles("acme", "europe-west1", "finance-marts", "dev-you"))
+        when(repository.readAllFiles(new RepositoryCoordinates("acme", "europe-west1", "finance-marts"), "dev-you"))
                 .thenReturn(Map.of("workflow_settings.yaml", ""));
 
         CloneStatus status = task().run(new EmptyProgressIndicator());
@@ -103,7 +104,7 @@ public class WorkspaceDownloadTaskTest extends BasePlatformTestCase {
     }
 
     public void testAFailedDownloadTellsTheUserWhy() {
-        when(repository.readAllFiles("acme", "europe-west1", "finance-marts", "dev-you"))
+        when(repository.readAllFiles(new RepositoryCoordinates("acme", "europe-west1", "finance-marts"), "dev-you"))
                 .thenThrow(new GcpApiException("Permission denied on the workspace", new RuntimeException()));
 
         CloneStatus status = task().run(new EmptyProgressIndicator());
@@ -116,7 +117,7 @@ public class WorkspaceDownloadTaskTest extends BasePlatformTestCase {
     }
 
     public void testAFileThatCannotBeWrittenIsAFailureNotACrash() {
-        when(repository.readAllFiles("acme", "europe-west1", "finance-marts", "dev-you"))
+        when(repository.readAllFiles(new RepositoryCoordinates("acme", "europe-west1", "finance-marts"), "dev-you"))
                 .thenReturn(Map.of("../../evil.txt", ""));
 
         CloneStatus status = task().run(new EmptyProgressIndicator());
