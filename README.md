@@ -4,8 +4,8 @@ A comprehensive IntelliJ IDEA plugin that provides advanced language support for
 
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-IntelliJ-lightgrey.svg)
-![version](https://img.shields.io/badge/version-1.1.0-green.svg)
-[![Java](https://img.shields.io/badge/Java-21-blue)](https://www.java.com/fr/)
+![version](https://img.shields.io/badge/version-1.1.1-green.svg)
+[![Java](https://img.shields.io/badge/Java-25-blue)](https://www.java.com/fr/)
 [![JetBrains Marketplace](https://img.shields.io/jetbrains/plugin/v/30020?label=JetBrains%20Marketplace)](https://plugins.jetbrains.com/plugin/30020)
 [![Downloads](https://img.shields.io/jetbrains/plugin/d/30020)](https://plugins.jetbrains.com/plugin/30020)
 
@@ -358,7 +358,7 @@ src/main/java/io/github/rejeb/dataform/language/
 
 ## Technologies
 
-- **Java 21**: Plugin implementation
+- **Java 25**: Plugin implementation
 - **Custom lexer and parser**: SQLX language support
 - **IntelliJ Platform SDK 2026.2**: Core plugin functionality, built with the Gradle IntelliJ Platform plugin
 - **Swing**: User interface, with the IntelliJ UI components
