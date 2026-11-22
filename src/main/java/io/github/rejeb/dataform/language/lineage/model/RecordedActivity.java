@@ -21,5 +21,12 @@ package io.github.rejeb.dataform.language.lineage.model;
  * the check for something new, or an update after it.
  */
 public enum RecordedActivity {
-    NONE, LOADING, CHECKING, UPDATING
+    NONE, LOADING, CHECKING, UPDATING;
+
+    /**
+     * @return whether the lineage is being read: a first load or an update
+     */
+    public boolean isBusy() {
+        return this == LOADING || this == UPDATING;
+    }
 }

@@ -26,6 +26,7 @@ import io.github.rejeb.dataform.language.gcp.auth.AuthTrigger;
 import io.github.rejeb.dataform.language.gcp.auth.GcpCalls;
 import io.github.rejeb.dataform.language.lineage.model.LineageModel;
 import io.github.rejeb.dataform.language.util.GcpClientsUtils;
+import io.github.rejeb.dataform.language.util.concurrent.ParallelCalls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

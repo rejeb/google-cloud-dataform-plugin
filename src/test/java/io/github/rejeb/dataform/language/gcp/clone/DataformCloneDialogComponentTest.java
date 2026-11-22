@@ -34,6 +34,7 @@ import io.github.rejeb.dataform.language.gcp.auth.DataformAuthListener;
 import io.github.rejeb.dataform.language.gcp.auth.DataformCredentialsService;
 import io.github.rejeb.dataform.language.gcp.auth.GcpAuthRequiredException;
 import io.github.rejeb.dataform.language.gcp.common.GcpApiException;
+import io.github.rejeb.dataform.language.gcp.common.RepositoryCoordinates;
 import io.github.rejeb.dataform.language.gcp.workspace.DataformRepository;
 import io.github.rejeb.dataform.language.gcp.workspace.Workspace;
 import io.github.rejeb.dataform.language.gcp.workspace.repository.WorkspaceRepository;
@@ -148,7 +149,7 @@ public class DataformCloneDialogComponentTest extends BasePlatformTestCase {
             workspaces.add(new Workspace("projects/acme/locations/europe-west1/repositories/" + of.repositoryId()
                     + "/workspaces/" + id, id));
         }
-        when(repository.findAll("acme", "europe-west1", of.repositoryId())).thenReturn(workspaces);
+        when(repository.findAll(new RepositoryCoordinates("acme", "europe-west1", of.repositoryId()))).thenReturn(workspaces);
     }
 
     public void testSignedOutTheTabOffersToSignInAndListsNothing() {
@@ -236,7 +237,7 @@ public class DataformCloneDialogComponentTest extends BasePlatformTestCase {
         assertFalse(component.workspaceCombo().isEnabled());
         assertEquals("Clone", state.okName);
         assertTrue(state.okEnabled);
-        verify(repository, never()).findAll(any(), any(), any());
+        verify(repository, never()).findAll(any());
     }
 
     public void testARepositoryWithoutARemoteOffersItsWorkspaces() {
@@ -283,7 +284,7 @@ public class DataformCloneDialogComponentTest extends BasePlatformTestCase {
     }
 
     public void testAFailedWorkspaceListingIsShownAndBlocksTheDownload() {
-        when(repository.findAll("acme", "europe-west1", "finance-marts"))
+        when(repository.findAll(new RepositoryCoordinates("acme", "europe-west1", "finance-marts")))
                 .thenThrow(new GcpApiException("Permission denied", new RuntimeException()));
         DataformCloneDialogComponent component = opened();
 
@@ -405,7 +406,7 @@ public class DataformCloneDialogComponentTest extends BasePlatformTestCase {
 
         assertEquals(List.of("finance-marts"), names(component.repositoryList().getModel()));
         assertEquals(WITHOUT_REMOTE, component.repositoryList().getSelectedValue());
-        verify(repository, org.mockito.Mockito.times(1)).findAll("acme", "europe-west1", "finance-marts");
+        verify(repository, org.mockito.Mockito.times(1)).findAll(new RepositoryCoordinates("acme", "europe-west1", "finance-marts"));
     }
 
     public void testSearchingAwayTheChoiceClearsIt() {
@@ -614,7 +615,7 @@ public class DataformCloneDialogComponentTest extends BasePlatformTestCase {
     }
 
     public void testACredentialThatExpiredWhileListingWorkspacesGoesBackToTheSignIn() {
-        when(repository.findAll("acme", "europe-west1", "finance-marts")).thenThrow(credentialRejected());
+        when(repository.findAll(new RepositoryCoordinates("acme", "europe-west1", "finance-marts"))).thenThrow(credentialRejected());
         DataformCloneDialogComponent component = opened();
 
         select(component, WITHOUT_REMOTE);

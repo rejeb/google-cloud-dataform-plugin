@@ -23,6 +23,7 @@ import com.google.cloud.bigquery.StandardSQLTypeName;
 import com.google.cloud.bigquery.TableId;
 import io.github.rejeb.dataform.language.columns.model.ColumnRef;
 import io.github.rejeb.dataform.language.lineage.model.LineageModel;
+import io.github.rejeb.dataform.language.util.concurrent.ParallelCalls;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;

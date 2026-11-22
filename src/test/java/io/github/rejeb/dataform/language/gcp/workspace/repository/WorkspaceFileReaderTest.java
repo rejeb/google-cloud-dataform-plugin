@@ -19,8 +19,6 @@ package io.github.rejeb.dataform.language.gcp.workspace.repository;
 import com.google.api.gax.rpc.FailedPreconditionException;
 import com.google.api.gax.rpc.StatusCode;
 import com.google.cloud.dataform.v1.DataformClient;
-import com.google.cloud.dataform.v1.DirectoryEntry;
-import com.google.cloud.dataform.v1.QueryDirectoryContentsRequest;
 import com.google.cloud.dataform.v1.QueryRepositoryDirectoryContentsRequest;
 import com.google.cloud.dataform.v1.ReadFileRequest;
 import com.google.cloud.dataform.v1.ReadFileResponse;
@@ -30,9 +28,15 @@ import com.google.protobuf.ByteString;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
 import java.util.Map;
 
+import static io.github.rejeb.dataform.language.gcp.workspace.repository.DataformClientStub.COORDINATES;
+import static io.github.rejeb.dataform.language.gcp.workspace.repository.DataformClientStub.REPOSITORY;
+import static io.github.rejeb.dataform.language.gcp.workspace.repository.DataformClientStub.WORKSPACE;
+import static io.github.rejeb.dataform.language.gcp.workspace.repository.DataformClientStub.directory;
+import static io.github.rejeb.dataform.language.gcp.workspace.repository.DataformClientStub.file;
+import static io.github.rejeb.dataform.language.gcp.workspace.repository.DataformClientStub.repositoryDirectory;
+import static io.github.rejeb.dataform.language.gcp.workspace.repository.DataformClientStub.workspaceDirectory;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -41,9 +45,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class WorkspaceFileReaderTest {
-
-    private static final String REPOSITORY = "projects/p/locations/eu/repositories/r";
-    private static final String WORKSPACE = REPOSITORY + "/workspaces/w";
 
     private DataformClient client;
 
@@ -54,9 +55,9 @@ public class WorkspaceFileReaderTest {
 
     @Test
     public void readsEveryRepositoryFileRecursivelySkippingNodeModules() {
-        repositoryDirectory("", file("a.sqlx"), directory("definitions"), directory("node_modules"));
-        repositoryDirectory("definitions", file("b.sqlx"), directory("sub"));
-        repositoryDirectory("definitions/sub", file("c.js"));
+        repositoryDirectory(client, "", file("a.sqlx"), directory("definitions"), directory("node_modules"));
+        repositoryDirectory(client, "definitions", file("b.sqlx"), directory("sub"));
+        repositoryDirectory(client, "definitions/sub", file("c.js"));
         when(client.readRepositoryFile(any(ReadRepositoryFileRequest.class))).thenAnswer(invocation -> {
             ReadRepositoryFileRequest request = invocation.getArgument(0);
             assertEquals(REPOSITORY, request.getName());
@@ -65,7 +66,7 @@ public class WorkspaceFileReaderTest {
                     .build();
         });
 
-        Map<String, String> files = WorkspaceFileReader.readAllRepositoryFiles("p", "eu", "r", client);
+        Map<String, String> files = WorkspaceFileReader.readAll(FileSource.of(COORDINATES, null, client));
 
         assertEquals(Map.of(
                 "a.sqlx", "content of a.sqlx",
@@ -78,7 +79,7 @@ public class WorkspaceFileReaderTest {
         when(client.queryRepositoryDirectoryContents(any(QueryRepositoryDirectoryContentsRequest.class)))
                 .thenThrow(new FailedPreconditionException("Reading from empty repo", null,
                         mock(StatusCode.class), false));
-        assertTrue(WorkspaceFileReader.readAllRepositoryFiles("p", "eu", "r", client).isEmpty());
+        assertTrue(WorkspaceFileReader.readAll(FileSource.of(COORDINATES, null, client)).isEmpty());
     }
 
     @Test
@@ -86,13 +87,13 @@ public class WorkspaceFileReaderTest {
         when(client.queryRepositoryDirectoryContents(any(QueryRepositoryDirectoryContentsRequest.class)))
                 .thenThrow(new IllegalStateException("network"));
         assertThrows(IllegalStateException.class,
-                () -> WorkspaceFileReader.readAllRepositoryFiles("p", "eu", "r", client));
+                () -> WorkspaceFileReader.readAll(FileSource.of(COORDINATES, null, client)));
     }
 
     @Test
     public void readsEveryWorkspaceFileRecursivelySkippingNodeModules() {
-        workspaceDirectory("", file("workflow_settings.yaml"), directory("definitions"), directory("node_modules"));
-        workspaceDirectory("definitions", file("definitions/a.sqlx"));
+        workspaceDirectory(client, "", file("workflow_settings.yaml"), directory("definitions"), directory("node_modules"));
+        workspaceDirectory(client, "definitions", file("definitions/a.sqlx"));
         when(client.readFile(any(ReadFileRequest.class))).thenAnswer(invocation -> {
             ReadFileRequest request = invocation.getArgument(0);
             assertEquals(WORKSPACE, request.getWorkspace());
@@ -101,51 +102,10 @@ public class WorkspaceFileReaderTest {
                     .build();
         });
 
-        Map<String, String> files = WorkspaceFileReader.readAllWorkspaceFiles("p", "eu", "r", "w", client);
+        Map<String, String> files = WorkspaceFileReader.readAll(FileSource.of(COORDINATES, "w", client));
 
         assertEquals(Map.of(
                 "workflow_settings.yaml", "content of workflow_settings.yaml",
                 "definitions/a.sqlx", "content of definitions/a.sqlx"), files);
-    }
-
-    @Test
-    public void readsASingleFileFromEitherSource() {
-        when(client.readRepositoryFile(ReadRepositoryFileRequest.newBuilder()
-                .setName(REPOSITORY).setPath("x.sqlx").build()))
-                .thenReturn(ReadRepositoryFileResponse.newBuilder()
-                        .setContents(ByteString.copyFromUtf8("repo")).build());
-        when(client.readFile(ReadFileRequest.newBuilder()
-                .setWorkspace(WORKSPACE).setPath("x.sqlx").build()))
-                .thenReturn(ReadFileResponse.newBuilder()
-                        .setFileContents(ByteString.copyFromUtf8("workspace")).build());
-
-        assertEquals("repo", WorkspaceFileReader.readRepositoryFile("p", "eu", "r", "x.sqlx", client));
-        assertEquals("workspace", WorkspaceFileReader.readWorkspaceFile("p", "eu", "r", "w", "x.sqlx", client));
-    }
-
-    private void repositoryDirectory(String path, DirectoryEntry... entries) {
-        DataformClient.QueryRepositoryDirectoryContentsPagedResponse response =
-                mock(DataformClient.QueryRepositoryDirectoryContentsPagedResponse.class);
-        when(response.iterateAll()).thenReturn(List.of(entries));
-        when(client.queryRepositoryDirectoryContents(QueryRepositoryDirectoryContentsRequest.newBuilder()
-                .setName(REPOSITORY).setPath(path).build()))
-                .thenReturn(response);
-    }
-
-    private void workspaceDirectory(String path, DirectoryEntry... entries) {
-        DataformClient.QueryDirectoryContentsPagedResponse response =
-                mock(DataformClient.QueryDirectoryContentsPagedResponse.class);
-        when(response.iterateAll()).thenReturn(List.of(entries));
-        when(client.queryDirectoryContents(QueryDirectoryContentsRequest.newBuilder()
-                .setWorkspace(WORKSPACE).setPath(path).build()))
-                .thenReturn(response);
-    }
-
-    private static DirectoryEntry file(String path) {
-        return DirectoryEntry.newBuilder().setFile(path).build();
-    }
-
-    private static DirectoryEntry directory(String path) {
-        return DirectoryEntry.newBuilder().setDirectory(path).build();
     }
 }

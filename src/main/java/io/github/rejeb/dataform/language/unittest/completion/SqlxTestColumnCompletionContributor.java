@@ -24,10 +24,10 @@ import com.intellij.codeInsight.completion.CompletionType;
 import com.intellij.codeInsight.completion.PrioritizedLookupElement;
 import com.intellij.codeInsight.lookup.LookupElement;
 import com.intellij.codeInsight.lookup.LookupElementBuilder;
-import com.intellij.icons.AllIcons;
 import com.intellij.patterns.PlatformPatterns;
 import com.intellij.psi.PsiElement;
 import com.intellij.util.ProcessingContext;
+import io.github.rejeb.dataform.language.completion.ColumnLookups;
 import io.github.rejeb.dataform.language.schema.sql.DataformActionColumns;
 import io.github.rejeb.dataform.language.schema.sql.model.ColumnInfo;
 import io.github.rejeb.dataform.language.unittest.schema.TestBlockSchema;
@@ -93,13 +93,8 @@ public class SqlxTestColumnCompletionContributor extends CompletionContributor {
 
         @NotNull
         private static LookupElement lookup(@NotNull ColumnInfo column, double priority) {
-            String type = column.isRecord() ? "STRUCT" : column.type();
-            LookupElementBuilder element = LookupElementBuilder.create(column.name())
-                    .withTypeText(column.isRepeated() ? type + "[]" : type)
-                    .withIcon(AllIcons.Nodes.Field);
-            if (column.description() != null && !column.description().isBlank()) {
-                element = element.withTailText(" " + column.description(), true);
-            }
+            LookupElementBuilder element = ColumnLookups.describe(LookupElementBuilder.create(column.name()), column,
+                    column.isRecord() ? "STRUCT" : column.type());
             return PrioritizedLookupElement.withPriority(element, priority);
         }
     }

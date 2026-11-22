@@ -16,30 +16,23 @@
  */
 package io.github.rejeb.dataform.language.gcp.toolwindow.action;
 
-import com.intellij.openapi.actionSystem.ActionGroup;
-import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.DefaultActionGroup;
 import com.intellij.openapi.actionSystem.Presentation;
-import com.intellij.openapi.actionSystem.ex.CustomComponentAction;
-import com.intellij.openapi.project.DumbAware;
 import io.github.rejeb.dataform.language.DataformIcons;
 import io.github.rejeb.dataform.language.gcp.auth.AuthStatus;
 import io.github.rejeb.dataform.language.gcp.auth.DataformAuthState;
 import io.github.rejeb.dataform.language.gcp.toolwindow.WorkspaceSelection;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
-import javax.swing.JComponent;
 import java.util.List;
-
 /**
  * The workspace picker of the Dataform tool window toolbar: shows the selected workspace and lists
  * the main branch when it can be read and the workspaces of the active repository, then the action
  * creating one.
  */
-public class WorkspacePickerAction extends ActionGroup implements CustomComponentAction, DumbAware {
+public class WorkspacePickerAction extends PickerAction {
 
     /**
      * The widest the workspace name gets in the toolbar, in unscaled pixels.
@@ -53,11 +46,8 @@ public class WorkspacePickerAction extends ActionGroup implements CustomComponen
 
     public WorkspacePickerAction(@NotNull WorkspaceSelection selection, @NotNull AnAction newWorkspace) {
         this.selection = selection;
+        super("Workspace", MAX_LABEL_WIDTH);
         this.newWorkspace = newWorkspace;
-        Presentation template = getTemplatePresentation();
-        template.setPopupGroup(true);
-        template.setDisableGroupIfEmpty(false);
-        template.setDescription("Workspace");
     }
 
     @Override
@@ -77,25 +67,11 @@ public class WorkspacePickerAction extends ActionGroup implements CustomComponen
         presentation.setText(loading ? LOADING : selected != null ? selected : selection.noWorkspaceName(), false);
     }
 
-    @Override
-    public @NotNull ActionUpdateThread getActionUpdateThread() {
-        return ActionUpdateThread.BGT;
-    }
-
-    @Override
-    public AnAction @NotNull [] getChildren(@Nullable AnActionEvent e) {
-        return choices().getChildActionsOrStubs();
-    }
-
-    @Override
-    public @NotNull JComponent createCustomComponent(@NotNull Presentation presentation, @NotNull String place) {
-        return new PickerButton(this, presentation, place, MAX_LABEL_WIDTH);
-    }
-
     /**
      * The choices of the picker: the main branch when it can be read, the workspaces of the active
      * repository, then the action creating a workspace.
      */
+    @Override
     public @NotNull DefaultActionGroup choices() {
         DefaultActionGroup group = new DefaultActionGroup();
         String mainBranch = selection.mainBranchChoice();

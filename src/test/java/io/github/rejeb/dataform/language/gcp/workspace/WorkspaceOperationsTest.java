@@ -24,6 +24,7 @@ import com.intellij.testFramework.fixtures.BasePlatformTestCase;
 import io.github.rejeb.dataform.language.gcp.common.CommitAuthorConfig;
 import io.github.rejeb.dataform.language.gcp.common.GcpApiException;
 import io.github.rejeb.dataform.language.gcp.common.GcpConfigProvider;
+import io.github.rejeb.dataform.language.gcp.common.RepositoryCoordinates;
 import io.github.rejeb.dataform.language.gcp.gitremote.FakeGitRemoteBranch;
 import io.github.rejeb.dataform.language.gcp.gitremote.GitRemoteBranch;
 import io.github.rejeb.dataform.language.gcp.gitremote.GitRemoteBranchException;
@@ -82,7 +83,7 @@ public class WorkspaceOperationsTest extends BasePlatformTestCase {
                 Workspace.fromResourceName("projects/p/locations/l/repositories/r/workspaces/dev"),
                 Workspace.fromResourceName("projects/p/locations/l/repositories/r/workspaces/staging")
         );
-        when(repository.findAll("test-project", "europe-west1", "test-repo"))
+        when(repository.findAll(new RepositoryCoordinates("test-project", "europe-west1", "test-repo")))
                 .thenReturn(expected);
 
         List<Workspace> result = handler(fullConfig).listWorkspaces();
@@ -100,7 +101,7 @@ public class WorkspaceOperationsTest extends BasePlatformTestCase {
     }
 
     public void testListWorkspacesPropagatesGcpApiException() {
-        when(repository.findAll(any(), any(), any()))
+        when(repository.findAll(any()))
                 .thenThrow(new GcpApiException("failure", new RuntimeException()));
 
         assertThrows(GcpApiException.class, () -> handler(fullConfig).listWorkspaces());
@@ -121,31 +122,59 @@ public class WorkspaceOperationsTest extends BasePlatformTestCase {
 
         handlerWithResolver(fullConfig, List.of(path)).pushCode("dev");
 
-        verify(repository).push(eq("test-project"), eq("europe-west1"), eq("test-repo"),
+        verify(repository).push(eq(new RepositoryCoordinates("test-project", "europe-west1", "test-repo")),
                 eq("dev"), eq(Map.of(path, "SELECT 1")), anySet());
     }
 
     public void testPushCodeDeletesRemotePathsNoLongerPresentLocally() {
         String path = addProjectFile("definitions/kept.sqlx", "SELECT 1");
-        when(repository.listAllPaths("test-project", "europe-west1", "test-repo", "dev"))
+        when(repository.listAllPaths(new RepositoryCoordinates("test-project", "europe-west1", "test-repo"), "dev"))
                 .thenReturn(List.of(path, "definitions/removed.sqlx"));
 
         handlerWithResolver(fullConfig, List.of(path)).pushCode("dev");
 
-        verify(repository).push(eq("test-project"), eq("europe-west1"), eq("test-repo"),
+        verify(repository).push(eq(new RepositoryCoordinates("test-project", "europe-west1", "test-repo")),
                 eq("dev"), eq(Map.of(path, "SELECT 1")), eq(Set.of("definitions/removed.sqlx")));
     }
 
-    public void testPushCodeSkipsWhenResolvedFilesDoNotExistLocally() {
-        handlerWithResolver(fullConfig, List.of("definitions/absent.sqlx")).pushCode("dev");
-
-        verify(repository, never()).push(any(), any(), any(), any(), any(), any());
+    private WorkspaceOperationsHandler handlerReadingFrom(VirtualFile projectDirectory, List<String> resolvedFiles) {
+        return new WorkspaceOperationsHandler(repository, fullConfig, getProject(), p -> resolvedFiles,
+                p -> projectDirectory, null, r -> false);
     }
 
-    public void testPushCodeSkipsWhenNoDataformFilesPresent() {
-        handlerWithResolver(fullConfig, List.of()).pushCode("dev");
+    public void testPushCodeFailsWhenResolvedFilesDoNotExistLocally() {
+        WorkspaceOperationsHandler handler = handlerWithResolver(fullConfig, List.of("definitions/absent.sqlx"));
 
+        assertThrows(GcpApiException.class, () -> handler.pushCode("dev"));
+        verify(repository, never()).push(any(), any(), any(), any());
+    }
+
+    public void testPushCodeFailsWhenNoDataformFilesPresent() {
+        WorkspaceOperationsHandler handler = handlerWithResolver(fullConfig, List.of());
+
+        assertThrows(GcpApiException.class, () -> handler.pushCode("dev"));
         verifyNoInteractions(repository);
+    }
+
+    public void testAnEmptyUploadNamesTheDirectoryItReadFrom() throws IOException {
+        VirtualFile projectDirectory = myFixture.getTempDirFixture().findOrCreateDir("empty");
+
+        try {
+            handlerReadingFrom(projectDirectory, List.of()).pushCode("dev");
+            fail("an upload without any file must fail");
+        } catch (GcpApiException e) {
+            assertTrue(e.getMessage(), e.getMessage().contains(projectDirectory.getPresentableUrl()));
+        }
+    }
+
+    public void testPushCodeReadsTheProjectDirectoryRatherThanTheFirstContentRoot() {
+        VirtualFile projectDirectory = myFixture.addFileToProject("nested/definitions/my_table.sqlx", "SELECT 1")
+                .getVirtualFile().getParent().getParent();
+
+        handlerReadingFrom(projectDirectory, List.of("definitions/my_table.sqlx")).pushCode("dev");
+
+        verify(repository).push(eq(new RepositoryCoordinates("test-project", "europe-west1", "test-repo")),
+                eq("dev"), eq(Map.of("definitions/my_table.sqlx", "SELECT 1")), anySet());
     }
 
     public void testPushCodeSkipsWhenConfigMissing() {
@@ -158,7 +187,7 @@ public class WorkspaceOperationsTest extends BasePlatformTestCase {
     public void testPushCodePropagatesGcpApiException() {
         String path = addProjectFile("definitions/failing.sqlx", "SELECT 1");
         doThrow(new GcpApiException("failure", new RuntimeException()))
-                .when(repository).push(any(), any(), any(), any(), any(), any());
+                .when(repository).push(any(), any(), any(), any());
 
         assertThrows(GcpApiException.class,
                 () -> handlerWithResolver(fullConfig, List.of(path)).pushCode("dev"));
@@ -167,7 +196,7 @@ public class WorkspaceOperationsTest extends BasePlatformTestCase {
     public void testDeleteWorkspaceCallsRepositoryWithActiveRepositoryCoordinates() {
         handler(fullConfig).deleteWorkspace("intellij-run-1");
 
-        verify(repository).deleteWorkspace("test-project", "europe-west1", "test-repo", "intellij-run-1");
+        verify(repository).deleteWorkspace(new RepositoryCoordinates("test-project", "europe-west1", "test-repo"), "intellij-run-1");
     }
 
     public void testDeleteWorkspaceFailsWhenConfigMissing() {
@@ -192,7 +221,7 @@ public class WorkspaceOperationsTest extends BasePlatformTestCase {
     public void testFetchCodeWithWorkspaceIdReadsAllWorkspaceFiles() {
         handler(fullConfig).fetchCode("dev");
 
-        verify(repository).readAllFiles("test-project", "europe-west1", "test-repo", "dev");
+        verify(repository).readAllFiles(new RepositoryCoordinates("test-project", "europe-west1", "test-repo"), "dev");
     }
 
     public void testFetchCodeWithoutWorkspaceIdReadsTheRepositoryMainBranch() {
@@ -200,7 +229,7 @@ public class WorkspaceOperationsTest extends BasePlatformTestCase {
 
         handler(fullConfig).fetchCode(null);
 
-        verify(repository).readAllFiles("test-project", "europe-west1", "test-repo", null);
+        verify(repository).readAllFiles(new RepositoryCoordinates("test-project", "europe-west1", "test-repo"), null);
     }
 
     public void testFetchCodeReturnsTheFilesReadFromTheRepository() {
@@ -209,7 +238,7 @@ public class WorkspaceOperationsTest extends BasePlatformTestCase {
                 "definitions/my_table.sqlx", "SELECT 1",
                 "workflow_settings.yaml", "defaultProject: test"
         );
-        when(repository.readAllFiles("test-project", "europe-west1", "test-repo", null))
+        when(repository.readAllFiles(new RepositoryCoordinates("test-project", "europe-west1", "test-repo"), null))
                 .thenReturn(expected);
 
         assertEquals(expected, handler(fullConfig).fetchCode(null));
@@ -226,7 +255,7 @@ public class WorkspaceOperationsTest extends BasePlatformTestCase {
 
     public void testFetchCodePropagatesGcpApiException() {
         doThrow(new GcpApiException("failure", new RuntimeException()))
-                .when(repository).readAllFiles(any(), any(), any(), any());
+                .when(repository).readAllFiles(any(), any());
 
         assertThrows(GcpApiException.class, () -> handler(fullConfig).fetchCode("dev"));
     }
@@ -235,11 +264,11 @@ public class WorkspaceOperationsTest extends BasePlatformTestCase {
         repositoryIs(HOSTED);
         handler(fullConfig).pullCode(null);
 
-        verify(repository).readAllFiles("test-project", "europe-west1", "test-repo", null);
+        verify(repository).readAllFiles(new RepositoryCoordinates("test-project", "europe-west1", "test-repo"), null);
     }
 
     public void testPullCodeWritesPulledFilesToTheProject() throws IOException {
-        when(repository.readAllFiles("test-project", "europe-west1", "test-repo", "dev"))
+        when(repository.readAllFiles(new RepositoryCoordinates("test-project", "europe-west1", "test-repo"), "dev"))
                 .thenReturn(Map.of("definitions/pulled.sqlx", "SELECT 42"));
 
         handler(fullConfig).pullCode("dev");
@@ -248,6 +277,20 @@ public class WorkspaceOperationsTest extends BasePlatformTestCase {
         VirtualFile pulled = contentRoot.findFileByRelativePath("definitions/pulled.sqlx");
         assertNotNull("the pulled file must be written to the content root", pulled);
         assertEquals("SELECT 42", VfsUtilCore.loadText(pulled));
+    }
+
+    public void testPullCodeWritesToTheProjectDirectoryRatherThanTheFirstContentRoot() throws IOException {
+        VirtualFile projectDirectory = myFixture.getTempDirFixture().findOrCreateDir("nested");
+        when(repository.readAllFiles(new RepositoryCoordinates("test-project", "europe-west1", "test-repo"), "dev"))
+                .thenReturn(Map.of("definitions/pulled.sqlx", "SELECT 42"));
+
+        handlerReadingFrom(projectDirectory, List.of()).pullCode("dev");
+
+        VirtualFile pulled = projectDirectory.findFileByRelativePath("definitions/pulled.sqlx");
+        assertNotNull("the pulled file must be written to the project directory", pulled);
+        assertEquals("SELECT 42", VfsUtilCore.loadText(pulled));
+        VirtualFile contentRoot = ProjectRootManager.getInstance(getProject()).getContentRoots()[0];
+        assertNull(contentRoot.findFileByRelativePath("definitions/pulled.sqlx"));
     }
 
     public void testPullCodeSkipsWhenConfigMissing() {
@@ -259,7 +302,7 @@ public class WorkspaceOperationsTest extends BasePlatformTestCase {
     public void testPullCodePropagatesGcpApiException() {
         repositoryIs(HOSTED);
         doThrow(new GcpApiException("failure", new RuntimeException()))
-                .when(repository).readAllFiles(any(), any(), any(), any());
+                .when(repository).readAllFiles(any(), any());
 
         assertThrows(GcpApiException.class, () -> handler(fullConfig).pullCode(null));
     }
@@ -267,7 +310,7 @@ public class WorkspaceOperationsTest extends BasePlatformTestCase {
     public void testFetchGitStatusesHidesTheNodeModulesAndTheGitignoredPaths() {
         myFixture.addFileToProject(".gitignore", "*.log\n");
         UncommittedChange table = new UncommittedChange("definitions/a.sqlx", UncommittedChange.ChangeState.ADDED);
-        when(repository.fetchFileGitStatuses("test-project", "europe-west1", "test-repo", "demo")).thenReturn(List.of(
+        when(repository.fetchFileGitStatuses(new RepositoryCoordinates("test-project", "europe-west1", "test-repo"), "demo")).thenReturn(List.of(
                 table,
                 new UncommittedChange("node_modules/@dataform/core/package.json", UncommittedChange.ChangeState.ADDED),
                 new UncommittedChange("logs/run.log", UncommittedChange.ChangeState.MODIFIED)));
@@ -284,11 +327,11 @@ public class WorkspaceOperationsTest extends BasePlatformTestCase {
             new FakeGitRemoteBranch("main", Map.of("definitions/a.sqlx", "SELECT 'remote'"));
 
     private void repositoryIs(DataformRepository described) {
-        when(repository.findRepository("test-project", "europe-west1", "test-repo")).thenReturn(described);
+        when(repository.findRepository(new RepositoryCoordinates("test-project", "europe-west1", "test-repo"))).thenReturn(described);
     }
 
     private void repositoryUnreadable() {
-        when(repository.findRepository("test-project", "europe-west1", "test-repo"))
+        when(repository.findRepository(new RepositoryCoordinates("test-project", "europe-west1", "test-repo")))
                 .thenThrow(new GcpApiException("permission denied"));
     }
 
@@ -297,14 +340,14 @@ public class WorkspaceOperationsTest extends BasePlatformTestCase {
     }
 
     private void verifyNoRepositoryLevelRead() {
-        verify(repository, never()).listAllPaths(any(), any(), any(), any());
-        verify(repository, never()).readAllFiles(any(), any(), any(), any());
-        verify(repository, never()).getFileContent(any(), any(), any(), any(), any());
+        verify(repository, never()).listAllPaths(any(), any());
+        verify(repository, never()).readAllFiles(any(), any());
+        verify(repository, never()).getFileContent(any(), any(), any());
     }
 
     public void testAHostedRepositoryIsReadFromDataform() {
         repositoryIs(HOSTED);
-        when(repository.listAllPaths("test-project", "europe-west1", "test-repo", null))
+        when(repository.listAllPaths(new RepositoryCoordinates("test-project", "europe-west1", "test-repo"), null))
                 .thenReturn(List.of("definitions/a.sqlx"));
 
         assertSame(MainBranchSource.DATAFORM, cloneOf(BRANCH).refreshMainBranchSource());
@@ -315,6 +358,15 @@ public class WorkspaceOperationsTest extends BasePlatformTestCase {
         repositoryIs(LINKED);
 
         assertEquals(new MainBranchSource.GitRemote(BRANCH), cloneOf(BRANCH).refreshMainBranchSource());
+    }
+
+    public void testAnEmptyWorkspaceIdReadsTheGitRemoteMainBranch() {
+        repositoryIs(LINKED);
+        WorkspaceOperationsHandler handler = cloneOf(BRANCH);
+
+        assertEquals(List.of("definitions/a.sqlx"), handler.listAllPaths(""));
+        assertEquals("SELECT 'remote'", handler.getFileContent("", "definitions/a.sqlx"));
+        verifyNoRepositoryLevelRead();
     }
 
     public void testALinkedRepositoryWithoutACloneHasNoSource() {
@@ -333,7 +385,7 @@ public class WorkspaceOperationsTest extends BasePlatformTestCase {
 
     public void testAnUnreadableRepositoryIsReadFromDataformSoTheRealErrorSurfaces() {
         repositoryUnreadable();
-        when(repository.listAllPaths("test-project", "europe-west1", "test-repo", null))
+        when(repository.listAllPaths(new RepositoryCoordinates("test-project", "europe-west1", "test-repo"), null))
                 .thenThrow(new GcpApiException("repository not found"));
 
         assertSame(MainBranchSource.DATAFORM, cloneOf(BRANCH).refreshMainBranchSource());
@@ -371,15 +423,15 @@ public class WorkspaceOperationsTest extends BasePlatformTestCase {
     }
 
     public void testReadingAWorkspaceNeedsNoLookup() {
-        when(repository.getFileContent(any(), any(), any(), any(), any())).thenReturn("");
+        when(repository.getFileContent(any(), any(), any())).thenReturn("");
         WorkspaceOperationsHandler handler = cloneOf(BRANCH);
 
         handler.listAllPaths("dev");
         handler.getFileContent("dev", "definitions/a.sqlx");
         handler.fetchCode("dev");
 
-        verify(repository, never()).findRepository(any(), any(), any());
-        verify(repository).listAllPaths("test-project", "europe-west1", "test-repo", "dev");
+        verify(repository, never()).findRepository(any());
+        verify(repository).listAllPaths(new RepositoryCoordinates("test-project", "europe-west1", "test-repo"), "dev");
     }
 
     public void testReadsReuseTheKnownSource() {
@@ -390,7 +442,7 @@ public class WorkspaceOperationsTest extends BasePlatformTestCase {
         handler.listAllPaths(null);
         handler.getFileContent(null, "definitions/a.sqlx");
 
-        verify(repository, times(1)).findRepository(any(), any(), any());
+        verify(repository, times(1)).findRepository(any());
     }
 
     public void testRefreshingSeesTheRemoteBeingRemoved() {
@@ -404,7 +456,7 @@ public class WorkspaceOperationsTest extends BasePlatformTestCase {
     }
 
     public void testAFailedLookupIsNotRemembered() {
-        when(repository.findRepository("test-project", "europe-west1", "test-repo"))
+        when(repository.findRepository(new RepositoryCoordinates("test-project", "europe-west1", "test-repo")))
                 .thenThrow(new GcpApiException("offline"))
                 .thenReturn(LINKED);
         WorkspaceOperationsHandler handler = cloneOf(BRANCH);
@@ -418,7 +470,7 @@ public class WorkspaceOperationsTest extends BasePlatformTestCase {
         WorkspaceOperationsHandler handler = cloneOf(BRANCH);
         handler.mainBranchSource();
         when(fullConfig.getRepositoryId()).thenReturn("other-repo");
-        when(repository.findRepository("test-project", "europe-west1", "other-repo")).thenReturn(HOSTED);
+        when(repository.findRepository(new RepositoryCoordinates("test-project", "europe-west1", "other-repo"))).thenReturn(HOSTED);
 
         assertSame(MainBranchSource.DATAFORM, handler.mainBranchSource());
     }
@@ -450,7 +502,7 @@ public class WorkspaceOperationsTest extends BasePlatformTestCase {
     }
 
     public void testAFailedRefreshForgetsTheKnownSource() {
-        when(repository.findRepository("test-project", "europe-west1", "test-repo"))
+        when(repository.findRepository(new RepositoryCoordinates("test-project", "europe-west1", "test-repo")))
                 .thenReturn(LINKED)
                 .thenThrow(new GcpApiException("offline"))
                 .thenReturn(HOSTED);
@@ -460,7 +512,7 @@ public class WorkspaceOperationsTest extends BasePlatformTestCase {
         assertSame(MainBranchSource.DATAFORM, handler.refreshMainBranchSource());
         assertSame(MainBranchSource.DATAFORM, handler.mainBranchSource());
 
-        verify(repository, times(3)).findRepository(any(), any(), any());
+        verify(repository, times(3)).findRepository(any());
     }
 
     public void testTheActiveRepositoryIsTheOneAlreadyRead() {
@@ -470,7 +522,7 @@ public class WorkspaceOperationsTest extends BasePlatformTestCase {
 
         assertEquals(LINKED, handler.commitRoute().repository());
 
-        verify(repository, times(1)).findRepository(any(), any(), any());
+        verify(repository, times(1)).findRepository(any());
     }
 
     public void testTheActiveRepositoryIsReadWhenUnknown() {
@@ -492,13 +544,13 @@ public class WorkspaceOperationsTest extends BasePlatformTestCase {
     public void testPushingSendsTheBranchToTheApi() {
         handler(fullConfig).pushGitCommits("dev", "dev");
 
-        verify(repository).pushGitCommits(eq("test-project"), eq("europe-west1"), eq("test-repo"), eq("dev"), eq("dev"), any());
+        verify(repository).pushGitCommits(eq(new RepositoryCoordinates("test-project", "europe-west1", "test-repo")), eq("dev"), eq("dev"), any());
     }
 
     public void testPushingWithoutABranchLeavesItToTheApi() {
         handler(fullConfig).pushGitCommits("dev", null);
 
-        verify(repository).pushGitCommits(eq("test-project"), eq("europe-west1"), eq("test-repo"), eq("dev"), isNull(), any());
+        verify(repository).pushGitCommits(eq(new RepositoryCoordinates("test-project", "europe-west1", "test-repo")), eq("dev"), isNull(), any());
     }
 
     private WorkspaceOperationsHandler routing(GitRemoteBranches branches, LocalClones clones) {
@@ -540,6 +592,6 @@ public class WorkspaceOperationsTest extends BasePlatformTestCase {
         clone.set(true);
 
         assertEquals(CommitRoute.LocalClone.WITH_GIT_PLUGIN, handler.commitRoute().localClone());
-        verify(repository, times(1)).findRepository(any(), any(), any());
+        verify(repository, times(1)).findRepository(any());
     }
 }

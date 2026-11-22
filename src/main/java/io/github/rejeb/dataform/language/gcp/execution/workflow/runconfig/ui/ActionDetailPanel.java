@@ -39,6 +39,7 @@ import io.github.rejeb.dataform.language.gcp.execution.workflow.model.Invocation
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.InvocationActionState;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.model.WorkflowInvocationProgress;
 import io.github.rejeb.dataform.language.ui.Banners;
+import io.github.rejeb.dataform.language.ui.LatestRequest;
 import io.github.rejeb.dataform.language.ui.TransparentTabbedPane;
 import io.github.rejeb.dataform.language.ui.UiText;
 import org.jetbrains.annotations.NotNull;
@@ -73,7 +74,8 @@ public class ActionDetailPanel extends JPanel {
     private @Nullable InvocationActionResult shownAction;
     private @Nullable InlineBanner banner;
     private @Nullable EditorNotificationPanel.Status bannerStatus;
-    private int loadGeneration;
+    private final LatestRequest jobLoads =
+            new LatestRequest(Runnable::run, update -> ApplicationManager.getApplication().invokeLater(update));
 
     public ActionDetailPanel(@NotNull Project project, @NotNull ActionJobDetailsCache jobDetails) {
         this(project, jobDetails, ActionNavigator.NONE);
@@ -121,18 +123,16 @@ public class ActionDetailPanel extends JPanel {
                 UiText.dot(type, RunText.duration(action)));
         showBanner(progress, action);
         summaryPanel.show(progress, action, type);
-        int generation = ++loadGeneration;
+        jobLoads.cancel();
         if (action.jobId() == null || action.jobProject() == null) {
             showJobs(action, null);
             return;
         }
         detailsPanel.showLoading();
-        jobDetails.load(action).thenAccept(details ->
-                ApplicationManager.getApplication().invokeLater(() -> {
-                    if (generation != loadGeneration) return;
-                    summaryPanel.showJobDetails(details);
-                    showJobs(action, details);
-                }));
+        jobLoads.await(jobDetails.load(action), details -> {
+            summaryPanel.showJobDetails(details);
+            showJobs(action, details);
+        });
     }
 
     /**

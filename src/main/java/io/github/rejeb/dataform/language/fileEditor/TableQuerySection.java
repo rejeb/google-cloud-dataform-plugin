@@ -17,18 +17,16 @@
 package io.github.rejeb.dataform.language.fileEditor;
 
 import com.intellij.ide.BrowserUtil;
-import com.intellij.openapi.actionSystem.ActionUpdateThread;
-import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.ActionToolbar;
 import com.intellij.openapi.fileTypes.FileType;
 import com.intellij.openapi.fileTypes.PlainTextFileType;
 import com.intellij.openapi.ide.CopyPasteManager;
-import com.intellij.openapi.project.DumbAwareAction;
 import com.intellij.openapi.project.Project;
 import com.intellij.ui.InlineBanner;
 import com.intellij.ui.components.JBTabbedPane;
 import com.intellij.util.ui.JBUI;
 import io.github.rejeb.dataform.language.DataformIcons;
+import io.github.rejeb.dataform.language.ui.Actions;
 import io.github.rejeb.dataform.language.ui.Banners;
 import io.github.rejeb.dataform.language.ui.CollapsibleSection;
 import io.github.rejeb.dataform.language.ui.Toolbars;
@@ -40,7 +38,6 @@ import io.github.rejeb.dataform.language.ui.sqlviewer.SqlViewerOptions;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import javax.swing.Icon;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
 import java.awt.Component;
@@ -48,7 +45,6 @@ import java.awt.datatransfer.StringSelection;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 class TableQuerySection extends CollapsibleSection {
@@ -113,9 +109,9 @@ class TableQuerySection extends CollapsibleSection {
         setSubtitle(subtitle);
 
         ActionToolbar toolbar = Toolbars.horizontal(PLACE, this,
-                action("Copy SQL", DataformIcons.COPY, this::hasQuery, this::copySql),
-                action("Run Query", DataformIcons.RUN, this::hasQuery, this::runQuery),
-                action("Open in BigQuery Console", DataformIcons.EXTERNAL_LINK,
+                Actions.enabledWhen("Copy SQL", "Copy SQL", DataformIcons.COPY, this::hasQuery, this::copySql),
+                Actions.enabledWhen("Run Query", "Run Query", DataformIcons.RUN, this::hasQuery, this::runQuery),
+                Actions.enabledWhen("Open in BigQuery Console", "Open in BigQuery Console", DataformIcons.EXTERNAL_LINK,
                         () -> consoleProject != null && !consoleProject.isBlank(), this::openConsole));
         setTrailing(costLabel, toolbar.getComponent());
 
@@ -294,26 +290,5 @@ class TableQuerySection extends CollapsibleSection {
         viewers.add(viewer);
         viewer.setText(text);
         return viewer;
-    }
-
-    @NotNull
-    private static DumbAwareAction action(@NotNull String text, @NotNull Icon icon, @NotNull BooleanSupplier enabled,
-                                          @NotNull Runnable perform) {
-        return new DumbAwareAction(text, text, icon) {
-            @Override
-            public void actionPerformed(@NotNull AnActionEvent e) {
-                perform.run();
-            }
-
-            @Override
-            public void update(@NotNull AnActionEvent e) {
-                e.getPresentation().setEnabled(enabled.getAsBoolean());
-            }
-
-            @Override
-            public @NotNull ActionUpdateThread getActionUpdateThread() {
-                return ActionUpdateThread.EDT;
-            }
-        };
     }
 }

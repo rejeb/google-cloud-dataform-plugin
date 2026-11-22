@@ -17,6 +17,7 @@
 package io.github.rejeb.dataform.language.gcp.clone;
 
 import com.intellij.openapi.progress.ProgressIndicator;
+import io.github.rejeb.dataform.language.gcp.common.RepositoryCoordinates;
 import io.github.rejeb.dataform.language.gcp.workspace.repository.WorkspaceRepository;
 import org.jetbrains.annotations.NotNull;
 
@@ -50,8 +51,9 @@ final class WorkspaceDownload {
     void run(@NotNull RepositoryCheckoutRequest request, @NotNull ProgressIndicator indicator) throws IOException {
         indicator.setIndeterminate(true);
         indicator.checkCanceled();
-        Map<String, String> files = repository.readAllFiles(request.projectId(), request.location(),
-                request.repository().repositoryId(), request.workspaceId());
+        Map<String, String> files = repository.readAllFiles(
+                new RepositoryCoordinates(request.projectId(), request.location(), request.repository().repositoryId()),
+                request.workspaceId());
         indicator.checkCanceled();
         write(request.directory(), files);
         links.register(request.directory(), request.link());

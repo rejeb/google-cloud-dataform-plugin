@@ -21,6 +21,7 @@ import com.intellij.openapi.vcs.CheckoutProvider;
 import com.intellij.openapi.vcs.VcsKey;
 import com.intellij.testFramework.PlatformTestUtil;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
+import io.github.rejeb.dataform.language.gcp.common.RepositoryCoordinates;
 import io.github.rejeb.dataform.language.gcp.workspace.DataformRepository;
 import io.github.rejeb.dataform.language.gcp.workspace.repository.WorkspaceRepository;
 
@@ -88,7 +89,7 @@ public class DefaultRepositoryCheckoutStarterTest extends BasePlatformTestCase {
     }
 
     public void testAWorkspaceIsDownloadedAndOpened() {
-        when(repository.readAllFiles("acme", "europe-west1", "analytics-core", "dev-you"))
+        when(repository.readAllFiles(new RepositoryCoordinates("acme", "europe-west1", "analytics-core"), "dev-you"))
                 .thenReturn(Map.of("definitions/orders.sqlx", "select 1"));
 
         starter.start(new RepositoryCheckoutRequest("acme", "europe-west1",

@@ -22,6 +22,7 @@ import com.intellij.psi.PsiFile;
 import com.intellij.testFramework.ServiceContainerUtil;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
 import io.github.rejeb.dataform.language.compilation.DataformCompilationService;
+import io.github.rejeb.dataform.language.compilation.StubCompilationService;
 import io.github.rejeb.dataform.language.compilation.model.CompiledGraph;
 
 import java.util.List;
@@ -80,36 +81,5 @@ public class DataformConfigTagCompletionTest extends BasePlatformTestCase {
                 "config {\n  type: \"table\",\n  description: \"<caret>\"\n}");
 
         assertFalse("got " + lookups, lookups.contains("daily"));
-    }
-
-    private record StubCompilationService(CompiledGraph graph) implements DataformCompilationService {
-
-        @Override
-        public CompiledGraph compile(boolean forceRefresh) {
-            return graph;
-        }
-
-        @Override
-        public CompiledGraph getCompiledGraph() {
-            return graph;
-        }
-
-        @Override
-        public State getState() {
-            return new State();
-        }
-
-        @Override
-        public void loadState(@org.jetbrains.annotations.NotNull State state) {
-        }
-
-        @Override
-        public void dispose() {
-        }
-
-        @Override
-        public long getModificationCount() {
-            return 0;
-        }
     }
 }

@@ -17,6 +17,7 @@
 package io.github.rejeb.dataform.language.gcp.workspace;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 public record Workspace(@NotNull String resourceName, @NotNull String workspaceId) {
 
@@ -28,5 +29,13 @@ public record Workspace(@NotNull String resourceName, @NotNull String workspaceI
         String[] parts = resourceName.split("/");
         String id = parts.length > 0 ? parts[parts.length - 1] : resourceName;
         return new Workspace(resourceName, id);
+    }
+
+    /**
+     * @param workspaceId a workspace id, or {@code null} or empty for none
+     * @return whether it addresses the repository's main branch rather than a workspace
+     */
+    public static boolean isMainBranch(@Nullable String workspaceId) {
+        return workspaceId == null || workspaceId.isEmpty();
     }
 }

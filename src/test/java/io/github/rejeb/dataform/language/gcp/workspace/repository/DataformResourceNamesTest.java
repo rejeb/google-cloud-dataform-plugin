@@ -20,24 +20,11 @@ import com.google.api.gax.rpc.FailedPreconditionException;
 import com.google.api.gax.rpc.StatusCode;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
 public class DataformResourceNamesTest {
-
-    @Test
-    public void buildsTheRepositoryResourceName() {
-        assertEquals("projects/p/locations/europe-west1/repositories/r",
-                DataformResourceNames.repositoryName("p", "europe-west1", "r"));
-    }
-
-    @Test
-    public void buildsTheWorkspaceResourceName() {
-        assertEquals("projects/p/locations/europe-west1/repositories/r/workspaces/w",
-                DataformResourceNames.workspaceName("p", "europe-west1", "r", "w"));
-    }
 
     @Test
     public void emptyRepositoryIsRecognisedByMessage() {

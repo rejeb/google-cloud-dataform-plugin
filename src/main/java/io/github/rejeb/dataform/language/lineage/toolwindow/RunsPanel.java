@@ -31,12 +31,12 @@ import io.github.rejeb.dataform.language.DataformIcons;
 import io.github.rejeb.dataform.language.gcp.execution.workflow.runconfig.ui.RunConfigUiUtils;
 import io.github.rejeb.dataform.language.lineage.dataplex.DataplexLineageService;
 import io.github.rejeb.dataform.language.lineage.dataplex.DataplexView;
-import io.github.rejeb.dataform.language.lineage.dataplex.ProcessRun;
 import io.github.rejeb.dataform.language.lineage.dataplex.RecordedRun;
 import io.github.rejeb.dataform.language.lineage.graph.LineageNode;
 import io.github.rejeb.dataform.language.lineage.model.LineageModel;
 import io.github.rejeb.dataform.language.lineage.model.LinkRef;
 import io.github.rejeb.dataform.language.ui.EmptyStates;
+import io.github.rejeb.dataform.language.ui.LatestRequest;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -71,7 +71,7 @@ public final class RunsPanel extends JPanel {
     private static final int[] WIDTHS = {28, 130, 80, 180, 0, 130};
 
     private final Supplier<DataplexLineageService> service;
-    private final Executor executor;
+    private final LatestRequest reads;
     private final Runnable showCatalog;
     private final Consumer<String> urlOpener;
     private final RunsTableModel rows;
@@ -83,7 +83,6 @@ public final class RunsPanel extends JPanel {
     private @Nullable DataplexView shownView;
     private @Nullable LinkRef shownLink;
     private @Nullable String shownNode;
-    private long generation;
 
     /**
      * @param service     reads the recorded runs
@@ -96,7 +95,8 @@ public final class RunsPanel extends JPanel {
                      @NotNull Runnable showCatalog, @NotNull Consumer<String> urlOpener) {
         super(new BorderLayout());
         this.service = service;
-        this.executor = executor;
+        this.reads = new LatestRequest(executor,
+                update -> ApplicationManager.getApplication().invokeLater(update, ModalityState.nonModal()));
         this.showCatalog = showCatalog;
         this.urlOpener = urlOpener;
         this.rows = new RunsTableModel(clock);
@@ -221,34 +221,22 @@ public final class RunsPanel extends JPanel {
 
     private void read(@NotNull LineageModel model, @NotNull DataplexView view, @Nullable LinkRef link,
                       @Nullable String nodeId, @NotNull String none) {
-        long asked = ++generation;
-        executor.execute(() -> {
-            List<ProcessRun> runs = List.of();
-            RuntimeException failure = null;
-            try {
-                runs = link != null ? service.get().runsOfLink(view, link.fromId(), link.toId())
-                        : service.get().runsWriting(view, Objects.requireNonNull(nodeId));
-            } catch (RuntimeException e) {
-                failure = e;
-            }
-            List<ProcessRun> answer = runs;
-            RuntimeException failed = failure;
-            ApplicationManager.getApplication().invokeLater(() -> {
-                if (asked != generation) return;
-                if (failed != null) {
+        reads.submit(() -> link != null ? service.get().runsOfLink(view, link.fromId(), link.toId())
+                        : service.get().runsWriting(view, Objects.requireNonNull(nodeId)),
+                answer -> {
+                    rows.setRows(answer.stream().map(RunRow::of).toList());
+                    EmptyStates.show(table.getEmptyText(), none);
+                },
+                RuntimeException.class,
+                failed -> {
                     state = LineageToolWindowState.of(model, LineageToolWindowState.kindOf(failed));
                     header.setVisible(false);
                     EmptyStates.show(table.getEmptyText(), LineageToolWindowState.cannotAnswer(failed));
-                    return;
-                }
-                rows.setRows(answer.stream().map(RunRow::of).toList());
-                EmptyStates.show(table.getEmptyText(), none);
-            }, ModalityState.nonModal());
-        });
+                });
     }
 
     private void forget() {
-        generation++;
+        reads.cancel();
         shownView = null;
         shownLink = null;
         shownNode = null;

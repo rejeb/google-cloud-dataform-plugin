@@ -16,11 +16,14 @@
  */
 package io.github.rejeb.dataform.language.gcp.auth;
 
+import com.google.auth.oauth2.AccessToken;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.project.Project;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+
+import java.io.IOException;
 
 /**
  * Owns the Google credential used by every GCP call of the plugin. Resolution is always silent:
@@ -46,6 +49,29 @@ public interface DataformCredentialsService {
      */
     @NotNull
     GoogleCredentials get();
+
+    /**
+     * The access token of the credential from {@link #get()}, refreshed when it has expired.
+     *
+     * @param quotaProject the project the calls are billed and rate-limited against, or {@code null}
+     *                     for the credential's own
+     * @return the token value
+     * @throws IOException when the refresh fails or the credential holds no token
+     * @throws GcpAuthRequiredException when the user must sign in
+     */
+    @NotNull
+    default String accessToken(@Nullable String quotaProject) throws IOException {
+        GoogleCredentials credentials = get();
+        if (quotaProject != null) {
+            credentials = credentials.createWithQuotaProject(quotaProject);
+        }
+        credentials.refreshIfExpired();
+        AccessToken token = credentials.getAccessToken();
+        if (token == null) {
+            throw new IOException("No access token");
+        }
+        return token.getTokenValue();
+    }
 
     /**
      * Drops the in-memory credential so the next {@link #get()} re-reads the shared store.
